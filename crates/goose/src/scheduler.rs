@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
@@ -22,7 +23,7 @@ use crate::recipe::Recipe;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
-type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
+type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
 pub fn normalize_cron_expression(src: &str) -> String {
@@ -164,7 +165,7 @@ async fn persist_jobs(
 }
 
 pub struct Scheduler {
-    internal_scheduler: TokioJobScheduler,
+    tokio_scheduler: TokioJobScheduler,
     jobs: Arc<Mutex<JobsMap>>,
     storage_path: PathBuf,
     running_tasks: Arc<Mutex<RunningTasksMap>>,
@@ -180,7 +181,7 @@ impl Scheduler {
         let running_tasks = Arc::new(Mutex::new(HashMap::new()));
 
         let arc_self = Arc::new(Self {
-            internal_scheduler,
+            tokio_scheduler: internal_scheduler,
             jobs,
             storage_path,
             running_tasks,
@@ -188,7 +189,7 @@ impl Scheduler {
 
         arc_self.load_jobs_from_storage().await?;
         arc_self
-            .internal_scheduler
+            .tokio_scheduler
             .start()
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -231,6 +232,7 @@ impl Scheduler {
                 };
 
                 if !should_execute {
+                    tracing::info!("Skipping paused job '{}'", task_job_id);
                     return;
                 }
 
@@ -248,18 +250,20 @@ impl Scheduler {
                     tracing::error!("Failed to persist job status: {}", e);
                 }
 
-                let job_task = tokio::spawn(execute_job(
-                    job_to_execute,
-                    Some(current_jobs_arc.clone()),
-                    Some(task_job_id.clone()),
-                ));
-
+                let cancel_token = CancellationToken::new();
                 {
                     let mut tasks = running_tasks.lock().await;
-                    tasks.insert(task_job_id.clone(), job_task.abort_handle());
+                    tasks.insert(task_job_id.clone(), cancel_token.clone());
                 }
 
-                let result = job_task.await;
+                let result = execute_job_work(
+                    job_to_execute,
+                    None,
+                    Some(current_jobs_arc.clone()),
+                    Some(task_job_id.clone()),
+                    cancel_token.clone(),
+                )
+                .await;
 
                 {
                     let mut tasks = running_tasks.lock().await;
@@ -280,10 +284,8 @@ impl Scheduler {
                 }
 
                 match result {
-                    Ok(Ok(_)) => tracing::info!("Job '{}' completed", task_job_id),
-                    Ok(Err(e)) => tracing::error!("Job '{}' failed: {}", e.job_id, e.error),
-                    Err(e) if e.is_cancelled() => tracing::info!("Job '{}' cancelled", task_job_id),
-                    Err(e) => tracing::error!("Job '{}' task error: {}", task_job_id, e),
+                    Ok(_) => tracing::info!("Job '{}' completed", task_job_id),
+                    Err(e) => tracing::error!("Job '{}' failed: {}", e.job_id, e.error),
                 }
             })
         })
@@ -328,7 +330,7 @@ impl Scheduler {
         let cron_task = self.create_cron_task(stored_job.clone())?;
 
         let job_uuid = self
-            .internal_scheduler
+            .tokio_scheduler
             .add(cron_task)
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -362,7 +364,7 @@ impl Scheduler {
             let cron_task = self.create_cron_task(job_to_load.clone())?;
 
             let job_uuid = self
-                .internal_scheduler
+                .tokio_scheduler
                 .add(cron_task)
                 .await
                 .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -391,7 +393,7 @@ impl Scheduler {
             }
         };
 
-        self.internal_scheduler
+        self.tokio_scheduler
             .remove(&job_uuid)
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -431,7 +433,14 @@ impl Scheduler {
             let mut jobs_guard = self.jobs.lock().await;
             match jobs_guard.get_mut(sched_id) {
                 Some((_, job)) => {
+                    if job.currently_running {
+                        return Err(SchedulerError::AnyhowError(anyhow!(
+                            "Job '{}' is already running",
+                            sched_id
+                        )));
+                    }
                     job.currently_running = true;
+                    job.process_start_time = Some(Utc::now());
                     job.clone()
                 }
                 None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
@@ -440,18 +449,20 @@ impl Scheduler {
 
         persist_jobs(&self.storage_path, &self.jobs).await?;
 
-        let job_task = tokio::spawn(execute_job(
-            job_to_run,
-            Some(self.jobs.clone()),
-            Some(sched_id.to_string()),
-        ));
-
+        let cancel_token = CancellationToken::new();
         {
             let mut tasks = self.running_tasks.lock().await;
-            tasks.insert(sched_id.to_string(), job_task.abort_handle());
+            tasks.insert(sched_id.to_string(), cancel_token.clone());
         }
 
-        let result = job_task.await;
+        let result = execute_job_work(
+            job_to_run,
+            None,
+            Some(self.jobs.clone()),
+            Some(sched_id.to_string()),
+            cancel_token.clone(),
+        )
+        .await;
 
         {
             let mut tasks = self.running_tasks.lock().await;
@@ -471,20 +482,11 @@ impl Scheduler {
         persist_jobs(&self.storage_path, &self.jobs).await?;
 
         match result {
-            Ok(Ok(session_id)) => Ok(session_id),
-            Ok(Err(e)) => Err(SchedulerError::AnyhowError(anyhow!(
+            Ok(session_id) => Ok(session_id),
+            Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
                 "Job '{}' failed: {}",
                 sched_id,
                 e.error
-            ))),
-            Err(e) if e.is_cancelled() => Err(SchedulerError::AnyhowError(anyhow!(
-                "Job '{}' cancelled",
-                sched_id
-            ))),
-            Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
-                "Job '{}' task error: {}",
-                sched_id,
-                e
             ))),
         }
     }
@@ -546,14 +548,14 @@ impl Scheduler {
             }
         };
 
-        self.internal_scheduler
+        self.tokio_scheduler
             .remove(&old_uuid)
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
 
         let cron_task = self.create_cron_task(updated_job)?;
         let new_uuid = self
-            .internal_scheduler
+            .tokio_scheduler
             .add(cron_task)
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -584,22 +586,13 @@ impl Scheduler {
         }
 
         {
-            let mut tasks = self.running_tasks.lock().await;
-            if let Some(handle) = tasks.remove(sched_id) {
-                handle.abort();
+            let tasks = self.running_tasks.lock().await;
+            if let Some(token) = tasks.get(sched_id) {
+                token.cancel();
             }
         }
 
-        {
-            let mut jobs_guard = self.jobs.lock().await;
-            if let Some((_, job)) = jobs_guard.get_mut(sched_id) {
-                job.currently_running = false;
-                job.current_session_id = None;
-                job.process_start_time = None;
-            }
-        }
-
-        persist_jobs(&self.storage_path, &self.jobs).await
+        Ok(())
     }
 
     pub async fn get_running_job_info(
@@ -627,29 +620,13 @@ struct JobExecutionError {
 }
 
 #[cfg(not(test))]
-async fn execute_job(
-    job: ScheduledJob,
-    jobs_arc: Option<Arc<Mutex<JobsMap>>>,
-    job_id: Option<String>,
-) -> Result<String, JobExecutionError> {
-    run_scheduled_job_internal(job, None, jobs_arc, job_id).await
-}
-
-#[cfg(test)]
-async fn execute_job(
-    job: ScheduledJob,
-    _jobs_arc: Option<Arc<Mutex<JobsMap>>>,
-    _job_id: Option<String>,
-) -> Result<String, JobExecutionError> {
-    Ok(format!("test-session-{}", job.id))
-}
-
-async fn run_scheduled_job_internal(
+async fn execute_job_work(
     job: ScheduledJob,
     provider_override: Option<Arc<dyn GooseProvider>>,
     jobs_arc: Option<Arc<Mutex<JobsMap>>>,
     job_id: Option<String>,
-) -> std::result::Result<String, JobExecutionError> {
+    cancel_token: CancellationToken,
+) -> Result<String, JobExecutionError> {
     let recipe_path = Path::new(&job.source);
 
     let recipe_content = fs::read_to_string(recipe_path).map_err(|e| JobExecutionError {
@@ -768,7 +745,9 @@ async fn run_scheduled_job_internal(
 
     let session_id = session_config.id.clone();
     let stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-        agent.reply(user_message, session_config, None).await
+        agent
+            .reply(user_message, session_config, Some(cancel_token))
+            .await
     })
     .await
     .map_err(|e| JobExecutionError {
@@ -807,6 +786,17 @@ async fn run_scheduled_job_internal(
     }
 
     Ok(session.id)
+}
+
+#[cfg(test)]
+async fn execute_job_work(
+    job: ScheduledJob,
+    _provider_override: Option<Arc<dyn GooseProvider>>,
+    _jobs_arc: Option<Arc<Mutex<JobsMap>>>,
+    _job_id: Option<String>,
+    _cancel_token: CancellationToken,
+) -> Result<String, JobExecutionError> {
+    Ok(format!("test-session-{}", job.id))
 }
 
 #[cfg(test)]
