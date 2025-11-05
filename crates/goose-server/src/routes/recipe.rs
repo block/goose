@@ -249,6 +249,7 @@ async fn decode_recipe(
                     );
 
                     let recipe_id = recipe.title.to_lowercase().replace(' ', "-");
+                    let error_msg = format!("Failed to fetch subrecipes for '{}'. Desktop limitation: subrecipes can only be fetched from the goose repository.", recipe.title);
 
                     match fetch_and_store_subrecipes(sub_recipes, &recipe_id).await {
                         Ok(updated_sub_recipes) => {
@@ -260,19 +261,13 @@ async fn decode_recipe(
                                 );
                                 recipe.sub_recipes = Some(updated_sub_recipes);
                             } else {
-                                tracing::warn!(
-                                    "No subrecipes were successfully fetched for '{}'",
-                                    recipe.title
-                                );
+                                tracing::error!("{}", error_msg);
+                                return Err(StatusCode::BAD_REQUEST);
                             }
                         }
                         Err(e) => {
-                            tracing::error!(
-                                "Failed to fetch subrecipes for '{}': {}",
-                                recipe.title,
-                                e
-                            );
-                            // Continue anyway - the recipe might still work without subrecipes
+                            tracing::error!("{}: {}", error_msg, e);
+                            return Err(StatusCode::BAD_REQUEST);
                         }
                     }
                 }
