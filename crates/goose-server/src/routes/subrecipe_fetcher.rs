@@ -9,16 +9,19 @@ const GOOSE_RECIPES_BRANCH: &str = "main";
 const RECIPES_BASE_PATH: &str = "documentation/src/pages/recipes/data/recipes";
 const REQUEST_TIMEOUT_SECS: u64 = 10;
 
-async fn fetch_subrecipe_from_github(sub_recipe: &SubRecipe) -> Result<String> {
-    let path = Path::new(&sub_recipe.path);
-
-    let filename = if sub_recipe.path.starts_with("./") || sub_recipe.path.starts_with("../") {
-        path.file_name()
+fn extract_filename(path: &str) -> Result<&str> {
+    if path.starts_with("./") || path.starts_with("../") {
+        Path::new(path)
+            .file_name()
             .and_then(|f| f.to_str())
-            .ok_or_else(|| anyhow!("Invalid subrecipe path: {}", sub_recipe.path))?
+            .ok_or_else(|| anyhow!("Invalid subrecipe path: {}", path))
     } else {
-        sub_recipe.path.as_str()
-    };
+        Ok(path)
+    }
+}
+
+async fn fetch_subrecipe_from_github(sub_recipe: &SubRecipe) -> Result<String> {
+    let filename = extract_filename(&sub_recipe.path)?;
 
     let url = format!(
         "https://raw.githubusercontent.com/{}/{}/{}/subrecipes/{}",
@@ -74,11 +77,7 @@ pub async fn fetch_and_store_subrecipes(
                     .join(&recipe_id);
                 fs::create_dir_all(&temp_dir)?;
 
-                let filename = Path::new(&sub_recipe.path)
-                    .file_name()
-                    .and_then(|f| f.to_str())
-                    .ok_or_else(|| anyhow!("Invalid subrecipe path: {}", sub_recipe.path))?;
-
+                let filename = extract_filename(&sub_recipe.path)?;
                 let local_path = temp_dir.join(filename);
                 fs::write(&local_path, content)?;
 
