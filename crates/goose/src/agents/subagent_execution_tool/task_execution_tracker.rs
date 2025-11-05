@@ -39,7 +39,7 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
                 .map(|(k, v)| format!("{}={}", k, v))
                 .collect();
             if !param_strs.is_empty() {
-                param_strs.sort(); // Sort for consistent display
+                param_strs.sort();
                 return param_strs.join(", ");
             }
         }

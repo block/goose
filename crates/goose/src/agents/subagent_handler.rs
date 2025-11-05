@@ -174,7 +174,6 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             }
         }
 
-        // Extract final output if FinalOutputTool was used
         let final_output = if has_response_schema {
             agent
                 .final_output_tool
