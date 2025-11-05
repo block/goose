@@ -41,6 +41,7 @@ use crate::routes::recipe_utils::{
     get_all_recipes_manifests, get_recipe_file_path_by_id, short_id_from_path, validate_recipe,
     RecipeValidationError,
 };
+use crate::routes::subrecipe_fetcher::fetch_and_store_subrecipes;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -238,10 +239,50 @@ async fn decode_recipe(
     Json(request): Json<DecodeRecipeRequest>,
 ) -> Result<Json<DecodeRecipeResponse>, StatusCode> {
     match recipe_deeplink::decode(&request.deeplink) {
-        Ok(recipe) => match validate_recipe(&recipe) {
-            Ok(_) => Ok(Json(DecodeRecipeResponse { recipe })),
-            Err(RecipeValidationError { status, .. }) => Err(status),
-        },
+        Ok(mut recipe) => {
+            if let Some(sub_recipes) = recipe.sub_recipes.clone() {
+                if !sub_recipes.is_empty() {
+                    tracing::info!(
+                        "Recipe '{}' has {} subrecipe(s), fetching from GitHub...",
+                        recipe.title,
+                        sub_recipes.len()
+                    );
+
+                    let recipe_id = recipe.title.to_lowercase().replace(' ', "-");
+
+                    match fetch_and_store_subrecipes(sub_recipes, &recipe_id).await {
+                        Ok(updated_sub_recipes) => {
+                            if !updated_sub_recipes.is_empty() {
+                                tracing::info!(
+                                    "Successfully fetched {} subrecipe(s) for '{}'",
+                                    updated_sub_recipes.len(),
+                                    recipe.title
+                                );
+                                recipe.sub_recipes = Some(updated_sub_recipes);
+                            } else {
+                                tracing::warn!(
+                                    "No subrecipes were successfully fetched for '{}'",
+                                    recipe.title
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                "Failed to fetch subrecipes for '{}': {}",
+                                recipe.title,
+                                e
+                            );
+                            // Continue anyway - the recipe might still work without subrecipes
+                        }
+                    }
+                }
+            }
+
+            match validate_recipe(&recipe) {
+                Ok(_) => Ok(Json(DecodeRecipeResponse { recipe })),
+                Err(RecipeValidationError { status, .. }) => Err(status),
+            }
+        }
         Err(err) => {
             tracing::error!("Failed to decode deeplink: {}", err);
             Err(StatusCode::BAD_REQUEST)

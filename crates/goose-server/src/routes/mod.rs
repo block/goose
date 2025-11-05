@@ -9,6 +9,7 @@ pub mod schedule;
 pub mod session;
 pub mod setup;
 pub mod status;
+pub mod subrecipe_fetcher;
 pub mod utils;
 
 use std::sync::Arc;
