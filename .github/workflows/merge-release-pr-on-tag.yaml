@@ -3,7 +3,7 @@ name: Merge release PR on tag push
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'  # Matches v1.2.3, v10.20.30, etc.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   actions: write
