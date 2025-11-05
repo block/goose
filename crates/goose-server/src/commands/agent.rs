@@ -65,8 +65,11 @@ pub async fn run() -> Result<()> {
     info!("listening on {}", local_addr);
 
     let port = local_addr.port();
+
     let app_state_clone = app_state.clone();
     tokio::spawn(async move {
+        // we seem to need to wait before we open the tunnel
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         app_state_clone.auto_start_tunnel(port).await;
     });
 
