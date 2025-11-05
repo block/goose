@@ -110,7 +110,11 @@ const ScheduleCard: React.FC<{
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  job.paused ? onUnpause(job.id) : onPause(job.id);
+                  if (job.paused) {
+                    onUnpause(job.id);
+                  } else {
+                    onPause(job.id);
+                  }
                 }}
                 disabled={actionInProgress}
                 variant="outline"

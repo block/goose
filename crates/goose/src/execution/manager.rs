@@ -1,8 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
-use crate::scheduler_factory::SchedulerFactory;
-use crate::scheduler_trait::SchedulerTrait;
+use crate::scheduler::Scheduler;
 use anyhow::Result;
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -16,7 +15,7 @@ static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 
 pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
-    scheduler: Arc<dyn SchedulerTrait>,
+    scheduler: Arc<Scheduler>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
 }
 
@@ -35,7 +34,7 @@ impl AgentManager {
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
         let schedule_file_path = Paths::data_dir().join("schedule.json");
 
-        let scheduler = SchedulerFactory::create(schedule_file_path).await?;
+        let scheduler = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
@@ -59,7 +58,7 @@ impl AgentManager {
             .cloned()
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
+    pub async fn scheduler(&self) -> Result<Arc<Scheduler>> {
         Ok(Arc::clone(&self.scheduler))
     }
 

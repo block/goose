@@ -34,7 +34,6 @@ pub struct KillJobResponse {
     message: String,
 }
 
-// Response for the inspect endpoint
 #[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectJobResponse {

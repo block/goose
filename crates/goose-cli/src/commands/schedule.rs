@@ -1,10 +1,9 @@
 use anyhow::{bail, Context, Result};
 use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use goose::scheduler::{
-    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob,
+    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
 };
-use goose::scheduler_factory::SchedulerFactory;
 use std::path::Path;
 
 // Base64 decoding function - might be needed if recipe_source_arg can be base64
@@ -102,7 +101,7 @@ pub async fn handle_schedule_add(
 
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
@@ -147,7 +146,7 @@ pub async fn handle_schedule_add(
 pub async fn handle_schedule_list() -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
@@ -182,7 +181,7 @@ pub async fn handle_schedule_list() -> Result<()> {
 pub async fn handle_schedule_remove(id: String) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
@@ -204,7 +203,7 @@ pub async fn handle_schedule_remove(id: String) -> Result<()> {
 pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
@@ -236,7 +235,7 @@ pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Resul
 pub async fn handle_schedule_run_now(id: String) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
