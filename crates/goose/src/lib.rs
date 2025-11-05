@@ -24,3 +24,4 @@ pub mod utils;
 
 #[cfg(test)]
 mod cron_test;
+pub mod scheduler_trait;

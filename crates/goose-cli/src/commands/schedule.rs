@@ -150,7 +150,7 @@ pub async fn handle_schedule_list() -> Result<()> {
         .await
         .context("Failed to initialize scheduler")?;
 
-    let jobs = scheduler.list_scheduled_jobs().await?;
+    let jobs = scheduler.list_scheduled_jobs().await;
     if jobs.is_empty() {
         println!("No scheduled jobs found.");
     } else {

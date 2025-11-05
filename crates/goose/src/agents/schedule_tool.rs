@@ -11,7 +11,7 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use super::Agent;
 use crate::recipe::Recipe;
-use crate::scheduler::Scheduler;
+use crate::scheduler_trait::SchedulerTrait;
 
 impl Agent {
     /// Handle schedule management tool calls
@@ -61,7 +61,10 @@ impl Agent {
         }
     }
 
-    async fn handle_list_jobs(&self, scheduler: Arc<Scheduler>) -> ToolResult<Vec<Content>> {
+    async fn handle_list_jobs(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+    ) -> ToolResult<Vec<Content>> {
         let jobs = scheduler.list_scheduled_jobs().await;
         let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
             ErrorData::new(
@@ -78,7 +81,7 @@ impl Agent {
 
     async fn handle_create_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let recipe_path = arguments
@@ -177,7 +180,7 @@ impl Agent {
     /// Run a scheduled job immediately
     async fn handle_run_now(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -207,7 +210,7 @@ impl Agent {
     /// Pause a scheduled job
     async fn handle_pause_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -237,7 +240,7 @@ impl Agent {
     /// Resume a paused scheduled job
     async fn handle_unpause_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -267,7 +270,7 @@ impl Agent {
     /// Delete a scheduled job
     async fn handle_delete_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -297,7 +300,7 @@ impl Agent {
     /// Terminate a currently running job
     async fn handle_kill_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -327,7 +330,7 @@ impl Agent {
     /// Get information about a running job
     async fn handle_inspect_job(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments
@@ -364,7 +367,7 @@ impl Agent {
     /// List execution sessions for a job
     async fn handle_list_sessions(
         &self,
-        scheduler: Arc<Scheduler>,
+        scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
     ) -> ToolResult<Vec<Content>> {
         let job_id = arguments

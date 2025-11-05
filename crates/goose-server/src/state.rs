@@ -26,7 +26,7 @@ impl AppState {
         }))
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<Scheduler>, anyhow::Error> {
+    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
         self.agent_manager.scheduler().await
     }
 

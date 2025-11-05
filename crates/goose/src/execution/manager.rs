@@ -2,6 +2,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
 use crate::scheduler::Scheduler;
+use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -15,7 +16,7 @@ static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 
 pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
-    scheduler: Arc<Scheduler>,
+    scheduler: Arc<dyn SchedulerTrait>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
 }
 
@@ -58,7 +59,7 @@ impl AgentManager {
             .cloned()
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<Scheduler>> {
+    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
         Ok(Arc::clone(&self.scheduler))
     }
 

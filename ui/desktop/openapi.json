@@ -2304,10 +2304,6 @@
           "cron": {
             "type": "string"
           },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
-          },
           "id": {
             "type": "string"
           },
