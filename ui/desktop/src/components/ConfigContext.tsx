@@ -19,7 +19,6 @@ import type {
   ExtensionQuery,
   ExtensionConfig,
 } from '../api';
-import { removeShims } from './settings/extensions/utils';
 
 export type { ExtensionConfig } from '../api/types.gen';
 
@@ -122,10 +121,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const addExtension = useCallback(
     async (name: string, config: ExtensionConfig, enabled: boolean) => {
-      // remove shims if present
-      if (config.type === 'stdio') {
-        config.cmd = removeShims(config.cmd);
-      }
       const query: ExtensionQuery = { name, config, enabled };
       await apiAddExtension({
         body: query,

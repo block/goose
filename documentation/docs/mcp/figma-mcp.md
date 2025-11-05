@@ -1,6 +1,6 @@
 ---
 title: Figma Extension
-description: Add Figma Dev Mode MCP Server as a Goose Extension
+description: Add Figma Dev Mode MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,7 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Figma Dev Mode MCP Server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Dev-Mode-MCP-Server) as a Goose extension to enable interaction with Figma files, designs, and components.
+This tutorial covers how to add the [Figma Dev Mode MCP Server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Dev-Mode-MCP-Server) as a goose extension to enable interaction with Figma files, designs, and components.
 
 :::info
 The MCP Server requires a Dev or Full seat on Professional, Organization, or Enterprise Figma plans.
@@ -49,7 +49,7 @@ The Dev Mode MCP Server must be enabled in the [Figma desktop app](https://www.f
    2. In the right panel, toggle `Enable MCP server`
    :::
 
-2. Add the Figma extension to Goose:
+2. Add the Figma extension to goose:
    <Tabs groupId="interface">
      <TabItem value="ui" label="goose Desktop" default>
        <GooseDesktopInstaller
@@ -63,6 +63,7 @@ The Dev Mode MCP Server must be enabled in the [Figma desktop app](https://www.f
      <TabItem value="cli" label="goose CLI">
        <CLIExtensionInstructions            
          name="figma"
+         description="Convert Figma designs into code and extract design context"
          type="http"
          url="http://127.0.0.1:3845/mcp"
          timeout={300}
@@ -72,7 +73,7 @@ The Dev Mode MCP Server must be enabled in the [Figma desktop app](https://www.f
 
 ## Example Usage
 
-The Figma extension in Goose works alongside the Figma desktop app. You can use the extension to:
+The Figma extension in goose works alongside the Figma desktop app. You can use the extension to:
 - Convert Figma designs into production-ready code (React, Vue, HTML/CSS, etc.)
 - Extract design tokens, variables, and generate design system rules
 - Capture visual references of your designs
@@ -82,16 +83,16 @@ Let's try converting a Figma design into React code. First, copy the link:
   2. In the layers panel, right-click any frame or component and choose `Copy link to selection`
 
 :::tip
-You can provide Goose with a Figma link or simply select an element in the Figma desktop app.
+You can provide goose with a Figma link or simply select an element in the Figma desktop app.
 :::
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Convert this to React: https://www.figma.com/design/B6IFM1qjwxJw5fOYJYKRl5/Buttons-?node-id=351-8&m=dev
 ```
 
-### Goose Output
+### goose Output
 
 :::note Desktop
 
@@ -156,7 +157,7 @@ export default function Component2() {
 
 #### Component Structure:
 - **Background**: Light gray rounded container (#d9d9d9)
-- **Logo**: Goose silhouette image positioned on the left side
+- **Logo**: goose silhouette image positioned on the left side
 - **Text**: "ask goose" text positioned on the right in dark gray (#333b43)
 
 The component maintains the exact visual hierarchy and styling from your Figma design while being fully responsive and ready to integrate into a React application with Tailwind CSS.

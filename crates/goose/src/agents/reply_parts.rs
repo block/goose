@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
+use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
@@ -18,6 +19,79 @@ use crate::providers::toolshim::{
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::session::SessionManager;
 use rmcp::model::Tool;
+
+fn coerce_value(s: &str, schema: &Value) -> Value {
+    let type_str = schema.get("type");
+
+    match type_str {
+        Some(Value::String(t)) => match t.as_str() {
+            "number" | "integer" => try_coerce_number(s),
+            "boolean" => try_coerce_boolean(s),
+            _ => Value::String(s.to_string()),
+        },
+        Some(Value::Array(types)) => {
+            // Try each type in order
+            for t in types {
+                if let Value::String(type_name) = t {
+                    match type_name.as_str() {
+                        "number" | "integer" if s.parse::<f64>().is_ok() => {
+                            return try_coerce_number(s)
+                        }
+                        "boolean" if matches!(s.to_lowercase().as_str(), "true" | "false") => {
+                            return try_coerce_boolean(s)
+                        }
+                        _ => continue,
+                    }
+                }
+            }
+            Value::String(s.to_string())
+        }
+        _ => Value::String(s.to_string()),
+    }
+}
+
+fn try_coerce_number(s: &str) -> Value {
+    if let Ok(n) = s.parse::<f64>() {
+        if n.fract() == 0.0 && n >= i64::MIN as f64 && n <= i64::MAX as f64 {
+            json!(n as i64)
+        } else {
+            json!(n)
+        }
+    } else {
+        Value::String(s.to_string())
+    }
+}
+
+fn try_coerce_boolean(s: &str) -> Value {
+    match s.to_lowercase().as_str() {
+        "true" => json!(true),
+        "false" => json!(false),
+        _ => Value::String(s.to_string()),
+    }
+}
+
+fn coerce_tool_arguments(
+    arguments: Option<serde_json::Map<String, Value>>,
+    tool_schema: &Value,
+) -> Option<serde_json::Map<String, Value>> {
+    let args = arguments?;
+
+    let properties = tool_schema.get("properties").and_then(|p| p.as_object())?;
+
+    let mut coerced = serde_json::Map::new();
+
+    for (key, value) in args.iter() {
+        let coerced_value =
+            if let (Value::String(s), Some(prop_schema)) = (value, properties.get(key)) {
+                coerce_value(s, prop_schema)
+            } else {
+                value.clone()
+            };
+        coerced.insert(key.clone(), coerced_value);
+    }
+
+    Some(coerced)
+}
 
 async fn toolshim_postprocess(
     response: Message,
@@ -67,6 +141,8 @@ impl Agent {
 
         // Prepare system prompt
         let extensions_info = self.extension_manager.get_extensions_info().await;
+        let (extension_count, tool_count) =
+            self.extension_manager.get_extension_and_tool_counts().await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -74,15 +150,13 @@ impl Agent {
         let model_name = &model_config.model_name;
 
         let prompt_manager = self.prompt_manager.lock().await;
-        let mut system_prompt = prompt_manager.build_system_prompt(
-            extensions_info,
-            self.frontend_instructions.lock().await.clone(),
-            self.extension_manager
-                .suggest_disable_extensions_prompt()
-                .await,
-            model_name,
-            router_enabled,
-        );
+        let mut system_prompt = prompt_manager
+            .builder(model_name)
+            .with_extensions(extensions_info.into_iter())
+            .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_extension_and_tool_counts(extension_count, tool_count)
+            .with_router_enabled(router_enabled)
+            .build();
 
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];
@@ -190,13 +264,25 @@ impl Agent {
         &self,
         response: &Message,
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
-        // First collect all tool requests
+        let tools = self.list_tools(None).await;
+
+        // First collect all tool requests with coercion applied
         let tool_requests: Vec<ToolRequest> = response
             .content
             .iter()
             .filter_map(|content| {
                 if let MessageContent::ToolRequest(req) = content {
-                    Some(req.clone())
+                    let mut coerced_req = req.clone();
+
+                    if let Ok(ref mut tool_call) = coerced_req.tool_call {
+                        if let Some(tool) = tools.iter().find(|t| t.name == tool_call.name) {
+                            let schema_value = Value::Object(tool.input_schema.as_ref().clone());
+                            tool_call.arguments =
+                                coerce_tool_arguments(tool_call.arguments.clone(), &schema_value);
+                        }
+                    }
+
+                    Some(coerced_req)
                 } else {
                     None
                 }
@@ -255,6 +341,7 @@ impl Agent {
     pub(crate) async fn update_session_metrics(
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
+        is_compaction_usage: bool,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
         let session = SessionManager::get_session(session_id, false).await?;
@@ -273,11 +360,23 @@ impl Agent {
         let accumulated_output =
             accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
 
+        let (current_total, current_input, current_output) = if is_compaction_usage {
+            // After compaction: summary output becomes new input context
+            let new_input = usage.usage.output_tokens;
+            (new_input, new_input, None)
+        } else {
+            (
+                usage.usage.total_tokens,
+                usage.usage.input_tokens,
+                usage.usage.output_tokens,
+            )
+        };
+
         SessionManager::update_session(session_id)
             .schedule_id(session_config.schedule_id.clone())
-            .total_tokens(usage.usage.total_tokens)
-            .input_tokens(usage.usage.input_tokens)
-            .output_tokens(usage.usage.output_tokens)
+            .total_tokens(current_total)
+            .input_tokens(current_input)
+            .output_tokens(current_output)
             .accumulated_total_tokens(accumulated_total)
             .accumulated_input_tokens(accumulated_input)
             .accumulated_output_tokens(accumulated_output)
@@ -307,6 +406,10 @@ mod tests {
     impl Provider for MockProvider {
         fn metadata() -> crate::providers::base::ProviderMetadata {
             crate::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "mock"
         }
 
         fn get_model_config(&self) -> ModelConfig {

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-icons/io';
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
 import { Alert, AlertType } from './types';
 import { upsertConfig } from '../../api';
+import { useConfig } from '../ConfigContext';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,
@@ -24,17 +25,36 @@ const alertStyles: Record<AlertType, string> = {
 };
 
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
+  const { read } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
+  const [loadedThreshold, setLoadedThreshold] = useState<number | null>(null);
   const [thresholdValue, setThresholdValue] = useState(
-    alert.autoCompactThreshold ? Math.round(alert.autoCompactThreshold * 100) : 80
+    alert.autoCompactThreshold ? Math.max(1, Math.round(alert.autoCompactThreshold * 100)) : 80
   );
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const loadThreshold = async () => {
+      try {
+        const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
+        if (threshold !== undefined && threshold !== null) {
+          setLoadedThreshold(threshold as number);
+          setThresholdValue(Math.max(1, Math.round((threshold as number) * 100)));
+        }
+      } catch (err) {
+        console.error('Error fetching auto-compact threshold:', err);
+      }
+    };
+
+    loadThreshold();
+  }, [read]);
+
+  const currentThreshold = loadedThreshold !== null ? loadedThreshold : alert.autoCompactThreshold;
 
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
 
-    // Validate threshold value - allow 0 and 100 as special values to disable
-    const validThreshold = Math.max(0, Math.min(100, thresholdValue));
+    let validThreshold = Math.max(1, Math.min(100, thresholdValue));
     if (validThreshold !== thresholdValue) {
       setThresholdValue(validThreshold);
     }
@@ -52,6 +72,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       });
 
       setIsEditingThreshold(false);
+      setLoadedThreshold(newThreshold);
 
       // Notify parent component of the threshold change
       if (alert.onThresholdChange) {
@@ -82,14 +103,14 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <span className="text-[11px]">{alert.message}</span>
 
           {/* Auto-compact threshold indicator with edit */}
-          {alert.autoCompactThreshold !== undefined && (
+          {currentThreshold !== undefined && (
             <div className="flex items-center justify-center gap-1 min-h-[20px]">
               {isEditingThreshold ? (
                 <>
-                  <span className="text-[10px] opacity-70">Auto summarize at</span>
+                  <span className="text-[10px] opacity-70">Auto compact at</span>
                   <input
                     type="number"
-                    min="0"
+                    min="1"
                     max="100"
                     step="1"
                     value={thresholdValue}
@@ -97,17 +118,17 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                       const val = parseInt(e.target.value, 10);
                       // Allow empty input for easier editing
                       if (e.target.value === '') {
-                        setThresholdValue(0);
+                        setThresholdValue(1);
                       } else if (!isNaN(val)) {
-                        // Clamp value between 0 and 100
-                        setThresholdValue(Math.max(0, Math.min(100, val)));
+                        // Clamp value between 1 and 100
+                        setThresholdValue(Math.max(1, Math.min(100, val)));
                       }
                     }}
                     onBlur={(e) => {
                       // On blur, ensure we have a valid value
                       const val = parseInt(e.target.value, 10);
-                      if (isNaN(val) || val < 0) {
-                        setThresholdValue(0);
+                      if (isNaN(val) || val < 1) {
+                        setThresholdValue(1);
                       } else if (val > 100) {
                         setThresholdValue(100);
                       }
@@ -117,11 +138,10 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                         handleSaveThreshold();
                       } else if (e.key === 'Escape') {
                         setIsEditingThreshold(false);
-                        setThresholdValue(
-                          alert.autoCompactThreshold
-                            ? Math.round(alert.autoCompactThreshold * 100)
-                            : 80
-                        );
+                        const resetValue = currentThreshold
+                          ? Math.round(currentThreshold * 100)
+                          : 80;
+                        setThresholdValue(Math.max(1, resetValue));
                       }
                     }}
                     onFocus={(e) => {
@@ -154,9 +174,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               ) : (
                 <>
                   <span className="text-[10px] opacity-70">
-                    {alert.autoCompactThreshold === 0 || alert.autoCompactThreshold === 1
-                      ? 'Auto summarize disabled'
-                      : `Auto summarize at ${Math.round(alert.autoCompactThreshold * 100)}%`}
+                    Auto compact at {Math.round(currentThreshold * 100)}%
                   </span>
                   <button
                     type="button"
@@ -176,46 +194,56 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           )}
 
           <div className="flex justify-between w-full relative">
-            {[...Array(30)].map((_, i) => {
-              const progress = alert.progress!.current / alert.progress!.total;
-              const progressPercentage = Math.round(progress * 100);
-              const dotPosition = i / 29; // 0 to 1 range for 30 dots
-              const isActive = dotPosition <= progress;
-              const isThresholdDot =
-                alert.autoCompactThreshold !== undefined &&
-                alert.autoCompactThreshold > 0 &&
-                alert.autoCompactThreshold < 1 &&
-                Math.abs(dotPosition - alert.autoCompactThreshold) < 0.017; // ~1/30 tolerance
-
-              // Determine the color based on progress percentage
-              const getProgressColor = () => {
-                if (progressPercentage <= 50) {
-                  return 'bg-green-500'; // Green for 0-50%
-                } else if (progressPercentage <= 75) {
-                  return 'bg-yellow-500'; // Yellow for 51-75%
-                } else if (progressPercentage <= 90) {
-                  return 'bg-orange-500'; // Orange for 76-90%
-                } else {
-                  return 'bg-red-500'; // Red for 91-100%
+            {(() => {
+              let closestDotIndex = -1;
+              if (currentThreshold !== undefined && currentThreshold > 0 && currentThreshold <= 1) {
+                let minDistance = Infinity;
+                for (let j = 0; j < 30; j++) {
+                  const dotPos = j / 29;
+                  const distance = Math.abs(dotPos - currentThreshold);
+                  if (distance < minDistance) {
+                    minDistance = distance;
+                    closestDotIndex = j;
+                  }
                 }
-              };
+              }
 
-              const progressColor = getProgressColor();
-              const inactiveColor = 'bg-gray-300 dark:bg-gray-600';
+              return [...Array(30)].map((_, i) => {
+                const progress = alert.progress!.current / alert.progress!.total;
+                const progressPercentage = Math.round(progress * 100);
+                const dotPosition = i / 29; // 0 to 1 range for 30 dots
+                const isActive = dotPosition <= progress;
+                const isThresholdDot = i === closestDotIndex;
 
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    'rounded-full transition-all relative',
-                    isThresholdDot
-                      ? 'h-[6px] w-[6px] -mt-[2px]' // Make threshold dot twice as large
-                      : 'h-[2px] w-[2px]',
-                    isActive ? progressColor : inactiveColor
-                  )}
-                />
-              );
-            })}
+                const getProgressColor = () => {
+                  if (progressPercentage <= 50) {
+                    return 'bg-green-500';
+                  } else if (progressPercentage <= 75) {
+                    return 'bg-yellow-500';
+                  } else if (progressPercentage <= 90) {
+                    return 'bg-orange-500';
+                  } else {
+                    return 'bg-red-500';
+                  }
+                };
+
+                const progressColor = getProgressColor();
+                const inactiveColor = 'bg-gray-300 dark:bg-gray-600';
+
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'rounded-full transition-all relative',
+                      isThresholdDot
+                        ? 'h-[6px] w-[6px] -mt-[2px]' // Make threshold dot twice as large
+                        : 'h-[2px] w-[2px]',
+                      isActive ? progressColor : inactiveColor
+                    )}
+                  />
+                );
+              });
+            })()}
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">

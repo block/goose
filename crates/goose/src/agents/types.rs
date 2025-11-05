@@ -1,13 +1,16 @@
 use crate::mcp_utils::ToolResult;
+use crate::providers::base::Provider;
 use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<Content>>)>>>;
+
+// We use double Arc here to allow easy provider swaps while sharing concurrent access
+pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
 
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
@@ -80,14 +83,10 @@ pub struct FrontendTool {
 /// Session configuration for an agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfig {
-    /// Unique identifier for the session
+    /// Identifier of the underlying Session
     pub id: String,
-    /// Working directory for the session
-    pub working_dir: PathBuf,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
-    /// Execution mode for scheduled jobs: "foreground" or "background"
-    pub execution_mode: Option<String>,
     /// Maximum number of turns (iterations) allowed without user input
     pub max_turns: Option<u32>,
     /// Retry configuration for automated validation and recovery

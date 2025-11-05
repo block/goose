@@ -19,6 +19,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
@@ -27,6 +28,7 @@ use goose_bench::runners::metric_aggregator::MetricAggregator;
 use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
+use tracing::warn;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -35,9 +37,9 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = false)]
-struct Identifier {
+pub struct Identifier {
     #[arg(
         short,
         long,
@@ -46,7 +48,7 @@ struct Identifier {
         long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
         alias = "id"
     )]
-    name: Option<String>,
+    pub name: Option<String>,
 
     #[arg(
         long = "session-id",
@@ -54,7 +56,7 @@ struct Identifier {
         help = "Session ID (e.g., '20250921_143022')",
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
-    session_id: Option<String>,
+    pub session_id: Option<String>,
 
     #[arg(
         short,
@@ -64,18 +66,89 @@ struct Identifier {
         long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
 jsonl' -> '20250325_200615')."
     )]
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
-async fn get_session_id(identifier: Identifier) -> Result<String> {
+async fn get_or_create_session_id(
+    identifier: Option<Identifier>,
+    resume: bool,
+    no_session: bool,
+) -> Result<Option<String>> {
+    if no_session {
+        return Ok(None);
+    }
+
+    let Some(id) = identifier else {
+        return if resume {
+            let sessions = SessionManager::list_sessions().await?;
+            let session_id = sessions
+                .first()
+                .map(|s| s.id.clone())
+                .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
+            Ok(Some(session_id))
+        } else {
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                "CLI Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
+            Ok(Some(session.id))
+        };
+    };
+
+    if let Some(session_id) = id.session_id {
+        Ok(Some(session_id))
+    } else if let Some(name) = id.name {
+        if resume {
+            let sessions = SessionManager::list_sessions().await?;
+            let session_id = sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
+            Ok(Some(session_id))
+        } else {
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+            )
+            .await?;
+
+            SessionManager::update_session(&session.id)
+                .user_provided_name(name)
+                .apply()
+                .await?;
+
+            Ok(Some(session.id))
+        }
+    } else if let Some(path) = id.path {
+        let session_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
+        Ok(Some(session_id))
+    } else {
+        let session = SessionManager::create_session(
+            std::env::current_dir()?,
+            "CLI Session".to_string(),
+            SessionType::User,
+        )
+        .await?;
+        Ok(Some(session.id))
+    }
+}
+
+async fn lookup_session_id(identifier: Identifier) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
         let sessions = SessionManager::list_sessions().await?;
-
         sessions
             .into_iter()
-            .find(|s| s.id == name || s.description.contains(&name))
+            .find(|s| s.name == name || s.id == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
     } else if let Some(path) = identifier.path {
@@ -84,9 +157,10 @@ async fn get_session_id(identifier: Identifier) -> Result<String> {
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
     } else {
-        unreachable!()
+        Err(anyhow::anyhow!("No identifier provided"))
     }
 }
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
@@ -208,11 +282,11 @@ enum SchedulerCommand {
         #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
         id: String,
     },
-    /// Check status of Temporal services (temporal scheduler only)
-    #[command(about = "Check status of Temporal services")]
+    /// Check status of scheduler services (deprecated - no external services needed)
+    #[command(about = "Check status of scheduler services")]
     ServicesStatus {},
-    /// Stop Temporal services (temporal scheduler only)
-    #[command(about = "Stop Temporal services")]
+    /// Stop scheduler services (deprecated - no external services needed)
+    #[command(about = "Stop scheduler services")]
     ServicesStop {},
     /// Show cron expression examples and help
     #[command(about = "Show cron expression examples and help")]
@@ -646,6 +720,16 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
+        /// Output format (text, json)
+        #[arg(
+            long = "output-format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text",
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
+        )]
+        output_format: String,
+
         /// Provider to use for this run (overrides environment variable)
         #[arg(
             long = "provider",
@@ -755,12 +839,11 @@ pub struct RecipeInfo {
     pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
-pub async fn cli() -> Result<()> {
+pub async fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Track the current directory in projects.json
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        eprintln!("Warning: Failed to update project tracker: {}", e);
+        warn!("Warning: Failed to update project tracker: {}", e);
     }
 
     let command_name = match &cli.command {
@@ -788,20 +871,17 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Configure {}) => {
-            let _ = handle_configure().await;
-            return Ok(());
+            handle_configure().await?;
         }
         Some(Command::Info { verbose }) => {
             handle_info(verbose)?;
-            return Ok(());
         }
         Some(Command::Mcp { name }) => {
             crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            let _ = goose_mcp::mcp_server_runner::run_mcp_server(&name).await;
+            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
         }
         Some(Command::Acp {}) => {
-            let _ = run_acp_agent().await;
-            return Ok(());
+            run_acp_agent().await?;
         }
         Some(Command::Session {
             command,
@@ -822,13 +902,9 @@ pub async fn cli() -> Result<()> {
                     ascending,
                     working_dir,
                     limit,
-                }) => {
-                    handle_session_list(format, ascending, working_dir, limit).await?;
-                    Ok(())
-                }
+                }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
                 Some(SessionCommand::Remove { id, regex }) => {
-                    handle_session_remove(id, regex).await?;
-                    return Ok(());
+                    Ok(handle_session_remove(id, regex).await?)
                 }
                 Some(SessionCommand::Export {
                     identifier,
@@ -836,7 +912,7 @@ pub async fn cli() -> Result<()> {
                     format,
                 }) => {
                     let session_identifier = if let Some(id) = identifier {
-                        get_session_id(id).await?
+                        lookup_session_id(id).await?
                     } else {
                         // If no identifier is provided, prompt for interactive selection
                         match crate::commands::session::prompt_interactive_session_selection().await
@@ -872,11 +948,18 @@ pub async fn cli() -> Result<()> {
                         "Session started"
                     );
 
-                    let session_id = if let Some(id) = identifier {
-                        Some(get_session_id(id).await?)
-                    } else {
-                        None
-                    };
+                    if let Some(Identifier {
+                        session_id: Some(_),
+                        ..
+                    }) = &identifier
+                    {
+                        if !resume {
+                            eprintln!("Error: --session-id can only be used with --resume flag");
+                            std::process::exit(1);
+                        }
+                    }
+
+                    let session_id = get_or_create_session_id(identifier, resume, false).await?;
 
                     // Run session command by default
                     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
@@ -901,6 +984,7 @@ pub async fn cli() -> Result<()> {
                         sub_recipes: None,
                         final_output_response: None,
                         retry_config: None,
+                        output_format: "text".to_string(),
                     })
                     .await;
 
@@ -915,7 +999,7 @@ pub async fn cli() -> Result<()> {
                     let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                     let (total_tokens, message_count) = session
-                        .get_metadata()
+                        .get_session()
                         .await
                         .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
@@ -981,6 +1065,7 @@ pub async fn cli() -> Result<()> {
             scheduled_job_id,
             quiet,
             additional_sub_recipes,
+            output_format,
             provider,
             model,
         }) => {
@@ -1070,11 +1155,19 @@ pub async fn cli() -> Result<()> {
                     std::process::exit(1);
                 }
             };
-            let session_id = if let Some(id) = identifier {
-                Some(get_session_id(id).await?)
-            } else {
-                None
-            };
+
+            if let Some(Identifier {
+                session_id: Some(_),
+                ..
+            }) = &identifier
+            {
+                if !resume {
+                    eprintln!("Error: --session-id can only be used with --resume flag");
+                    std::process::exit(1);
+                }
+            }
+
+            let session_id = get_or_create_session_id(identifier, resume, no_session).await?;
 
             let mut session = build_session(SessionBuilderConfig {
                 session_id,
@@ -1102,11 +1195,12 @@ pub async fn cli() -> Result<()> {
                     .as_ref()
                     .and_then(|r| r.final_output_response.clone()),
                 retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
+                output_format,
             })
             .await;
 
             if interactive {
-                let _ = session.interactive(input_config.contents).await;
+                session.interactive(input_config.contents).await?;
             } else if let Some(contents) = input_config.contents {
                 let session_start = std::time::Instant::now();
                 let session_type = if recipe_info.is_some() {
@@ -1128,7 +1222,7 @@ pub async fn cli() -> Result<()> {
                 let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                 let (total_tokens, message_count) = session
-                    .get_metadata()
+                    .get_session()
                     .await
                     .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));
@@ -1160,8 +1254,9 @@ pub async fn cli() -> Result<()> {
 
                 result?;
             } else {
-                eprintln!("Error: no text provided for prompt in headless mode");
-                std::process::exit(1);
+                return Err(anyhow::anyhow!(
+                    "no text provided for prompt in headless mode"
+                ));
             }
 
             return Ok(());
@@ -1213,8 +1308,7 @@ pub async fn cli() -> Result<()> {
                 BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
                 BenchCommand::InitConfig { name } => {
                     let mut config = BenchRunConfig::default();
-                    let cwd =
-                        std::env::current_dir().expect("Failed to get current working directory");
+                    let cwd = std::env::current_dir()?;
                     config.output_dir = Some(cwd);
                     config.save(name);
                 }
@@ -1257,12 +1351,14 @@ pub async fn cli() -> Result<()> {
         }
         None => {
             return if !Config::global().exists() {
-                let _ = handle_configure().await;
+                handle_configure().await?;
                 Ok(())
             } else {
                 // Run session command by default
+                let session_id = get_or_create_session_id(None, false, false).await?;
+
                 let mut session = build_session(SessionBuilderConfig {
-                    session_id: None,
+                    session_id,
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),
@@ -1283,12 +1379,10 @@ pub async fn cli() -> Result<()> {
                     sub_recipes: None,
                     final_output_response: None,
                     retry_config: None,
+                    output_format: "text".to_string(),
                 })
                 .await;
-                if let Err(e) = session.interactive(None).await {
-                    eprintln!("Session ended with error: {}", e);
-                    std::process::exit(1);
-                }
+                session.interactive(None).await?;
                 Ok(())
             };
         }

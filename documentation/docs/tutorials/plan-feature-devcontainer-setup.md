@@ -451,7 +451,7 @@ The key is treating Goose as a planning partner, not just a code generator. Give
 
 - Try this approach with your own complex setup challenges
 - Experiment with different types of planning prompts
-- Share your planning successes with the [Goose community](https://discord.gg/block-opensource)
+- Share your planning successes with the [Goose community](https://discord.gg/goose-oss)
 - Explore how planning integrates with [Lead/Worker mode](/docs/tutorials/lead-worker) or [Subagents](/docs/guides/subagents) for even more sophisticated workflows
 
 Remember, the goal is to get the right approach, in the right order, with the right safeguards. That's what makes the difference between a quick fix and a robust, maintainable solution.

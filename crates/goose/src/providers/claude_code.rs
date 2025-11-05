@@ -9,8 +9,8 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::RequestLog;
-use crate::config::Config;
+use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -24,6 +24,8 @@ pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 pub struct ClaudeCodeProvider {
     command: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl ClaudeCodeProvider {
@@ -42,6 +44,7 @@ impl ClaudeCodeProvider {
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -98,28 +101,6 @@ impl ClaudeCodeProvider {
 
         tracing::warn!("Could not find claude executable in common locations");
         None
-    }
-
-    /// Filter out the Extensions section from the system prompt
-    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
-        if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
-            let after_extensions = &system[extensions_start..];
-            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
-                let before_extensions = &system[..extensions_start];
-                let next_section_start = extensions_start + next_section_pos + 1;
-                let after_next_section = &system[next_section_start..];
-                format!("{}{}", before_extensions.trim_end(), after_next_section)
-            } else {
-                // No next section found, just remove everything from Extensions onward
-                system[..extensions_start].trim_end().to_string()
-            }
-        } else {
-            // No Extensions section found, return original
-            system.to_string()
-        }
     }
 
     /// Convert goose messages to the format expected by claude CLI
@@ -300,8 +281,7 @@ impl ClaudeCodeProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        // Create a filtered system prompt without Extensions section
-        let filtered_system = self.filter_extensions_from_system_prompt(system);
+        let filtered_system = filter_extensions_from_system_prompt(system);
 
         if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
             println!("=== CLAUDE CODE PROVIDER DEBUG ===");
@@ -335,10 +315,8 @@ impl ClaudeCodeProvider {
 
         // Add permission mode based on GOOSE_MODE setting
         let config = Config::global();
-        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
-            if goose_mode.as_str() == "auto" {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-            }
+        if let Ok(GooseMode::Auto) = config.get_goose_mode() {
+            cmd.arg("--permission-mode").arg("acceptEdits");
         }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -463,6 +441,10 @@ impl Provider for ClaudeCodeProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Claude models
         self.model.clone()
@@ -515,18 +497,6 @@ impl Provider for ClaudeCodeProvider {
 mod tests {
     use super::ModelConfig;
     use super::*;
-
-    #[test]
-    fn test_permission_mode_flag_construction() {
-        // Test that in auto mode, the --permission-mode acceptEdits flag is added
-        std::env::set_var("GOOSE_MODE", "auto");
-
-        let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
-        assert_eq!(goose_mode, "auto");
-
-        std::env::remove_var("GOOSE_MODE");
-    }
 
     #[tokio::test]
     async fn test_claude_code_invalid_model_no_fallback() {

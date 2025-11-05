@@ -41,63 +41,57 @@ async fn handle_recipe_task(
     let return_last_only = task.payload.return_last_only;
 
     // Apply recipe extensions if specified
-    // - None: inherit parent extensions (default)
-    // - Some([]): explicitly no extensions
-    // - Some([...]): use only specified extensions
     if let Some(ref exts) = recipe.extensions {
         task_config.extensions = exts.clone();
     }
 
     // Apply recipe provider settings if specified
     if let Some(ref settings) = recipe.settings {
-        // Validate: provider requires model
-        if settings.goose_provider.is_some() && settings.goose_model.is_none() {
-            return Err("Recipe specifies provider but no model".to_string());
-        }
+        // Build new provider configuration if any overrides specified
+        let new_provider = match (&settings.goose_provider, &settings.goose_model, settings.temperature) {
+            // Case 1: Provider switch (requires model)
+            (Some(provider), Some(model), temp) => {
+                let config = ModelConfig::new_or_fail(model).with_temperature(temp);
+                Some((provider.clone(), config))
+            }
+            // Case 2: Provider without model (error)
+            (Some(_), None, _) => {
+                return Err("Recipe specifies provider but no model".to_string());
+            }
+            // Case 3: Model/temperature override (keep same provider)
+            (None, model_or_temp, _) if model_or_temp.is_some() || settings.temperature.is_some() => {
+                let provider_name = task_config.provider.get_name().to_string();
+                let mut config = task_config.provider.get_model_config();
+                
+                if let Some(model) = &settings.goose_model {
+                    config.model_name = model.clone();
+                }
+                if let Some(temp) = settings.temperature {
+                    config = config.with_temperature(Some(temp));
+                }
+                
+                Some((provider_name, config))
+            }
+            // Case 4: No changes needed
+            _ => None,
+        };
 
-        // Apply settings based on what's specified
-        if let (Some(provider), Some(model)) = (&settings.goose_provider, &settings.goose_model) {
-            // Full replacement: new provider and model
-            let model_config =
-                ModelConfig::new_or_fail(model).with_temperature(settings.temperature);
-            task_config.provider = providers::create(provider, model_config)
+        // Apply the new provider if needed
+        if let Some((provider_name, model_config)) = new_provider {
+            task_config.provider = providers::create(&provider_name, model_config)
                 .await
-                .map_err(|e| format!("Failed to create provider '{}': {}", provider, e))?;
-        } else if settings.goose_model.is_some() || settings.temperature.is_some() {
-            // Partial override: wrap existing provider
-            let mut model_config = task_config.provider.get_model_config();
-            if let Some(model) = &settings.goose_model {
-                model_config.model_name = model.clone();
-            }
-            if let Some(temp) = settings.temperature {
-                model_config = model_config.with_temperature(Some(temp));
-            }
-            task_config.provider = Arc::new(providers::ModelOverrideProvider::new(
-                task_config.provider.clone(),
-                model_config,
-            ));
+                .map_err(|e| format!("Failed to create provider '{}': {}", provider_name, e))?;
         }
-        // else: no changes needed, keep current provider
     }
 
-    let result = tokio::select! {
-        result = run_complete_subagent_task(
-            recipe,
-            task_config,
-            return_last_only,
-        ) => result,
-        _ = cancellation_token.cancelled() => {
-            return Err("Task cancelled".to_string());
+    // Execute the task
+    tokio::select! {
+        result = run_complete_subagent_task(recipe, task_config, return_last_only) => {
+            result.map(|text| serde_json::json!({"result": text}))
+                  .map_err(|e| format!("Recipe execution failed: {}", e))
         }
-    };
-
-    match result {
-        Ok(result_text) => Ok(serde_json::json!({
-            "result": result_text
-        })),
-        Err(e) => {
-            let error_msg = format!("Inline recipe execution failed: {}", e);
-            Err(error_msg)
+        _ = cancellation_token.cancelled() => {
+            Err("Task cancelled".to_string())
         }
     }
 }

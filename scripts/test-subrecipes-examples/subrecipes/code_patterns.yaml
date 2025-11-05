@@ -1,0 +1,62 @@
+version: 1.0.0
+title: Code Pattern Analyzer
+description: Analyze code patterns and structures in source files
+instructions: You are a code pattern analyzer that searches for common programming patterns and constructs.
+parameters:
+  - key: directory
+    input_type: string
+    requirement: required
+    description: "Directory to analyze"
+  - key: include_tests
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to include test files"
+  - key: fast_mode
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Use fast single-command mode for CI"
+prompt: |
+  {% if fast_mode == "true" %}
+  Write code_patterns.json with a single shell command:
+  
+  cat > code_patterns.json << 'JSON'
+  {"todos":[{"file":"README.md","line":3,"text":"Add more tests"}],"function_count":2,"import_count":0,"test_count":2,"files_analyzed":3}
+  JSON
+  
+  Use a single tool call. Do not scan the filesystem.
+  {% else %}
+  Analyze source code files in {{ directory }} and identify patterns:
+  
+  1. Find all TODO/FIXME comments
+  2. Count function/method definitions (look for 'fn ', 'def ', 'function ')
+  3. Find import/use statements
+  4. Identify test functions (names containing 'test')
+  
+  Write your findings to a file named code_patterns.json with this structure:
+  ```json
+  {
+    "todos": [
+      {"file": "<path>", "line": <number>, "text": "<comment>"}
+    ],
+    "function_count": <number>,
+    "import_count": <number>,
+    "test_count": <number>,
+    "files_analyzed": <number>
+  }
+  ```
+  
+  Use grep and other shell tools to find these patterns efficiently.
+  Only analyze source code files (.rs, .py, .js, .go, etc.), skip binaries and build artifacts.
+  {% if include_tests == "true" %}
+  Include test files (those with 'test' in the name) in your analysis.
+  {% else %}
+  Exclude test files from your analysis.
+  {% endif %}
+  {% endif %}
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true

@@ -113,6 +113,8 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GithubCopilotProvider {
@@ -127,6 +129,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -166,7 +169,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }
@@ -232,7 +237,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
                     token
                 }
                 _ => return Err(err.into()),
@@ -392,6 +397,10 @@ impl Provider for GithubCopilotProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -493,7 +502,7 @@ impl Provider for GithubCopilotProvider {
 
         // Save the token
         config
-            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
         Ok(())

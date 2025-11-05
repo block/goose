@@ -12,7 +12,7 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
-Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
+Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting/known-issues#malicious-package-detected) with a clear error message.
 
 :::tip Tutorials
 Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
@@ -108,7 +108,7 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
 :::warning Airgapped Environments
-If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting#airgappedoffline-environment-issues) for workarounds.
+If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting/known-issues#airgappedoffline-environment-issues) for workarounds.
 :::
 
 ### MCP Servers
@@ -523,7 +523,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 
   <TabItem value="cli" label="Config file">
   
-  1. Navigate to the Goose [configuration file](/docs/guides/config-file). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  1. Navigate to the Goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
   2. Edit the extension properties as needed and save your changes.
 
   </TabItem>

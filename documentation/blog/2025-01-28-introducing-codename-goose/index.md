@@ -53,7 +53,7 @@ You can get started using goose right away! Check out our [Quickstart](/docs/qui
 Excited for upcoming features and events? Be sure to connect with us!
 
 - [GitHub](https://github.com/block/goose)
-- [Discord](https://discord.gg/block-opensource)
+- [Discord](https://discord.gg/goose-oss)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)
 - [X](https://x.com/goose_oss)
