@@ -478,9 +478,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   <motion.div
                     key={item.id}
                     draggable
-                    onDragStart={(e) => handleDragStart(e, item.id)}
-                    onDragOver={(e) => handleDragOver(e, item.id)}
-                    onDrop={(e) => handleDrop(e, item.id)}
+                    onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                    onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                    onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                     onDragEnd={handleDragEnd}
                     initial={{ opacity: 0, y: 20, scale: 0.9 }}
                     animate={{ 
@@ -521,9 +521,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 <motion.div
                   key={item.id}
                   draggable
-                  onDragStart={(e) => handleDragStart(e, item.id)}
-                  onDragOver={(e) => handleDragOver(e, item.id)}
-                  onDrop={(e) => handleDrop(e, item.id)}
+                  onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                  onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                  onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                   onDragEnd={handleDragEnd}
                   initial={{ opacity: 0, y: 20, scale: 0.9 }}
                   animate={{ 
