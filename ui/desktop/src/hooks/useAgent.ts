@@ -87,14 +87,6 @@ export function useAgent(): UseAgentReturn {
           messages,
           recipe: agentSession.recipe,
           recipeParameterValues: agentSession.user_recipe_values || null,
-          tokenState: {
-            totalTokens: agentSession.total_tokens ?? 0,
-            inputTokens: agentSession.input_tokens ?? 0,
-            outputTokens: agentSession.output_tokens ?? 0,
-            accumulatedTotalTokens: agentSession.accumulated_total_tokens ?? 0,
-            accumulatedInputTokens: agentSession.accumulated_input_tokens ?? 0,
-            accumulatedOutputTokens: agentSession.accumulated_output_tokens ?? 0,
-          },
         };
       }
 
@@ -197,14 +189,6 @@ export function useAgent(): UseAgentReturn {
             messages: messages,
             recipe: recipe,
             recipeParameterValues: agentSession.user_recipe_values || null,
-            tokenState: {
-              totalTokens: agentSession.total_tokens ?? 0,
-              inputTokens: agentSession.input_tokens ?? 0,
-              outputTokens: agentSession.output_tokens ?? 0,
-              accumulatedTotalTokens: agentSession.accumulated_total_tokens ?? 0,
-              accumulatedInputTokens: agentSession.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: agentSession.accumulated_output_tokens ?? 0,
-            },
           };
 
           setAgentState(AgentState.INITIALIZED);
