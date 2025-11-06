@@ -250,6 +250,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
       label: 'Extensions',
       icon: Puzzle,
       getTag: () => {
+        if (!extensionsList || !Array.isArray(extensionsList)) {
+          return '0 of 0 enabled';
+        }
         const enabled = extensionsList.filter(ext => ext.enabled).length;
         const total = extensionsList.length;
         return `${enabled} of ${total} enabled`;
