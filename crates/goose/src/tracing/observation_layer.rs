@@ -227,13 +227,11 @@ impl ObservationLayer {
         if let Some(observation_id) = observation_id {
             let trace_id = self.ensure_trace_id().await;
 
-            if let Some(session_id) = metadata.get("session_id").and_then(|v| v.as_str()) {
-                let mut spans = self.span_tracker.lock().await;
-                spans.set_session_id(Some(session_id.to_string()));
-            }
-
             let session_id = {
-                let spans = self.span_tracker.lock().await;
+                let mut spans = self.span_tracker.lock().await;
+                if let Some(session_id) = metadata.get("session_id").and_then(|v| v.as_str()) {
+                    spans.set_session_id(Some(session_id.to_string()));
+                }
                 spans.session_id.clone()
             };
 
