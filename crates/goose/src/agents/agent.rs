@@ -32,7 +32,6 @@ use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-use crate::hints::load_hints::{AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -246,6 +245,7 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
+        working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -262,7 +262,8 @@ impl Agent {
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+        let (tools, toolshim_tools, system_prompt) =
+            self.prepare_tools_and_prompt(working_dir).await?;
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
         self.tool_inspection_manager
@@ -831,35 +832,9 @@ impl Agent {
         session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Load hint files and add to system prompt
-        let config = Config::global();
-        let hints_filenames = config
-            .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
-            .unwrap_or_else(|_| {
-                vec![
-                    GOOSE_HINTS_FILENAME.to_string(),
-                    AGENTS_MD_FILENAME.to_string(),
-                ]
-            });
-
-        // Build ignore patterns for hint file loading
-        let ignore_patterns = {
-            let builder = ignore::gitignore::GitignoreBuilder::new(&session.working_dir);
-            builder.build().unwrap_or_else(|_| {
-                ignore::gitignore::GitignoreBuilder::new(&session.working_dir)
-                    .build()
-                    .expect("Failed to build default gitignore")
-            })
-        };
-
-        let hints =
-            crate::hints::load_hint_files(&session.working_dir, &hints_filenames, &ignore_patterns);
-
-        if !hints.is_empty() {
-            self.extend_system_prompt(hints).await;
-        }
-
-        let context = self.prepare_reply_context(conversation).await?;
+        let context = self
+            .prepare_reply_context(conversation, &session.working_dir)
+            .await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -873,6 +848,7 @@ impl Agent {
 
         let provider = self.provider().await?;
         let session_id = session_config.id.clone();
+        let working_dir = session.working_dir.clone();
         tokio::spawn(async move {
             if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
                 warn!("Failed to generate session description: {}", e);
@@ -1166,7 +1142,8 @@ impl Agent {
                     }
                 }
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                    (tools, toolshim_tools, system_prompt) =
+                        self.prepare_tools_and_prompt(&working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -1336,6 +1313,7 @@ impl Agent {
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
+            .with_hints(&std::env::current_dir()?)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;

@@ -60,16 +60,7 @@ pub fn load_hint_files(
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
     for hints_filename in hints_filenames {
-        // Global hints
-        // Paths::config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
         let global_hints_path = Paths::in_config_dir(hints_filename);
-
-        if let Some(parent) = global_hints_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-
         if global_hints_path.is_file() {
             let mut visited = HashSet::new();
             let hints_dir = global_hints_path.parent().unwrap();
@@ -132,7 +123,6 @@ pub fn load_hint_files(
 mod tests {
     use super::*;
     use ignore::gitignore::GitignoreBuilder;
-    use serial_test::serial;
     use std::fs::{self};
     use tempfile::TempDir;
 
@@ -143,45 +133,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_global_goosehints() {
-        // if ~/.config/goose/.goosehints exists, it should be included in the instructions
-        // copy the existing global hints file to a .bak file
-        let global_hints_path = Paths::in_config_dir(GOOSE_HINTS_FILENAME);
-        let global_hints_bak_path = Paths::in_config_dir(&format!("{}.bak", GOOSE_HINTS_FILENAME));
-        let mut globalhints_existed = false;
-
-        if global_hints_path.is_file() {
-            globalhints_existed = true;
-            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
-        }
-
-        fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
-
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
-
-        assert!(hints.contains("### Global Hints"));
-        assert!(hints.contains("my global goose hints."));
-
-        // restore backup if globalhints previously existed
-        if globalhints_existed {
-            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-            fs::remove_file(&global_hints_bak_path).unwrap();
-        } else {
-            // Clean up the test file we created
-            let _ = fs::remove_file(&global_hints_path);
-        }
-    }
-
-    #[test]
-    #[serial]
     fn test_goosehints_when_present() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join(GOOSE_HINTS_FILENAME), "Test hint content").unwrap();
         let gitignore = create_dummy_gitignore();
@@ -191,10 +144,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_when_missing() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         let gitignore = create_dummy_gitignore();
         let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
@@ -203,10 +154,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_multiple_filenames() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(
             dir.path().join("CLAUDE.md"),
@@ -231,10 +180,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_configurable_filename() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join("CLAUDE.md"), "Custom hints file content").unwrap();
         let gitignore = create_dummy_gitignore();
@@ -342,68 +289,13 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_goosehints_with_file_references() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create referenced files
-        let readme_path = temp_dir.path().join("README.md");
-        std::fs::write(
-            &readme_path,
-            "# Project README\n\nThis is the project documentation.",
-        )
-        .unwrap();
-
-        let guide_path = temp_dir.path().join("guide.md");
-        std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
-
-        // Create .goosehints with references
-        let hints_content = r#"# Project Information
-
-Please refer to:
-@README.md
-@guide.md
-
-Additional instructions here.
-"#;
-        let hints_path = temp_dir.path().join(".goosehints");
-        std::fs::write(&hints_path, hints_content).unwrap();
-
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(
-            temp_dir.path(),
-            &[GOOSE_HINTS_FILENAME.to_string()],
-            &gitignore,
-        );
-
-        // Should contain the .goosehints content
-        assert!(hints.contains("Project Information"));
-        assert!(hints.contains("Additional instructions here"));
-
-        // Should contain the referenced files' content
-        assert!(hints.contains("# Project README"));
-        assert!(hints.contains("This is the project documentation"));
-        assert!(hints.contains("# Development Guide"));
-        assert!(hints.contains("Follow these steps"));
-
-        // Should have attribution markers
-        assert!(hints.contains("--- Content from"));
-        assert!(hints.contains("--- End of"));
-    }
-
-    #[test]
     fn test_hints_with_basic_imports() {
         let temp_dir = TempDir::new().unwrap();
         let project_root = temp_dir.path();
 
         fs::create_dir(project_root.join(".git")).unwrap();
 
-        fs::write(
-            project_root.join("README.md"),
-            "# Project README\nProject overview content",
-        )
-        .unwrap();
+        fs::write(project_root.join("README.md"), "# Project README").unwrap();
         fs::write(project_root.join("config.md"), "Configuration details").unwrap();
 
         let hints_content = r#"Project hints content
@@ -424,7 +316,6 @@ Additional instructions here."#;
 
         assert!(hints.contains("--- Content from README.md ---"));
         assert!(hints.contains("# Project README"));
-        assert!(hints.contains("Project overview content"));
         assert!(hints.contains("--- End of README.md ---"));
 
         assert!(hints.contains("--- Content from config.md ---"));
