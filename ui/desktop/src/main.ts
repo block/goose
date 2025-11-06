@@ -614,29 +614,70 @@ const createChat = async (
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
   mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
+    const hasSpellingSuggestions = params.dictionarySuggestions.length > 0 || params.misspelledWord;
 
-    // Add each spelling suggestion
-    for (const suggestion of params.dictionarySuggestions) {
+    // Add spelling suggestions if available
+    if (hasSpellingSuggestions) {
+      // Add each spelling suggestion
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(
+          new MenuItem({
+            label: suggestion,
+            click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+          })
+        );
+      }
+
+      // Allow users to add the misspelled word to the dictionary
+      if (params.misspelledWord) {
+        menu.append(
+          new MenuItem({
+            label: 'Add to dictionary',
+            click: () =>
+              mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+          })
+        );
+      }
+
+      // Add separator between spelling and standard items
+      if (params.selectionText) {
+        menu.append(new MenuItem({ type: 'separator' }));
+      }
+    }
+
+    // Add standard edit operations
+    if (params.selectionText) {
       menu.append(
         new MenuItem({
-          label: suggestion,
-          click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+          label: 'Cut',
+          accelerator: 'CmdOrCtrl+X',
+          role: 'cut',
+        })
+      );
+      menu.append(
+        new MenuItem({
+          label: 'Copy',
+          accelerator: 'CmdOrCtrl+C',
+          role: 'copy',
         })
       );
     }
 
-    // Allow users to add the misspelled word to the dictionary
-    if (params.misspelledWord) {
+    // Only show paste in editable fields (text inputs)
+    if (params.isEditable) {
       menu.append(
         new MenuItem({
-          label: 'Add to dictionary',
-          click: () =>
-            mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+          label: 'Paste',
+          accelerator: 'CmdOrCtrl+V',
+          role: 'paste',
         })
       );
     }
 
-    menu.popup();
+    // Only show the menu if it has items
+    if (menu.items.length > 0) {
+      menu.popup();
+    }
   });
 
   // Handle new window creation for links
@@ -681,7 +722,10 @@ const createChat = async (
   }
   if (
     appPath === '/' &&
-    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
+    (recipe !== undefined ||
+      recipeDeeplink !== undefined ||
+      recipeId !== undefined ||
+      initialMessage)
   ) {
     appPath = '/pair';
   }
