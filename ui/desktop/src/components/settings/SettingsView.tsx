@@ -127,8 +127,8 @@ export default function SettingsView({
                     >
                       {/* Icon and Label at bottom */}
                       <div className="mt-auto w-full">
-                        <IconComponent className="w-5 h-5 mb-2" />
-                        <h2 className="text-xl font-light text-left">{section.label}</h2>
+                        <IconComponent className="w-5 h-5 mb-2 text-text-default" />
+                        <h2 className="text-xl font-light text-left text-text-default">{section.label}</h2>
                         <p className="text-xs text-text-muted mt-1 text-left">{section.description}</p>
                       </div>
                     </button>
