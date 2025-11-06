@@ -97,8 +97,7 @@ pub async fn compact_messages(
         (messages.as_slice(), None)
     };
 
-    let (summary_message, summarization_usage) =
-        do_compact(provider, messages_to_compact).await?;
+    let (summary_message, summarization_usage) = do_compact(provider, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -448,9 +447,10 @@ mod tests {
                     .count();
 
                 if tool_response_count > max {
-                    return Err(ProviderError::ContextLengthExceeded(
-                        format!("Too many tool responses: {} > {}", tool_response_count, max),
-                    ));
+                    return Err(ProviderError::ContextLengthExceeded(format!(
+                        "Too many tool responses: {} > {}",
+                        tool_response_count, max
+                    )));
                 }
             }
 
@@ -485,10 +485,9 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let (compacted_conversation, _usage) =
-            compact_messages(&provider, &conversation, true)
-                .await
-                .unwrap();
+        let (compacted_conversation, _usage) = compact_messages(&provider, &conversation, true)
+            .await
+            .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
@@ -514,7 +513,9 @@ mod tests {
             ));
             messages.push(Message::user().with_tool_response(
                 &format!("tool_{}", i),
-                Ok(vec![RawContent::text(&format!("response{}", i)).no_annotation()]),
+                Ok(vec![
+                    RawContent::text(&format!("response{}", i)).no_annotation(),
+                ]),
             ));
         }
 

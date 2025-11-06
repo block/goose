@@ -751,8 +751,13 @@ impl Agent {
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         let needs_auto_compact = !is_manual_compact
-            && crate::context_mgmt::check_if_compaction_needed(self.provider().await?.as_ref(), &conversation, None, &session)
-                .await?;
+            && crate::context_mgmt::check_if_compaction_needed(
+                self.provider().await?.as_ref(),
+                &conversation,
+                None,
+                &session,
+            )
+            .await?;
 
         let conversation_to_compact = conversation.clone();
 
