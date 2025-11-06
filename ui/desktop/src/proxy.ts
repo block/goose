@@ -123,9 +123,9 @@ async function shutdownMcpUIProxyServer(): Promise<void> {
 
 /**
  * Initializes the MCP-UI proxy server and security infrastructure
- * @param devUrl - The development server URL (empty string in production)
+ * @param devUrl - The development server URL (undefined or empty string in production)
  */
-export async function initMcpUIProxy(devUrl: string): Promise<void> {
+export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> {
   // Compute allowed origin for dev mode (null in production)
   const ALLOWED_ORIGIN = devUrl ? new URL(devUrl).origin : null;
 
@@ -239,7 +239,7 @@ export async function initMcpUIProxy(devUrl: string): Promise<void> {
         try {
           const parsedUrl = new URL(details.url);
           const isProxyRequest =
-            ALLOWED_HOSTNAMES.includes(parsedUrl.hostname as (typeof ALLOWED_HOSTNAMES)[number]) &&
+            (ALLOWED_HOSTNAMES as readonly string[]).includes(parsedUrl.hostname) &&
             parsedUrl.port === String(mcpUIProxyServerPort);
 
           if (isProxyRequest) {
