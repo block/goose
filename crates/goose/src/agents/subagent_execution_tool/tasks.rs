@@ -107,7 +107,7 @@ async fn handle_inline_recipe_task(
             instruction,
             task_config,
             return_last_only,
-            Some(task.id.clone()),
+            task.id.clone(),
         ) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());

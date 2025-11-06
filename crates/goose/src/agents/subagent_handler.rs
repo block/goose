@@ -2,7 +2,6 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
-    session::SessionManager,
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
@@ -16,7 +15,7 @@ pub async fn run_complete_subagent_task(
     text_instruction: String,
     task_config: TaskConfig,
     return_last_only: bool,
-    session_id: Option<String>,
+    session_id: String,
 ) -> Result<String, anyhow::Error> {
     let messages = get_agent_messages(text_instruction, task_config, session_id)
         .await
@@ -95,27 +94,13 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     text_instruction: String,
     task_config: TaskConfig,
-    session_id: Option<String>,
+    session_id: String,
 ) -> Pin<Box<dyn Future<Output = Result<Conversation>> + Send>> {
     Box::pin(async move {
         let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-        let parent_session_id = task_config.parent_session_id;
         let working_dir = task_config.parent_working_dir;
-
-        let session_id = match session_id {
-            Some(id) => id,
-            None => {
-                let session = SessionManager::create_session(
-                    working_dir.clone(),
-                    format!("Subagent task for: {}", parent_session_id),
-                )
-                .await
-                .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
-                session.id
-            }
-        };
 
         let agent = agent_manager
             .get_or_create_agent(session_id.clone())
