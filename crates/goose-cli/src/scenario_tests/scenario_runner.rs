@@ -149,21 +149,25 @@ where
         .set_param("GOOSE_MOIM_ENABLED", false)
         .ok();
 
-    // Ensure we restore the original setting on exit
-    let _restore_guard = scopeguard::defer! {
-        match original_moim {
-            Some(val) => {
-                goose::config::Config::global()
-                    .set_param("GOOSE_MOIM_ENABLED", val)
-                    .ok();
-            }
-            None => {
-                goose::config::Config::global()
-                    .delete("GOOSE_MOIM_ENABLED")
-                    .ok();
+    // Create a guard that will restore the setting on drop
+    struct MoimGuard(Option<bool>);
+    impl Drop for MoimGuard {
+        fn drop(&mut self) {
+            match self.0 {
+                Some(val) => {
+                    goose::config::Config::global()
+                        .set_param("GOOSE_MOIM_ENABLED", val)
+                        .ok();
+                }
+                None => {
+                    goose::config::Config::global()
+                        .delete("GOOSE_MOIM_ENABLED")
+                        .ok();
+                }
             }
         }
-    };
+    }
+    let _restore_guard = MoimGuard(original_moim);
 
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);

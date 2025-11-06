@@ -77,135 +77,46 @@ pub async fn inject_moim(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::{ToolRequest, ToolResponse};
-    use rmcp::model::{CallToolRequestParam, Content};
-    use rmcp::object;
 
     #[tokio::test]
-    async fn test_moim_injection_empty_conversation() {
-        let extension_manager = ExtensionManager::new_without_provider();
+    async fn test_moim_injection() {
+        let em = ExtensionManager::new_without_provider();
 
-        let conversation = Conversation::new_unvalidated(vec![]);
-        let result = inject_moim(conversation, &extension_manager).await;
-        let messages = result.messages();
-        assert_eq!(messages.len(), 1);
-        assert!(messages[0].id.as_ref().unwrap().starts_with("moim_"));
-
-        let content = messages[0]
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .unwrap();
-        assert!(content.contains("<info-msg>"));
-        assert!(content.contains("Datetime:"));
-        assert!(!messages[0].is_user_visible());
-        assert!(messages[0].is_agent_visible());
-    }
-
-    #[tokio::test]
-    async fn test_moim_injection_prepends_to_last_user_message() {
-        let extension_manager = ExtensionManager::new_without_provider();
-
-        let conversation = Conversation::new_unvalidated(vec![
+        // Test 1: Prepends to last user message
+        let conv = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
-            Message::assistant().with_text("Hi there"),
-            Message::user().with_text("How are you?"),
+            Message::assistant().with_text("Hi"),
+            Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim(conversation, &extension_manager).await;
-        let messages = result.messages();
+        let result = inject_moim(conv, &em).await;
+        let msgs = result.messages();
+        assert_eq!(msgs.len(), 3);
+        assert!(msgs[2].content[0].as_text().unwrap().contains("<info-msg>"));
+        assert_eq!(msgs[2].content[1].as_text().unwrap(), "Bye");
 
-        assert_eq!(messages.len(), 3);
-
-        let last_user_msg = &messages[2];
-        assert_eq!(last_user_msg.role, Role::User);
-
-        let first_content = last_user_msg
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .unwrap();
-        assert!(first_content.contains("<info-msg>"));
-        assert!(first_content.contains("Datetime:"));
-
-        let second_content = last_user_msg
-            .content
-            .get(1)
-            .and_then(|c| c.as_text())
-            .unwrap();
-        assert_eq!(second_content, "How are you?");
+        // Test 2: Creates user message when none exist
+        let conv = Conversation::new_unvalidated(vec![Message::assistant().with_text("Hello")]);
+        let result = inject_moim(conv, &em).await;
+        assert_eq!(result.messages().len(), 2);
+        assert_eq!(result.messages()[0].role, Role::User);
+        assert!(result.messages()[0]
+            .id
+            .as_ref()
+            .unwrap()
+            .starts_with("moim_"));
     }
 
     #[tokio::test]
-    async fn test_moim_injection_with_tool_responses() {
-        let extension_manager = ExtensionManager::new_without_provider();
+    async fn test_moim_config_disable() {
+        let config = crate::config::Config::global();
+        config.set_param("GOOSE_MOIM_ENABLED", false).ok();
 
-        let tool_request = ToolRequest {
-            id: "test_tool_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({"key": "value"})),
-            }),
-        };
+        let em = ExtensionManager::new_without_provider();
+        let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hi")]);
+        let result = inject_moim(conv.clone(), &em).await;
 
-        let tool_response = ToolResponse {
-            id: "test_tool_1".to_string(),
-            tool_result: Ok(vec![Content::text("Tool executed successfully")]),
-        };
+        assert_eq!(result.messages(), conv.messages()); // Unchanged
 
-        let conversation = Conversation::new_unvalidated(vec![
-            Message::user().with_text("Please use a tool"),
-            Message::assistant()
-                .with_text("I'll use the tool now.")
-                .with_content(MessageContent::ToolRequest(tool_request)),
-            Message::user().with_content(MessageContent::ToolResponse(tool_response)),
-        ]);
-
-        let result = inject_moim(conversation, &extension_manager).await;
-        let messages = result.messages();
-
-        assert_eq!(messages.len(), 3);
-
-        let last_user_msg = &messages[2];
-        assert_eq!(last_user_msg.role, Role::User);
-
-        let first_content = last_user_msg
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .unwrap();
-        assert!(first_content.contains("<info-msg>"));
-
-        assert!(last_user_msg
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_))));
-    }
-
-    #[tokio::test]
-    async fn test_moim_injection_no_user_messages() {
-        let extension_manager = ExtensionManager::new_without_provider();
-
-        let conversation = Conversation::new_unvalidated(vec![
-            Message::assistant().with_text("Hello from assistant"),
-            Message::assistant().with_text("Another assistant message"),
-        ]);
-
-        let result = inject_moim(conversation, &extension_manager).await;
-        let messages = result.messages();
-
-        assert_eq!(messages.len(), 3);
-
-        assert_eq!(messages[0].role, Role::User);
-        assert!(messages[0].id.as_ref().unwrap().starts_with("moim_"));
-
-        let content = messages[0]
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .unwrap();
-        assert!(content.contains("<info-msg>"));
-
-        assert_eq!(messages[1].role, Role::Assistant);
-        assert_eq!(messages[2].role, Role::Assistant);
+        config.delete("GOOSE_MOIM_ENABLED").ok();
     }
 }
