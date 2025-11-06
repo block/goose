@@ -1,77 +1,34 @@
 use crate::agents::extension_manager::ExtensionManager;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use rmcp::model::{AnnotateAble, RawTextContent, Role};
-use uuid::Uuid;
+use rmcp::model::Role;
 
 /// Inject MOIM (Minus One Info Message) into conversation.
 ///
 /// MOIM provides ephemeral context that's included in LLM calls
 /// but never persisted to conversation history.
 ///
-/// The MOIM content is prepended to the latest user message to ensure
-/// it appears in the correct context position.
+/// The MOIM content is inserted as a separate user message before
+/// the latest assistant message to ensure clean tool response handling.
 pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
 ) -> Conversation {
     let config = crate::config::Config::global();
-    if let Ok(false) = config.get_param::<bool>("GOOSE_MOIM_ENABLED") {
-        tracing::debug!("MOIM injection disabled via GOOSE_MOIM_ENABLED=false");
+    if !config.get_param("GOOSE_MOIM_ENABLED").unwrap_or(true) {
         return conversation;
     }
 
-    let moim_content = match extension_manager.collect_moim().await {
-        Some(content) if !content.trim().is_empty() => content,
-        _ => {
-            tracing::debug!("No MOIM content available");
-            return conversation;
-        }
-    };
-
-    tracing::debug!("Injecting MOIM: {} chars", moim_content.len());
-
-    let messages: Vec<Message> = conversation.into_iter().collect();
-    let last_user_index = messages.iter().rposition(|msg| msg.role == Role::User);
-
-    let mut messages_with_moim = messages.clone();
-
-    match last_user_index {
-        Some(index) => {
-            let original_user_msg = &messages[index];
-
-            let moim_text_content = MessageContent::Text(
-                RawTextContent {
-                    text: moim_content,
-                    meta: None,
-                }
-                .no_annotation(),
-            );
-
-            let mut combined_content = vec![moim_text_content];
-            combined_content.extend(original_user_msg.content.clone());
-
-            let modified_user_msg = Message {
-                id: original_user_msg.id.clone(),
-                role: original_user_msg.role.clone(),
-                created: original_user_msg.created,
-                content: combined_content,
-                metadata: original_user_msg.metadata,
-            };
-
-            messages_with_moim[index] = modified_user_msg;
-        }
-        None => {
-            // No user message found, create a standalone MOIM message
-            let moim_message = Message::user()
-                .with_text(moim_content)
-                .with_id(format!("moim_{}", Uuid::new_v4()))
-                .agent_only();
-            messages_with_moim.insert(0, moim_message);
-        }
+    if let Some(moim) = extension_manager.collect_moim().await {
+        let mut messages = conversation.messages().clone();
+        let idx = messages
+            .iter()
+            .rposition(|m| m.role == Role::Assistant)
+            .unwrap_or(messages.len());
+        messages.insert(idx, Message::user().with_text(moim));
+        return Conversation::new_unvalidated(messages);
     }
-
-    Conversation::new_unvalidated(messages_with_moim)
+    conversation
 }
 
 #[cfg(test)]
@@ -82,28 +39,29 @@ mod tests {
     async fn test_moim_injection() {
         let em = ExtensionManager::new_without_provider();
 
-        // Test 1: Prepends to last user message
+        // Test 1: Insert before last assistant message
         let conv = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
+            Message::assistant().with_text("Goodbye"),
         ]);
         let result = inject_moim(conv, &em).await;
         let msgs = result.messages();
-        assert_eq!(msgs.len(), 3);
-        assert!(msgs[2].content[0].as_text().unwrap().contains("<info-msg>"));
-        assert_eq!(msgs[2].content[1].as_text().unwrap(), "Bye");
+        assert_eq!(msgs.len(), 5); // Original 4 + 1 MOIM
+        assert_eq!(msgs[2].content[0].as_text().unwrap(), "Bye");
+        assert!(msgs[3].content[0].as_text().unwrap().contains("<info-msg>")); // MOIM before last assistant
+        assert_eq!(msgs[4].content[0].as_text().unwrap(), "Goodbye");
 
-        // Test 2: Creates user message when none exist
-        let conv = Conversation::new_unvalidated(vec![Message::assistant().with_text("Hello")]);
+        // Test 2: Append when no assistant messages
+        let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
         let result = inject_moim(conv, &em).await;
         assert_eq!(result.messages().len(), 2);
-        assert_eq!(result.messages()[0].role, Role::User);
-        assert!(result.messages()[0]
-            .id
-            .as_ref()
+        assert_eq!(result.messages()[0].content[0].as_text().unwrap(), "Hello");
+        assert!(result.messages()[1].content[0]
+            .as_text()
             .unwrap()
-            .starts_with("moim_"));
+            .contains("<info-msg>"));
     }
 
     #[tokio::test]
@@ -115,7 +73,7 @@ mod tests {
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hi")]);
         let result = inject_moim(conv.clone(), &em).await;
 
-        assert_eq!(result.messages(), conv.messages()); // Unchanged
+        assert_eq!(result.messages(), conv.messages());
 
         config.delete("GOOSE_MOIM_ENABLED").ok();
     }
