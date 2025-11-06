@@ -16,7 +16,9 @@ import { resumeSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 
 export function SessionInsights() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -9,7 +9,7 @@ interface AppLayoutProps {
 }
 
 // Inner component
-const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }) => {
+const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const [isNavExpanded, setIsNavExpanded] = useState(false);
 
@@ -55,6 +55,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   );
 };
 
-export const AppLayout: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }) => {
-  return <AppLayoutContent setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />;
+export const AppLayout: React.FC<AppLayoutProps> = () => {
+  return <AppLayoutContent />;
 };
