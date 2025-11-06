@@ -27,7 +27,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc;
-
+use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
@@ -302,7 +302,7 @@ pub async fn reply(
 
         let mut all_messages = messages.clone();
 
-        let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(30));
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
                 _ = task_cancel.cancelled() => {
@@ -312,9 +312,9 @@ pub async fn reply(
                 _ = heartbeat_interval.tick() => {
                     stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
                 }
-                response = stream.next() => {
+                response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
-                        Some(Ok(AgentEvent::Message(message))) => {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             for content in &message.content {
                                 track_tool_telemetry(content, all_messages.messages());
                             }
@@ -347,22 +347,22 @@ pub async fn reply(
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
-                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                        Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
 
                         }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
                         }
-                        Some(Ok(AgentEvent::McpNotification((request_id, n)))) => {
+                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             stream_event(MessageEvent::Notification{
                                 request_id: request_id.clone(),
                                 message: n,
                             }, &tx, &cancel_token).await;
                         }
 
-                        Some(Err(e)) => {
+                        Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
                             stream_event(
                                 MessageEvent::Error {
@@ -373,8 +373,14 @@ pub async fn reply(
                             ).await;
                             break;
                         }
-                        None => {
+                        Ok(None) => {
                             break;
+                        }
+                        Err(_) => {
+                            if tx.is_closed() {
+                                break;
+                            }
+                            continue;
                         }
                     }
                 }
