@@ -81,7 +81,7 @@ Anthropic's Claude 4 Sonnet was used for this task.
 set up a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv? Fetch the latest package versions, generate a README with those versions, and initialize Git
 ```
 
-After 1 minute, Goose was done setting up my entire dev environment! 🎉
+After 1 minute, goose was done setting up my entire dev environment! 🎉
 
 ### goose Output
 
