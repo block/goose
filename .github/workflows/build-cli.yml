@@ -97,10 +97,10 @@ jobs:
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-cargo-build-release-
 
       - name: Build CLI (Linux/macOS)
         if: matrix.use-cross
