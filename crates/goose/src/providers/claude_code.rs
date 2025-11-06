@@ -16,9 +16,8 @@ use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-sonnet-4-20250514"];
-
-pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus"];
+pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCodeProvider {
@@ -349,9 +348,14 @@ impl ClaudeCodeProvider {
         let mut child = cmd
             .spawn()
             .map_err(|e| ProviderError::RequestFailed(format!(
-                "Failed to spawn Claude CLI command '{}': {}. \
-                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
-                self.command, e
+                "\n\n ## Unable to find Claude Code CLI on the path.\n\n\
+                **Error details:** Failed to spawn command '{}': {}\n\n\
+                **Please ensure:**\n\
+                - Claude Code CLI is installed and logged in\n\
+                - The command is in your PATH, or set `CLAUDE_CODE_COMMAND` in your config\n\n\
+                **For full features, please use the Anthropic provider with an API key if possible.**\n\n\
+                Visit {} for installation instructions.",
+                self.command, e, CLAUDE_CODE_DOC_URL
             )))?;
 
         let stdout = child
@@ -452,8 +456,8 @@ impl Provider for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "claude-code",
-            "Claude Code",
-            "Execute Claude models via claude CLI tool",
+            "Claude Code CLI",
+            "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
             CLAUDE_CODE_DEFAULT_MODEL,
             CLAUDE_CODE_KNOWN_MODELS.to_vec(),
             CLAUDE_CODE_DOC_URL,
