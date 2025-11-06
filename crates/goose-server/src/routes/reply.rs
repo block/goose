@@ -161,7 +161,11 @@ async fn get_token_state(session_id: &str) -> TokenState {
             accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
         },
         Err(e) => {
-            tracing::warn!("Failed to fetch session token state for {}: {}", session_id, e);
+            tracing::warn!(
+                "Failed to fetch session token state for {}: {}",
+                session_id,
+                e
+            );
             TokenState {
                 input_tokens: 0,
                 output_tokens: 0,
