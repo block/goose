@@ -36,6 +36,18 @@ export const useChatEngine = ({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
 
+  // Initialize token state from chat when session is first loaded or changes
+  useEffect(() => {
+    if (
+      chat.tokenState?.accumulatedTotalTokens !== undefined &&
+      chat.tokenState?.accumulatedTotalTokens !== null
+    ) {
+      setSessionTokenCount(chat.tokenState.totalTokens || 0);
+      setSessionInputTokens(chat.tokenState.accumulatedInputTokens || 0);
+      setSessionOutputTokens(chat.tokenState.accumulatedOutputTokens || 0);
+    }
+  }, [chat.sessionId, chat.tokenState]);
+
   // Track pending edited message
   const [pendingEdit, setPendingEdit] = useState<{ id: string; content: string } | null>(null);
 
@@ -213,7 +225,6 @@ export const useChatEngine = ({
 
   // Update token counts when session changes from the message stream
   useEffect(() => {
-    console.log('Session received:', session);
     if (session) {
       setSessionTokenCount(session.total_tokens || 0);
       setSessionInputTokens(session.accumulated_input_tokens || 0);
