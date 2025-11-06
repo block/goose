@@ -32,6 +32,7 @@ use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::hints::load_hints::{AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -830,6 +831,34 @@ impl Agent {
         session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Load hint files and add to system prompt
+        let config = Config::global();
+        let hints_filenames = config
+            .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+            .unwrap_or_else(|_| {
+                vec![
+                    GOOSE_HINTS_FILENAME.to_string(),
+                    AGENTS_MD_FILENAME.to_string(),
+                ]
+            });
+
+        // Build ignore patterns for hint file loading
+        let ignore_patterns = {
+            let builder = ignore::gitignore::GitignoreBuilder::new(&session.working_dir);
+            builder.build().unwrap_or_else(|_| {
+                ignore::gitignore::GitignoreBuilder::new(&session.working_dir)
+                    .build()
+                    .expect("Failed to build default gitignore")
+            })
+        };
+
+        let hints =
+            crate::hints::load_hint_files(&session.working_dir, &hints_filenames, &ignore_patterns);
+
+        if !hints.is_empty() {
+            self.extend_system_prompt(hints).await;
+        }
+
         let context = self.prepare_reply_context(conversation).await?;
         let ReplyContext {
             mut conversation,

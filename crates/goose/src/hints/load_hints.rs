@@ -1,13 +1,14 @@
-use etcetera::{choose_app_strategy, AppStrategy};
 use ignore::gitignore::Gitignore;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
 
-use crate::developer::goose_hints::import_files::read_referenced_files;
+use crate::config::paths::Paths;
+use crate::hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 
 fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
@@ -60,16 +61,10 @@ pub fn load_hint_files(
 
     for hints_filename in hints_filenames {
         // Global hints
-        // choose_app_strategy().config_dir()
+        // Paths::config_dir()
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(hints_filename))
-            .unwrap_or_else(|_| {
-                let path_str = format!("~/.config/goose/{}", hints_filename);
-                PathBuf::from(shellexpand::tilde(&path_str).to_string())
-            });
+        let global_hints_path = Paths::in_config_dir(hints_filename);
 
         if let Some(parent) = global_hints_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -116,7 +111,7 @@ pub fn load_hint_files(
 
     let mut hints = String::new();
     if !global_hints_contents.is_empty() {
-        hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+        hints.push_str("\n### Global Hints\nThese are my global goose hints.\n");
         hints.push_str(&global_hints_contents.join("\n"));
     }
 
@@ -124,7 +119,9 @@ pub fn load_hint_files(
         if !hints.is_empty() {
             hints.push_str("\n\n");
         }
-        hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+        hints.push_str(
+            "### Project Hints\nThese are hints for working on the project in this directory.\n",
+        );
         hints.push_str(&local_hints_contents.join("\n"));
     }
 
@@ -150,14 +147,8 @@ mod tests {
     fn test_global_goosehints() {
         // if ~/.config/goose/.goosehints exists, it should be included in the instructions
         // copy the existing global hints file to a .bak file
-        let global_hints_path = PathBuf::from(
-            shellexpand::tilde(format!("~/.config/goose/{}", GOOSE_HINTS_FILENAME).as_str())
-                .to_string(),
-        );
-        let global_hints_bak_path = PathBuf::from(
-            shellexpand::tilde(format!("~/.config/goose/{}.bak", GOOSE_HINTS_FILENAME).as_str())
-                .to_string(),
-        );
+        let global_hints_path = Paths::in_config_dir(GOOSE_HINTS_FILENAME);
+        let global_hints_bak_path = Paths::in_config_dir(&format!("{}.bak", GOOSE_HINTS_FILENAME));
         let mut globalhints_existed = false;
 
         if global_hints_path.is_file() {
@@ -348,6 +339,57 @@ mod tests {
 
         assert!(hints.contains("Root CLAUDE.md content"));
         assert!(hints.contains("Subdir .goosehints content"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_with_file_references() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create referenced files
+        let readme_path = temp_dir.path().join("README.md");
+        std::fs::write(
+            &readme_path,
+            "# Project README\n\nThis is the project documentation.",
+        )
+        .unwrap();
+
+        let guide_path = temp_dir.path().join("guide.md");
+        std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
+
+        // Create .goosehints with references
+        let hints_content = r#"# Project Information
+
+Please refer to:
+@README.md
+@guide.md
+
+Additional instructions here.
+"#;
+        let hints_path = temp_dir.path().join(".goosehints");
+        std::fs::write(&hints_path, hints_content).unwrap();
+
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            temp_dir.path(),
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        // Should contain the .goosehints content
+        assert!(hints.contains("Project Information"));
+        assert!(hints.contains("Additional instructions here"));
+
+        // Should contain the referenced files' content
+        assert!(hints.contains("# Project README"));
+        assert!(hints.contains("This is the project documentation"));
+        assert!(hints.contains("# Development Guide"));
+        assert!(hints.contains("Follow these steps"));
+
+        // Should have attribution markers
+        assert!(hints.contains("--- Content from"));
+        assert!(hints.contains("--- End of"));
     }
 
     #[test]
