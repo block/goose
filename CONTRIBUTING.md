@@ -35,7 +35,7 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 - Document your changes  
 - Ask for review if security or core code is involved  
 
-👉 Full guide here: [Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md)
+👉 Full guide here: [Responsible AI-Assisted Coding Guide](./HOWTOAI.md)
 
 ---
 

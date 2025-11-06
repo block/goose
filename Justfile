@@ -268,6 +268,12 @@ validate version:
       exit 1
     fi
 
+get-next-minor-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{int(v[1])+1}.0')" $(just get-tag-version)
+
+get-next-patch-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
+
 # set cargo and app versions, must be semver
 prepare-release version:
     @just validate {{ version }} || exit 1

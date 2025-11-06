@@ -156,7 +156,7 @@ Parameter substitution uses Jinja-style template syntax with `{{ parameter_name 
 | Field | Type | Description |
 |-------|------|-------------|
 | `key` | String | Unique identifier for the parameter |
-| `input_type` | String | Type of input: `"string"` (default) or `"file"` (reads file contents) |
+| `input_type` | String | Type of input: `"string"` (default), `"number"`, `"boolean"`, `"date"`, `"file"`, or `"select"` |
 | `requirement` | String | One of: "required", "optional", or "user_prompt" |
 | `description` | String | Human-readable description of the parameter |
 
@@ -165,6 +165,7 @@ Parameter substitution uses Jinja-style template syntax with `{{ parameter_name 
 | Field | Type | Description |
 |-------|------|-------------|
 | `default` | String | Default value for optional parameters |
+| `options` | Array | List of available choices (required for `select` input type) |
 
 ### Parameter Requirements
 
@@ -177,27 +178,49 @@ The `required` and `optional` parameters work best for recipes opened in goose D
 ### Input Types
 
 - `string`: Default type. The parameter value is used as-is in template substitution
+- `number`: Numeric values. Desktop UI provides number input validation
+- `boolean`: True/false values. Desktop UI shows dropdown with "True"/"False" options
+- `date`: Date values. Currently renders as text input
 - `file`: The parameter value should be a file path. goose reads the file contents and substitutes the actual content (not the path) into the template
-
-When using `input_type: file`, this is useful for including file contents directly in your prompts or instructions.
+- `select`: Dropdown selection with predefined options. Requires `options` field
 
 **Example:**
 ```yaml
 parameters:
+  - key: max_files
+    input_type: number
+    requirement: optional
+    default: 10
+    description: "Maximum files to process"
+  
+  - key: output_format
+    input_type: select
+    requirement: required
+    description: "Choose output format"
+    options:
+      - json
+      - markdown
+      - csv
+  
+  - key: enable_debug
+    input_type: boolean
+    requirement: optional
+    default: false
+    description: "Enable debug mode"
+  
   - key: source_code
     input_type: file
     requirement: required
     description: "Path to the source code file to analyze"
 
-prompt: "Please review this code:\n\n{{ source_code }}"
+prompt: "Process {{ max_files }} files in {{ output_format }} format. Debug: {{ enable_debug }}. Code:\n\n{{ source_code }}"
 ```
-
-When you run this recipe with `source_code: /path/to/app.py`, goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
 
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
 - File parameters cannot have default values regardless of requirement type to prevent unintended importing of sensitive files
+- Select parameters MUST have an `options` field with available choices
 - Parameter keys must match any template variables used in instructions, prompt, or activities
 :::
 
@@ -614,24 +637,33 @@ sub_recipes:
 version: "1.0.0"
 title: "Example Recipe"
 description: "A sample recipe demonstrating the format"
-instructions: "Follow these steps with {{ required_param }} and {{ optional_param }}"
-prompt: "Your task is to use {{ required_param }} with {{ interactive_param }}"
+instructions: "Process {{ file_count }} files using {{ required_param }} and output in {{ output_format }} format. Configuration: {{ config_file }}"
+prompt: "Start processing with the provided parameters"
 parameters:
   - key: required_param
     input_type: string
     requirement: required
-    description: "A required parameter example"
+    description: "A required text parameter"
   
-  - key: optional_param
-    input_type: string
+  - key: file_count
+    input_type: number
     requirement: optional
-    default: "default value"
-    description: "An optional parameter example"
+    default: 10
+    description: "Maximum number of files to process"
   
-  - key: interactive_param
-    input_type: string
-    requirement: user_prompt
-    description: "Will prompt user if not provided"
+  - key: output_format
+    input_type: select
+    requirement: required
+    description: "Choose the output format"
+    options:
+      - json
+      - markdown
+      - csv
+  
+  - key: config_file
+    input_type: file
+    requirement: required
+    description: "Path to configuration file"
 
 extensions:
   - type: stdio
@@ -681,27 +713,34 @@ response:
   "version": "1.0.0",
   "title": "Example Recipe",
   "description": "A sample recipe demonstrating the format",
-  "instructions": "Follow these steps with {{ required_param }} and {{ optional_param }}",
-  "prompt": "Your task is to use {{ required_param }} with {{ interactive_param }}",
+  "instructions": "Process {{ file_count }} files using {{ required_param }} and output in {{ output_format }} format. Configuration: {{ config_file }}",
+  "prompt": "Start processing with the provided parameters",
   "parameters": [
     {
       "key": "required_param",
       "input_type": "string",
       "requirement": "required",
-      "description": "A required parameter example"
+      "description": "A required text parameter"
     },
     {
-      "key": "optional_param",
-      "input_type": "string",
+      "key": "file_count",
+      "input_type": "number",
       "requirement": "optional",
-      "default": "default value",
-      "description": "An optional parameter example"
+      "default": "10",
+      "description": "Maximum number of files to process"
     },
     {
-      "key": "interactive_param",
-      "input_type": "string",
-      "requirement": "user_prompt",
-      "description": "Will prompt user if not provided"
+      "key": "output_format",
+      "input_type": "select",
+      "requirement": "required",
+      "description": "Choose the output format",
+      "options": ["json", "markdown", "csv"]
+    },
+    {
+      "key": "config_file",
+      "input_type": "file",
+      "requirement": "required",
+      "description": "Path to configuration file"
     }
   ],
   "extensions": [

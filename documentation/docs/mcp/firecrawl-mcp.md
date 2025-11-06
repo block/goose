@@ -54,6 +54,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="firecrawl"
+      description="Web scraping and crawling capabilities"
       type="stdio"
       command="npx -y firecrawl-mcp"
       timeout={300}
