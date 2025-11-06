@@ -37,7 +37,7 @@ export interface NotificationEvent {
 type MessageEvent =
   | { type: 'Message'; message: Message; token_state: TokenState }
   | { type: 'Error'; error: string }
-  | { type: 'Finish'; reason: string }
+  | { type: 'Finish'; reason: string; token_state: TokenState }
   | { type: 'ModelChange'; model: string; mode: string }
   | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
@@ -368,6 +368,8 @@ export function useMessageStream({
                   }
 
                   case 'Finish': {
+                    setTokenState(parsedEvent.token_state);
+
                     if (onFinish && currentMessages.length > 0) {
                       const lastMessage = currentMessages[currentMessages.length - 1];
                       onFinish(lastMessage, parsedEvent.reason);
