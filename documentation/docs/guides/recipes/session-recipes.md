@@ -533,7 +533,7 @@ At the bottom of the `Schedule Details` page you can view the list of sessions c
 
   ```bash
   # Add a new scheduled recipe which runs every day at 9 AM
-  goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+  goose schedule add --schedule-id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
   ```
   You can use either a 5, 6, or 7-digit cron expression for full scheduling precision, following the format "seconds minutes hours day-of-month month day-of-week year".
 
