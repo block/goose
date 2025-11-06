@@ -750,14 +750,14 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact =
-            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+        let needs_auto_compact = !is_manual_compact
+            && crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
                 .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact {
+            let final_conversation = if !needs_auto_compact && !is_manual_compact {
                 conversation
             } else {
                 if !is_manual_compact {
