@@ -245,6 +245,7 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
+        working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -261,7 +262,8 @@ impl Agent {
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+        let (tools, toolshim_tools, system_prompt) =
+            self.prepare_tools_and_prompt(working_dir).await?;
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
         self.tool_inspection_manager
@@ -750,14 +752,14 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact =
-            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+        let needs_auto_compact = !is_manual_compact
+            && crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
                 .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact {
+            let final_conversation = if !needs_auto_compact && !is_manual_compact {
                 conversation
             } else {
                 if !is_manual_compact {
@@ -830,7 +832,9 @@ impl Agent {
         session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(conversation).await?;
+        let context = self
+            .prepare_reply_context(conversation, &session.working_dir)
+            .await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -844,6 +848,7 @@ impl Agent {
 
         let provider = self.provider().await?;
         let session_id = session_config.id.clone();
+        let working_dir = session.working_dir.clone();
         tokio::spawn(async move {
             if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
                 warn!("Failed to generate session description: {}", e);
@@ -1138,7 +1143,8 @@ impl Agent {
                     }
                 }
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                    (tools, toolshim_tools, system_prompt) =
+                        self.prepare_tools_and_prompt(&working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -1316,6 +1322,7 @@ impl Agent {
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
+            .with_hints(&std::env::current_dir()?)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -1374,17 +1381,9 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
-        tracing::debug!(
-            "Cleaned content for parsing: {}",
-            &clean_content[..std::cmp::min(200, clean_content.len())]
-        );
 
-        // try to parse json response from the LLM
-        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
-                tracing::debug!("Successfully parsed JSON content");
-
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?

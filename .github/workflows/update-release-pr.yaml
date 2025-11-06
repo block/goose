@@ -1,0 +1,66 @@
+name: Update Release Notes
+
+on:
+  pull_request:
+    types:
+      - synchronize
+    branches:
+      - main
+      - release/**
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  update-release-notes:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]'
+    steps:
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+      with:
+        fetch-depth: 0 # to generate complete release log
+
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+      with:
+        ref: ${{ github.base_ref }}
+        path: './prior-version'
+
+    - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
+    - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+
+    - name: Extract version from branch name
+      env:
+        REF_NAME: ${{ github.head_ref }}
+      run: |
+        BRANCH_NAME="$REF_NAME"
+        VERSION=$(echo "$BRANCH_NAME" | sed 's/release\///')
+        echo "version=$VERSION" >> $GITHUB_ENV
+        echo "Version: $VERSION"
+
+    - name: Get prior version
+      working-directory: './prior-version'
+      run: |
+        PRIOR_VERSION=$(just get-tag-version)
+        echo "prior_ref=v$PRIOR_VERSION" >> $GITHUB_ENV
+
+    - name: Generate release notes
+      uses: ./.github/actions/generate-release-pr-body
+      with:
+        version: ${{ env.version }}
+        head_ref: ${{ github.event.pull_request.head.sha }}
+        prior_ref: ${{ env.prior_ref }}
+
+    - name: Update Pull Request
+      env:
+        REF_NAME: ${{ github.head_ref }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PR_NUMBER=$(gh pr list --head "$REF_NAME" --json number --jq '.[0].number')
+
+        if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
+          echo "No PR found for branch $REF_NAME"
+          exit 1
+        fi
+
+        gh pr edit "$PR_NUMBER" --body-file pr_body.txt

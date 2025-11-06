@@ -374,6 +374,7 @@ export type MessageEvent = {
     type: 'Error';
 } | {
     reason: string;
+    token_state: TokenState;
     type: 'Finish';
 } | {
     mode: string;

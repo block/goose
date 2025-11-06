@@ -51,7 +51,7 @@ for provider_config in "${PROVIDERS[@]}"; do
     echo "Model: ${MODEL}"
     echo ""
     TMPFILE=$(mktemp)
-    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "please list files in the current directory" --with-builtin developer,autovisualiser,computercontroller,tutorial  2>&1) | tee "$TMPFILE"
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "please list files in the current directory" --with-builtin developer,autovisualiser,computercontroller,tutorial,todo,extensionmanager  2>&1) | tee "$TMPFILE"
     echo ""
     if grep -q "shell | developer" "$TMPFILE"; then
       echo "✓ SUCCESS: Test passed - developer tool called"
