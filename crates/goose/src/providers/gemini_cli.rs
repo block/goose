@@ -300,10 +300,6 @@ impl Provider for GeminiCliProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, _model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn complete_with_model(
         &self,
         _model_config: &ModelConfig,

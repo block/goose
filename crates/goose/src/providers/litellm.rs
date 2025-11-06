@@ -165,7 +165,6 @@ impl Provider for LiteLLMProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(skip_all, name = "provider_complete")]
     async fn complete_with_model(
         &self,
         model_config: &ModelConfig,

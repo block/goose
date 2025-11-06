@@ -250,10 +250,6 @@ impl Provider for VeniceProvider {
         Ok(Some(models))
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn complete_with_model(
         &self,
         model_config: &ModelConfig,
