@@ -142,6 +142,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     if (isExpanded) {
       fetchNavigationData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded]);
 
   const fetchNavigationData = async () => {
@@ -344,6 +345,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     if (tileOrder.length === 0) {
       setTileOrder(navItemsBase.map(item => item.id));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Get ordered nav items
@@ -376,6 +378,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     });
 
     setPrevValues(currentValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayChatsCount, totalSessions, recipesCount, scheduledTodayCount, totalTokens]);
 
   // Drag and drop handlers
