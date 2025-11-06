@@ -1,6 +1,6 @@
 ---
 title: {Extension Name} Extension
-description: Add {Extension Name} MCP Server as a Goose Extension
+description: Add {Extension Name} MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -14,7 +14,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
 
 
-This tutorial covers how to add the [{Extension Name} MCP Server](/) as a Goose extension to enable file operations, repository management, search functionality, and more.
+This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose extension to enable ________________.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -38,55 +38,89 @@ This tutorial covers how to add the [{Extension Name} MCP Server](/) as a Goose 
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-      <!-- For external MCP servers (npx, uvx, git, etc.) -->
-      <GooseDesktopInstaller
-        extensionId="{extension_id}"
-        extensionName="{Extension Name}"
-        description="{Extension description}"
-        command="npx"
-        args={["-y", "@package/name"]}
-        cliCommand="{command}"
-        timeout={300}
-        note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
-      />
 
-      <!-- For built-in extensions -->
-      <GooseBuiltinInstaller
-        extensionName="{Extension Name}"
-        description="{Extension description}"
-        extensionId="{extension_id}"
-      />
-
-      <!-- For external MCP servers with environment variables -->
-      <GooseDesktopInstaller
-        extensionId="{extension_id}"
-        extensionName="{Extension Name}"
-        description="{Extension description}"
-        command="npx"
-        args={["-y", "@package/name"]}
-        cliCommand="{command}"
-        timeout={300}
-        envVars={[
-          { key: "API_KEY", value: "••••••••••••••••" }
-        ]}
-        infoNote={
-          <>
-            Get your API key from{" "}
-            <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
-              example.com
-            </a>.
-          </>
-        }
-        note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
-      />
-    </TabItem>
-  <TabItem value="cli" label="goose CLI">
-      <CLIExtensionInstructions
-      name="{Extension Name}"
-      command="{command}"
-      timeout={300}
+    <!-- For built-in extensions -->
+    <GooseBuiltinInstaller
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      extensionId="{extension_id}"
     />
+
+    <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
+    <GooseDesktopInstaller
+      extensionId="{extension_id}"
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      type="stdio"
+      command="npx"
+      args={["-y", "@package/name"]}
+      timeout={300}
+      envVars={[
+        { name: "API_KEY", label: "••••••••••••••••" }
+      ]}
+      apiKeyLink="https://example.com/api-keys"
+      apiKeyLinkText="Service Access Token"
+    />
+
+    <!-- For external SSE or HTTP MCP servers -->
+    <GooseDesktopInstaller
+      extensionId="{extension_id}"
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      type="sse"                                    // or "http"
+      url="https://example-server.com/endpoint"
+      envVars={[                                    // also used for http request headers
+        { name: "SOME_KEY", label: "Description or placeholder value" }
+      ]}
+      apiKeyLink="https://example.com/api-keys"
+      apiKeyLinkText="Service Access Token"
+    />
+
   </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+    <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
+    <CLIExtensionInstructions
+      name="{Extension Name}"
+      description="{Extension description}"
+      type="stdio"
+      command="{full command with args}"
+      timeout={300}
+      envVars={[
+        { key: "API_KEY", value: "••••••••••••••••" }
+      ]}
+      infoNote={
+        <>
+          Get your API key from 
+          <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+            example.com
+          </a> and paste it in.
+        </>
+      }
+    />
+
+    <!-- For external SSE or HTTP MCP servers -->
+    <CLIExtensionInstructions
+      name="{Extension Name}"
+      description="{Extension description}"
+      type="sse"                                    // or "http"
+      url="https://example-server.com/endpoint"
+      timeout={300}
+      envVars={[                                    // also used for http request headers
+        { key: "API_KEY", value: "••••••••••••••••" }
+      ]}
+      infoNote={
+        <>
+          Get your API key from{" "}
+          <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+            example.com
+          </a>.
+        </>
+      }
+    />
+    
+  </TabItem>
+</Tabs>
 
 ## Example Usage
 
