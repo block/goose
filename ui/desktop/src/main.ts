@@ -10,6 +10,7 @@ import {
   MenuItem,
   Notification,
   powerSaveBlocker,
+  screen,
   session,
   shell,
   Tray,
@@ -483,11 +484,15 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-const windowPowerSaveBlockers = new Map<number, number>();
+
+// Track power save blockers per window
+const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+// Track pending initial messages per window
+const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
 
 const createChat = async (
   app: App,
-  _query?: string,
+  initialMessage?: string,
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
@@ -676,7 +681,10 @@ const createChat = async (
   }
   if (
     appPath === '/' &&
-    (recipe !== undefined || recipeDeeplink !== undefined || recipeId !== undefined)
+    (recipe !== undefined ||
+      recipeDeeplink !== undefined ||
+      recipeId !== undefined ||
+      initialMessage)
   ) {
     appPath = '/pair';
   }
@@ -694,6 +702,11 @@ const createChat = async (
   let formattedUrl = formatUrl(url);
   log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
+
+  // If we have an initial message, store it to send after React is ready
+  if (initialMessage) {
+    pendingInitialMessages.set(mainWindow.id, initialMessage);
+  }
 
   // Set up local keyboard shortcuts that only work when the window is focused
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -731,6 +744,9 @@ const createChat = async (
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
 
+    // Clean up pending initial message
+    pendingInitialMessages.delete(windowId);
+
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
       try {
@@ -752,6 +768,65 @@ const createChat = async (
     }
   });
   return mainWindow;
+};
+
+const createLauncher = () => {
+  const launcherWindow = new BrowserWindow({
+    width: 600,
+    height: 80,
+    frame: false,
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#ffffff',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      additionalArguments: [JSON.stringify(appConfig)],
+      partition: 'persist:goose',
+    },
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    hasShadow: true,
+    vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+  });
+
+  // Center on screen
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  const windowBounds = launcherWindow.getBounds();
+
+  launcherWindow.setPosition(
+    Math.round(width / 2 - windowBounds.width / 2),
+    Math.round(height / 3 - windowBounds.height / 2)
+  );
+
+  // Load launcher window content
+  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+
+  url.hash = '/launcher';
+  launcherWindow.loadURL(formatUrl(url));
+
+  // Destroy window when it loses focus
+  launcherWindow.on('blur', () => {
+    launcherWindow.destroy();
+  });
+
+  // Also destroy on escape key
+  launcherWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Escape') {
+      launcherWindow.destroy();
+      event.preventDefault();
+    }
+  });
+
+  return launcherWindow;
 };
 
 // Track tray instance
@@ -991,8 +1066,20 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
-ipcMain.on('react-ready', () => {
+ipcMain.on('react-ready', (event) => {
   log.info('React ready event received');
+
+  // Get the window that sent the react-ready event
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const windowId = window?.id;
+
+  // Send any pending initial message for this window
+  if (windowId && pendingInitialMessages.has(windowId)) {
+    const initialMessage = pendingInitialMessages.get(windowId)!;
+    log.info('Sending pending initial message to window:', initialMessage);
+    window.webContents.send('set-initial-message', initialMessage);
+    pendingInitialMessages.delete(windowId);
+  }
 
   if (pendingDeepLink) {
     log.info('Processing pending deep link:', pendingDeepLink);
@@ -1630,28 +1717,6 @@ const focusWindow = () => {
   }
 };
 
-const registerGlobalHotkey = (accelerator: string) => {
-  // Unregister any existing shortcuts first
-  globalShortcut.unregisterAll();
-
-  try {
-    globalShortcut.register(accelerator, () => {
-      focusWindow();
-    });
-
-    // Check if the shortcut was registered successfully
-    if (globalShortcut.isRegistered(accelerator)) {
-      return true;
-    } else {
-      console.error('Failed to register global hotkey');
-      return false;
-    }
-  } catch (e) {
-    console.error('Error registering global hotkey:', e);
-    return false;
-  }
-};
-
 async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
@@ -1707,8 +1772,13 @@ async function appMain() {
     });
   });
 
-  // Register the default global hotkey
-  registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+  try {
+    globalShortcut.register('CommandOrControl+Alt+Shift+G', () => {
+      createLauncher();
+    });
+  } catch (e) {
+    console.error('Error registering launcher hotkey:', e);
+  }
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -2003,6 +2073,13 @@ async function appMain() {
       );
     }
   );
+
+  ipcMain.on('close-window', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window && !window.isDestroyed()) {
+      window.close();
+    }
+  });
 
   ipcMain.on('notify', (_event, data) => {
     try {

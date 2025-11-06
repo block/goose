@@ -1,0 +1,20 @@
+name: Create Patch Release PR
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch for hotfix'
+        required: true
+        type: string
+
+jobs:
+  hotfix:
+    uses: ./.github/workflows/create-release-pr.yaml
+    with:
+      bump_type: "patch"
+      target_branch: ${{ inputs.target_branch }}

@@ -750,14 +750,14 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact =
-            crate::context_mgmt::check_if_compaction_needed(self.provider().await?.as_ref(), &conversation, None, &session)
+        let needs_auto_compact = !is_manual_compact
+            && crate::context_mgmt::check_if_compaction_needed(self.provider().await?.as_ref(), &conversation, None, &session)
                 .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact {
+            let final_conversation = if !needs_auto_compact && !is_manual_compact {
                 conversation
             } else {
                 if !is_manual_compact {
@@ -1365,17 +1365,9 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
-        tracing::debug!(
-            "Cleaned content for parsing: {}",
-            &clean_content[..std::cmp::min(200, clean_content.len())]
-        );
 
-        // try to parse json response from the LLM
-        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
-                tracing::debug!("Successfully parsed JSON content");
-
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?

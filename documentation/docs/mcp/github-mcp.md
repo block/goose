@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import { PanelLeft } from 'lucide-react';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
@@ -16,17 +16,18 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/githu
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
+   [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F&id=github&name=GitHub&description=GitHub%20repository%20management%20and%20operations&header=Authorization%3DBearer%20YOUR_GITHUB_PERSONAL_ACCESS_TOKEN)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
-  </TabItem>
-</Tabs>
+  Add a `Remote Extension (Streaming HTTP)` extension type with:
 
   **Endpoint URL**
   ```
   https://api.githubcopilot.com/mcp/
   ```
+  </TabItem>
+</Tabs>
+
   **Custom Request Header**
   ```
   Authorization: Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>
@@ -38,25 +39,24 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
-    2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    3. Click `Extensions`
-    4. Click `Add custom extension`
-    5. On the `Add custom extension` modal, enter the following:
-       - **Extension Name**: GitHub
-       - **Type**: Streamable HTTP
-       - **Endpoint**: `https://api.githubcopilot.com/mcp/`
-       - **Request Headers**: 
-         - **Header name**: `Authorization`
-         - **Value**: `Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` 
-    6. Click `+ Add` to save the header
-    7. Click `Add Extension` to save the extension
-    8. Navigate to the chat
+    <GooseDesktopInstaller
+      extensionId="github"
+      extensionName="GitHub"
+      description="GitHub repository management and operations"
+      type="http"
+      url="https://api.githubcopilot.com/mcp/"
+      envVars={[
+        { name: "Authorization", label: "Bearer YOUR_GITHUB_PERSONAL_ACCESS_TOKEN" }
+      ]}
+      apiKeyLink="https://github.com/settings/personal-access-tokens"
+      apiKeyLinkText="GitHub Personal Access Token"
+    />
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="github"
+      description="GitHub repository management and operations"
       type="http"
       url="https://api.githubcopilot.com/mcp/"
       timeout={300}
@@ -65,7 +65,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
       ]}
       infoNote={
         <>
-          Obtain your <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub Personal Access Token</a> and paste it in
+          Obtain your <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub Personal Access Token</a> and paste it in as the <code>Bearer</code> token.
         </>
       }
     />
@@ -80,12 +80,12 @@ When creating my [GitHub Personal Access Token](https://github.com/settings/pers
 * Read access to metadata
 * Read and Write access to code, commit status, issues, and pull requests
 
-### Goose Prompt
+### goose Prompt
 ```
 create a new branch called hello-world in my angiejones/goose-demo repository. Update the README.md file to say "this was written by goose" and commit it. Open a pull request with your changes.
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll help you create a new branch, update the README, and open a pull request. Let me break this down into steps:

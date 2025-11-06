@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   "paths": {
     "/agent/add_extension": {
@@ -3321,11 +3321,15 @@
             "type": "object",
             "required": [
               "reason",
+              "token_state",
               "type"
             ],
             "properties": {
               "reason": {
                 "type": "string"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
