@@ -145,14 +145,12 @@ impl TunnelManager {
 }
 
 fn generate_secret() -> String {
-    let mut rng = rand::rng();
-    let bytes: Vec<u8> = (0..32).map(|_| rand::Rng::random(&mut rng)).collect();
+    let bytes: [u8; 32] = rand::random();
     hex::encode(bytes)
 }
 
 fn generate_agent_id() -> String {
-    let mut rng = rand::rng();
-    let bytes: Vec<u8> = (0..16).map(|_| rand::Rng::random(&mut rng)).collect();
+    let bytes: [u8; 16] = rand::random();
     hex::encode(bytes)
 }
 

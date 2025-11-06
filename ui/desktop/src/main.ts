@@ -1282,7 +1282,7 @@ ipcMain.handle('get-tunnel-status', async () => {
     return await syncTunnelStatus(globalGoosedPort, SERVER_SECRET);
   } catch (error) {
     console.error('Error getting tunnel status:', error);
-    return { state: 'error', info: null };
+    return { state: 'error', info: null, auto_start: false };
   }
 });
 

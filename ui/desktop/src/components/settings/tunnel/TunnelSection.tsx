@@ -54,6 +54,12 @@ export default function TunnelSection() {
       setShowQRModal(false);
     } catch (err) {
       setError(errorMessage(err, 'Failed to stop tunnel'));
+      try {
+        const status = await window.electron.getTunnelStatus();
+        setTunnelStatus(status);
+      } catch (statusErr) {
+        console.error('Failed to fetch tunnel status after error:', statusErr);
+      }
     }
   };
 
