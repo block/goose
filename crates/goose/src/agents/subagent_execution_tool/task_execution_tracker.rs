@@ -32,7 +32,6 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
     // If we have parameter values, format them nicely
     if let Some(ref params) = task_info.task.payload.parameter_values {
         if !params.is_empty() {
-            // Filter out internal parameters like recipe_dir
             let mut param_strs: Vec<String> = params
                 .iter()
                 .filter(|(k, _)| k.as_str() != "recipe_dir")
