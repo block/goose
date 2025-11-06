@@ -4,6 +4,7 @@ import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripV
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
+import { listSavedRecipes } from '../../recipe/recipe_management';
 
 interface NavItem {
   id: string;
@@ -179,9 +180,14 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
         setTotalTokens(insightsResponse.data.totalTokens || 0);
       }
 
-      // TODO: Fetch recipes count when API is available
-      // For now, set to 0 as placeholder
-      setRecipesCount(0);
+      // Fetch recipes count
+      try {
+        const recipes = await listSavedRecipes();
+        setRecipesCount(recipes.length);
+      } catch (error) {
+        console.error('Failed to fetch recipes:', error);
+        setRecipesCount(0);
+      }
 
       // TODO: Fetch scheduled jobs when API is available
       // For now, set to 0 as placeholder
