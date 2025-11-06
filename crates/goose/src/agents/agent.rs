@@ -1177,9 +1177,7 @@ impl Agent {
                     }
                 }
 
-                for msg in &messages_to_add {
-                    SessionManager::add_message(&session_config.id, msg).await?;
-                }
+                SessionManager::add_messages(&session_config.id, messages_to_add.messages()).await?;
                 conversation.extend(messages_to_add);
                 if exit_chat {
                     break;
