@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
@@ -427,16 +428,45 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
 
   return (
     <div className="bg-background-muted overflow-hidden relative z-50">
-      {/* Expanded Navigation Cards */}
-      <div 
-        className={`bg-background-muted ${
-          isExpanded 
-            ? 'lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen opacity-100 overflow-y-auto transition-all duration-700 ease-out' 
-            : 'max-h-0 opacity-0 overflow-hidden transition-all duration-1000 ease-in-out'
-        }`}
-      >
-        <div className="pb-0.5 pt-0.5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
+      {/* Expanded Navigation Cards with Spring Animation */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ 
+              height: "auto", 
+              opacity: 1,
+            }}
+            exit={{ 
+              height: 0, 
+              opacity: 0,
+            }}
+            transition={{
+              height: {
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+                mass: 0.8,
+              },
+              opacity: {
+                duration: 0.3,
+                ease: "easeInOut"
+              }
+            }}
+            className="bg-background-muted overflow-hidden"
+          >
+            <motion.div
+              initial={{ y: -20 }}
+              animate={{ y: 0 }}
+              exit={{ y: -20 }}
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 25,
+              }}
+              className="pb-0.5 pt-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
             {navItems.map((item, index) => {
               const isPulsing = pulsingItems.has(item.id);
               const isDragging = draggedItem === item.id;
@@ -445,26 +475,33 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               // Widget tiles (non-clickable but draggable)
               if (item.isWidget) {
                 return (
-                  <div
+                  <motion.div
                     key={item.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, item.id)}
                     onDragOver={(e) => handleDragOver(e, item.id)}
                     onDrop={(e) => handleDrop(e, item.id)}
                     onDragEnd={handleDragEnd}
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                    animate={{ 
+                      opacity: 1, 
+                      y: 0, 
+                      scale: isDragging ? 0.95 : 1,
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 350,
+                      damping: 25,
+                      delay: index * 0.03, // 30ms stagger
+                    }}
                     className={`
                       relative bg-background-default rounded-2xl aspect-square 
-                      animate-in slide-in-from-top-4 fade-in overflow-hidden
-                      cursor-move group
-                      transition-all duration-200
-                      ${isDragging ? 'opacity-50 scale-95' : ''}
+                      overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
                       ${isPulsing ? 'animate-pulse' : ''}
                     `}
                     style={{
-                      animationDelay: `${index * 50}ms`,
-                      animationDuration: '400ms',
-                      animationFillMode: 'backwards',
+                      opacity: isDragging ? 0.5 : 1,
                     }}
                   >
                     {/* Drag handle indicator */}
@@ -472,7 +509,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                       <GripVertical className="w-4 h-4 text-text-muted" />
                     </div>
                     {item.renderContent && item.renderContent()}
-                  </div>
+                  </motion.div>
                 );
               }
 
@@ -481,41 +518,50 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               const active = isActive(item.path!);
 
               return (
-                <div
+                <motion.div
                   key={item.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, item.id)}
                   onDragOver={(e) => handleDragOver(e, item.id)}
                   onDrop={(e) => handleDrop(e, item.id)}
                   onDragEnd={handleDragEnd}
+                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                  animate={{ 
+                    opacity: 1, 
+                    y: 0, 
+                    scale: isDragging ? 0.95 : 1,
+                  }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 350,
+                    damping: 25,
+                    delay: index * 0.03, // 30ms stagger
+                  }}
                   className={`
                     relative cursor-move group
-                    transition-all duration-200
-                    ${isDragging ? 'opacity-50 scale-95' : ''}
                     ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
                   `}
+                  style={{
+                    opacity: isDragging ? 0.5 : 1,
+                  }}
                 >
-                  <button
+                  <motion.button
                     onClick={() => {
                       navigate(item.path!);
                       setIsExpanded(false);
                     }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     className={`
                       w-full relative flex flex-col items-start justify-between
                       bg-background-default rounded-2xl
                       px-6 py-6 aspect-square
-                      transition-all duration-200
+                      transition-colors duration-200
                       hover:bg-background-medium
                       no-drag
-                      animate-in slide-in-from-top-4 fade-in
                       ${active ? 'bg-background-medium' : ''}
-                      ${isPulsing ? 'animate-pulse ring-2 ring-blue-400' : ''}
+                      ${isPulsing ? 'ring-2 ring-blue-400' : ''}
                     `}
-                    style={{
-                      animationDelay: `${index * 50}ms`,
-                      animationDuration: '400ms',
-                      animationFillMode: 'backwards',
-                    }}
                   >
                     {/* Drag handle indicator */}
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -536,13 +582,15 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                       <IconComponent className="w-6 h-6 mb-2" />
                       <h2 className="text-2xl font-light text-left">{item.label}</h2>
                     </div>
-                  </button>
-                </div>
+                  </motion.button>
+                </motion.div>
               );
             })}
-          </div>
-        </div>
-      </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
