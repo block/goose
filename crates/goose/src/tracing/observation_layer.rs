@@ -248,15 +248,10 @@ impl ObservationLayer {
 
             let trace_id = self.ensure_trace_id(session_id.clone()).await;
 
-            if let Some(session_id) = session_id {
+            if let Some(ref sid) = session_id {
                 let mut spans = self.span_tracker.lock().await;
-                spans.set_session_id(&trace_id, session_id);
+                spans.set_session_id(&trace_id, sid.clone());
             }
-
-            let session_id = {
-                let spans = self.span_tracker.lock().await;
-                spans.get_session_id(&trace_id).cloned()
-            };
 
             let mut update = json!({
                 "id": observation_id,
