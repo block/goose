@@ -1,6 +1,6 @@
 ---
 title: Dev.to Extension
-description: Add Dev.to MCP Server as a Goose Extension
+description: Add Dev.to MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import { PanelLeft } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/nkdksdxHxaQ" />  
 
-This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a Goose extension to enable access to the Dev.to public API. With this extension, Goose can fetch articles, tags, user info, comments, and more—without requiring authentication.
+This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a goose extension to enable access to the Dev.to public API. With this extension, goose can fetch articles, tags, user info, comments, and more—without requiring authentication.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -70,6 +70,7 @@ Your server will now be running at:
   <TabItem value="cli" label="goose CLI" default>
       <CLIExtensionInstructions
         name="dev.to"
+        description="Access Dev.to articles and content"
         type="http"
         url="http://localhost:3000/mcp"
         timeout={300}
@@ -79,11 +80,11 @@ Your server will now be running at:
 
 ## Example Usage
 
-In this example, Goose uses the `Dev.to MCP` extension to fetch the 5 most recent JavaScript articles and instantly turn them into a personalized learning hub.
+In this example, goose uses the `Dev.to MCP` extension to fetch the 5 most recent JavaScript articles and instantly turn them into a personalized learning hub.
 
-### Goose Prompt
+### goose Prompt
 ```
-Hey Goose, fetch the 5 most recent JavaScript articles from Dev.to
+Hey goose, fetch the 5 most recent JavaScript articles from Dev.to
 Create a simple HTML landing page that:
 
 1. Lists each article title as a clickable link
@@ -97,7 +98,7 @@ Create a simple HTML landing page that:
 The goal is to save me time by quickly showing what’s worth reading and help me learn faster by giving actionable practice ideas.
 ```
 
-### Goose Output
+### goose Output
 
 :::note Desktop
 
