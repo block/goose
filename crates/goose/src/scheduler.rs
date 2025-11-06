@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
@@ -27,40 +27,6 @@ use crate::session::{Session, SessionManager};
 
 type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
-
-pub fn normalize_cron_expression(src: &str) -> String {
-    let mut parts: Vec<&str> = src.split_whitespace().collect();
-
-    match parts.len() {
-        5 => {
-            parts.insert(0, "0");
-            parts.push("*");
-        }
-        6 => {
-            parts.push("*");
-        }
-        7 => {}
-        _ => {
-            tracing::warn!(
-                "Unrecognised cron expression '{}': expected 5, 6 or 7 fields (got {})",
-                src,
-                parts.len()
-            );
-            return src.to_string();
-        }
-    }
-
-    parts.join(" ")
-}
-
-fn to_tokio_cron(normalized: &str) -> String {
-    let parts: Vec<&str> = normalized.split_whitespace().collect();
-    if parts.len() == 7 {
-        parts[..6].join(" ")
-    } else {
-        normalized.to_string()
-    }
-}
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
@@ -189,7 +155,7 @@ impl Scheduler {
             running_tasks,
         });
 
-        arc_self.load_jobs_from_storage().await?;
+        arc_self.load_jobs_from_storage().await;
         arc_self
             .tokio_scheduler
             .start()
@@ -205,18 +171,34 @@ impl Scheduler {
         let storage_path = self.storage_path.clone();
         let running_tasks_arc = self.running_tasks.clone();
 
-        let normalized_cron = normalize_cron_expression(&job.cron);
-        let tokio_cron = to_tokio_cron(&normalized_cron);
+        let cron_parts: Vec<&str> = job.cron.split_whitespace().collect();
+        let cron = match cron_parts.len() {
+            5 => {
+                tracing::warn!(
+                    "Job '{}' has legacy 5-field cron '{}', converting to 6-field",
+                    job.id,
+                    job.cron
+                );
+                format!("0 {}", job.cron)
+            }
+            6 => job.cron.clone(),
+            _ => {
+                return Err(SchedulerError::CronParseError(format!(
+                    "Invalid cron expression '{}': expected 5 or 6 fields, got {}",
+                    job.cron,
+                    cron_parts.len()
+                )))
+            }
+        };
+
+        let local_tz = Local::now().timezone();
 
         tracing::info!(
-            "Creating cron task for job '{}' with expression '{}' (normalized: '{}', tokio: '{}')",
-            job.id,
-            job.cron,
-            normalized_cron,
-            tokio_cron
+            "Creating cron task for job '{}' cron: '{}' in timezone: {:?}",
+            job.id, cron, local_tz
         );
 
-        Job::new_async(&tokio_cron, move |_uuid, _l| {
+        Job::new_async_tz(&cron, local_tz, move |_uuid, _l| {
             tracing::info!("Cron task triggered for job '{}'", job_for_task.id);
             let task_job_id = job_for_task.id.clone();
             let current_jobs_arc = jobs_arc.clone();
@@ -346,35 +328,72 @@ impl Scheduler {
         Ok(())
     }
 
-    async fn load_jobs_from_storage(self: &Arc<Self>) -> Result<(), SchedulerError> {
+    async fn load_jobs_from_storage(self: &Arc<Self>) {
         if !self.storage_path.exists() {
-            return Ok(());
+            return;
         }
-        let data = fs::read_to_string(&self.storage_path)?;
+        let data = match fs::read_to_string(&self.storage_path) {
+            Ok(data) => data,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to read schedules.json: {}. Starting with empty schedule list.",
+                    e
+                );
+                return;
+            }
+        };
         if data.trim().is_empty() {
-            return Ok(());
+            return;
         }
 
-        let list: Vec<ScheduledJob> = serde_json::from_str(&data)?;
+        let list: Vec<ScheduledJob> = match serde_json::from_str(&data) {
+            Ok(jobs) => jobs,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to parse schedules.json: {}. Starting with empty schedule list.",
+                    e
+                );
+                return;
+            }
+        };
 
         for job_to_load in list {
             if !Path::new(&job_to_load.source).exists() {
-                tracing::warn!("Recipe file {} not found, skipping", job_to_load.source);
+                tracing::warn!(
+                    "Recipe file {} not found, skipping job '{}'",
+                    job_to_load.source,
+                    job_to_load.id
+                );
                 continue;
             }
 
-            let cron_task = self.create_cron_task(job_to_load.clone())?;
+            let cron_task = match self.create_cron_task(job_to_load.clone()) {
+                Ok(task) => task,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to create cron task for job '{}': {}. Skipping.",
+                        job_to_load.id,
+                        e
+                    );
+                    continue;
+                }
+            };
 
-            let job_uuid = self
-                .tokio_scheduler
-                .add(cron_task)
-                .await
-                .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+            let job_uuid = match self.tokio_scheduler.add(cron_task).await {
+                Ok(uuid) => uuid,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to add job '{}' to scheduler: {}. Skipping.",
+                        job_to_load.id,
+                        e
+                    );
+                    continue;
+                }
+            };
 
             let mut jobs_guard = self.jobs.lock().await;
             jobs_guard.insert(job_to_load.id.clone(), (job_uuid, job_to_load));
         }
-        Ok(())
     }
 
     pub async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {

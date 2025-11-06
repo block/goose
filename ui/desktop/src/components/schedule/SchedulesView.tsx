@@ -16,8 +16,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
 import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
-import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
-import { EditScheduleModal } from './EditScheduleModal';
+import { NewSchedulePayload, ScheduleModal } from './ScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
@@ -190,8 +189,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitApiError, setSubmitApiError] = useState<string | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingDeepLink, setPendingDeepLink] = useState<string | null>(null);
@@ -223,7 +221,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const locationState = location.state as ViewOptions | null;
       if (locationState?.pendingScheduleDeepLink) {
         setPendingDeepLink(locationState.pendingScheduleDeepLink);
-        setIsCreateModalOpen(true);
+        setIsModalOpen(true);
         window.history.replaceState({}, document.title);
       }
     }
@@ -250,46 +248,25 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }
   };
 
-  const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
+  const handleModalSubmit = async (payload: NewSchedulePayload | string) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
     try {
-      await createSchedule(payload);
+      if (editingSchedule) {
+        await updateSchedule(editingSchedule.id, payload as string);
+        toastSuccess({
+          title: 'Schedule Updated',
+          msg: `Successfully updated schedule "${editingSchedule.id}"`,
+        });
+      } else {
+        await createSchedule(payload as NewSchedulePayload);
+      }
       await fetchSchedules();
-      setIsCreateModalOpen(false);
-    } catch (error) {
-      console.error('Failed to create schedule:', error);
-      setSubmitApiError(
-        error instanceof Error ? error.message : 'Unknown error creating schedule.'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEditScheduleSubmit = async (cron: string) => {
-    if (!editingSchedule) return;
-
-    setIsSubmitting(true);
-    setSubmitApiError(null);
-    try {
-      await updateSchedule(editingSchedule.id, cron);
-      toastSuccess({
-        title: 'Schedule Updated',
-        msg: `Successfully updated schedule "${editingSchedule.id}"`,
-      });
-      await fetchSchedules();
-      setIsEditModalOpen(false);
+      setIsModalOpen(false);
       setEditingSchedule(null);
     } catch (error) {
-      console.error('Failed to update schedule:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error updating schedule.';
-      setSubmitApiError(errorMessage);
-      toastError({
-        title: 'Update Schedule Error',
-        msg: errorMessage,
-      });
+      console.error('Failed to save schedule:', error);
+      setSubmitApiError(error instanceof Error ? error.message : 'Unknown error saving schedule.');
     } finally {
       setIsSubmitting(false);
     }
@@ -471,7 +448,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                   <Button
                     onClick={() => {
                       setSubmitApiError(null);
-                      setIsCreateModalOpen(true);
+                      setIsModalOpen(true);
                     }}
                     size="sm"
                     className="flex items-center gap-2"
@@ -519,7 +496,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                         onEdit={(schedule) => {
                           setEditingSchedule(schedule);
                           setSubmitApiError(null);
-                          setIsEditModalOpen(true);
+                          setIsModalOpen(true);
                         }}
                         onPause={handlePauseSchedule}
                         onUnpause={handleUnpauseSchedule}
@@ -537,29 +514,19 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         </div>
       </MainPanelLayout>
 
-      <CreateScheduleModal
-        isOpen={isCreateModalOpen}
+      <ScheduleModal
+        isOpen={isModalOpen}
         onClose={() => {
-          setIsCreateModalOpen(false);
+          setIsModalOpen(false);
+          setEditingSchedule(null);
           setSubmitApiError(null);
           setPendingDeepLink(null);
         }}
-        onSubmit={handleCreateScheduleSubmit}
-        isLoadingExternally={isSubmitting}
-        apiErrorExternally={submitApiError}
-        initialDeepLink={pendingDeepLink}
-      />
-      <EditScheduleModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingSchedule(null);
-          setSubmitApiError(null);
-        }}
-        onSubmit={handleEditScheduleSubmit}
+        onSubmit={handleModalSubmit}
         schedule={editingSchedule}
         isLoadingExternally={isSubmitting}
         apiErrorExternally={submitApiError}
+        initialDeepLink={pendingDeepLink}
       />
     </>
   );

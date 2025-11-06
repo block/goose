@@ -48,15 +48,9 @@ pub struct RunNowResponse {
     session_id: String,
 }
 
-// Query parameters for the sessions endpoint
 #[derive(Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct SessionsQuery {
-    #[serde(default = "default_limit")]
-    limit: u32,
-}
-
-fn default_limit() -> u32 {
-    50 // Default limit for sessions listed
+    limit: usize,
 }
 
 // Struct for the frontend session list
@@ -303,7 +297,7 @@ async fn sessions_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match scheduler
-        .sessions(&schedule_id_param, query_params.limit as usize)
+        .sessions(&schedule_id_param, query_params.limit)
         .await
     {
         Ok(session_tuples) => {

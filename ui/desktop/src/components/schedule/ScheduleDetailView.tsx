@@ -15,7 +15,7 @@ import {
   ScheduledJob,
 } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
-import { EditScheduleModal } from './EditScheduleModal';
+import { ScheduleModal, NewSchedulePayload } from './ScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
@@ -57,14 +57,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchSessions = async (sId: string) => {
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
       const data = await getScheduleSessions(sId, 20);
-      setSessions(data as ScheduleSessionMeta[]);
+      setSessions(data);
     } catch (err) {
       setSessionsError(err instanceof Error ? err.message : 'Failed to fetch sessions');
     } finally {
@@ -184,14 +184,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     }
   };
 
-  const handleEditSubmit = async (cron: string) => {
+  const handleModalSubmit = async (payload: NewSchedulePayload | string) => {
     if (!scheduleId) return;
     setIsActionLoading(true);
     try {
-      await updateSchedule(scheduleId, cron);
+      await updateSchedule(scheduleId, payload as string);
       toastSuccess({ title: 'Schedule Updated', msg: `Updated "${scheduleId}"` });
       await fetchSchedule(scheduleId);
-      setIsEditModalOpen(false);
+      setIsModalOpen(false);
     } catch (err) {
       toastError({
         title: 'Update Schedule Error',
@@ -341,7 +341,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
               {scheduleDetails && !scheduleDetails.currently_running && (
                 <>
                   <Button
-                    onClick={() => setIsEditModalOpen(true)}
+                    onClick={() => setIsModalOpen(true)}
                     variant="outline"
                     className="w-full md:w-auto flex items-center gap-2 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                     disabled={isActionLoading}
@@ -474,13 +474,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
         </div>
       </ScrollArea>
 
-      <EditScheduleModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleEditSubmit}
+      <ScheduleModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleModalSubmit}
         schedule={scheduleDetails}
         isLoadingExternally={isActionLoading}
         apiErrorExternally={null}
+        initialDeepLink={null}
       />
     </div>
   );

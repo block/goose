@@ -727,7 +727,7 @@ export type SessionListResponse = {
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
-    limit?: number;
+    limit: number;
 };
 
 export type Settings = {
@@ -2185,8 +2185,8 @@ export type SessionsHandlerData = {
          */
         id: string;
     };
-    query?: {
-        limit?: number;
+    query: {
+        limit: number;
     };
     url: '/schedule/{id}/sessions';
 };
