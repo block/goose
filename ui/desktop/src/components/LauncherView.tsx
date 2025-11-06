@@ -23,10 +23,10 @@ export default function LauncherView() {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-transparent overflow-hidden">
+    <div className="h-screen w-screen flex bg-transparent overflow-hidden">
       <form
         onSubmit={handleSubmit}
-        className="w-[600px] bg-background-default/95 backdrop-blur-lg rounded-lg shadow-2xl border border-border-default"
+        className="w-full h-full bg-background-default/95 backdrop-blur-lg shadow-2xl border border-border-default"
       >
         <input
           ref={inputRef}
@@ -34,7 +34,7 @@ export default function LauncherView() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent text-text-default text-xl px-6 py-4 outline-none placeholder-text-muted rounded-lg"
+          className="w-full h-full bg-transparent text-text-default text-xl px-6 outline-none placeholder-text-muted"
           placeholder="Ask goose anything..."
           autoFocus
         />

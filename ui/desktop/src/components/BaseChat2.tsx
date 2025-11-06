@@ -46,7 +46,6 @@ function BaseChatContent({
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
-  disableSearch = false,
   sessionId,
   initialMessage,
   autoSubmit = false,
