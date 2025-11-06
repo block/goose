@@ -3321,11 +3321,15 @@
             "type": "object",
             "required": [
               "reason",
+              "token_state",
               "type"
             ],
             "properties": {
               "reason": {
                 "type": "string"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
