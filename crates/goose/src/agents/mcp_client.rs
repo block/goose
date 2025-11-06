@@ -1,4 +1,5 @@
 use crate::agents::types::SharedProvider;
+use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{Content, ErrorCode, JsonObject};
 /// MCP client implementation for Goose
 use rmcp::{
@@ -334,7 +335,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListResourcesRequest(ListResourcesRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -358,7 +359,7 @@ impl McpClientTrait for McpClient {
                         uri: uri.to_string(),
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -380,7 +381,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListToolsRequest(ListToolsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -406,7 +407,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -428,7 +429,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListPromptsRequest(ListPromptsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -458,7 +459,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: Default::default(),
+                    extensions: inject_session_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -474,5 +475,120 @@ impl McpClientTrait for McpClient {
         let (tx, rx) = mpsc::channel(16);
         self.notification_subscribers.lock().await.push(tx);
         rx
+    }
+}
+
+/// Replaces session ID, case-insensitively, in Extensions._meta.
+fn inject_session_into_extensions(
+    mut extensions: rmcp::model::Extensions,
+) -> rmcp::model::Extensions {
+    use rmcp::model::Meta;
+
+    if let Some(session_id) = crate::session_context::current_session_id() {
+        let mut meta_map = extensions
+            .get::<Meta>()
+            .map(|meta| meta.0.clone())
+            .unwrap_or_default();
+
+        // JsonObject is case-sensitive, so we use retain for case-insensitive removal
+        meta_map.retain(|k, _| !k.eq_ignore_ascii_case(SESSION_ID_HEADER));
+
+        meta_map.insert(SESSION_ID_HEADER.to_string(), Value::String(session_id));
+
+        extensions.insert(Meta(meta_map));
+    }
+
+    extensions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmcp::model::Meta;
+
+    #[tokio::test]
+    async fn test_session_id_in_mcp_meta() {
+        use serde_json::json;
+
+        let session_id = "test-session-789";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
+            let extensions = inject_session_into_extensions(Default::default());
+            let meta = extensions.get::<Meta>().unwrap();
+
+            assert_eq!(
+                &meta.0,
+                json!({
+                    SESSION_ID_HEADER: session_id
+                })
+                .as_object()
+                .unwrap()
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_no_session_id_in_mcp_when_absent() {
+        let extensions = inject_session_into_extensions(Default::default());
+        let meta = extensions.get::<Meta>();
+
+        assert!(meta.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_all_mcp_operations_include_session() {
+        use serde_json::json;
+
+        let session_id = "consistent-session-id";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
+            let ext1 = inject_session_into_extensions(Default::default());
+            let ext2 = inject_session_into_extensions(Default::default());
+            let ext3 = inject_session_into_extensions(Default::default());
+
+            for ext in [&ext1, &ext2, &ext3] {
+                assert_eq!(
+                    &ext.get::<Meta>().unwrap().0,
+                    json!({
+                        SESSION_ID_HEADER: session_id
+                    })
+                    .as_object()
+                    .unwrap()
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_id_case_insensitive_replacement() {
+        use rmcp::model::{Extensions, Meta};
+        use serde_json::{from_value, json};
+
+        let session_id = "new-session-id";
+        crate::session_context::with_session_id(Some(session_id.to_string()), async {
+            let mut extensions = Extensions::new();
+            extensions.insert(
+                from_value::<Meta>(json!({
+                    "GOOSE-SESSION-ID": "old-session-1",
+                    "Goose-Session-Id": "old-session-2",
+                    "other-key": "preserve-me"
+                }))
+                .unwrap(),
+            );
+
+            let extensions = inject_session_into_extensions(extensions);
+            let meta = extensions.get::<Meta>().unwrap();
+
+            assert_eq!(
+                &meta.0,
+                json!({
+                    SESSION_ID_HEADER: session_id,
+                    "other-key": "preserve-me"
+                })
+                .as_object()
+                .unwrap()
+            );
+        })
+        .await;
     }
 }

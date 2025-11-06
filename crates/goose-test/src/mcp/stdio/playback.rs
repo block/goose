@@ -20,7 +20,7 @@ struct LogEntry {
 fn parse_log_line(line: &str) -> Option<LogEntry> {
     line.find(": ").and_then(|pos| {
         let (prefix, content) = line.split_at(pos);
-        let content = &content[2..]; // Skip ": "
+        let content = content.get(2..)?; // Skip ": "
 
         let stream_type = match prefix {
             "STDIN" => StreamType::Stdin,

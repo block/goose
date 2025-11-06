@@ -257,17 +257,30 @@ pub async fn reply(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            execution_mode: None,
             max_turns: None,
             retry_config: None,
         };
 
+        let user_message = match messages.last() {
+            Some(msg) => msg,
+            _ => {
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: "Reply started with empty messages".to_string(),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
+
         let mut stream = match agent
             .reply(
-                messages.clone(),
-                Some(session_config.clone()),
+                user_message.clone(),
+                session_config,
                 Some(task_cancel.clone()),
             )
             .await

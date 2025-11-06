@@ -26,9 +26,7 @@ impl BenchBaseSession for CliSession {
     }
 
     fn get_session_id(&self) -> anyhow::Result<String> {
-        self.session_id()
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("No session ID available"))
+        Ok(self.session_id().to_string())
     }
 }
 pub async fn agent_generator(
@@ -57,6 +55,7 @@ pub async fn agent_generator(
         sub_recipes: None,
         final_output_response: None,
         retry_config: None,
+        output_format: "text".to_string(),
     })
     .await;
 

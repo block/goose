@@ -33,7 +33,6 @@ pub fn manage_schedule_tool() -> Tool {
                 "job_id": {"type": "string", "description": "Job identifier for operations on existing jobs"},
                 "recipe_path": {"type": "string", "description": "Path to recipe file for create action"},
                 "cron_expression": {"type": "string", "description": "A cron expression for create action. Supports both 5-field (minute hour day month weekday) and 6-field (second minute hour day month weekday) formats. 5-field expressions are automatically converted to 6-field by prepending '0' for seconds."},
-                "execution_mode": {"type": "string", "description": "Execution mode for create action: 'foreground' or 'background'", "enum": ["foreground", "background"], "default": "background"},
                 "limit": {"type": "integer", "description": "Limit for sessions list", "default": 50},
                 "session_id": {"type": "string", "description": "Session identifier for session_content action"}
             }

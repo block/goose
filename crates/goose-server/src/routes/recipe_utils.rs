@@ -17,7 +17,6 @@ use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
 use serde_json::Value;
-use serde_yaml;
 use tracing::error;
 
 pub struct RecipeValidationError {
@@ -63,7 +62,7 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
 }
 
 pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
-    let recipe_yaml = serde_yaml::to_string(recipe).map_err(|err| {
+    let recipe_yaml = recipe.to_yaml().map_err(|err| {
         let message = err.to_string();
         error!("Failed to serialize recipe for validation: {}", message);
         RecipeValidationError {
@@ -132,7 +131,7 @@ pub async fn build_recipe_with_parameter_values(
     original_recipe: &Recipe,
     user_recipe_values: HashMap<String, String>,
 ) -> Result<Option<Recipe>> {
-    let recipe_content = serde_yaml::to_string(&original_recipe)?;
+    let recipe_content = original_recipe.to_yaml()?;
 
     let recipe_dir = get_recipe_library_dir(true);
     let params = user_recipe_values.into_iter().collect();

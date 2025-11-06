@@ -1,6 +1,6 @@
 ---
 title: gotoHuman Extension
-description: Add gotoHuman MCP Server as a Goose Extension
+description: Add gotoHuman MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/6aV8pinnUS8" />  -->
 
-This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/gotohuman/gotohuman-mcp-server) as a Goose extension to bring **human-in-the-loop approvals** into your AI workflows. With gotoHuman, Goose can pause and request a review before continuing, perfect for blog drafts, code reviews,compliance checks, etc.  
+This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/gotohuman/gotohuman-mcp-server) as a goose extension to bring **human-in-the-loop approvals** into your AI workflows. With gotoHuman, goose can pause and request a review before continuing, perfect for blog drafts, code reviews,compliance checks, etc.  
 
 
 :::tip TLDR
@@ -53,6 +53,7 @@ This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/go
   <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
         name="gotoHuman MCP"
+        description="gotoHuman MCP server for human-in-the-loop approvals"
         command="npx -y @gotohuman/mcp-server"
         timeout={300}
         envVars={[
@@ -75,15 +76,15 @@ Follow the steps to create a template and ensure you set a **Webhook Endpoint** 
 :::
 
 
-In this example, Goose sends a LinkedIn post draft to gotoHuman for approval using the `n8n news to post` template that was created.
+In this example, goose sends a LinkedIn post draft to gotoHuman for approval using the `n8n news to post` template that was created.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-   1. Open a new session in Goose Desktop
+   1. Open a new session in goose Desktop
   </TabItem>
   <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session
@@ -92,23 +93,23 @@ In this example, Goose sends a LinkedIn post draft to gotoHuman for approval usi
   </TabItem>
 </Tabs>
 
-### Goose Prompt
+### goose Prompt
 ```
-Send this blog draft about Goose to gotoHuman for review using my `n8n news to post` form. 
+Send this blog draft about goose to gotoHuman for review using my `n8n news to post` form. 
 
 Include today’s date as the timestamp, these links: 
-[Goose Docs: https://block.github.io/goose/, gotoHuman: https://gotohuman.com/], 
-summarize it as ‘Introducing Goose’s integration with gotoHuman for human approvals,’ 
+[goose Docs: https://block.github.io/goose/, gotoHuman: https://gotohuman.com/], 
+summarize it as ‘Introducing goose’s integration with gotoHuman for human approvals,’ 
 and here’s the draft:
 
-Goose is an open-source AI agent that runs locally on your machine, right in your terminal or IDE. 
-It connects to MCP servers like gotoHuman to extend its abilities. While Goose can automate tasks, 
+goose is an open-source AI agent that runs locally on your machine, right in your terminal or IDE. 
+It connects to MCP servers like gotoHuman to extend its abilities. While goose can automate tasks, 
 sometimes you need a human in the loop. With gotoHuman MCP, you can add approval steps into any workflow;
 from reviewing a LinkedIn post draft to signing off on a code change. 
-Once approved, Goose can continue where it left off. 
+Once approved, goose can continue where it left off. 
 This makes agent workflows safer, more collaborative, and better suited for real-world teams.
 ```
-### Goose Output
+### goose Output
 
 :::note Desktop
 
@@ -123,7 +124,7 @@ Let me search for more technical details and examples:
 
 `─── Request-human-review-with-form ────────────`
 
-Perfect! I've successfully sent your Goose blog draft to gotoHuman for review using your "n8n news to post" form. Here's what was submitted:
+Perfect! I've successfully sent your goose blog draft to gotoHuman for review using your "n8n news to post" form. Here's what was submitted:
 Review Request Details
 
 - Form Used: n8n news to post
@@ -133,17 +134,17 @@ Review Request Details
 Submitted Content
 
 - Timestamp: 2025-09-23
-- Summary: Introducing Goose's integration with gotoHuman for human approvals
+- Summary: Introducing goose's integration with gotoHuman for human approvals
 - Links:
-    - Goose Docs
+    - goose Docs
     - gotoHuman
-- Draft: Your complete blog post about Goose's integration with gotoHuman
+- Draft: Your complete blog post about goose's integration with gotoHuman
 
 The review request has been created and is now ready for human approval. You can access it through the review link provided above. Once the review is completed, you'll be able to proceed with publishing or making any requested changes to the blog post.
 :::
 
 ## Review in gotoHuman
 
-Now if you open the **Review Link** from Goose’s output, you’ll see the request waiting in your gotoHuman dashboard:  
+Now if you open the **Review Link** from goose’s output, you’ll see the request waiting in your gotoHuman dashboard:  
 
 ![](/img/gotohuman.png)

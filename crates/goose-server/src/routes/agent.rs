@@ -12,12 +12,13 @@ use axum::{
 use goose::config::PermissionManager;
 
 use goose::agents::ExtensionConfig;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
 use goose::providers::{create, create_with_named_model};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -137,15 +138,16 @@ async fn start_agent(
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let name = format!("New session {}", counter);
 
-    let mut session = SessionManager::create_session(PathBuf::from(&working_dir), name)
-        .await
-        .map_err(|err| {
-            error!("Failed to create session: {}", err);
-            ErrorResponse {
-                message: format!("Failed to create session: {}", err),
-                status: StatusCode::BAD_REQUEST,
-            }
-        })?;
+    let mut session =
+        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User)
+            .await
+            .map_err(|err| {
+                error!("Failed to create session: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to create session: {}", err),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            })?;
 
     if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)
@@ -211,15 +213,12 @@ async fn resume_agent(
         let config = Config::global();
 
         let provider_result = async {
-            let provider_name: String =
-                config
-                    .get_param("GOOSE_PROVIDER")
-                    .map_err(|_| ErrorResponse {
-                        message: "Could not configure agent: missing provider".into(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
+            let provider_name: String = config.get_goose_provider().map_err(|_| ErrorResponse {
+                message: "Could not configure agent: missing provider".into(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
 
-            let model: String = config.get_param("GOOSE_MODEL").map_err(|_| ErrorResponse {
+            let model: String = config.get_goose_model().map_err(|_| ErrorResponse {
                 message: "Could not configure agent: missing model".into(),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
@@ -348,7 +347,7 @@ async fn get_tools(
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
-    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+    let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
     let agent = state.get_agent_for_route(query.session_id).await?;
     let permission_manager = PermissionManager::default();
 
@@ -360,9 +359,9 @@ async fn get_tools(
             let permission = permission_manager
                 .get_user_permission(&tool.name)
                 .or_else(|| {
-                    if goose_mode == "smart_approve" {
+                    if goose_mode == GooseMode::SmartApprove {
                         permission_manager.get_smart_approve_permission(&tool.name)
-                    } else if goose_mode == "approve" {
+                    } else if goose_mode == GooseMode::Approve {
                         Some(PermissionLevel::AskBefore)
                     } else {
                         None
@@ -406,10 +405,7 @@ async fn update_agent_provider(
         .await?;
 
     let config = Config::global();
-    let model = match payload
-        .model
-        .or_else(|| config.get_param("GOOSE_MODEL").ok())
-    {
+    let model = match payload.model.or_else(|| config.get_goose_model().ok()) {
         Some(m) => m,
         None => {
             tracing::error!("No model specified");
@@ -479,40 +475,41 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    // If this is a Stdio extension that uses npx, check for Node.js installation
-    #[cfg(target_os = "windows")]
-    if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
-        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
-            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
-                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+    if cfg!(target_os = "windows") {
+        if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
+            if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+                let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe")
+                    .exists()
+                    || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
 
-            if !node_exists {
-                let cmd_path = std::path::Path::new(&cmd);
-                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-                let install_script = script_dir.join("install-node.cmd");
+                if !node_exists {
+                    let cmd_path = std::path::Path::new(&cmd);
+                    let script_dir = cmd_path
+                        .parent()
+                        .ok_or_else(|| ErrorResponse::internal("Invalid command path"))?;
+                    let install_script = script_dir.join("install-node.cmd");
 
-                if install_script.exists() {
-                    eprintln!("Installing Node.js...");
-                    let output = std::process::Command::new(&install_script)
-                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
-                        .output()
-                        .map_err(|e| {
-                            eprintln!("Failed to run Node.js installer: {}", e);
-                            StatusCode::INTERNAL_SERVER_ERROR
-                        })?;
+                    if install_script.exists() {
+                        eprintln!("Installing Node.js...");
+                        let output = std::process::Command::new(&install_script)
+                            .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                            .output()
+                            .map_err(|_e| {
+                                ErrorResponse::internal("Failed to run Node.js installer")
+                            })?;
 
-                    if !output.status.success() {
+                        if !output.status.success() {
+                            return Err(ErrorResponse::internal(format!(
+                                "Failed to install Node.js: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            )));
+                        }
+                    } else {
                         return Err(ErrorResponse::internal(format!(
-                            "Failed to install Node.js: {}",
-                            String::from_utf8_lossy(&output.stderr)
+                            "Node.js not detected and no installer script not found at: {}",
+                            install_script.display()
                         )));
                     }
-                    eprintln!("Node.js installation completed");
-                } else {
-                    return Err(ErrorResponse::internal(format!(
-                        "Node.js not detected and no installer script not found at: {}",
-                        install_script.display()
-                    )));
                 }
             }
         }

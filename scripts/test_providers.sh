@@ -15,7 +15,7 @@ fi
 SCRIPT_DIR=$(pwd)
 
 PROVIDERS=(
-  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder"
+  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder:z-ai/glm-4.6"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo:gpt-5"
   "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
   "google:gemini-2.5-pro:gemini-2.5-flash"
@@ -51,7 +51,7 @@ for provider_config in "${PROVIDERS[@]}"; do
     echo "Model: ${MODEL}"
     echo ""
     TMPFILE=$(mktemp)
-    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "please list files in the current directory" --with-builtin developer,autovisualiser,computercontroller,tutorial  2>&1) | tee "$TMPFILE"
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "please list files in the current directory" --with-builtin developer,autovisualiser,computercontroller,tutorial,todo,extensionmanager  2>&1) | tee "$TMPFILE"
     echo ""
     if grep -q "shell | developer" "$TMPFILE"; then
       echo "✓ SUCCESS: Test passed - developer tool called"

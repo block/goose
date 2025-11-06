@@ -248,7 +248,6 @@ export function setupAutoUpdater(tray?: Tray) {
   log.info('Setting up auto-updater...');
   log.info(`Current app version: ${app.getVersion()}`);
   log.info(`Platform: ${process.platform}, Arch: ${process.arch}`);
-  log.info(`NODE_ENV: ${process.env.NODE_ENV}`);
   log.info(`ENABLE_DEV_UPDATES: ${process.env.ENABLE_DEV_UPDATES}`);
   log.info(`App is packaged: ${app.isPackaged}`);
   log.info(`App path: ${app.getAppPath()}`);
@@ -470,7 +469,7 @@ function sendStatusToWindow(event: string, data?: unknown) {
 function updateTrayIcon(hasUpdate: boolean) {
   if (!trayRef) return;
 
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = !app.isPackaged;
   let iconPath: string;
 
   if (hasUpdate) {
