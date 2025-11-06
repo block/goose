@@ -23,7 +23,6 @@ impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = AgentManager::instance().await?;
 
-        // Load tunnel config from disk (or use default)
         let tunnel_config = crate::tunnel::config::load_config().await;
         let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config.clone()));
 

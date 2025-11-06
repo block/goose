@@ -121,7 +121,6 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
-  // Tunnel functions
   startTunnel: () => Promise<TunnelInfo>;
   stopTunnel: () => Promise<void>;
   getTunnelStatus: () => Promise<TunnelStatus>;

@@ -22,8 +22,7 @@ export interface TunnelStatus {
 }
 
 /**
- * Start the tunnel via Rust API
- * Note: Rust backend is the source of truth for all tunnel state
+ * Start the tunnel via Rust API and remember it
  */
 export async function startTunnel(goosedPort: number, serverSecret: string): Promise<TunnelInfo> {
   log.info(`Starting tunnel via Rust API on port ${goosedPort}`);
@@ -53,8 +52,7 @@ export async function startTunnel(goosedPort: number, serverSecret: string): Pro
 }
 
 /**
- * Stop the tunnel via Rust API
- * Note: This will also set auto_start = false in the Rust config
+ * Stop the tunnel via Rust API, and remember it
  */
 export async function stopTunnel(port: number, secret: string): Promise<void> {
   log.info('Stopping tunnel via Rust API');

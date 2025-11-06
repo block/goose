@@ -470,7 +470,6 @@ const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
   ? 'test'
   : crypto.randomBytes(32).toString('hex');
 
-// Track goosed port for tunnel
 let globalGoosedPort = 0;
 
 let appConfig = {
@@ -528,7 +527,6 @@ const createChat = async (
     workingDir = newWorkingDir;
     goosedProcess = newGoosedProcess;
 
-    // Track first goosed port globally for tunnel
     if (globalGoosedPort === 0) {
       globalGoosedPort = port;
     }
@@ -1236,7 +1234,6 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
-// Tunnel handlers
 ipcMain.handle('start-tunnel', async () => {
   try {
     const { startTunnel } = await import('./utils/tunnel');
@@ -1260,7 +1257,6 @@ ipcMain.handle('stop-tunnel', async () => {
     const { stopTunnel } = await import('./utils/tunnel');
     await stopTunnel(globalGoosedPort, SERVER_SECRET);
 
-    // Stop power save blocker when tunnel stops
     if (tunnelPowerSaveBlockerId !== null) {
       try {
         powerSaveBlocker.stop(tunnelPowerSaveBlockerId);
@@ -1785,10 +1781,6 @@ async function appMain() {
     app.dock?.hide();
   }
 
-  // Note: Tunnel cleanup is handled by Rust backend on server shutdown
-  // The tunnel will keep running if auto_start is enabled (user's intent)
-
-  // Parse command line arguments
   const { dirPath } = parseArgs();
 
   await createNewWindow(app, dirPath);
@@ -2267,7 +2259,6 @@ async function appMain() {
 app.whenReady().then(async () => {
   try {
     await appMain();
-    // Note: Tunnel auto-start is now handled by the Rust backend
   } catch (error) {
     dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
     app.quit();
