@@ -480,6 +480,73 @@ impl ServerProcess {
         }
     }
 
+    fn find_available_port() -> Result<u16> {
+        use std::net::{SocketAddr, TcpListener};
+
+        let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+        let listener = TcpListener::bind(addr)
+            .map_err(|e| anyhow::anyhow!("Failed to bind to find available port: {}", e))?;
+
+        let port = listener
+            .local_addr()
+            .map_err(|e| anyhow::anyhow!("Failed to get local address: {}", e))?
+            .port();
+
+        drop(listener);
+
+        Ok(port)
+    }
+
+    fn kill_process_on_port(port: u16) {
+        #[cfg(unix)]
+        {
+            if let Ok(output) = std::process::Command::new("lsof")
+                .args(["-ti", &format!(":{}", port)])
+                .output()
+            {
+                if output.status.success() {
+                    let pids = String::from_utf8_lossy(&output.stdout);
+                    for pid_str in pids.lines() {
+                        if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                            tracing::info!("Killing process {} on port {}", pid, port);
+                            let _ = std::process::Command::new("kill")
+                                .arg(pid.to_string())
+                                .output();
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            let _ = std::process::Command::new("kill")
+                                .args(["-9", &pid.to_string()])
+                                .output();
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(output) = std::process::Command::new("netstat")
+                .args(["-ano"])
+                .output()
+            {
+                if output.status.success() {
+                    let netstat_output = String::from_utf8_lossy(&output.stdout);
+                    for line in netstat_output.lines() {
+                        if line.contains(&format!(":{}", port)) {
+                            if let Some(pid_str) = line.split_whitespace().last() {
+                                if let Ok(pid) = pid_str.parse::<u32>() {
+                                    tracing::info!("Killing process {} on port {}", pid, port);
+                                    let _ = std::process::Command::new("taskkill")
+                                        .args(["/F", "/PID", &pid.to_string()])
+                                        .output();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     async fn start(
         &mut self,
         model_path: &str,
@@ -492,6 +559,9 @@ impl ServerProcess {
         if self.child.is_some() {
             return Ok(()); // Already running
         }
+
+        // Kill any existing process on this port to ensure only one embedded server runs
+        Self::kill_process_on_port(self.port);
 
         // Ensure we have the binary (download if needed)
         if self.binary_path.is_none() {
@@ -631,85 +701,62 @@ impl EmbeddedProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
-        // Determine the model path
-        // Priority: EMBEDDED_MODEL_PATH > model_name from GOOSE_MODEL in ~/.models
-        let model_path: String = if let Ok(path) = config.get_param::<String>("EMBEDDED_MODEL_PATH")
-        {
-            // If EMBEDDED_MODEL_PATH is set, use it as-is
-            path
-        } else {
-            // Otherwise, look for the model in ~/.models directory
-            let model_name = &model.model_name;
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let models_dir = home_dir.join(".models");
 
-            // Expand home directory
-            let home_dir = dirs::home_dir()
-                .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-            let models_dir = home_dir.join(".models");
+        let model_name = &model.model_name;
+        let clean_model_name = model_name.trim_end_matches(" (to-download)");
 
-            // Check if this is a downloadable model (with or without "(to-download)" suffix)
-            let clean_model_name = model_name.trim_end_matches(" (to-download)");
-            let effective_model_name: &str = if let Some(downloadable) =
-                find_downloadable_model(clean_model_name)
-            {
-                let model_path_candidate = models_dir.join(format!("{}.gguf", downloadable.name));
-                if !model_path_candidate.exists() {
-                    tracing::info!(
-                        "Model {} is not downloaded, starting download...",
-                        downloadable.name
-                    );
-                    download_model(downloadable).await?;
-                    // Model is now downloaded, continue with normal flow
-                }
-                // Use the clean name for further processing
-                clean_model_name
-            } else {
-                model_name
-            };
+        // Check if this is a downloadable model
+        if let Some(downloadable) = find_downloadable_model(clean_model_name) {
+            let model_path_candidate = models_dir.join(format!("{}.gguf", downloadable.name));
+            if !model_path_candidate.exists() {
+                tracing::info!(
+                    "Model {} is not downloaded, starting download...",
+                    downloadable.name
+                );
+                download_model(downloadable).await?;
+            }
+        }
 
-            // Special case: if effective_model_name is "embedded" (the default),
-            // just pick the first available .gguf file
-            let model_file = if effective_model_name == "embedded" {
-                // Find the first .gguf file in the directory
-                if let Ok(entries) = std::fs::read_dir(&models_dir) {
-                    let first_gguf = entries
-                        .flatten()
-                        .map(|e| e.path())
-                        .find(|p| p.is_file() && p.extension().is_some_and(|ext| ext == "gguf"));
+        // Find the actual model file
+        let model_path: String = if clean_model_name == "embedded" {
+            // Pick first available .gguf file
+            if let Ok(entries) = std::fs::read_dir(&models_dir) {
+                let first_gguf = entries
+                    .flatten()
+                    .map(|e| e.path())
+                    .find(|p| p.is_file() && p.extension().is_some_and(|ext| ext == "gguf"));
 
-                    if let Some(gguf_path) = first_gguf {
-                        tracing::info!("Using first available GGUF model: {:?}", gguf_path);
-                        gguf_path
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "No GGUF models found in ~/.models/\nPlease add GGUF files to ~/.models/"
-                        ));
-                    }
+                if let Some(gguf_path) = first_gguf {
+                    tracing::info!("Using first available GGUF model: {:?}", gguf_path);
+                    gguf_path.to_string_lossy().to_string()
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Could not read models directory: {:?}",
-                        models_dir
+                        "No GGUF models found in ~/.models/\nPlease add GGUF files to ~/.models/"
                     ));
                 }
-            } else if effective_model_name.ends_with(".gguf") {
-                // If effective_model_name already ends with .gguf, use it directly
-                models_dir.join(effective_model_name)
             } else {
-                // Try with .gguf extension
-                let with_extension = models_dir.join(format!("{}.gguf", effective_model_name));
-                if with_extension.exists() {
-                    with_extension
-                } else {
-                    // Fall back to the name as-is
-                    models_dir.join(effective_model_name)
-                }
+                return Err(anyhow::anyhow!(
+                    "Could not read models directory: {:?}",
+                    models_dir
+                ));
+            }
+        } else {
+            // Try to find the specific model
+            let model_file = if clean_model_name.ends_with(".gguf") {
+                models_dir.join(clean_model_name)
+            } else {
+                models_dir.join(format!("{}.gguf", clean_model_name))
             };
 
-            // Verify the file exists (but provide helpful error message)
             if !model_file.exists() {
-                // Get list of available models for the error message
-                let available_models = if models_dir.exists() {
-                    std::fs::read_dir(&models_dir).ok().and_then(|entries| {
-                        let models: Vec<String> = entries
+                // Get list of available models for error message
+                let available_models: Vec<String> = std::fs::read_dir(&models_dir)
+                    .ok()
+                    .map(|entries| {
+                        entries
                             .flatten()
                             .filter_map(|e| {
                                 let path = e.path();
@@ -723,31 +770,22 @@ impl EmbeddedProvider {
                                     None
                                 }
                             })
-                            .collect();
-                        if models.is_empty() {
-                            None
-                        } else {
-                            Some(models)
-                        }
+                            .collect()
                     })
-                } else {
-                    None
-                };
+                    .unwrap_or_default();
 
-                let error_msg = if let Some(models) = available_models {
-                    format!(
-                        "Model file not found: {}.\n\nAvailable models in ~/.models:\n  {}\n\nPlease use one of the available models or add your GGUF file to ~/.models/",
-                        model_file.display(),
-                        models.join("\n  ")
-                    )
+                if available_models.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Model '{}' not found in ~/.models/\nNo GGUF models found. Please add GGUF files to ~/.models/",
+                        clean_model_name
+                    ));
                 } else {
-                    format!(
-                        "Model file not found: {}.\n\nNo GGUF models found in ~/.models/\nPlease add GGUF files to ~/.models/ or set EMBEDDED_MODEL_PATH",
-                        model_file.display()
-                    )
-                };
-
-                return Err(anyhow::anyhow!(error_msg));
+                    return Err(anyhow::anyhow!(
+                        "Model '{}' not found in ~/.models/\n\nAvailable models:\n  {}\n\nPlease use one of these or add your model to ~/.models/",
+                        clean_model_name,
+                        available_models.join("\n  ")
+                    ));
+                }
             }
 
             model_file.to_string_lossy().to_string()
@@ -759,9 +797,11 @@ impl EmbeddedProvider {
         let host: String = config
             .get_param("EMBEDDED_HOST")
             .unwrap_or_else(|_| EMBEDDED_HOST.to_string());
-        let port: u16 = config
-            .get_param("EMBEDDED_PORT")
-            .unwrap_or(EMBEDDED_DEFAULT_PORT);
+
+        // Find an available port by letting the OS choose (port 0)
+        let port = ServerProcess::find_available_port()?;
+        tracing::debug!("Allocated port {} for llama-server", port);
+
         let ctx_size: u32 = config
             .get_param("EMBEDDED_CTX_SIZE")
             .unwrap_or(EMBEDDED_DEFAULT_CTX_SIZE);
@@ -781,7 +821,8 @@ impl EmbeddedProvider {
         );
 
         tracing::info!(
-            "Embedded provider configuration: gpu_layers={}, batch_size={}, threads={}, ctx_size={}",
+            "Local provider configuration: port={}, gpu_layers={}, batch_size={}, threads={}, ctx_size={}",
+            port,
             gpu_layers,
             batch_size,
             threads,
@@ -1023,34 +1064,27 @@ impl ToolExecutor {
 
         // Look for JSON tool calls in the format: {"tool": "name", "args": {...}}
         while let Some(start_idx) = remaining.find(r#"{"tool":"#) {
-            // Add everything before the JSON
-            result.push_str(&remaining[..start_idx]);
+            result.push_str(remaining.get(..start_idx).unwrap_or(""));
 
-            // Find the end of the JSON object
-            let json_start = &remaining[start_idx..];
+            let json_start = remaining.get(start_idx..).unwrap_or("");
             if let Some(end_idx) = Self::find_json_end(json_start) {
-                let json_str = &json_start[..=end_idx];
+                let json_str = json_start.get(..=end_idx).unwrap_or("");
 
-                // Try to parse and execute the tool call
                 match serde_json::from_str::<Value>(json_str) {
                     Ok(json) => {
-                        // Add the original JSON to result
                         result.push_str(json_str);
 
-                        // Execute the tool call
                         if let Some(tool_result) = Self::execute_tool_call(&json).await {
                             result.push_str(&format!("\n\n{}\n", tool_result));
                         }
                     }
                     Err(_) => {
-                        // Not valid JSON, just add it as-is
-                        result.push_str(&json_start[..=end_idx]);
+                        result.push_str(json_start.get(..=end_idx).unwrap_or(""));
                     }
                 }
 
-                remaining = &json_start[end_idx + 1..];
+                remaining = json_start.get(end_idx + 1..).unwrap_or("");
             } else {
-                // Couldn't find end of JSON, add the rest as-is
                 result.push_str(remaining);
                 break;
             }
@@ -1113,9 +1147,16 @@ impl ToolExecutor {
                             // Truncate if output is too large
                             let truncate_if_large = |s: &str| -> String {
                                 if s.len() > MAX_TOOL_OUTPUT_SIZE {
+                                    // Use char_indices to find a safe truncation point
+                                    let truncate_at = s
+                                        .char_indices()
+                                        .take_while(|(idx, _)| *idx < MAX_TOOL_OUTPUT_SIZE)
+                                        .last()
+                                        .map(|(idx, ch)| idx + ch.len_utf8())
+                                        .unwrap_or(0);
                                     format!(
                                         "{}... [truncated, {} bytes total]",
-                                        &s[..MAX_TOOL_OUTPUT_SIZE],
+                                        s.get(..truncate_at).unwrap_or(""),
                                         s.len()
                                     )
                                 } else {
@@ -1171,7 +1212,7 @@ impl Provider for EmbeddedProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "embedded",
-            "Embedded",
+            "Local",
             "Local GGUF models via llama-server (auto-detects platform, looks in ~/.models)",
             "embedded",
             vec!["embedded"],
