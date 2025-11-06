@@ -4,11 +4,10 @@ use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
-use crate::{agents::Agent, config::Config, token_counter::create_token_counter};
+use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use rmcp::model::Role;
 use serde::Serialize;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
@@ -462,11 +461,132 @@ mod tests {
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
         let (compacted_conversation, _usage) =
-            compact_messages(&provider, &conversation, true).await.unwrap();
+            compact_messages(&provider, &conversation, true)
+                .await
+                .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    // Integration test for progressive removal
+    struct MockProviderWithContextLimit {
+        message: Message,
+        config: ModelConfig,
+        fail_until_removal_percent: u32,
+    }
+
+    impl MockProviderWithContextLimit {
+        fn new(
+            message: Message,
+            context_limit: usize,
+            fail_until_removal_percent: u32,
+        ) -> Self {
+            Self {
+                message,
+                config: ModelConfig {
+                    model_name: "test".to_string(),
+                    context_limit: Some(context_limit),
+                    temperature: None,
+                    max_tokens: None,
+                    toolshim: false,
+                    toolshim_model: None,
+                    fast_model: None,
+                },
+                fail_until_removal_percent,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Provider for MockProviderWithContextLimit {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
+        }
+
+        fn get_name(&self) -> &str {
+            "mock_with_limit"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            // Count tool responses to determine if we should fail
+            let tool_response_count = messages
+                .iter()
+                .filter(|m| {
+                    m.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                })
+                .count();
+
+            // Simulate context length exceeded based on number of tool responses
+            // This simulates the progressive removal behavior
+            let removal_percentages = vec![0, 10, 20, 50, 100];
+            for &percent in &removal_percentages {
+                if percent >= self.fail_until_removal_percent {
+                    // Success - enough was removed
+                    return Ok((
+                        self.message.clone(),
+                        ProviderUsage::new("mock-model".to_string(), Usage::default()),
+                    ));
+                }
+            }
+
+            // If we have too many tool responses, fail
+            if tool_response_count > 2 {
+                Err(ProviderError::ContextLengthExceeded(
+                    "Context too long".to_string(),
+                ))
+            } else {
+                Ok((
+                    self.message.clone(),
+                    ProviderUsage::new("mock-model".to_string(), Usage::default()),
+                ))
+            }
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.config.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_progressive_removal_on_context_exceeded() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProviderWithContextLimit::new(response_message, 1000, 20);
+
+        // Create a conversation with many tool responses
+        let mut messages = vec![Message::user().with_text("start")];
+        for i in 0..10 {
+            messages.push(Message::assistant().with_tool_request(
+                &format!("tool_{}", i),
+                Ok(CallToolRequestParam {
+                    name: "read_file".into(),
+                    arguments: None,
+                }),
+            ));
+            messages.push(Message::user().with_tool_response(
+                &format!("tool_{}", i),
+                Ok(vec![RawContent::text(&format!("response{}", i)).no_annotation()]),
+            ));
+        }
+
+        let conversation = Conversation::new_unvalidated(messages);
+        let result = compact_messages(&provider, &conversation, true).await;
+
+        // Should succeed after progressive removal
+        assert!(
+            result.is_ok(),
+            "Should succeed with progressive removal: {:?}",
+            result.err()
+        );
     }
 }
