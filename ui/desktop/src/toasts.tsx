@@ -2,6 +2,10 @@ import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';
+import {
+  GroupedExtensionLoadingToast,
+  ExtensionLoadingStatus,
+} from './components/GroupedExtensionLoadingToast';
 
 export interface ToastServiceOptions {
   silent?: boolean;
@@ -64,6 +68,56 @@ class ToastService {
   }
 
   /**
+   * Create a grouped extension loading toast that can be updated as extensions load
+   */
+  extensionLoading(
+    extensions: ExtensionLoadingStatus[],
+    totalCount: number,
+    isComplete: boolean = false
+  ): string | number {
+    if (this.silent) {
+      return 'silent';
+    }
+
+    const toastId = 'extension-loading';
+
+    // Check if toast already exists
+    if (toast.isActive(toastId)) {
+      // Update existing toast
+      toast.update(toastId, {
+        render: (
+          <GroupedExtensionLoadingToast
+            extensions={extensions}
+            totalCount={totalCount}
+            isComplete={isComplete}
+          />
+        ),
+        autoClose: isComplete ? 5000 : false,
+        closeButton: true,
+        closeOnClick: false,
+      });
+    } else {
+      // Create new toast
+      toast(
+        <GroupedExtensionLoadingToast
+          extensions={extensions}
+          totalCount={totalCount}
+          isComplete={isComplete}
+        />,
+        {
+          ...commonToastOptions,
+          toastId,
+          autoClose: false,
+          closeButton: true,
+          closeOnClick: false, // Prevent closing when clicking to expand/collapse
+        }
+      );
+    }
+
+    return toastId;
+  }
+
+  /**
    * Handle errors with consistent logging and toast notifications
    * Consolidates the functionality of the original handleError function
    */
@@ -79,6 +133,9 @@ class ToastService {
 
 // Export a singleton instance for use throughout the app
 export const toastService = ToastService.getInstance();
+
+// Re-export ExtensionLoadingStatus for convenience
+export type { ExtensionLoadingStatus };
 
 const commonToastOptions: ToastOptions = {
   position: 'top-right',

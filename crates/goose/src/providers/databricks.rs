@@ -152,28 +152,24 @@ impl DatabricksProvider {
         };
 
         // Check if the default fast model exists in the workspace
-        let model_with_fast = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                if let Ok(Some(models)) = provider.fetch_supported_models().await {
-                    if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                        tracing::debug!(
-                            "Found {} in Databricks workspace, setting as fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
-                    } else {
-                        tracing::debug!(
-                            "{} not found in Databricks workspace, not setting fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model
-                    }
-                } else {
-                    tracing::debug!("Could not fetch Databricks models, not setting fast model");
-                    model
-                }
-            })
-        });
+        let model_with_fast = if let Ok(Some(models)) = provider.fetch_supported_models().await {
+            if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
+                tracing::debug!(
+                    "Found {} in Databricks workspace, setting as fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
+            } else {
+                tracing::debug!(
+                    "{} not found in Databricks workspace, not setting fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model
+            }
+        } else {
+            tracing::debug!("Could not fetch Databricks models, not setting fast model");
+            model
+        };
 
         provider.model = model_with_fast;
         Ok(provider)

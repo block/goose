@@ -60,7 +60,7 @@ thread_local! {
             .unwrap_or_else(||
                 Config::global().get_param::<String>("GOOSE_CLI_THEME").ok()
                     .map(|val| Theme::from_config_str(&val))
-                    .unwrap_or(Theme::Dark)
+                    .unwrap_or(Theme::Ansi)
             )
     );
 }

@@ -225,6 +225,45 @@ goose session export -p ./my-session.jsonl -o exported.md
 
 ---
 
+#### session diagnostics [options]
+Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
+
+**Options:**
+- **`-i, --id <id>`**: Generate diagnostics for a specific session by ID
+- **`-n, --name <name>`**: Generate diagnostics for a specific session by name
+- **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
+
+**What's included:**
+- **System Information**: App version, operating system, architecture, and timestamp
+- **Session Data**: Complete conversation messages and history for the specified session
+- **Configuration Files**: Your [configuration files](/docs/guides/config-files) (if they exist)
+- **Log Files**: Recent application logs for debugging
+
+**Usage:**
+```bash
+# Generate diagnostics for a specific session by ID
+goose session diagnostics --id 20250305_113223
+
+# Generate diagnostics for a session by name
+goose session diagnostics --name my-project-session
+
+# Save diagnostics to a custom location
+goose session diagnostics --id 20250305_113223 --output /path/to/my-diagnostics.zip
+
+# Interactive selection (prompts you to choose a session)
+goose session diagnostics
+```
+
+:::warning Privacy Notice
+Diagnostics bundles contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
+:::
+
+:::tip
+Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The ZIP file can be attached to GitHub issues or shared with support.
+:::
+
+---
+
 ### Task Execution
 
 #### run [options]

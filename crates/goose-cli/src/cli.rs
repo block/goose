@@ -19,6 +19,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
@@ -85,9 +86,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
             Ok(Some(session_id))
         } else {
-            let session =
-                SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
-                    .await?;
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                "CLI Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
             Ok(Some(session.id))
         };
     };
@@ -104,8 +108,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
             Ok(Some(session_id))
         } else {
-            let session =
-                SessionManager::create_session(std::env::current_dir()?, name.clone()).await?;
+            let session = SessionManager::create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+            )
+            .await?;
 
             SessionManager::update_session(&session.id)
                 .user_provided_name(name)
@@ -122,9 +130,12 @@ async fn get_or_create_session_id(
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
         Ok(Some(session_id))
     } else {
-        let session =
-            SessionManager::create_session(std::env::current_dir()?, "CLI Session".to_string())
-                .await?;
+        let session = SessionManager::create_session(
+            std::env::current_dir()?,
+            "CLI Session".to_string(),
+            SessionType::User,
+        )
+        .await?;
         Ok(Some(session.id))
     }
 }
@@ -720,6 +731,16 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
+        /// Output format (text, json)
+        #[arg(
+            long = "output-format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text",
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
+        )]
+        output_format: String,
+
         /// Provider to use for this run (overrides environment variable)
         #[arg(
             long = "provider",
@@ -976,6 +997,7 @@ pub async fn cli() -> anyhow::Result<()> {
                         sub_recipes: None,
                         final_output_response: None,
                         retry_config: None,
+                        output_format: "text".to_string(),
                     })
                     .await;
 
@@ -990,7 +1012,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                     let (total_tokens, message_count) = session
-                        .get_metadata()
+                        .get_session()
                         .await
                         .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                         .unwrap_or((0, 0));
@@ -1056,6 +1078,7 @@ pub async fn cli() -> anyhow::Result<()> {
             scheduled_job_id,
             quiet,
             additional_sub_recipes,
+            output_format,
             provider,
             model,
         }) => {
@@ -1185,6 +1208,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     .as_ref()
                     .and_then(|r| r.final_output_response.clone()),
                 retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
+                output_format,
             })
             .await;
 
@@ -1211,7 +1235,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 let exit_type = if result.is_ok() { "normal" } else { "error" };
 
                 let (total_tokens, message_count) = session
-                    .get_metadata()
+                    .get_session()
                     .await
                     .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
                     .unwrap_or((0, 0));
@@ -1368,6 +1392,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     sub_recipes: None,
                     final_output_response: None,
                     retry_config: None,
+                    output_format: "text".to_string(),
                 })
                 .await;
                 session.interactive(None).await?;
