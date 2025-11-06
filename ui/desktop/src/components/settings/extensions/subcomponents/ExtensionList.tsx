@@ -1,8 +1,8 @@
-import { FixedExtensionEntry } from '../../../ConfigContext';
-import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs, removeShims } from '../utils';
+import { combineCmdAndArgs } from '../utils';
+import { ExtensionConfig } from '../../../../api';
+import { FixedExtensionEntry } from '../../../ConfigContext';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -11,6 +11,7 @@ interface ExtensionListProps {
   isStatic?: boolean;
   disableConfiguration?: boolean;
   searchTerm?: string;
+  pendingActivationExtensions?: Set<string>;
 }
 
 export default function ExtensionList({
@@ -20,6 +21,7 @@ export default function ExtensionList({
   isStatic,
   disableConfiguration: _disableConfiguration,
   searchTerm = '',
+  pendingActivationExtensions = new Set(),
 }: ExtensionListProps) {
   const matchesSearch = (extension: FixedExtensionEntry): boolean => {
     if (!searchTerm) return true;
@@ -63,6 +65,7 @@ export default function ExtensionList({
                 onToggle={onToggle}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
+                isPendingActivation={pendingActivationExtensions.has(extension.name)}
               />
             ))}
           </div>
@@ -132,7 +135,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(removeShims(config.cmd), config.args) : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
       };
   }
 }

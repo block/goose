@@ -1,3 +1,4 @@
+use crate::session::session_manager::SessionType;
 use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
@@ -106,6 +107,7 @@ fn get_agent_messages(
             .get_or_create_agent(session_id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+
         agent
             .update_provider(task_config.provider)
             .await
@@ -121,23 +123,22 @@ fn get_agent_messages(
             }
         }
 
-        let mut conversation =
-            Conversation::new_unvalidated(
-                vec![Message::user().with_text(text_instruction.clone())],
-            );
+        let user_message = Message::user().with_text(text_instruction);
+        let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+
         let session_config = SessionConfig {
-            id: session_id,
+            id: session_id.clone(),
             working_dir,
             schedule_id: None,
-            execution_mode: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,
         };
 
-        let mut stream = agent
-            .reply(conversation.clone(), Some(session_config), None)
-            .await
-            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+        let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
+            agent.reply(user_message, session_config, None).await
+        })
+        .await
+        .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
                 Ok(AgentEvent::Message(msg)) => conversation.push(msg),

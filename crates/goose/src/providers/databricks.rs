@@ -106,6 +106,8 @@ pub struct DatabricksProvider {
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl DatabricksProvider {
@@ -146,31 +148,28 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
+            name: Self::metadata().name,
         };
 
         // Check if the default fast model exists in the workspace
-        let model_with_fast = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                if let Ok(Some(models)) = provider.fetch_supported_models().await {
-                    if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                        tracing::debug!(
-                            "Found {} in Databricks workspace, setting as fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
-                    } else {
-                        tracing::debug!(
-                            "{} not found in Databricks workspace, not setting fast model",
-                            DATABRICKS_DEFAULT_FAST_MODEL
-                        );
-                        model
-                    }
-                } else {
-                    tracing::debug!("Could not fetch Databricks models, not setting fast model");
-                    model
-                }
-            })
-        });
+        let model_with_fast = if let Ok(Some(models)) = provider.fetch_supported_models().await {
+            if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
+                tracing::debug!(
+                    "Found {} in Databricks workspace, setting as fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
+            } else {
+                tracing::debug!(
+                    "{} not found in Databricks workspace, not setting fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model
+            }
+        } else {
+            tracing::debug!("Could not fetch Databricks models, not setting fast model");
+            model
+        };
 
         provider.model = model_with_fast;
         Ok(provider)
@@ -222,6 +221,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
+            name: Self::metadata().name,
         })
     }
 
@@ -258,6 +258,10 @@ impl Provider for DatabricksProvider {
                 ConfigKey::new("DATABRICKS_TOKEN", false, true, None),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

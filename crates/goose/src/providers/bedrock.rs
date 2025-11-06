@@ -42,6 +42,8 @@ pub struct BedrockProvider {
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl BedrockProvider {
@@ -59,8 +61,8 @@ impl BedrockProvider {
             }
         };
 
-        set_aws_env_vars(config.load_values());
-        set_aws_env_vars(config.load_secrets());
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(config.all_secrets());
 
         let sdk_config = aws_config::load_from_env().await;
 
@@ -78,6 +80,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -182,6 +185,10 @@ impl Provider for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

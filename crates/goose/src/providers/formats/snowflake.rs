@@ -133,7 +133,9 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
             continue;
         }
 
-        let json_str = &line[6..]; // Remove "data: " prefix
+        let Some(json_str) = line.get(6..) else {
+            continue;
+        }; // Remove "data: " prefix
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }

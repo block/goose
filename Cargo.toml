@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.11.0"
+version = "1.12.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -12,9 +12,10 @@ description = "An AI agent"
 
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
+string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.8.1", features = ["schemars", "auth"] }
+rmcp = { version = "0.8.3", features = ["schemars", "auth"] }
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]

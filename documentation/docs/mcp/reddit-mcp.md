@@ -1,7 +1,7 @@
 ---
 title: Reddit Extension
 
-description: Add Reddit MCP Server as a Goose Extension
+description: Add Reddit MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VBtFinHieHA" /> 
 
 
-This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhikasp/mcp-reddit) as a Goose extension to fetch trending threads, analyze Reddit post content, and explore subreddit discussions.
+This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhikasp/mcp-reddit) as a goose extension to fetch trending threads, analyze Reddit post content, and explore subreddit discussions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -49,6 +49,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="Reddit MCP"
+      description="Fetch and analyze Reddit content"
       command="uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit"
       timeout={300}
     />
@@ -58,17 +59,17 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-In this example, I’ll use Goose with the Reddit MCP Server to build a custom news feed for AI topics. Goose will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
+In this example, I’ll use goose with the Reddit MCP Server to build a custom news feed for AI topics. goose will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
 
 It’s like Reddit, but curated just for you.
 
-### Goose Prompt
+### goose Prompt
 
 > goose using the reddit MCP server, create a personalized social feed of the latest AI threads. Include images and format it like a real social media app.
 
 
 
-### Goose Output
+### goose Output
 
 :::note Desktop
 
