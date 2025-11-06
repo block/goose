@@ -141,6 +141,30 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
+    // Save original MOIM setting and disable for scenario tests
+    let original_moim = goose::config::Config::global()
+        .get_param::<bool>("GOOSE_MOIM_ENABLED")
+        .ok();
+    goose::config::Config::global()
+        .set_param("GOOSE_MOIM_ENABLED", false)
+        .ok();
+
+    // Ensure we restore the original setting on exit
+    let _restore_guard = scopeguard::defer! {
+        match original_moim {
+            Some(val) => {
+                goose::config::Config::global()
+                    .set_param("GOOSE_MOIM_ENABLED", val)
+                    .ok();
+            }
+            None => {
+                goose::config::Config::global()
+                    .delete("GOOSE_MOIM_ENABLED")
+                    .ok();
+            }
+        }
+    };
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
