@@ -98,7 +98,7 @@ pub async fn compact_messages(
             Some(text_parts.join("\n"))
         }
     };
-    
+
     let preserved_user_text = if !manual_compact {
         messages
             .iter()
