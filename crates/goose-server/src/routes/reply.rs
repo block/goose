@@ -151,31 +151,24 @@ pub enum MessageEvent {
 }
 
 async fn get_token_state(session_id: &str) -> TokenState {
-    match SessionManager::get_session(session_id, false).await {
-        Ok(session) => TokenState {
+    SessionManager::get_session(session_id, false)
+        .await
+        .map(|session| TokenState {
             input_tokens: session.input_tokens.unwrap_or(0),
             output_tokens: session.output_tokens.unwrap_or(0),
             total_tokens: session.total_tokens.unwrap_or(0),
             accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
             accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
             accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-        },
-        Err(e) => {
+        })
+        .inspect_err(|e| {
             tracing::warn!(
                 "Failed to fetch session token state for {}: {}",
                 session_id,
                 e
             );
-            TokenState {
-                input_tokens: 0,
-                output_tokens: 0,
-                total_tokens: 0,
-                accumulated_input_tokens: 0,
-                accumulated_output_tokens: 0,
-                accumulated_total_tokens: 0,
-            }
-        }
-    }
+        })
+        .unwrap_or_default()
 }
 
 async fn stream_event(
