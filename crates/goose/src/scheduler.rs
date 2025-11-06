@@ -18,7 +18,6 @@ use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::base::Provider as GooseProvider;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
@@ -122,8 +121,6 @@ async fn persist_jobs(
 ) -> Result<(), SchedulerError> {
     let jobs_guard = jobs.lock().await;
     let list: Vec<ScheduledJob> = jobs_guard.values().map(|(_, j)| j.clone()).collect();
-    drop(jobs_guard);
-
     if let Some(parent) = storage_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -242,11 +239,10 @@ impl Scheduler {
                     tasks.insert(task_job_id.clone(), cancel_token.clone());
                 }
 
-                let result = execute_job_work(
+                let result = execute_job(
                     job_to_execute,
-                    None,
-                    Some(current_jobs_arc.clone()),
-                    Some(task_job_id.clone()),
+                    current_jobs_arc.clone(),
+                    task_job_id.clone(),
                     cancel_token.clone(),
                 )
                 .await;
@@ -271,7 +267,7 @@ impl Scheduler {
 
                 match result {
                     Ok(_) => tracing::info!("Job '{}' completed", task_job_id),
-                    Err(e) => tracing::error!("Job '{}' failed: {}", e.job_id, e.error),
+                    Err(e) => tracing::error!("Job '{}' failed: {}", task_job_id, e),
                 }
             })
         })
@@ -478,11 +474,10 @@ impl Scheduler {
             tasks.insert(sched_id.to_string(), cancel_token.clone());
         }
 
-        let result = execute_job_work(
+        let result = execute_job(
             job_to_run,
-            None,
-            Some(self.jobs.clone()),
-            Some(sched_id.to_string()),
+            self.jobs.clone(),
+            sched_id.to_string(),
             cancel_token.clone(),
         )
         .await;
@@ -509,7 +504,7 @@ impl Scheduler {
             Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
                 "Job '{}' failed: {}",
                 sched_id,
-                e.error
+                e
             ))),
         }
     }
@@ -636,30 +631,18 @@ impl Scheduler {
     }
 }
 
-#[derive(Debug)]
-struct JobExecutionError {
-    job_id: String,
-    error: String,
-}
-
-async fn execute_job_work(
+async fn execute_job(
     job: ScheduledJob,
-    provider_override: Option<Arc<dyn GooseProvider>>,
-    jobs_arc: Option<Arc<Mutex<JobsMap>>>,
-    job_id: Option<String>,
+    jobs: Arc<Mutex<JobsMap>>,
+    job_id: String,
     cancel_token: CancellationToken,
-) -> Result<String, JobExecutionError> {
+) -> Result<String> {
     if job.source.is_empty() {
-        // Shortcut for testing
         return Ok(job.id.to_string());
     }
 
     let recipe_path = Path::new(&job.source);
-
-    let recipe_content = fs::read_to_string(recipe_path).map_err(|e| JobExecutionError {
-        job_id: job.id.clone(),
-        error: format!("Failed to load recipe: {}", e),
-    })?;
+    let recipe_content = fs::read_to_string(recipe_path)?;
 
     let recipe: Recipe = {
         let extension = recipe_path
@@ -669,89 +652,38 @@ async fn execute_job_work(
             .to_lowercase();
 
         match extension.as_str() {
-            "json" | "jsonl" => {
-                serde_json::from_str(&recipe_content).map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to parse JSON recipe: {}", e),
-                })
-            }
-            _ => serde_yaml::from_str(&recipe_content).map_err(|e| JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to parse YAML recipe: {}", e),
-            }),
-        }?
+            "json" | "jsonl" => serde_json::from_str(&recipe_content)?,
+            _ => serde_yaml::from_str(&recipe_content)?,
+        }
     };
 
     let agent = Agent::new();
 
-    let agent_provider = match provider_override {
-        Some(p) => p,
-        None => {
-            let config = Config::global();
-            let provider_name = config.get_goose_provider().map_err(|_| JobExecutionError {
-                job_id: job.id.clone(),
-                error: "GOOSE_PROVIDER not configured".to_string(),
-            })?;
-            let model_name = config.get_goose_model().map_err(|_| JobExecutionError {
-                job_id: job.id.clone(),
-                error: "GOOSE_MODEL not configured".to_string(),
-            })?;
-            let model_config =
-                crate::model::ModelConfig::new(&model_name).map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Model config error: {}", e),
-                })?;
+    let config = Config::global();
+    let provider_name = config.get_goose_provider()?;
+    let model_name = config.get_goose_model()?;
+    let model_config = crate::model::ModelConfig::new(&model_name)?;
 
-            create(&provider_name, model_config)
-                .await
-                .map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to create provider: {}", e),
-                })?
-        }
-    };
+    let agent_provider = create(&provider_name, model_config).await?;
 
     if let Some(ref extensions) = recipe.extensions {
         for ext in extensions {
-            agent
-                .add_extension(ext.clone())
-                .await
-                .map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!("Failed to add extension: {}", e),
-                })?;
+            agent.add_extension(ext.clone()).await?;
         }
     }
 
-    agent
-        .update_provider(agent_provider)
-        .await
-        .map_err(|e| JobExecutionError {
-            job_id: job.id.clone(),
-            error: format!("Failed to set provider: {}", e),
-        })?;
-
-    let current_dir = std::env::current_dir().map_err(|e| JobExecutionError {
-        job_id: job.id.clone(),
-        error: format!("Failed to get current directory: {}", e),
-    })?;
+    agent.update_provider(agent_provider).await?;
 
     let session = SessionManager::create_session(
-        current_dir,
+        std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
     )
-    .await
-    .map_err(|e| JobExecutionError {
-        job_id: job.id.clone(),
-        error: format!("Failed to create session: {}", e),
-    })?;
+    .await?;
 
-    if let (Some(jobs), Some(jid)) = (jobs_arc.as_ref(), job_id.as_ref()) {
-        let mut jobs_guard = jobs.lock().await;
-        if let Some((_, job_def)) = jobs_guard.get_mut(jid) {
-            job_def.current_session_id = Some(session.id.clone());
-        }
+    let mut jobs_guard = jobs.lock().await;
+    if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
+        job_def.current_session_id = Some(session.id.clone());
     }
 
     let prompt_text = recipe
@@ -776,11 +708,7 @@ async fn execute_job_work(
             .reply(user_message, session_config, Some(cancel_token))
             .await
     })
-    .await
-    .map_err(|e| JobExecutionError {
-        job_id: job.id.clone(),
-        error: format!("Agent failed: {}", e),
-    })?;
+    .await?;
 
     use futures::StreamExt;
     let mut stream = std::pin::pin!(stream);
@@ -814,6 +742,7 @@ async fn execute_job_work(
 
     Ok(session.id)
 }
+
 #[async_trait]
 impl SchedulerTrait for Scheduler {
     async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
