@@ -88,6 +88,13 @@ pub struct UpdateCustomProviderRequest {
     pub supports_streaming: Option<bool>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct FetchModelsRequest {
+    pub engine: String,
+    pub api_url: String,
+    pub api_key: Option<String>,
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MaskedSecret {
@@ -371,6 +378,125 @@ pub async fn get_provider_models(
             tracing::warn!(
                 "Provider {} failed to fetch models: {}",
                 name,
+                provider_error
+            );
+            Err(status_code)
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/providers/fetch-models",
+    request_body = FetchModelsRequest,
+    responses(
+        (status = 200, description = "Models fetched successfully", body = [String]),
+        (status = 400, description = "Invalid request or authentication error"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn fetch_custom_provider_models(
+    Json(request): Json<FetchModelsRequest>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    use goose::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
+    use goose::providers::anthropic::AnthropicProvider;
+    use goose::providers::base::{ModelInfo, Provider};
+    use goose::providers::ollama::OllamaProvider;
+    use goose::providers::openai::OpenAiProvider;
+    use reqwest::Url;
+
+    let url = Url::parse(&request.api_url).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let host = if let Some(port) = url.port() {
+        format!(
+            "{}://{}:{}",
+            url.scheme(),
+            url.host_str().ok_or(StatusCode::BAD_REQUEST)?,
+            port
+        )
+    } else {
+        format!(
+            "{}://{}",
+            url.scheme(),
+            url.host_str().ok_or(StatusCode::BAD_REQUEST)?
+        )
+    };
+
+    let base_path = url.path().trim_start_matches('/').to_string();
+    let api_key = request
+        .api_key
+        .unwrap_or_else(|| "not-required".to_string());
+
+    let base_url = if base_path.is_empty() {
+        host.clone()
+    } else {
+        let url_with_path = format!("{}/{}", host, base_path);
+        if request.engine == "openai_compatible" && !base_path.contains("chat/completions") {
+            format!("{}/chat/completions", url_with_path)
+        } else {
+            url_with_path
+        }
+    };
+
+    let temp_config = DeclarativeProviderConfig {
+        name: "temp_fetch".to_string(),
+        engine: match request.engine.as_str() {
+            "openai_compatible" => ProviderEngine::OpenAI,
+            "anthropic_compatible" => ProviderEngine::Anthropic,
+            "ollama_compatible" => ProviderEngine::Ollama,
+            _ => return Err(StatusCode::BAD_REQUEST),
+        },
+        display_name: "Temporary".to_string(),
+        description: None,
+        api_key_env: "TEMP_API_KEY".to_string(),
+        base_url,
+        models: vec![ModelInfo::new("temp", 128000)],
+        headers: None,
+        timeout_seconds: Some(30),
+        supports_streaming: None,
+    };
+
+    // Temporarily set the API key in config
+    let config = Config::global();
+    config
+        .set_secret("TEMP_API_KEY", &api_key)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let model_config = ModelConfig::new("temp").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let result = match temp_config.engine {
+        ProviderEngine::OpenAI => {
+            let provider = OpenAiProvider::from_custom_config(model_config, temp_config)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            provider.fetch_supported_models().await
+        }
+        ProviderEngine::Anthropic => {
+            let provider = AnthropicProvider::from_custom_config(model_config, temp_config)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            provider.fetch_supported_models().await
+        }
+        ProviderEngine::Ollama => {
+            let provider = OllamaProvider::from_custom_config(model_config, temp_config)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            provider.fetch_supported_models().await
+        }
+    };
+
+    let _ = config.delete_secret("TEMP_API_KEY");
+
+    match result {
+        Ok(Some(models)) => Ok(Json(models)),
+        Ok(None) => Ok(Json(Vec::new())),
+        Err(provider_error) => {
+            use goose::providers::errors::ProviderError;
+            let status_code = match provider_error {
+                ProviderError::Authentication(_) => StatusCode::BAD_REQUEST,
+                ProviderError::UsageError(_) => StatusCode::BAD_REQUEST,
+                ProviderError::RateLimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+
+            tracing::warn!(
+                "Failed to fetch models for custom provider: {}",
                 provider_error
             );
             Err(status_code)
@@ -744,6 +870,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route(
+            "/config/providers/fetch-models",
+            post(fetch_custom_provider_models),
+        )
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
