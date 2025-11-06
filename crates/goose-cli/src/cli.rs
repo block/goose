@@ -199,14 +199,8 @@ enum SessionCommand {
     },
     #[command(about = "Remove sessions. Runs interactively if no ID, name, or regex is provided.")]
     Remove {
-        #[arg(
-            short = 'i',
-            long = "session-id",
-            help = "Session ID to be removed (optional)"
-        )]
-        session_id: Option<String>,
-        #[arg(short = 'n', long, help = "Session name to be removed (optional)")]
-        name: Option<String>,
+        #[command(flatten)]
+        identifier: Option<Identifier>,
         #[arg(
             short = 'r',
             long,
@@ -237,9 +231,9 @@ enum SessionCommand {
     },
     #[command(name = "diagnostics")]
     Diagnostics {
-        /// Session ID to generate diagnostics for
-        #[arg(short = 'i', long = "session-id")]
-        session_id: String,
+        /// Session identifier for generating diagnostics
+        #[command(flatten)]
+        identifier: Option<Identifier>,
 
         /// Output path for the diagnostics zip file (optional, defaults to current directory)
         #[arg(short = 'o', long)]
@@ -253,6 +247,7 @@ enum SchedulerCommand {
     Add {
         #[arg(
             long = "schedule-id",
+            alias = "id",
             help = "Unique ID for the recurring scheduled job"
         )]
         schedule_id: String,
@@ -274,6 +269,7 @@ enum SchedulerCommand {
     Remove {
         #[arg(
             long = "schedule-id",
+            alias = "id",
             help = "ID of the scheduled job to remove (removes the recurring schedule)"
         )]
         schedule_id: String,
@@ -282,7 +278,7 @@ enum SchedulerCommand {
     #[command(about = "List sessions created by a specific schedule")]
     Sessions {
         /// ID of the schedule
-        #[arg(long = "schedule-id", help = "ID of the schedule")]
+        #[arg(long = "schedule-id", alias = "id", help = "ID of the schedule")]
         schedule_id: String,
         #[arg(short = 'l', long, help = "Maximum number of sessions to return")]
         limit: Option<usize>,
@@ -290,7 +286,7 @@ enum SchedulerCommand {
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
         /// ID of the schedule to run
-        #[arg(long = "schedule-id", help = "ID of the schedule to run")]
+        #[arg(long = "schedule-id", alias = "id", help = "ID of the schedule to run")]
         schedule_id: String,
     },
     /// Check status of scheduler services (deprecated - no external services needed)
@@ -914,11 +910,14 @@ pub async fn cli() -> anyhow::Result<()> {
                     working_dir,
                     limit,
                 }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
-                Some(SessionCommand::Remove {
-                    session_id,
-                    name,
-                    regex,
-                }) => Ok(handle_session_remove(session_id, name, regex).await?),
+                Some(SessionCommand::Remove { identifier, regex }) => {
+                    let (session_id, name) = if let Some(id) = identifier {
+                        (id.session_id, id.name)
+                    } else {
+                        (None, None)
+                    };
+                    Ok(handle_session_remove(session_id, name, regex).await?)
+                }
                 Some(SessionCommand::Export {
                     identifier,
                     output,
@@ -946,7 +945,19 @@ pub async fn cli() -> anyhow::Result<()> {
                     .await?;
                     Ok(())
                 }
-                Some(SessionCommand::Diagnostics { session_id, output }) => {
+                Some(SessionCommand::Diagnostics { identifier, output }) => {
+                    let session_id = if let Some(id) = identifier {
+                        lookup_session_id(id).await?
+                    } else {
+                        match crate::commands::session::prompt_interactive_session_selection().await
+                        {
+                            Ok(id) => id,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return Ok(());
+                            }
+                        }
+                    };
                     crate::commands::session::handle_diagnostics(&session_id, output).await?;
                     Ok(())
                 }

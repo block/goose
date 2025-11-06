@@ -11,7 +11,7 @@ Goose provides a command-line interface (CLI) with several commands for managing
 
 Goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
 
-- **`-i, --session-id`**: Used for session identifiers (e.g., `20250305_113223`)
+- **`--session-id`**: Used for session identifiers (e.g., `20250305_113223`)
 - **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
 - **`-n, --name`**: Used for human-readable names
 - **`-p, --path`**: Used for file paths (legacy support)
@@ -94,7 +94,7 @@ goose update --reconfigure
 Start or resume interactive chat sessions.
 
 **Basic Options:**
-- **`-i, --session-id <session_id>`**: Specify a session by its ID (e.g., '20250921_143022')
+- **`--session-id <session_id>`**: Specify a session by its ID (e.g., '20250921_143022')
 - **`-n, --name <name>`**: Give the session a name
 - **`-p, --path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
@@ -114,7 +114,7 @@ goose session -n my-project
 
 # Resume a previous session
 goose session --resume -n my-project
-goose session --resume -i 20250620_013617
+goose session --resume --session-id 20250620_013617
 goose session --resume -p ./session.jsonl
 
 # Start with extensions
@@ -164,14 +164,15 @@ goose session list --ascending
 Remove one or more saved sessions.
 
 **Options:**
-- **`-i, --session-id <session_id>`**: Remove a specific session by its session ID
+- **`--session-id <session_id>`**: Remove a specific session by its session ID
 - **`-n, --name <name>`**: Remove a specific session by its name
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern
 
 **Usage:**
 ```bash
 # Remove a specific session by ID
-goose session remove -i 20250305_113223
+goose session remove --session-id 20250305_113223
+goose session remove --id 20250305_113223
 
 # Remove a specific session by its name
 goose session remove -n my-session
@@ -193,7 +194,7 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
-- **`-i, --session-id <session_id>`**: Export a specific session by session ID
+- **`--session-id <session_id>`**: Export a specific session by session ID
 - **`-n, --name <name>`**: Export a specific session by name
 - **`-p, --path <path>`**: Export a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
@@ -216,7 +217,7 @@ goose session export -n my-session --format json -o session-backup.json
 goose session export -n my-session -o session.md
 
 # Export to stdout in different formats
-goose session export -i 20250305_113223 --format json
+goose session export --session-id 20250305_113223 --format json
 goose session export -n my-session --format yaml
 
 # Export session by path (legacy)
@@ -229,7 +230,7 @@ goose session export -p ./my-session.jsonl -o exported.md
 Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
 
 **Options:**
-- **`-i, --id <id>`**: Generate diagnostics for a specific session by ID
+- **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
 - **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
 
@@ -242,13 +243,13 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 **Usage:**
 ```bash
 # Generate diagnostics for a specific session by ID
-goose session diagnostics --id 20250305_113223
+goose session diagnostics --session-id 20250305_113223
 
 # Generate diagnostics for a session by name
 goose session diagnostics --name my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --id 20250305_113223 --output /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20250305_113223 --output /path/to/my-diagnostics.zip
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
