@@ -169,11 +169,9 @@ impl ObservationLayer {
     }
 
     pub async fn handle_span_close(&self, span_id: u64) {
-        let (observation_id, should_clear_trace) = {
+        let observation_id = {
             let mut spans = self.span_tracker.lock().await;
-            let obs_id = spans.remove_span(span_id);
-            let should_clear = spans.active_spans.is_empty();
-            (obs_id, should_clear)
+            spans.remove_span(span_id)
         };
 
         if let Some(observation_id) = observation_id {
@@ -198,8 +196,8 @@ impl ObservationLayer {
             let mut batch = self.batch_manager.lock().await;
             batch.add_event("observation-update", update_body);
 
-            if should_clear_trace {
-                let mut spans = self.span_tracker.lock().await;
+            let mut spans = self.span_tracker.lock().await;
+            if spans.active_spans.is_empty() {
                 if let Some(current_trace) = spans.current_trace_id.take() {
                     spans.clear_trace(&current_trace);
                 }
