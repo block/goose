@@ -152,19 +152,30 @@ impl BatchManager for LangfuseBatchManager {
     }
 }
 
-pub fn create_langfuse_observer() -> Option<ObservationLayer> {
+pub fn is_langfuse_enabled() -> bool {
     let public_key = env::var("LANGFUSE_PUBLIC_KEY")
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"))
-        .unwrap_or_default(); // Use empty string if not found
+        .unwrap_or_default();
 
     let secret_key = env::var("LANGFUSE_SECRET_KEY")
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_SECRET_KEY"))
-        .unwrap_or_default(); // Use empty string if not found
+        .unwrap_or_default();
 
-    // Return None if either key is empty
-    if public_key.is_empty() || secret_key.is_empty() {
+    !public_key.is_empty() && !secret_key.is_empty()
+}
+
+pub fn create_langfuse_observer() -> Option<ObservationLayer> {
+    if !is_langfuse_enabled() {
         return None;
     }
+
+    let public_key = env::var("LANGFUSE_PUBLIC_KEY")
+        .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"))
+        .unwrap_or_default();
+
+    let secret_key = env::var("LANGFUSE_SECRET_KEY")
+        .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_SECRET_KEY"))
+        .unwrap_or_default();
 
     let base_url = env::var("LANGFUSE_URL").unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
 

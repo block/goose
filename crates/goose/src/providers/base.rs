@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
@@ -531,6 +531,70 @@ pub type MessageStream = Pin<
 pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {
     let stream = futures::stream::once(async move { Ok((Some(message), Some(usage))) });
     Box::pin(stream)
+}
+
+pub fn instrumented_stream(
+    stream: MessageStream,
+    model_name: String,
+    system: String,
+    messages: Vec<Message>,
+    tools: Vec<String>,
+) -> MessageStream {
+    Box::pin(async_stream::stream! {
+        let span = tracing::info_span!(
+            target: "goose::providers",
+            "complete_with_model",
+            model_config = tracing::field::Empty,
+            input = tracing::field::Empty,
+            output = tracing::field::Empty,
+        );
+
+        {
+            let _enter = span.enter();
+            span.record("model_config", model_name.as_str());
+
+            let input_data = serde_json::json!({
+                "system": system,
+                "messages": messages,
+                "tools": tools,
+            });
+
+            match serde_json::to_string(&input_data) {
+                Ok(input_json) => {
+                    let truncated = safe_truncate(&input_json, 128_000);
+                    span.record("input", truncated.as_str());
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to serialize input for tracing: {}", e);
+                }
+            }
+        }
+
+        const OUTPUT_PREVIEW_LIMIT: usize = 64_000;
+        let mut output_preview = String::new();
+
+        tokio::pin!(stream);
+        while let Some(result) = stream.next().await {
+            if let Ok((Some(msg), _usage_opt)) = &result {
+                if output_preview.len() < OUTPUT_PREVIEW_LIMIT {
+                    let text = msg.as_concat_text();
+                    if !text.is_empty() {
+                        let remaining = OUTPUT_PREVIEW_LIMIT.saturating_sub(output_preview.len());
+                        let chunk = safe_truncate(&text, remaining);
+                        output_preview.push_str(&chunk);
+                    }
+                }
+            }
+            yield result;
+        }
+
+        {
+            let _enter = span.enter();
+            if !output_preview.is_empty() {
+                span.record("output", output_preview.as_str());
+            }
+        }
+    })
 }
 
 #[cfg(test)]

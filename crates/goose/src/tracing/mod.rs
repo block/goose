@@ -3,7 +3,7 @@ mod observation_layer;
 pub mod otlp_layer;
 pub mod rate_limiter;
 
-pub use langfuse_layer::{create_langfuse_observer, LangfuseBatchManager};
+pub use langfuse_layer::{create_langfuse_observer, is_langfuse_enabled, LangfuseBatchManager};
 pub use observation_layer::{
     flatten_metadata, map_level, BatchManager, ObservationLayer, SpanData, SpanTracker,
 };

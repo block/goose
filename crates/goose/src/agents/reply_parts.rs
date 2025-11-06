@@ -8,7 +8,9 @@ use tracing::debug;
 use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
+use crate::providers::base::{
+    instrumented_stream, stream_from_single_message, MessageStream, Provider, ProviderUsage,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -152,15 +154,22 @@ impl Agent {
             }
         };
 
-        // If there was an error creating the stream, return a stream that yields that error
         let mut stream = match stream_result {
-            Ok(s) => s,
+            Ok(s) => {
+                if crate::tracing::is_langfuse_enabled() {
+                    instrumented_stream(
+                        s,
+                        provider.get_active_model_name(),
+                        system_prompt.clone(),
+                        messages_for_provider.messages().to_vec(),
+                        tools.iter().map(|t| t.name.to_string()).collect(),
+                    )
+                } else {
+                    s
+                }
+            }
             Err(e) => {
-                // Return a stream that immediately yields the error
-                // This allows the error to be caught by existing error handling in agent.rs
-                return Ok(Box::pin(try_stream! {
-                    yield Err(e)?;
-                }));
+                return Ok(Box::pin(futures::stream::once(async move { Err(e) })));
             }
         };
 
