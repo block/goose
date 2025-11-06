@@ -37,8 +37,6 @@ pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
-    #[serde(skip)]
-    client: Client,
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
@@ -64,20 +62,17 @@ impl BedrockProvider {
         set_aws_env_vars(config.all_values());
         set_aws_env_vars(config.all_secrets());
 
+        // Validate credentials at initialization time by loading config and checking credentials
         let sdk_config = aws_config::load_from_env().await;
-
-        // validate credentials or return error back up
         sdk_config
             .credentials_provider()
             .unwrap()
             .provide_credentials()
             .await?;
-        let client = Client::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
 
         Ok(Self {
-            client,
             model,
             retry_config,
             name: Self::metadata().name,
@@ -117,8 +112,10 @@ impl BedrockProvider {
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let mut request = self
-            .client
+        let sdk_config = aws_config::load_from_env().await;
+        let client = Client::new(&sdk_config);
+
+        let mut request = client
             .converse()
             .system(bedrock::SystemContentBlock::Text(system.to_string()))
             .model_id(model_name.to_string())
