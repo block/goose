@@ -116,7 +116,7 @@ pub fn create_dynamic_task_tool() -> Tool {
 
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: None or empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
         input_schema,
     ).annotate(ToolAnnotations {
         title: Some("Create Dynamic Tasks".to_string()),
@@ -220,7 +220,13 @@ pub fn task_params_to_inline_recipe(
     // Handle extensions
     if let Some(extensions) = task_param.get("extensions") {
         if let Some(ext_configs) = process_extensions(extensions, loaded_extensions) {
-            builder = builder.extensions(ext_configs);
+            if ext_configs.is_empty() {
+                builder = builder.extensions(Some(None));
+            } else {
+                builder = builder.extensions(Some(Some(ext_configs)));
+            }
+        } else {
+            builder = builder.extensions(Some(None));
         }
     }
 

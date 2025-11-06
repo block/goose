@@ -184,7 +184,7 @@ mod tests {
 
         let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = recipe.extensions.unwrap().unwrap_or_default();
         assert_eq!(extensions.len(), 1);
     }
 
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(recipe.instructions, Some("Test".to_string()));
         // Invalid fields should be ignored (None)
         assert!(recipe.settings.is_none());
-        assert!(recipe.extensions.is_none());
+        assert!(recipe.extensions.unwrap().unwrap_or_default().is_empty());
         assert!(recipe.context.is_none());
         assert!(recipe.activities.is_none());
     }
@@ -392,7 +392,7 @@ mod tests {
 
         let recipe = task_params_to_inline_recipe(&params, &loaded_exts).unwrap();
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = recipe.extensions.unwrap().unwrap_or_default();
         // We can't guarantee both extensions exist in config during tests
         // Just check that we got some extensions and they have the right structure
         assert!(extensions.len() <= 2);
@@ -431,7 +431,7 @@ mod tests {
 
         let recipe = task_params_to_inline_recipe(&params, &loaded_exts).unwrap();
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = recipe.extensions.unwrap().unwrap_or_default();
         // At minimum we should get the full config (stdio), shortname may not resolve
         assert!(!extensions.is_empty() && extensions.len() <= 2);
         // The last one should always be the stdio config we provided
@@ -470,7 +470,7 @@ mod tests {
 
         let recipe = task_params_to_inline_recipe(&params, &loaded_exts).unwrap();
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = recipe.extensions.unwrap().unwrap_or_default();
         // Should only get the full config, unknown shortnames should be skipped
         assert_eq!(extensions.len(), 1);
         // Verify it's the builtin we provided
@@ -493,7 +493,7 @@ mod tests {
 
         let recipe = task_params_to_inline_recipe(&params, &loaded_exts).unwrap();
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
+        let extensions = recipe.extensions.unwrap().unwrap_or_default();
         // Empty array should mean no extensions
         assert_eq!(extensions.len(), 0);
     }
@@ -528,7 +528,7 @@ mod tests {
         // Null values should use defaults or be None
         assert_eq!(recipe.title, "Dynamic Task"); // Should use default
         assert_eq!(recipe.description, "Inline recipe task"); // Should use default
-        assert!(recipe.extensions.is_none());
+        assert!(matches!(recipe.extensions, Some(None)));
         assert!(recipe.settings.is_none());
     }
 }

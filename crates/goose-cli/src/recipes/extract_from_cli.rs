@@ -48,8 +48,8 @@ pub fn extract_recipe_info_from_cli(
         }
     }
     let input_config = InputConfig {
-        contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-        extensions_override: recipe.extensions.or(Some(vec![])),
+        contents: recipe.prompt.clone().filter(|s| !s.trim().is_empty()),
+        extensions_override: Some(recipe.resolve_extensions()),
         additional_system_prompt: recipe.instructions,
     };
 

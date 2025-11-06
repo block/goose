@@ -80,8 +80,9 @@ fn discover_recipe_secrets_recursive(
     let mut secrets: Vec<SecretRequirement> = Vec::new();
     let mut seen_keys = HashSet::new();
 
-    if let Some(extensions) = &recipe.extensions {
-        secrets.extend(extract_secrets_from_extensions(extensions, &mut seen_keys));
+    let extensions = recipe.resolve_extensions();
+    if !extensions.is_empty() {
+        secrets.extend(extract_secrets_from_extensions(&extensions, &mut seen_keys));
     }
 
     if let Some(sub_recipes) = &recipe.sub_recipes {
@@ -135,7 +136,7 @@ mod tests {
             description: "A test recipe with MCP extensions".to_string(),
             instructions: Some("Test instructions".to_string()),
             prompt: None,
-            extensions: Some(vec![
+            extensions: Some(Some(vec![
                 ExtensionConfig::Sse {
                     name: "github-mcp".to_string(),
                     uri: "sse://example.com".to_string(),
@@ -165,7 +166,7 @@ mod tests {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            ]),
+            ])),
             context: None,
             settings: None,
             activities: None,
@@ -232,7 +233,7 @@ mod tests {
             description: "A test recipe with duplicate secrets".to_string(),
             instructions: Some("Test instructions".to_string()),
             prompt: None,
-            extensions: Some(vec![
+            extensions: Some(Some(vec![
                 ExtensionConfig::Sse {
                     name: "service-a".to_string(),
                     uri: "sse://example.com".to_string(),
@@ -254,7 +255,7 @@ mod tests {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            ]),
+            ])),
             context: None,
             settings: None,
             activities: None,
@@ -292,7 +293,7 @@ mod tests {
             description: "A recipe with sub-recipes".to_string(),
             instructions: Some("Test instructions".to_string()),
             prompt: None,
-            extensions: Some(vec![ExtensionConfig::Sse {
+            extensions: Some(Some(vec![ExtensionConfig::Sse {
                 name: "parent-ext".to_string(),
                 uri: "sse://parent.com".to_string(),
                 envs: Envs::new(HashMap::new()),
@@ -301,7 +302,7 @@ mod tests {
                 timeout: None,
                 bundled: None,
                 available_tools: Vec::new(),
-            }]),
+            }])),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),
                 path: "path/to/child.yaml".to_string(),
