@@ -319,6 +319,7 @@ pub async fn create_dynamic_task(
                 let session = match SessionManager::create_session(
                     std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
                     "Subagent task".to_string(),
+                    crate::session::session_manager::SessionType::SubAgent,
                 )
                 .await
                 {

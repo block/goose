@@ -63,6 +63,7 @@ async fn create_tasks_from_params(
         let session = SessionManager::create_session(
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             format!("Subagent: {}", sub_recipe.name),
+            crate::session::session_manager::SessionType::SubAgent,
         )
         .await?;
 

@@ -1,4 +1,3 @@
-use crate::session::session_manager::SessionType;
 use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
@@ -101,7 +100,6 @@ fn get_agent_messages(
         let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-        let working_dir = task_config.parent_working_dir;
 
         let agent = agent_manager
             .get_or_create_agent(session_id.clone())
@@ -128,7 +126,6 @@ fn get_agent_messages(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir,
             schedule_id: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: None,
