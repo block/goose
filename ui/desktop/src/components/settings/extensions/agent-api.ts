@@ -1,6 +1,10 @@
 import { toastService } from '../../../toasts';
 import { agentAddExtension, ExtensionConfig, agentRemoveExtension } from '../../../api';
 import { errorMessage } from '../../../utils/conversionUtils';
+import {
+  createExtensionRecoverHints,
+  formatExtensionErrorMessage,
+} from '../../../utils/extensionErrorUtils';
 
 export async function addToAgent(
   extensionConfig: ExtensionConfig,
@@ -30,20 +34,16 @@ export async function addToAgent(
   } catch (error) {
     if (showToast) {
       toastService.dismiss(toastId);
+      const errMsg = errorMessage(error);
+      const recoverHints = createExtensionRecoverHints(errMsg);
+      const msg = formatExtensionErrorMessage(errMsg, 'Failed to add extension');
+      toastService.error({
+        title: extensionName,
+        msg: msg,
+        traceback: errMsg,
+        recoverHints,
+      });
     }
-    const errMsg = errorMessage(error);
-    const recoverHints =
-      `Explain the following error: ${errMsg}. ` +
-      'This happened while trying to install an extension. Look out for issues that the ' +
-      "extension tried to run something faulty, didn't exist or there was trouble with " +
-      'the network configuration - VPNs like WARP often cause issues.';
-    const msg = errMsg.length < 70 ? errMsg : `Failed to add extension`;
-    toastService.error({
-      title: extensionName,
-      msg: msg,
-      traceback: errMsg,
-      recoverHints,
-    });
     throw error;
   }
 }
@@ -75,14 +75,14 @@ export async function removeFromAgent(
   } catch (error) {
     if (showToast) {
       toastService.dismiss(toastId);
+      const errMsg = errorMessage(error);
+      const msg = formatExtensionErrorMessage(errMsg, 'Failed to remove extension');
+      toastService.error({
+        title: extensionName,
+        msg: msg,
+        traceback: errMsg,
+      });
     }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const msg = errorMessage.length < 70 ? errorMessage : `Failed to remove extension`;
-    toastService.error({
-      title: extensionName,
-      msg: msg,
-      traceback: errorMessage,
-    });
     throw error;
   }
 }

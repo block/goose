@@ -263,7 +263,7 @@ Search allows you to find specific content within sessions or find specific sess
         ```
 
         :::tip
-        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
+        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting/known-issues#stuck-in-a-loop-or-unresponsive).
         :::
     </TabItem>
 </Tabs>

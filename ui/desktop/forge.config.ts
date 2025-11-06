@@ -40,12 +40,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -87,8 +87,8 @@ module.exports = {
         desktopTemplate: './forge.deb.desktop',
         options: {
           icon: 'src/images/icon.png',
-          prefix: '/opt'
-        }
+          prefix: '/opt',
+        },
       },
     },
     {
@@ -102,8 +102,9 @@ module.exports = {
         desktopTemplate: './forge.rpm.desktop',
         options: {
           icon: 'src/images/icon.png',
-          prefix: '/opt'
-        }
+          prefix: '/opt',
+          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+        },
       },
     },
   ],

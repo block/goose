@@ -1,8 +1,11 @@
 ---
 sidebar_position: 2
 title: Recipe Reference Guide
-description: Complete technical reference for creating and customizing recipes in goose via the CLI.
+description: Complete technical reference for creating and customizing recipes in goose
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 Recipes are reusable goose configurations that package up a specific setup so it can be easily shared and launched by others.
 
@@ -12,11 +15,7 @@ Recipes can be defined in either:
 - `.yaml` files (recommended)
 - `.json` files 
 
-Files should be named either:
-- `recipe.yaml`/`recipe.json` 
-- `<recipe_name>.yaml`/`<recipe_name>.json`
-
-After creating recipe files, you can use the [`goose recipe` subcommands](/docs/guides/goose-cli-commands#recipe) to validate, share, and open your recipes.
+See [Shareable Recipes](/docs/guides/recipes/session-recipes) to learn how to create, use, and manage recipes.
 
 ### CLI and Desktop Formats
 
@@ -25,12 +24,18 @@ goose recipes use two formats:
 - **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file. This format is used when recipes are created via the CLI `/recipe` command and [Recipe Generator](/recipe-generator) YAML option.
 - **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level. This format is used when recipes are created from goose Desktop.
 
-The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands. The Desktop can [import](/docs/guides/recipes/storing-recipes#importing-recipes) and use YAML recipes (or deeplinks) in either CLI or Desktop format.
+The CLI automatically detects and handles both formats for `.yaml` and `.json` recipe files when running `goose run --recipe <file>` and `goose recipe` commands. The Desktop can [import](/docs/guides/recipes/storing-recipes#importing-recipes) `.yaml`, `.yml`, and `.json` recipe files (or deeplinks) in either CLI or Desktop format.
 
 <details>
 <summary>Format Examples</summary>
 
-**CLI Format:**
+Recipes can be written in either YAML or JSON format. Both formats follow the same schema structure.
+
+### CLI Format
+
+<Tabs>
+  <TabItem value="yaml" label="YAML" default>
+
 ```yaml
 version: "1.0.0"
 title: "Code Review Assistant"
@@ -40,7 +45,28 @@ prompt: "Review the code in this repository"
 extensions: []
 ```
 
-**Desktop Format:**
+  </TabItem>
+  <TabItem value="json" label="JSON">
+
+```json
+{
+  "version": "1.0.0",
+  "title": "Code Review Assistant",
+  "description": "Automated code review with best practices",
+  "instructions": "You are a code reviewer...",
+  "prompt": "Review the code in this repository",
+  "extensions": []
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Desktop Format
+
+<Tabs>
+  <TabItem value="yaml" label="YAML" default>
+
 ```yaml
 name: "Code Review Assistant"
 recipe:
@@ -54,6 +80,29 @@ isGlobal: true
 lastModified: 2025-07-02T03:46:46.778Z
 isArchived: false
 ```
+
+  </TabItem>
+  <TabItem value="json" label="JSON">
+
+```json
+{
+  "name": "Code Review Assistant",
+  "recipe": {
+    "version": "1.0.0",
+    "title": "Code Review Assistant",
+    "description": "Automated code review with best practices",
+    "instructions": "You are a code reviewer...",
+    "prompt": "Review the code in this repository",
+    "extensions": []
+  },
+  "isGlobal": true,
+  "lastModified": "2025-07-02T03:46:46.778Z",
+  "isArchived": false
+}
+```
+
+  </TabItem>
+</Tabs>
 
 :::note
 goose automatically adds metadata fields to recipes saved from the Desktop app.
@@ -107,7 +156,7 @@ Parameter substitution uses Jinja-style template syntax with `{{ parameter_name 
 | Field | Type | Description |
 |-------|------|-------------|
 | `key` | String | Unique identifier for the parameter |
-| `input_type` | String | Type of input: `"string"` (default) or `"file"` (reads file contents) |
+| `input_type` | String | Type of input: `"string"` (default), `"number"`, `"boolean"`, `"date"`, `"file"`, or `"select"` |
 | `requirement` | String | One of: "required", "optional", or "user_prompt" |
 | `description` | String | Human-readable description of the parameter |
 
@@ -116,6 +165,7 @@ Parameter substitution uses Jinja-style template syntax with `{{ parameter_name 
 | Field | Type | Description |
 |-------|------|-------------|
 | `default` | String | Default value for optional parameters |
+| `options` | Array | List of available choices (required for `select` input type) |
 
 ### Parameter Requirements
 
@@ -128,27 +178,49 @@ The `required` and `optional` parameters work best for recipes opened in goose D
 ### Input Types
 
 - `string`: Default type. The parameter value is used as-is in template substitution
+- `number`: Numeric values. Desktop UI provides number input validation
+- `boolean`: True/false values. Desktop UI shows dropdown with "True"/"False" options
+- `date`: Date values. Currently renders as text input
 - `file`: The parameter value should be a file path. goose reads the file contents and substitutes the actual content (not the path) into the template
-
-When using `input_type: file`, this is useful for including file contents directly in your prompts or instructions.
+- `select`: Dropdown selection with predefined options. Requires `options` field
 
 **Example:**
 ```yaml
 parameters:
+  - key: max_files
+    input_type: number
+    requirement: optional
+    default: 10
+    description: "Maximum files to process"
+  
+  - key: output_format
+    input_type: select
+    requirement: required
+    description: "Choose output format"
+    options:
+      - json
+      - markdown
+      - csv
+  
+  - key: enable_debug
+    input_type: boolean
+    requirement: optional
+    default: false
+    description: "Enable debug mode"
+  
   - key: source_code
     input_type: file
     requirement: required
     description: "Path to the source code file to analyze"
 
-prompt: "Please review this code:\n\n{{ source_code }}"
+prompt: "Process {{ max_files }} files in {{ output_format }} format. Debug: {{ enable_debug }}. Code:\n\n{{ source_code }}"
 ```
-
-When you run this recipe with `source_code: /path/to/app.py`, goose will read the contents of `app.py` and substitute the actual code into the `{{ source_code }}` placeholder.
 
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
 - File parameters cannot have default values regardless of requirement type to prevent unintended importing of sensitive files
+- Select parameters MUST have an `options` field with available choices
 - Parameter keys must match any template variables used in instructions, prompt, or activities
 :::
 
@@ -238,6 +310,9 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 
 ### Example Extension Configuration
 
+<Tabs>
+  <TabItem value="yaml" label="YAML" default>
+
 ```yaml
 extensions:
   - type: stdio
@@ -267,6 +342,45 @@ extensions:
     timeout: 60
     description: "GitHub MCP extension for repository operations"
 ```
+
+  </TabItem>
+  <TabItem value="json" label="JSON">
+
+```json
+{
+  "extensions": [
+    {
+      "type": "stdio",
+      "name": "codesearch",
+      "cmd": "uvx",
+      "args": ["mcp_codesearch@latest"],
+      "timeout": 300,
+      "bundled": true,
+      "description": "Query https://codesearch.sqprod.co/ directly from goose"
+    },
+    {
+      "type": "stdio",
+      "name": "presidio",
+      "timeout": 300,
+      "cmd": "uvx",
+      "args": ["mcp_presidio@latest"],
+      "available_tools": ["query_logs"]
+    },
+    {
+      "type": "stdio",
+      "name": "github-mcp",
+      "cmd": "github-mcp-server",
+      "args": [],
+      "env_keys": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      "timeout": 60,
+      "description": "GitHub MCP extension for repository operations"
+    }
+  ]
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ### Extension Secrets
 
@@ -516,28 +630,40 @@ sub_recipes:
 
 ## Complete Recipe Example
 
+<Tabs>
+  <TabItem value="yaml" label="YAML" default>
+
 ```yaml
 version: "1.0.0"
 title: "Example Recipe"
 description: "A sample recipe demonstrating the format"
-instructions: "Follow these steps with {{ required_param }} and {{ optional_param }}"
-prompt: "Your task is to use {{ required_param }}"
+instructions: "Process {{ file_count }} files using {{ required_param }} and output in {{ output_format }} format. Configuration: {{ config_file }}"
+prompt: "Start processing with the provided parameters"
 parameters:
   - key: required_param
     input_type: string
     requirement: required
-    description: "A required parameter example"
+    description: "A required text parameter"
   
-  - key: optional_param
-    input_type: string
+  - key: file_count
+    input_type: number
     requirement: optional
-    default: "default value"
-    description: "An optional parameter example"
+    default: 10
+    description: "Maximum number of files to process"
   
-  - key: interactive_param
-    input_type: string
-    requirement: user_prompt
-    description: "Will prompt user if not provided"
+  - key: output_format
+    input_type: select
+    requirement: required
+    description: "Choose the output format"
+    options:
+      - json
+      - markdown
+      - csv
+  
+  - key: config_file
+    input_type: file
+    requirement: required
+    description: "Path to configuration file"
 
 extensions:
   - type: stdio
@@ -576,8 +702,98 @@ response:
         description: "Additional details of steps taken"
     required:
       - result
-      - status
+      - details
 ```
+
+  </TabItem>
+  <TabItem value="json" label="JSON">
+
+```json
+{
+  "version": "1.0.0",
+  "title": "Example Recipe",
+  "description": "A sample recipe demonstrating the format",
+  "instructions": "Process {{ file_count }} files using {{ required_param }} and output in {{ output_format }} format. Configuration: {{ config_file }}",
+  "prompt": "Start processing with the provided parameters",
+  "parameters": [
+    {
+      "key": "required_param",
+      "input_type": "string",
+      "requirement": "required",
+      "description": "A required text parameter"
+    },
+    {
+      "key": "file_count",
+      "input_type": "number",
+      "requirement": "optional",
+      "default": "10",
+      "description": "Maximum number of files to process"
+    },
+    {
+      "key": "output_format",
+      "input_type": "select",
+      "requirement": "required",
+      "description": "Choose the output format",
+      "options": ["json", "markdown", "csv"]
+    },
+    {
+      "key": "config_file",
+      "input_type": "file",
+      "requirement": "required",
+      "description": "Path to configuration file"
+    }
+  ],
+  "extensions": [
+    {
+      "type": "stdio",
+      "name": "codesearch",
+      "cmd": "uvx",
+      "args": ["mcp_codesearch@latest"],
+      "timeout": 300,
+      "bundled": true,
+      "description": "Query codesearch directly from goose"
+    }
+  ],
+  "settings": {
+    "goose_provider": "anthropic",
+    "goose_model": "claude-sonnet-4-20250514",
+    "temperature": 0.7
+  },
+  "retry": {
+    "max_retries": 3,
+    "timeout_seconds": 30,
+    "checks": [
+      {
+        "type": "shell",
+        "command": "echo 'Task validation check passed'"
+      }
+    ],
+    "on_failure": "echo 'Retry attempt failed, cleaning up...'"
+  },
+  "response": {
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "description": "The main result of the task"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional details of steps taken"
+        }
+      },
+      "required": ["result", "details"]
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ## Template Inheritance
 
@@ -614,13 +830,16 @@ Recipes can be loaded from:
 
 ## Validation Rules
 
-The following rules are enforced when loading recipes:
+Recipe files must be valid YAML or JSON. In addition, the following [validation rules](https://github.com/block/goose/blob/main/crates/goose/src/recipe/validate_recipe.rs) are enforced when loading recipes and are also checked by the [`goose recipe validate` subcommand](/docs/guides/goose-cli-commands#recipe):
 
-1. All template variables must have corresponding parameter definitions
-2. Optional parameters must have default values
-3. Parameter keys must be unique
-4. Recipe files must be valid YAML or JSON
-5. Required fields (version, title, description) must be present
+- Required `title` and `description` fields must be present
+- At least one of `instructions` or `prompt` must be present
+- All template variables must have corresponding parameter definitions
+- Parameter keys must be unique (not enforced, but required for proper functionality)
+- All defined parameters must be used in template variables (no unused parameters)
+- Optional parameters must have default values
+- File parameters cannot have default values (prevents importing sensitive files)
+- `response.json_schema` must be a valid JSON schema if specified
 
 ## Error Handling
 
