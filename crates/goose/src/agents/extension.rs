@@ -216,6 +216,7 @@ pub enum ExtensionConfig {
     Sse {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -237,6 +238,7 @@ pub enum ExtensionConfig {
     Stdio {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -257,6 +259,7 @@ pub enum ExtensionConfig {
     Builtin {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -575,6 +578,72 @@ impl ToolInfo {
             description: description.to_string(),
             parameters,
             permission,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::agents::*;
+
+    #[test]
+    fn test_deserialize_missing_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+timeout: 300
+bundled: true
+available_tools: []",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
+        }
+    }
+
+    #[test]
+    fn test_deserialize_null_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+description: null
+timeout: 300
+bundled: true
+available_tools: []
+",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
+        }
+    }
+
+    #[test]
+    fn test_deserialize_normal_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+description: description goes here
+timeout: 300
+bundled: true
+available_tools: []
+    ",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "description goes here")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
         }
     }
 }
