@@ -1,19 +1,9 @@
 use anyhow::{bail, Context, Result};
-use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use goose::scheduler::{
     get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
 };
 use std::path::Path;
-
-// Base64 decoding function - might be needed if recipe_source_arg can be base64
-// For now, handle_schedule_add will assume it's a path.
-async fn _decode_base64_recipe(source: &str) -> Result<String> {
-    let bytes = BASE64_STANDARD
-        .decode(source.as_bytes())
-        .with_context(|| "Recipe source is not a valid path and not valid Base64.")?;
-    String::from_utf8(bytes).with_context(|| "Decoded Base64 recipe source is not valid UTF-8.")
-}
 
 fn validate_cron_expression(cron: &str) -> Result<()> {
     // Basic validation and helpful suggestions
@@ -83,7 +73,6 @@ pub async fn handle_schedule_add(
         id, cron, recipe_source_arg
     );
 
-    // Validate cron expression and provide helpful feedback
     validate_cron_expression(&cron)?;
 
     // The Scheduler's add_scheduled_job will handle copying the recipe from recipe_source_arg
