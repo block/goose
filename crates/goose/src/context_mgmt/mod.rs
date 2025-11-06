@@ -135,7 +135,7 @@ pub async fn compact_messages(
 
     let last_message_is_user_text = messages
         .last()
-        .map(|msg| is_user_submitted_text(msg))
+        .map(is_user_submitted_text)
         .unwrap_or(false);
 
     let continuation_text = if last_message_is_user_text {
@@ -277,7 +277,7 @@ async fn do_compact(
         .collect();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
-    let removal_percentages = vec![0, 10, 20, 50, 100];
+    let removal_percentages = [0, 10, 20, 50, 100];
 
     for (attempt, &remove_percent) in removal_percentages.iter().enumerate() {
         let filtered_messages = filter_tool_responses(&agent_visible_messages, remove_percent);
