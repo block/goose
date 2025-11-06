@@ -554,12 +554,14 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     whileTap={{ scale: 0.98 }}
                     className={`
                       w-full relative flex flex-col items-start justify-between
-                      bg-background-default rounded-2xl
+                      rounded-2xl
                       px-6 py-6 aspect-square
                       transition-colors duration-200
-                      hover:bg-background-medium
                       no-drag
-                      ${active ? 'bg-background-medium' : ''}
+                      ${active 
+                        ? 'bg-background-accent text-text-on-accent' 
+                        : 'bg-background-default hover:bg-background-medium'
+                      }
                       ${isPulsing ? 'ring-2 ring-blue-400' : ''}
                     `}
                   >

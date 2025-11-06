@@ -110,13 +110,15 @@ export default function SettingsView({
                       onClick={() => setActiveTab(section.id)}
                       className={`
                         relative flex flex-col items-start justify-between
-                        bg-background-default rounded-2xl
+                        rounded-2xl
                         px-4 py-4 min-h-[140px]
                         transition-all duration-200
-                        hover:bg-background-medium
                         no-drag
                         animate-in slide-in-from-top-4 fade-in
-                        ${isActive ? 'bg-background-medium' : ''}
+                        ${isActive 
+                          ? 'bg-background-accent text-text-on-accent' 
+                          : 'bg-background-default hover:bg-background-medium'
+                        }
                       `}
                       style={{
                         animationDelay: `${index * 50}ms`,
@@ -127,9 +129,9 @@ export default function SettingsView({
                     >
                       {/* Icon and Label at bottom */}
                       <div className="mt-auto w-full">
-                        <IconComponent className="w-5 h-5 mb-2 text-text-default" />
-                        <h2 className="text-xl font-light text-left text-text-default">{section.label}</h2>
-                        <p className="text-xs text-text-muted mt-1 text-left">{section.description}</p>
+                        <IconComponent className={`w-5 h-5 mb-2 ${isActive ? '' : 'text-text-default'}`} />
+                        <h2 className={`text-xl font-light text-left ${isActive ? '' : 'text-text-default'}`}>{section.label}</h2>
+                        <p className={`text-xs mt-1 text-left ${isActive ? 'text-text-on-accent/70' : 'text-text-muted'}`}>{section.description}</p>
                       </div>
                     </button>
                   );
