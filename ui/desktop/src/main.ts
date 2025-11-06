@@ -616,9 +616,7 @@ const createChat = async (
     const menu = new Menu();
     const hasSpellingSuggestions = params.dictionarySuggestions.length > 0 || params.misspelledWord;
 
-    // Add spelling suggestions if available
     if (hasSpellingSuggestions) {
-      // Add each spelling suggestion
       for (const suggestion of params.dictionarySuggestions) {
         menu.append(
           new MenuItem({
@@ -628,7 +626,6 @@ const createChat = async (
         );
       }
 
-      // Allow users to add the misspelled word to the dictionary
       if (params.misspelledWord) {
         menu.append(
           new MenuItem({
@@ -639,13 +636,10 @@ const createChat = async (
         );
       }
 
-      // Add separator between spelling and standard items
       if (params.selectionText) {
         menu.append(new MenuItem({ type: 'separator' }));
       }
     }
-
-    // Add standard edit operations
     if (params.selectionText) {
       menu.append(
         new MenuItem({
@@ -674,7 +668,6 @@ const createChat = async (
       );
     }
 
-    // Only show the menu if it has items
     if (menu.items.length > 0) {
       menu.popup();
     }
