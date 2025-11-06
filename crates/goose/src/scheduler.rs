@@ -195,7 +195,9 @@ impl Scheduler {
 
         tracing::info!(
             "Creating cron task for job '{}' cron: '{}' in timezone: {:?}",
-            job.id, cron, local_tz
+            job.id,
+            cron,
+            local_tz
         );
 
         Job::new_async_tz(&cron, local_tz, move |_uuid, _l| {
