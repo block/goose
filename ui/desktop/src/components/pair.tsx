@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
-import { useSidebar } from './ui/sidebar';
 import { AgentState, InitializationContext } from '../hooks/useAgent';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
@@ -40,7 +39,6 @@ export default function Pair({
   initialMessage,
 }: PairProps & PairRouteState) {
   const isMobile = useIsMobile();
-  const { state: sidebarState } = useSidebar();
   const [hasProcessedInitialInput, setHasProcessedInitialInput] = useState(false);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
@@ -128,7 +126,7 @@ export default function Pair({
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       onMessageSubmit={handleMessageSubmit}
       customChatInputProps={customChatInputProps}
-      contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
+      contentClassName={cn('pr-1 pb-10', isMobile && 'pt-11')} // Use dynamic content class with mobile margin
       showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
     />

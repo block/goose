@@ -113,8 +113,8 @@ export function SessionInsights() {
   // Render skeleton loader while data is loading
   const renderSkeleton = () => (
     <div className="bg-background-muted flex flex-col h-full">
-      {/* Header container with rounded bottom */}
-      <div className="bg-background-default rounded-b-2xl mb-0.5">
+      {/* Header container with rounded top and bottom */}
+      <div className="bg-background-default rounded-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
             <Goose className="size-8" />
@@ -125,29 +125,6 @@ export function SessionInsights() {
 
       {/* Stats containers - full bleed with 2px gaps */}
       <div className="flex flex-col flex-1 space-y-0.5">
-        {/* Top row with three equal columns */}
-        <div className="grid grid-cols-2 gap-0.5">
-          {/* Total Sessions Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
-            <CardContent className="flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <Skeleton className="h-10 w-16 mb-1" />
-                <span className="text-xs text-text-muted">Total sessions</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Tokens Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
-            <CardContent className="flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <Skeleton className="h-10 w-24 mb-1" />
-                <span className="text-xs text-text-muted">Total tokens</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Recent Chats Card Skeleton */}
         <div className="grid grid-cols-1 gap-0.5">
           <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
@@ -206,8 +183,8 @@ export function SessionInsights() {
 
   return (
     <div className="bg-background-muted flex flex-col h-full">
-      {/* Header container with rounded bottom */}
-      <div className="bg-background-default rounded-b-2xl mb-0.5">
+      {/* Header container with rounded top and bottom */}
+      <div className="bg-background-default rounded-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
             <Goose className="size-8" />
@@ -218,61 +195,6 @@ export function SessionInsights() {
 
       {/* Stats containers - full bleed with 2px gaps */}
       <div className="flex flex-col flex-1 space-y-0.5">
-        {/* Error notice if insights failed to load */}
-        {error && (
-          <div className="mx-0.5 px-4 py-2 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/30 rounded-xl">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"></div>
-              <span className="text-xs text-orange-700 dark:text-orange-300">
-                Failed to load insights
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Top row with three equal columns */}
-        <div className="grid grid-cols-2 gap-0.5">
-          {/* Total Sessions Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
-            <CardContent className="page-transition flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
-                  {Math.max(insights?.totalSessions ?? 0, 0)}
-                </p>
-                <span className="text-xs text-text-muted">Total sessions</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Average Duration Card */}
-          {/*<Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">*/}
-          {/*  <CardContent className="page-transition flex flex-col justify-end h-full p-0">*/}
-          {/*    <div className="flex flex-col justify-end">*/}
-          {/*      <p className="text-4xl font-mono font-light flex items-end">*/}
-          {/*        {insights?.avgSessionDuration*/}
-          {/*          ? `${insights.avgSessionDuration.toFixed(1)}m`*/}
-          {/*          : '0.0m'}*/}
-          {/*      </p>*/}
-          {/*      <span className="text-xs text-text-muted">Avg. chat length</span>*/}
-          {/*    </div>*/}
-          {/*  </CardContent>*/}
-          {/*</Card>*/}
-
-          {/* Total Tokens Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
-            <CardContent className="page-transition flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
-                  {insights?.totalTokens && insights.totalTokens > 0
-                    ? `${(insights.totalTokens / 1000000).toFixed(2)}M`
-                    : '0.00M'}
-                </p>
-                <span className="text-xs text-text-muted">Total tokens</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Recent Chats Card */}
         <div className="grid grid-cols-1 gap-0.5">
           {/* Recent Chats Card */}

@@ -12,7 +12,6 @@ import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
-import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
@@ -54,10 +53,9 @@ function BaseChatContent({
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
-  const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
 
-  const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
+  const contentClassName = cn('pr-1 pb-10', isMobile && 'pt-11');
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
