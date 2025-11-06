@@ -15,6 +15,12 @@ pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
 ) -> Conversation {
+    let config = crate::config::Config::global();
+    if let Ok(false) = config.get_param::<bool>("GOOSE_MOIM_ENABLED") {
+        tracing::debug!("MOIM injection disabled via GOOSE_MOIM_ENABLED=false");
+        return conversation;
+    }
+
     let moim_content = match extension_manager.collect_moim().await {
         Some(content) if !content.trim().is_empty() => content,
         _ => {
