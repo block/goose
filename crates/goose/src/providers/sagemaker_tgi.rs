@@ -308,8 +308,8 @@ impl Provider for SageMakerTgiProvider {
 
         // TGI doesn't provide usage statistics, so we estimate
         let usage = Usage::new(
-            Some(0),  // Would need to tokenize input to get accurate count
-            Some(0),  // Would need to tokenize output to get accurate count
+            Some(0), // Would need to tokenize input to get accurate count
+            Some(0), // Would need to tokenize output to get accurate count
             Some(0),
         );
 

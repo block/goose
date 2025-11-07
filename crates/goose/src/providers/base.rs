@@ -286,10 +286,7 @@ impl Add for Usage {
             sum_optionals(self.total_tokens, other.total_tokens),
         )
         .with_cache_tokens(
-            sum_optionals(
-                self.cache_read_input_tokens,
-                other.cache_read_input_tokens,
-            ),
+            sum_optionals(self.cache_read_input_tokens, other.cache_read_input_tokens),
             sum_optionals(
                 self.cache_write_input_tokens,
                 other.cache_write_input_tokens,

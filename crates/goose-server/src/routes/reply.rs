@@ -160,8 +160,12 @@ async fn get_token_state(session_id: &str) -> TokenState {
             accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
             accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
             accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-            accumulated_cache_read_input_tokens: session.accumulated_cache_read_input_tokens.unwrap_or(0),
-            accumulated_cache_write_input_tokens: session.accumulated_cache_write_input_tokens.unwrap_or(0),
+            accumulated_cache_read_input_tokens: session
+                .accumulated_cache_read_input_tokens
+                .unwrap_or(0),
+            accumulated_cache_write_input_tokens: session
+                .accumulated_cache_write_input_tokens
+                .unwrap_or(0),
         })
         .inspect_err(|e| {
             tracing::warn!(

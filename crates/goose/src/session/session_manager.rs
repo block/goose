@@ -802,7 +802,7 @@ impl SessionStorage {
                 )
                 .execute(&self.pool)
                 .await?;
-                
+
                 sqlx::query(
                     r#"
                     ALTER TABLE sessions 
