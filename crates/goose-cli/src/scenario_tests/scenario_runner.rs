@@ -141,7 +141,6 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
-    // Save original MOIM setting and disable for scenario tests
     let original_moim = goose::config::Config::global()
         .get_param::<bool>("GOOSE_MOIM_ENABLED")
         .ok();
@@ -149,7 +148,6 @@ where
         .set_param("GOOSE_MOIM_ENABLED", false)
         .ok();
 
-    // Create a guard that will restore the setting on drop
     struct MoimGuard(Option<bool>);
     impl Drop for MoimGuard {
         fn drop(&mut self) {

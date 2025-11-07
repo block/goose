@@ -1176,7 +1176,6 @@ impl ExtensionManager {
 
         let extensions = self.extensions.lock().await;
         for (name, extension) in extensions.iter() {
-            // Only platform extensions can provide MOIM
             if let ExtensionConfig::Platform { .. } = &extension.config {
                 let client = extension.get_client();
                 let client_guard = client.lock().await;

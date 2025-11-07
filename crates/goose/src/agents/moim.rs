@@ -3,13 +3,8 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use rmcp::model::Role;
 
-/// Inject MOIM (Minus One Info Message) into conversation.
-///
-/// MOIM provides ephemeral context that's included in LLM calls
+/// The Minus One Info message provides ephemeral context that's included in LLM calls
 /// but never persisted to conversation history.
-///
-/// The MOIM content is inserted as a separate user message before
-/// the latest assistant message to ensure clean tool response handling.
 pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
