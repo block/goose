@@ -469,11 +469,13 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               }}
               className="pb-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
             >
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
             {navItems.map((item, index) => {
               const isPulsing = pulsingItems.has(item.id);
               const isDragging = draggedItem === item.id;
               const isDragOver = dragOverItem === item.id;
+              const isLastTile = index === navItems.length - 1;
+              const totalTiles = navItems.length;
 
               // Widget tiles (non-clickable but draggable)
               if (item.isWidget) {
@@ -498,10 +500,11 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                       delay: index * 0.03, // 30ms stagger
                     }}
                     className={`
-                      relative bg-background-default rounded-2xl aspect-square 
+                      relative bg-background-default rounded-2xl 
                       overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
                       ${isPulsing ? 'animate-pulse' : ''}
+                      ${isLastTile && totalTiles === 10 ? 'sm:col-span-3 md:col-span-3 lg:col-span-1 sm:aspect-[3/1] md:aspect-[3/1] lg:aspect-square' : 'aspect-square'}
                     `}
                     style={{
                       opacity: isDragging ? 0.5 : 1,
@@ -543,6 +546,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   className={`
                     relative cursor-move group
                     ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
+                    ${isLastTile && totalTiles === 10 ? 'sm:col-span-3 md:col-span-3 lg:col-span-1' : ''}
                   `}
                   style={{
                     opacity: isDragging ? 0.5 : 1,
@@ -558,7 +562,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     className={`
                       w-full relative flex flex-col items-start justify-between
                       rounded-2xl
-                      px-6 py-6 aspect-square
+                      px-6 py-6
                       transition-colors duration-200
                       no-drag
                       ${active 
@@ -566,6 +570,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                         : 'bg-background-default hover:bg-background-medium'
                       }
                       ${isPulsing ? 'ring-2 ring-blue-400' : ''}
+                      ${isLastTile && totalTiles === 10 ? 'sm:aspect-[3/1] md:aspect-[3/1] lg:aspect-square' : 'aspect-square'}
                     `}
                   >
                     {/* Drag handle indicator */}
