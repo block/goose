@@ -15,8 +15,10 @@ export const configLabels: Record<string, string> = {
   GOOSE_RECIPE_GITHUB_REPO: 'Recipe GitHub Repo',
 
   // security settings
-  security_prompt_enabled: 'Prompt Injection Detection Enabled',
-  security_prompt_threshold: 'Prompt Injection Detection Threshold',
+  SECURITY_PROMPT_ENABLED: 'Prompt Injection Detection Enabled',
+  SECURITY_PROMPT_THRESHOLD: 'Prompt Injection Detection Threshold',
+  SECURITY_PROMPT_ML_ENABLED: 'ML-based Prompt Injection Detection Enabled',
+  SECURITY_PROMPT_ML_MODEL: 'ML-based Prompt Injection Detection Model',
 
   // openai
   OPENAI_API_KEY: 'OpenAI API Key',
