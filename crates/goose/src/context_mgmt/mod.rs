@@ -22,23 +22,14 @@ const TOOL_LOOP_CONTINUATION_TEXT: &str =
 Do not mention that you read a summary or that conversation summarization occurred
 Continue calling tools as necessary to complete the task.";
 
+const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
+    "The previous message contains a summary that was prepared at the user's request.
+Do not mention that you read a summary or that conversation summarization occurred
+Just continue the conversation naturally based on the summarized context";
+
 #[derive(Serialize)]
 struct SummarizeContext {
     messages: String,
-}
-
-fn is_user_submitted_text(message: &Message) -> bool {
-    match message.role {
-        Role::User => !is_tool_response_message(message),
-        Role::Assistant => false,
-    }
-}
-
-fn is_tool_response_message(message: &Message) -> bool {
-    message
-        .content
-        .iter()
-        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
 }
 
 /// Compact messages by summarizing them
@@ -99,20 +90,26 @@ pub async fn compact_messages(
         }
     };
 
-    // For auto-compact, search for the last agent-visible user message with text only
-    // For manual compact, don't preserve any user message
-    let preserved_user_text = if !manual_compact {
-        messages
+    // Find and preserve the most recent user message for non-manual compacts
+    let (preserved_user_message, is_most_recent) = if !manual_compact {
+        let found_msg = messages
             .iter()
+            .enumerate()
             .rev()
-            .find(|msg| {
+            .find(|(_, msg)| {
                 msg.is_agent_visible()
                     && matches!(msg.role, rmcp::model::Role::User)
                     && has_text_only(msg)
-            })
-            .and_then(extract_text)
+            });
+
+        if let Some((idx, msg)) = found_msg {
+            let is_last = idx == messages.len() - 1;
+            (Some(msg.clone()), is_last)
+        } else {
+            (None, false)
+        }
     } else {
-        None
+        (None, false)
     };
 
     let messages_to_compact = messages.as_slice();
@@ -125,9 +122,17 @@ pub async fn compact_messages(
     // 3. Assistant messages to continue the conversation are also agent_visible but not user_visible
     let mut final_messages = Vec::new();
 
-    for msg in messages_to_compact.iter().cloned() {
-        let updated_metadata = msg.metadata.with_agent_invisible();
-        let updated_msg = msg.with_metadata(updated_metadata);
+    for (idx, msg) in messages_to_compact.iter().enumerate() {
+        let updated_metadata = if is_most_recent
+            && idx == messages_to_compact.len() - 1
+            && preserved_user_message.is_some()
+        {
+            // This is the most recent message and we're preserving it by adding a fresh copy
+            MessageMetadata::invisible()
+        } else {
+            msg.metadata.with_agent_invisible()
+        };
+        let updated_msg = msg.clone().with_metadata(updated_metadata);
         final_messages.push(updated_msg);
     }
 
@@ -135,27 +140,27 @@ pub async fn compact_messages(
 
     let mut continuation_messages = vec![summary_msg];
 
-    // Choose continuation text based on whether the most recent message is a user text message
-    let last_message_is_user_text = messages.last().map(is_user_submitted_text).unwrap_or(false);
-
-    let continuation_text = if last_message_is_user_text {
+    let continuation_text = if manual_compact {
+        MANUAL_COMPACT_CONTINUATION_TEXT
+    } else if is_most_recent {
         CONVERSATION_CONTINUATION_TEXT
     } else {
         TOOL_LOOP_CONTINUATION_TEXT
     };
 
-    let continuation_msg = Message::user()
+    let continuation_msg = Message::assistant()
         .with_text(continuation_text)
         .with_metadata(MessageMetadata::agent_only());
     continuation_messages.push(continuation_msg);
 
-    // Add back the preserved user message if it exists (as a separate message, not embedded in continuation text)
-    if let Some(user_text) = preserved_user_text {
-        continuation_messages.push(Message::user().with_text(&user_text));
-    }
-
     let (merged_continuation, _issues) = merge_consecutive_messages(continuation_messages);
     final_messages.extend(merged_continuation);
+
+    if let Some(user_msg) = preserved_user_message {
+        if let Some(text) = extract_text(&user_msg) {
+            final_messages.push(Message::user().with_text(&text));
+        }
+    }
 
     Ok((
         Conversation::new_unvalidated(final_messages),

@@ -822,7 +822,7 @@ impl Agent {
                     )
                 );
 
-                match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
+                match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
