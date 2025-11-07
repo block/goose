@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical } from 'lucide-react';
+import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
@@ -467,7 +467,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 stiffness: 400,
                 damping: 25,
               }}
-              className="pb-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
+              className="pb-px overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
             {navItems.map((item, index) => {

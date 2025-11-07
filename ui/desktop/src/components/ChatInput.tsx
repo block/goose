@@ -263,27 +263,46 @@ export default function ChatInput({
   // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
 
+  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
+  const [isComposing, setIsComposing] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
+  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
+  const [hasUserTyped, setHasUserTyped] = useState(false);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
+
+  // Track the previous initialValue to detect actual changes
+  const prevInitialValueRef = useRef(initialValue);
+
   // Update internal value when initialValue changes
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    // Only update if initialValue actually changed (not just a re-render with same value)
+    // and if the user hasn't typed anything (to avoid overwriting user input)
+    if (prevInitialValueRef.current !== initialValue && !hasUserTyped) {
+      console.log('🔵 Updating input from initialValue:', initialValue);
+      setValue(initialValue);
+      setDisplayValue(initialValue);
 
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
-    setPastedImages((currentPastedImages) => {
-      currentPastedImages.forEach((img) => {
-        if (img.filePath) {
-          window.electron.deleteTempFile(img.filePath);
-        }
+      // Use a functional update to get the current pastedImages
+      // and perform cleanup. This avoids needing pastedImages in the deps.
+      setPastedImages((currentPastedImages) => {
+        currentPastedImages.forEach((img) => {
+          if (img.filePath) {
+            window.electron.deleteTempFile(img.filePath);
+          }
+        });
+        return []; // Return a new empty array
       });
-      return []; // Return a new empty array
-    });
 
-    // Reset history index when input is cleared
-    setHistoryIndex(-1);
-    setIsInGlobalHistory(false);
-    setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+      // Reset history index when input is cleared
+      setHistoryIndex(-1);
+      setIsInGlobalHistory(false);
+      setHasUserTyped(false);
+    }
+    prevInitialValueRef.current = initialValue;
+  }, [initialValue, hasUserTyped]); // Include hasUserTyped to prevent overwriting user input
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -296,16 +315,6 @@ export default function ChatInput({
       }, 0);
     }
   }, [recipeAccepted, initialPrompt, messages.length]);
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
-  const [isComposing, setIsComposing] = useState(false);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
-  const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -371,9 +380,17 @@ export default function ChatInput({
 
   useEffect(() => {
     if (textAreaRef.current) {
+      console.log('🟢 Textarea mounted and focused');
       textAreaRef.current.focus();
+    } else {
+      console.log('🔴 Textarea ref is null!');
     }
   }, []);
+
+  // Log when displayValue changes
+  useEffect(() => {
+    console.log('💙 displayValue changed to:', displayValue);
+  }, [displayValue]);
 
   // Load model limits from the API
   const getModelLimits = async () => {
@@ -560,9 +577,11 @@ export default function ChatInput({
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
+    console.log('🟠 handleChange called, value:', val, 'hasUserTyped before:', hasUserTyped);
     setDisplayValue(val);
     updateValue(val);
     setHasUserTyped(true);
+    console.log('🟠 After setState, displayValue should be:', val);
     checkForMention(val, cursorPosition, evt.target);
   };
 
@@ -1003,13 +1022,16 @@ export default function ChatInput({
   };
 
   const onFormSubmit = (e: React.FormEvent) => {
+    console.log('🔴 onFormSubmit called');
     e.preventDefault();
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
+    console.log('🔴 canSubmit:', canSubmit, 'isLoading:', isLoading, 'displayValue:', displayValue);
     if (canSubmit) {
+      console.log('🔴 calling performSubmit');
       performSubmit();
     }
   };
@@ -1060,6 +1082,17 @@ export default function ChatInput({
     isRecording ||
     isTranscribing ||
     isExtensionsLoading;
+
+  console.log('🟣 Submit button state:', {
+    isSubmitButtonDisabled,
+    hasSubmittableContent,
+    isAnyImageLoading,
+    isAnyDroppedFileLoading,
+    isRecording,
+    isTranscribing,
+    isExtensionsLoading,
+    displayValue: displayValue.substring(0, 20),
+  });
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1166,19 +1199,33 @@ export default function ChatInput({
             id="dynamic-textarea"
             placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
             value={displayValue}
-            onChange={handleChange}
+            onChange={(e) => {
+              console.log('🟠🟠🟠 TEXTAREA onChange FIRED!', e.target.value);
+              handleChange(e);
+            }}
+            onInput={(e) => {
+              console.log('⚡ TEXTAREA onInput FIRED!', (e.target as HTMLTextAreaElement).value);
+            }}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            onFocus={() => {
+              console.log('👁️ Textarea FOCUSED');
+              setIsFocused(true);
+            }}
+            onBlur={() => {
+              console.log('👁️ Textarea BLURRED');
+              setIsFocused(false);
+            }}
+            onClick={() => console.log('🖱️ Textarea CLICKED')}
             ref={textAreaRef}
             rows={1}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
+              pointerEvents: 'auto',
             }}
             className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />

@@ -110,10 +110,17 @@ export const createSseClient = <TData = unknown>({
     let attempt = 0;
     const signal = options.signal ?? new AbortController().signal;
 
+    console.log('🟡 SSE createStream starting, url:', url);
+    console.log('🟡 SSE options:', { ...options, body: undefined, serializedBody: undefined });
+
     while (true) {
-      if (signal.aborted) break;
+      if (signal.aborted) {
+        console.log('🟡 SSE signal aborted, breaking loop');
+        break;
+      }
 
       attempt++;
+      console.log('🟡 SSE attempt:', attempt);
 
       const headers =
         options.headers instanceof Headers
@@ -124,6 +131,8 @@ export const createSseClient = <TData = unknown>({
         headers.set('Last-Event-ID', lastEventId);
       }
 
+      console.log('🟡 SSE headers:', Object.fromEntries(headers.entries()));
+
       try {
         const requestInit: RequestInit = {
           redirect: 'follow',
@@ -132,14 +141,18 @@ export const createSseClient = <TData = unknown>({
           headers,
           signal,
         };
+        console.log('🟡 SSE creating request...');
         let request = new Request(url, requestInit);
         if (onRequest) {
+          console.log('🟡 SSE calling onRequest...');
           request = await onRequest(url, requestInit);
         }
         // fetch must be assigned here, otherwise it would throw the error:
         // TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation
         const _fetch = options.fetch ?? globalThis.fetch;
+        console.log('🟡 SSE calling fetch...');
         const response = await _fetch(request);
+        console.log('🟡 SSE response status:', response.status, response.statusText);
 
         if (!response.ok)
           throw new Error(

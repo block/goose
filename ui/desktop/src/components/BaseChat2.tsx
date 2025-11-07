@@ -34,6 +34,7 @@ interface BaseChatProps {
   suppressEmptyState: boolean;
   sessionId: string;
   initialMessage?: string;
+  onChatStateChange?: (chatState: ChatState) => void;
 }
 
 function BaseChatContent({
@@ -43,6 +44,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  onChatStateChange,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -62,6 +64,8 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
+  console.log('🟢 BaseChat2 rendering with sessionId:', sessionId);
+
   const {
     session,
     messages,
@@ -78,12 +82,15 @@ function BaseChatContent({
   });
 
   const handleFormSubmit = (e: React.FormEvent) => {
+    console.log('🟡 handleFormSubmit called', e);
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
+    console.log('🟡 textValue:', textValue);
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
     }
+    console.log('🟡 calling handleSubmit with:', textValue);
     handleSubmit(textValue);
   };
 
@@ -140,6 +147,13 @@ function BaseChatContent({
 
   const toolCount = useToolCount(sessionId);
 
+  // Notify parent of chat state changes
+  useEffect(() => {
+    if (onChatStateChange) {
+      onChatStateChange(chatState);
+    }
+  }, [chatState, onChatStateChange]);
+
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
     const handleGlobalScrollRequest = () => {
@@ -188,7 +202,6 @@ function BaseChatContent({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <h2>Warning: BaseChat2!</h2>
       <MainPanelLayout
         backgroundColor={'bg-background-muted'}
         removeTopPadding={true}
@@ -201,7 +214,7 @@ function BaseChatContent({
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
           <ScrollArea
             ref={scrollRef}
-            className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
+            className={`flex-1 bg-background-default rounded-t-2xl rounded-b-2xl min-h-0 relative pt-px ${contentClassName}`}
             autoScroll
             onDrop={handleDrop}
             onDragOver={handleDragOver}

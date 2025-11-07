@@ -188,11 +188,39 @@ export function useChatStream({
   });
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Cache messages whenever they change
   useEffect(() => {
     if (session) {
       resultsCache.set(sessionId, { session, messages });
     }
   }, [sessionId, session, messages]);
+
+  // Cleanup: save to cache and abort streaming when component unmounts
+  // Using refs to access latest values without triggering effect re-runs
+  const sessionRef = useRef(session);
+  const messagesLengthRef = useRef(messages.length);
+  
+  useEffect(() => {
+    sessionRef.current = session;
+    messagesLengthRef.current = messages.length;
+  }, [session, messages]);
+  
+  useEffect(() => {
+    return () => {
+      // Save current state to cache on unmount
+      if (sessionRef.current && messagesLengthRef.current > 0) {
+        resultsCache.set(sessionId, { session: sessionRef.current, messages: messagesRef.current });
+        log.session('cached-on-unmount', sessionId, { messageCount: messagesLengthRef.current });
+      }
+      
+      // Abort any ongoing streaming
+      if (abortControllerRef.current) {
+        log.stream('abort-on-unmount');
+        abortControllerRef.current.abort();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount/unmount
 
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
@@ -222,7 +250,21 @@ export function useChatStream({
   useEffect(() => {
     if (!sessionId) return;
 
-    // Reset state when sessionId changes
+    // Check if we have this session cached
+    const cached = resultsCache.get(sessionId);
+    
+    if (cached) {
+      // Load from cache immediately to avoid clearing messages
+      log.session('loading-from-cache', sessionId, {
+        messageCount: cached.messages.length,
+      });
+      setSession(cached.session);
+      setMessagesAndLog(cached.messages, 'load-from-cache');
+      setChatState(ChatState.Idle);
+      return;
+    }
+
+    // Reset state when sessionId changes (only if not cached)
     log.session('loading', sessionId);
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
@@ -273,6 +315,8 @@ export function useChatStream({
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
+      console.log('🔵 handleSubmit called with sessionId:', sessionId);
+      
       log.messages('user-submit', messagesRef.current.length + 1, {
         userMessageLength: userMessage.length,
       });
@@ -286,16 +330,30 @@ export function useChatStream({
       abortControllerRef.current = new AbortController();
 
       try {
-        log.stream('request-start', { sessionId: sessionId.slice(0, 8) });
+        log.stream('request-start', { sessionId: sessionId?.slice(0, 8) });
 
-        const { stream } = await reply({
-          body: {
-            session_id: sessionId,
-            messages: currentMessages,
-          },
+        const requestBody = {
+          session_id: sessionId,
+          messages: currentMessages,
+        };
+        
+        console.log('🔵 Reply request body:', JSON.stringify(requestBody, null, 2));
+        console.log('🔵 sessionId value:', sessionId);
+        console.log('🔵 sessionId type:', typeof sessionId);
+        console.log('🔵 About to call reply() API...');
+
+        const result = await reply({
+          body: requestBody,
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          onSseError: (error) => {
+            console.error('🔴 SSE Error:', error);
+          },
         });
+
+        console.log('🔵 Reply API returned:', result);
+        const { stream } = result;
+        console.log('🔵 Stream object:', stream);
 
         log.stream('stream-started');
 
@@ -373,7 +431,13 @@ export function useChatStream({
     abortControllerRef.current?.abort();
     log.state(ChatState.Idle, { reason: 'user stopped streaming' });
     setChatState(ChatState.Idle);
-  }, []);
+    
+    // Save current state to cache when stopping
+    if (session) {
+      resultsCache.set(sessionId, { session, messages });
+      log.session('cached-on-stop', sessionId, { messageCount: messages.length });
+    }
+  }, [session, sessionId, messages]);
 
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];

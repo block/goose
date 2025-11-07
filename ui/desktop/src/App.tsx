@@ -44,6 +44,7 @@ import {
 } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import Pair2 from './components/Pair2';
+import { MultiChatView, ChatView } from './components/multi-chat';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -123,11 +124,9 @@ const PairRouteWrapper = ({
   }, [sessionId, activeSessionId, setActiveSessionId]);
 
   return process.env.ALPHA ? (
-    <Pair2
+    <ChatView
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      sessionId={sessionId}
-      initialMessage={initialMessage}
     />
   ) : (
     <Pair
@@ -652,6 +651,15 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
+            <Route
+              path="multi-chat"
+              element={
+                <MultiChatView
+                  setChat={setChat}
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                />
+              }
+            />
             <Route
               path="shared-session"
               element={
