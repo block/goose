@@ -110,7 +110,6 @@ impl TunnelManager {
         })
         .await;
 
-        // Create restart channel
         let (restart_tx, mut restart_rx) = mpsc::channel::<()>(1);
         *self.restart_tx.write().await = Some(restart_tx.clone());
 
@@ -130,7 +129,6 @@ impl TunnelManager {
                 *self.info.write().await = Some(info.clone());
                 self.update_config(|c| c.auto_start = true).await;
 
-                // Spawn watchdog to listen for restart signals
                 let state = self.state.clone();
                 let config = self.config.clone();
                 let lapstone_handle = self.lapstone_handle.clone();
@@ -142,14 +140,11 @@ impl TunnelManager {
                         if config.read().await.auto_start {
                             tracing::warn!("Tunnel connection lost, initiating restart...");
 
-                            // Stop the old connection
                             lapstone::stop(lapstone_handle.clone()).await;
                             *state.write().await = TunnelState::Idle;
 
-                            // Small delay
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-                            // Restart
                             *state.write().await = TunnelState::Starting;
                             let cfg = config.read().await.clone();
                             let tunnel_secret = cfg.secret.clone().unwrap_or_else(generate_secret);
@@ -157,7 +152,6 @@ impl TunnelManager {
                                 .unwrap_or_else(|_| "test".to_string());
                             let agent_id = cfg.agent_id.clone().unwrap_or_else(generate_agent_id);
 
-                            // Create new restart channel for the new connection
                             let (new_restart_tx, new_restart_rx) = mpsc::channel::<()>(1);
                             *restart_tx_clone.write().await = Some(new_restart_tx.clone());
 
@@ -174,7 +168,6 @@ impl TunnelManager {
                                 Ok(_) => {
                                     *state.write().await = TunnelState::Running;
                                     tracing::info!("Tunnel restarted successfully");
-                                    // Replace our receiver with the new one
                                     restart_rx = new_restart_rx;
                                 }
                                 Err(e) => {
@@ -202,15 +195,12 @@ impl TunnelManager {
     }
 
     pub async fn stop(&self, clear_auto_start: bool) {
-        // Stop watchdog first
         if let Some(handle) = self.watchdog_handle.write().await.take() {
             handle.abort();
         }
 
-        // Close restart channel
         *self.restart_tx.write().await = None;
 
-        // Stop lapstone
         lapstone::stop(self.lapstone_handle.clone()).await;
 
         *self.state.write().await = TunnelState::Idle;
@@ -218,26 +208,6 @@ impl TunnelManager {
 
         if clear_auto_start {
             self.update_config(|c| c.auto_start = false).await;
-        }
-    }
-
-    pub async fn restart(&self, port: u16) {
-        tracing::info!("Restarting tunnel...");
-
-        // Stop (but keep auto_start flag)
-        self.stop(false).await;
-
-        // Small delay to let things settle
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        // Start again
-        match self.start(port).await {
-            Ok(info) => {
-                tracing::info!("Tunnel restarted successfully: {}", info.url);
-            }
-            Err(e) => {
-                tracing::error!("Failed to restart tunnel: {}", e);
-            }
         }
     }
 }

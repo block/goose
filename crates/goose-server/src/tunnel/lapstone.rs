@@ -18,8 +18,9 @@ use tracing::{error, info, warn};
 use url::Url;
 
 const WORKER_URL: &str = "https://cloudflare-tunnel-proxy.michael-neale.workers.dev";
-const IDLE_TIMEOUT_SECS: u64 = 600; // 10 minutes
-const MAX_WS_SIZE: usize = 900_000; // we need to limit size of chunks for websocket tunnelling
+const IDLE_TIMEOUT_SECS: u64 = 300;
+const CONNECTION_TIMEOUT_SECS: u64 = 30;
+const MAX_WS_SIZE: usize = 900_000;
 
 type WebSocketSender = Arc<
     RwLock<
@@ -431,13 +432,23 @@ async fn run_single_connection(
 
     info!("Connecting to {}...", url);
 
-    let ws_stream = match connect_async(url.clone()).await {
-        Ok((stream, _)) => {
+    let ws_stream = match tokio::time::timeout(
+        Duration::from_secs(CONNECTION_TIMEOUT_SECS),
+        connect_async(url.clone()),
+    )
+    .await
+    {
+        Ok(Ok((stream, _))) => {
             configure_tcp_keepalive(&stream);
             stream
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             error!("✗ WebSocket connection error: {}", e);
+            let _ = restart_tx.send(()).await;
+            return;
+        }
+        Err(_) => {
+            error!("✗ WebSocket connection timeout after {}s", CONNECTION_TIMEOUT_SECS);
             let _ = restart_tx.send(()).await;
             return;
         }
