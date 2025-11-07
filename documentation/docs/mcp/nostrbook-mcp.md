@@ -1,6 +1,6 @@
 ---
 title: Nostrbook Extension
-description: Add Nostrbook MCP Server as a Goose Extension
+description: Add Nostrbook MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,7 +9,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 
-This tutorial covers how to add the [Nostrbook MCP Server](https://gitlab.com/soapbox-pub/nostrbook) as a Goose extension to provide access to a comprehensive registry of Nostr documentation that helps users understand the decentralized social protocol, its implementation possibilities, and technical specifications.
+This tutorial covers how to add the [Nostrbook MCP Server](https://gitlab.com/soapbox-pub/nostrbook) as a goose extension to provide access to a comprehensive registry of Nostr documentation that helps users understand the decentralized social protocol, its implementation possibilities, and technical specifications.
 
 
 :::tip TLDR
@@ -54,12 +54,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-### Goose Prompt
+### goose Prompt
 
-> _Goose, what is the NIP-61 and how can I implement it?._
+> _goose, what is the NIP-61 and how can I implement it?._
 
 
-### Goose Output
+### goose Output
 
 Note that IDs have been changed to generic ones
 

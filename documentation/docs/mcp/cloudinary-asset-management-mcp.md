@@ -1,6 +1,6 @@
 ---
 title: Cloudinary Asset Management Extension
-description: Add Cloudinary Asset Management MCP Server as a Goose Extension
+description: Add Cloudinary Asset Management MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/4diEvoRFVrQ" />
 
-This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary/asset-management-js) as a Goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
+This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary/asset-management-js) as a goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
 
 :::tip TLDR
 
@@ -70,7 +70,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use the Cloudinary extension to find and transform product images with advanced visual effects. In this example, we'll demonstrate how Goose can help you:
+Let's use the Cloudinary extension to find and transform product images with advanced visual effects. In this example, we'll demonstrate how goose can help you:
 
 1. Search for specific images in your media library
 2. Apply complex transformations including background removal
@@ -80,7 +80,7 @@ Let's use the Cloudinary extension to find and transform product images with adv
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 ```
 1. find shoe images in my Cloudinary samples that have 'shoe' in the filename or public ID.
 2. Let's transform the first result and only extract just the shoes
@@ -88,7 +88,7 @@ Anthropic's Claude 4 Sonnet was used for this task.
 4. Add a background to the image. It should be black
 ```
 
-### Goose Output
+### goose Output
 ```
 I'll help you find shoe images in your Cloudinary samples and apply the transformations you've requested. Let me start by searching for images with 'shoe' in the filename or public ID.
 

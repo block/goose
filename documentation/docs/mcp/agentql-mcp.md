@@ -1,6 +1,6 @@
 ---
 title: AgentQL Extension
-description: Add AgentQL MCP Server as a Goose Extension
+description: Add AgentQL MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,7 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
-This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a Goose extension to extract and transform unstructured web content into structured data.
+This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a goose extension to extract and transform unstructured web content into structured data.
 
 :::tip TLDR
 
@@ -78,7 +78,7 @@ Let's use the AgentQL extension to gather and structure tech conference data to 
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 
 ```
 I'm a tech conference speaker planning my 2025-2026 submissions. 
@@ -97,7 +97,7 @@ To identify:
 Structure results as JSON
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll help you analyze conference patterns using the web data extraction tool. Let me break this down into a few queries to get comprehensive data.

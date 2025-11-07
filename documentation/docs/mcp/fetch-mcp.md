@@ -1,6 +1,6 @@
 ---
 title: Fetch Extension
-description: Add Fetch MCP Server as a Goose Extension
+description: Add Fetch MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,7 +15,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 The Fetch extension [does not work](https://github.com/block/goose/issues/1184) with Google models (e.g. gemini-2.0-flash) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
 :::
 
-This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a Goose extension to retrieve and process content from the web.
+This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a goose extension to retrieve and process content from the web.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -61,15 +61,15 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 Let's use the Fetch extension to get random programming jokes from the [Official Joke API](https://official-joke-api.appspot.com/random_joke).
 
 :::info
-While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell Goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. Don't use the key directly but instead use a script that gets the value from the env var WEATHER_API_KEY"_
+While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. Don't use the key directly but instead use a script that gets the value from the env var WEATHER_API_KEY"_
 :::
 
-### Goose Prompt
+### goose Prompt
 ```
 make a web page that tells jokes for programmers. The page should ask the user the setup of the joke, allow them to guess the punchline and then tell them if they are right or wrong. Include a button that allows them to request another joke. you can fetch the jokes from the official joke api
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll help you create a web page that uses the Official Joke API to display programming jokes. I'll break this down into steps:

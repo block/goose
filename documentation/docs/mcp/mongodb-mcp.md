@@ -1,6 +1,6 @@
 ---
 title: MongoDB Extension
-description: Add MongoDB MCP Server as a Goose Extension
+description: Add MongoDB MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows Goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
+The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -110,16 +110,16 @@ The MongoDB extension provides comprehensive database management capabilities th
 - **View collection indexes** and their configurations
 - **Check database statistics** and collection storage sizes
 
-Just describe what you want to accomplish in natural language, and Goose will help you execute the appropriate MongoDB operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate MongoDB operations safely and efficiently.
 
 ## Example Usage
 
-#### Goose Prompt
+#### goose Prompt
 ```
 Update all users in the premium tier who haven't logged in for more than 90 days - set their status to 'inactive' and add a note about when this change was made.
 ```
 
-#### Goose Output
+#### goose Output
 ```
 I've successfully updated inactive premium users using updateMany:
 

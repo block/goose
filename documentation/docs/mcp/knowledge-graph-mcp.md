@@ -1,6 +1,6 @@
 ---
 title: Knowledge Graph Memory Extension
-description: Add Knowledge Graph Memory MCP Server as a Goose Extension
+description: Add Knowledge Graph Memory MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PF6hpDaI9Mc" />
 
 
-This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a Goose extension. This enables Goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across Goose sessions.
+This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a goose extension. This enables goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across goose sessions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -55,12 +55,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I'll show you how Goose can become an intelligent security reviewer by using connected knowledge patterns to detect and analyze vulnerabilities. Goose will be able to understand the relationship between security issues, their impacts, and mitigations.
+In this example, I'll show you how goose can become an intelligent security reviewer by using connected knowledge patterns to detect and analyze vulnerabilities. goose will be able to understand the relationship between security issues, their impacts, and mitigations.
 
-This means Goose doesn't just spot issues - it understands how vulnerabilities connect to real world impacts and can suggest comprehensive solutions.
+This means goose doesn't just spot issues - it understands how vulnerabilities connect to real world impacts and can suggest comprehensive solutions.
 
-### Step 1: Teach Goose About Security Patterns
-    #### Goose Prompt #1
+### Step 1: Teach goose About Security Patterns
+    #### goose Prompt #1
     ```
     goose, learn these security vulnerability patterns and their relationships:
 
@@ -83,7 +83,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         - JWT-based solutions
     ```
 
-    #### Goose Output
+    #### goose Output
 
     ```
     I'll store this security knowledge in the Knowledge Graph Memory with proper entities and relationships
@@ -124,7 +124,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         - Understand how different security issues are related
     ```
 ### Step 2:  Use Connected Knowledge for Code Review
-    #### Goose Prompt # 2
+    #### goose Prompt # 2
 
     ```
     Review this API endpoint for security issues:
@@ -142,7 +142,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         });
     });
     ```
-    #### Goose Output
+    #### goose Output
     ```
     I'll analyze this code using our connected knowledge graph to trace security vulnerabilities and their implications:
 

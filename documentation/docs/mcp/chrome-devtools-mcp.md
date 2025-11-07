@@ -1,6 +1,6 @@
 ---
 title: Chrome DevTools Extension
-description: Add Chrome DevTools MCP Server as a Goose Extension
+description: Add Chrome DevTools MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the Chrome DevTools MCP Server as a Goose extension to enable browser automation, web performance testing, and interactive web application debugging in a Chrome browser.
+This tutorial covers how to add the Chrome DevTools MCP Server as a goose extension to enable browser automation, web performance testing, and interactive web application debugging in a Chrome browser.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -53,14 +53,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I'll show you how to use Goose with the Chrome DevTools Extension to perform automated performance testing on a demo website.
+In this example, I'll show you how to use goose with the Chrome DevTools Extension to perform automated performance testing on a demo website.
 
-### Goose Prompt
+### goose Prompt
 ```
 Use the chrome dev tools extension to Navigate to https://www.saucedemo.com 
 Then, login as performance_glitch_user and measure the site's performance
 ```
-### Goose Output
+### goose Output
 
 ```
 

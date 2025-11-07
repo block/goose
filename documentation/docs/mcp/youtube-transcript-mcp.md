@@ -1,6 +1,6 @@
 ---
 title: YouTube Transcript Extension
-description: Add YouTube Transcript MCP Server as a Goose Extension for accessing YouTube video transcripts
+description: Add YouTube Transcript MCP Server as a goose Extension for accessing YouTube video transcripts
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/N38u7hZqZJg" />
 
-This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a Goose extension to enable fetching and working with YouTube video transcripts.
+This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a goose extension to enable fetching and working with YouTube video transcripts.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -57,13 +57,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 The YouTube Transcript extension allows you to fetch and work with transcripts from YouTube videos. You'll need the video ID from the YouTube URL you want to get the transcript for.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Get me the transcript for this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
 
-### Goose Output
+### goose Output
 
 :::note CLI
 I'll help you get the transcript for that video. The video ID is "dQw4w9WgXcQ". Let me fetch the transcript for you.

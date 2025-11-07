@@ -1,6 +1,6 @@
 ---
 title: OpenMetadata Extension
-description: Add OpenMetadata MCP Server as a Goose Extension
+description: Add OpenMetadata MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows Goose to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
+The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows goose to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -87,18 +87,18 @@ The OpenMetadata extension provides comprehensive metadata management capabiliti
 - **create_glossary_term** Create a new term within an existing glossary, with support for hierarchical relationships.
 - **get_entity_lineage** Retrieve upstream and downstream lineage information for any entity to understand data dependencies and impact analysis. 
 
-Just describe what you want to accomplish in natural language, and Goose will help you execute the appropriate OpenMetadata operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate OpenMetadata operations safely and efficiently.
 
 ## Example Usage
 
-In this example, Goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, Goose will add it.
+In this example, goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, goose will add it.
 
-#### Goose Prompt
+#### goose Prompt
 ```
 which tables are used to create my customers table in redshift? if the databricks table customerinfo is not already, add it to the customers table lineage.
 ```
 
-#### Goose Output
+#### goose Output
 ```
 Based on my analysis, I found your Redshift customers table at `redshift prod.dev.dbt_jaffle.customers`. Here are the tables currently used to create it:
 

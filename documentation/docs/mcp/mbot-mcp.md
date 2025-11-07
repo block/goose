@@ -1,6 +1,6 @@
 ---
 title: mbot Extension
-description: Control a MakeBlock mbot2 rover through MQTT and MCP as a Goose Extension
+description: Control a MakeBlock mbot2 rover through MQTT and MCP as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';

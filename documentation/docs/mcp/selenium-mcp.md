@@ -1,6 +1,6 @@
 ---
 title: Selenium Extension
-description: Add Selenium MCP Server as a Goose Extension
+description: Add Selenium MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PLqPOEeGPLc" />
 
 
-This tutorial covers how to add the [Selenium MCP Server](https://github.com/angiejones/mcp-selenium) as a Goose extension to automate browser interactions such as navigating web pages and completing forms.
+This tutorial covers how to add the [Selenium MCP Server](https://github.com/angiejones/mcp-selenium) as a goose extension to automate browser interactions such as navigating web pages and completing forms.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -56,14 +56,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use Goose to build a test automation project from scratch! We'll use the Selenium MCP to automate filling out a web form, then have Goose generate a Selenium project with the code so that we can run these tests again when needed.
+Let's use goose to build a test automation project from scratch! We'll use the Selenium MCP to automate filling out a web form, then have goose generate a Selenium project with the code so that we can run these tests again when needed.
 
 
-### Goose Prompt
+### goose Prompt
 
 > Use selenium to go to the heroku formy site and fill out the form page with generic data. then can you turn what you've done into an automation script for me? I would like it in Java. Also use the Page Object Model pattern.
 
 
-### Goose Output
+### goose Output
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/mRV0N8hcgYA?start=28&end=152" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>

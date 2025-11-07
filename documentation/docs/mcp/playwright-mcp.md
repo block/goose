@@ -1,6 +1,6 @@
 ---
 title: Playwright Extension
-description: Add Playwright MCP Server as a Goose Extension for Modern Web Testing
+description: Add Playwright MCP Server as a goose Extension for Modern Web Testing
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iAxiFMlTE1Q" />
 
-This tutorial covers how to add the Playwright MCP Server as a Goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
+This tutorial covers how to add the Playwright MCP Server as a goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -54,7 +54,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use Goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how Goose can help you:
+Let's use goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how goose can help you:
 
 1. Test a web application across multiple browsers
 2. Generate maintainable test code
@@ -64,7 +64,7 @@ Let's use Goose with the Playwright extension to create a cross-browser testing 
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 ```
 Test the random redesign generator app (https://blackgirlbytes.github.io/random-redesign-picker/) 
 in Chromium and WebKit. For each browser:
@@ -75,7 +75,7 @@ in Chromium and WebKit. For each browser:
 Then generate a Playwright test that works across all browsers.
 ```
 
-### Goose Output
+### goose Output
 ```
 Let's start with Chromium:
 

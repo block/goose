@@ -1,6 +1,6 @@
 ---
 title: Blender Extension
-description: Add Blender MCP Server as a Goose Extension
+description: Add Blender MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/izoQatKtJ2I" />
 
-This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a Goose extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
+This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a goose extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -72,16 +72,16 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-In this example, I’ll show you how to use Goose with the Blender Extension to build an entire 3D campfire scene from scratch. By automating Blender controls through natural language, Goose can create objects like logs and fireballs, apply realistic materials, add lighting effects, generate particles for sparks, create subtle smoke, and even animate the fire to gently pulse over time.
+In this example, I’ll show you how to use goose with the Blender Extension to build an entire 3D campfire scene from scratch. By automating Blender controls through natural language, goose can create objects like logs and fireballs, apply realistic materials, add lighting effects, generate particles for sparks, create subtle smoke, and even animate the fire to gently pulse over time.
 
-In this example, I’ll show you how to use Goose with the Blender Extension to build a full 3D campfire scene, including logs, fireballs, lighting, and subtle fire animation, just by describing what you want.
+In this example, I’ll show you how to use goose with the Blender Extension to build a full 3D campfire scene, including logs, fireballs, lighting, and subtle fire animation, just by describing what you want.
 
-### Goose Prompt
+### goose Prompt
 
 > Build a cozy campfire scene. Add a ground plane, place a few logs in a circle, and add a glowing fireball in the middle. Set the lighting to a warm tone like a sunset, and angle the camera for a dramatic shot. Give the logs a rough wood texture and make the fireball emit light.
 
 
-### Goose Output
+### goose Output
 
 :::note CLI
 

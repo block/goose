@@ -1,6 +1,6 @@
 ---
 title: Netlify Extension
-description: Add Netlify MCP Server as a Goose Extension
+description: Add Netlify MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iSUNmxOf6gw" />
 
-This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a Goose extension to build, deploy, and manage Netlify sites.
+This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a goose extension to build, deploy, and manage Netlify sites.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -62,13 +62,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I’ll show you how to use Goose with the Netlify Extension to deploy a web application.
+In this example, I’ll show you how to use goose with the Netlify Extension to deploy a web application.
 
-### Goose Prompt
+### goose Prompt
 
 > Can you deploy my app to Netlify via my GitHub repo?
 
-### Goose Output
+### goose Output
 
 :::note CLI
 

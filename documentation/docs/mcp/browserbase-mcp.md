@@ -1,6 +1,6 @@
 ---
 title: Browserbase Extension
-description: Add Browserbase MCP Server as a Goose Extension for Web Automation
+description: Add Browserbase MCP Server as a goose Extension for Web Automation
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the Browserbase MCP Server as a Goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
+This tutorial covers how to add the Browserbase MCP Server as a goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
 
 :::tip TLDR
 
@@ -78,7 +78,7 @@ Let's use the Browserbase extension to gather information about trending MCP-rel
 Claude 4 Sonnet was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 
 ```
 1. Go to https://github.com/trending
@@ -104,7 +104,7 @@ Claude 4 Sonnet was used for this task.
     • README excerpt
 ```
 
-### Goose Output
+### goose Output
 
 ```
 # MCP Repositories Report

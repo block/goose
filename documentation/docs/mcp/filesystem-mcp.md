@@ -1,6 +1,6 @@
 ---
 title: Filesystem Extension
-description: Add Filesystem MCP Server as Goose Extension
+description: Add Filesystem MCP Server as goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import { PanelLeft, Settings } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/2IVPcjEr-yQ" /> 
 
-This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a Goose extension, enabling powerful code analysis and file management. With this extension, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
+This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a goose extension, enabling powerful code analysis and file management. With this extension, goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 
 :::tip TLDR
   **Command**
@@ -69,11 +69,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I'll use Goose to perform a comprehensive security audit across multiple projects, including a payment processing system, authentication service, and e-commerce dashboard. I need to identify security vulnerabilities, implement fixes, and ensure sensitive data and operations are properly protected.
+In this example, I'll use goose to perform a comprehensive security audit across multiple projects, including a payment processing system, authentication service, and e-commerce dashboard. I need to identify security vulnerabilities, implement fixes, and ensure sensitive data and operations are properly protected.
 
-### Goose Prompt
+### goose Prompt
     ```
-    Hey Goose, I need to perform a security audit and implement fixes across multiple projects:
+    Hey goose, I need to perform a security audit and implement fixes across multiple projects:
 
         1. Please analyze these codebases for security issues:
             - /Users/ebonyl/e-commerce-dashboard
@@ -105,7 +105,7 @@ In this example, I'll use Goose to perform a comprehensive security audit across
 
     Please focus particularly on the payment system and authentication service as they handle sensitive data.
     ```
-### Goose Output
+### goose Output
     ```
     I'll help you conduct the security audit, starting with the payment system project since it handles sensitive financial data. Let me first check if we have access to these directories.
 

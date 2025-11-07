@@ -1,6 +1,6 @@
 ---
 title: PDF Reader Extension
-description: Add PDF Reader MCP Server as a Goose Extension
+description: Add PDF Reader MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EJf2_iZfaWk" />
 
-This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a Goose extension, enabling Goose to read and extract text from protected and unprotected PDFs.
+This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a goose extension, enabling goose to read and extract text from protected and unprotected PDFs.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -54,9 +54,9 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, Goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
+This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate aligns with the following role requirements:
@@ -70,7 +70,7 @@ Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate a
 Give a score out of 5 for each requirement, supporting evidence, and a summary at the end with pros, cons, and a decision: Strong Fit / Moderate Fit / Weak Fit.
 ```
 
-### Goose Output
+### goose Output
 
 :::note CLI
 

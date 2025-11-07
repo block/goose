@@ -1,6 +1,6 @@
 ---
 title: Tavily Web Search Extension
-description: Add Tavily MCP Server as a Goose Extension
+description: Add Tavily MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
-This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a Goose extension to enable AI-powered web search functionality.
+This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a goose extension to enable AI-powered web search functionality.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -71,20 +71,20 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-The Tavily MCP server enables AI-powered web search functionality in your Goose interactions. When you obtain your API key, you'll have access to Tavily's advanced search capabilities including:
+The Tavily MCP server enables AI-powered web search functionality in your goose interactions. When you obtain your API key, you'll have access to Tavily's advanced search capabilities including:
 
 1. Real-time web search
 2. Structured data extraction
 3. Content analysis
 4. Topic-specific search
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Search for recent news about artificial intelligence breakthroughs in medicine and summarize the key findings.
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll use the Tavily news search tool to find recent news about AI breakthroughs in medicine.

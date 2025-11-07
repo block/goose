@@ -1,6 +1,6 @@
 ---
 title: Asana Extension
-description: Add Asana MCP Server as a Goose Extension
+description: Add Asana MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +12,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 <!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
 
 
-This tutorial covers how to add the [Asana MCP Server](https://github.com/roychri/mcp-server-asana) as a Goose extension to enable task automation, project tracking, and team collaboration.
+This tutorial covers how to add the [Asana MCP Server](https://github.com/roychri/mcp-server-asana) as a goose extension to enable task automation, project tracking, and team collaboration.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -80,12 +80,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 OpenAI's GPT-4o was used for this task. There's an [open bug](https://github.com/block/goose/issues/1804) for Amazon Bedrock models.
 :::
 
-### Goose Prompt
+### goose Prompt
 
-> _Goose, I have one hour. Look through uncompleted tasks assigned to me in Asana and show me ones that you estimate will take an hour or less. Order them by deadline._
+> _goose, I have one hour. Look through uncompleted tasks assigned to me in Asana and show me ones that you estimate will take an hour or less. Order them by deadline._
 
 
-### Goose Output
+### goose Output
 
 Note that IDs have been changed to generic ones
 
