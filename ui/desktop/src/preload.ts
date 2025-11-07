@@ -118,6 +118,9 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  // Spell checking functions
+  spellCheck: (word: string) => Promise<boolean>;
+  spellSuggestions: (word: string) => Promise<string[]>;
 };
 
 type AppConfigAPI = {
@@ -252,6 +255,9 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  // Spell checking functions
+  spellCheck: (word: string) => ipcRenderer.invoke('spell-check', word),
+  spellSuggestions: (word: string) => ipcRenderer.invoke('spell-suggestions', word),
 };
 
 const appConfigAPI: AppConfigAPI = {
