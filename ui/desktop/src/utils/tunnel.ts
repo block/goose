@@ -2,8 +2,6 @@ import log from './logger';
 
 export interface TunnelInfo {
   url: string;
-  ipv4: string;
-  ipv6: string;
   hostname: string;
   secret: string;
   port: number;

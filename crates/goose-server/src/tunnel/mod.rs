@@ -23,8 +23,6 @@ pub struct TunnelPids {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TunnelInfo {
     pub url: String,
-    pub ipv4: String,
-    pub ipv6: String,
     pub hostname: String,
     pub secret: String,
     pub port: u16,

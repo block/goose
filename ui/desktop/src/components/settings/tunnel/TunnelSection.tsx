@@ -237,15 +237,6 @@ export default function TunnelSection() {
                         </Button>
                       </div>
                     </div>
-
-                    {tunnelStatus.info.ipv6 && (
-                      <div>
-                        <h3 className="text-xs font-medium mb-1 text-text-muted">IPv6</h3>
-                        <code className="block p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all">
-                          {tunnelStatus.info.ipv6}
-                        </code>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

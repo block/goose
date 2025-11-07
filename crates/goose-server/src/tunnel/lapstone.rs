@@ -530,8 +530,6 @@ pub async fn start(
 
     Ok(TunnelInfo {
         url: public_url,
-        ipv4: String::new(),
-        ipv6: String::new(),
         hostname,
         secret: tunnel_secret,
         port,
