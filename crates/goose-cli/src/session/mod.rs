@@ -135,6 +135,32 @@ pub async fn classify_planner_response(
     }
 }
 
+fn generate_extension_name(extension_command: &str) -> String {
+    let cmd_name: String = extension_command
+        .split(|c| c == ' ' || c == '/')
+        .last()
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect();
+
+    let prefix: String = cmd_name.chars().take(16).collect();
+
+    let random_suffix: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect();
+
+    let name = format!("{}_{}", prefix, random_suffix);
+
+    if name.chars().next().map_or(true, |c| !c.is_alphabetic()) {
+        format!("g{}", name)
+    } else {
+        name
+    }
+}
+
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -194,11 +220,7 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_command);
 
         let config = ExtensionConfig::Stdio {
             name,
@@ -229,11 +251,7 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_remote_extension(&mut self, extension_url: String) -> Result<()> {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_url);
 
         let config = ExtensionConfig::Sse {
             name,
@@ -263,11 +281,7 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_url);
 
         let config = ExtensionConfig::StreamableHttp {
             name,
