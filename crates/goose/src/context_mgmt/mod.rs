@@ -530,16 +530,16 @@ mod tests {
         let mut messages = vec![Message::user().with_text("start")];
         for i in 0..10 {
             messages.push(Message::assistant().with_tool_request(
-                &format!("tool_{}", i),
+                format!("tool_{}", i),
                 Ok(CallToolRequestParam {
                     name: "read_file".into(),
                     arguments: None,
                 }),
             ));
             messages.push(Message::user().with_tool_response(
-                &format!("tool_{}", i),
+                format!("tool_{}", i),
                 Ok(vec![
-                    RawContent::text(&format!("response{}", i)).no_annotation(),
+                    RawContent::text(format!("response{}", i)).no_annotation(),
                 ]),
             ));
         }
