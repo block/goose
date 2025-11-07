@@ -795,6 +795,8 @@ export type ThinkingContent = {
 };
 
 export type TokenState = {
+    accumulatedCacheReadInputTokens: number;
+    accumulatedCacheWriteInputTokens: number;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedTotalTokens: number;

@@ -456,8 +456,10 @@ function BaseChatContent({
             accumulatedOutputTokens={
               tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
             }
-            cacheReadTokens={sessionCacheReadTokens}
-            cacheWriteTokens={sessionCacheWriteTokens}
+            cacheReadTokens={tokenState?.accumulatedCacheReadInputTokens || sessionCacheReadTokens}
+            cacheWriteTokens={
+              tokenState?.accumulatedCacheWriteInputTokens || sessionCacheWriteTokens
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}

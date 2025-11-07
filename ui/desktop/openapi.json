@@ -4556,9 +4556,19 @@
           "totalTokens",
           "accumulatedInputTokens",
           "accumulatedOutputTokens",
-          "accumulatedTotalTokens"
+          "accumulatedTotalTokens",
+          "accumulatedCacheReadInputTokens",
+          "accumulatedCacheWriteInputTokens"
         ],
         "properties": {
+          "accumulatedCacheReadInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedCacheWriteInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
           "accumulatedInputTokens": {
             "type": "integer",
             "format": "int32"
