@@ -99,6 +99,8 @@ pub async fn compact_messages(
         }
     };
 
+    // For auto-compact, search for the last agent-visible user message with text only
+    // For manual compact, don't preserve any user message
     let preserved_user_text = if !manual_compact {
         messages
             .iter()
@@ -133,6 +135,7 @@ pub async fn compact_messages(
 
     let mut continuation_messages = vec![summary_msg];
 
+    // Choose continuation text based on whether the most recent message is a user text message
     let last_message_is_user_text = messages
         .last()
         .map(is_user_submitted_text)
@@ -149,6 +152,7 @@ pub async fn compact_messages(
         .with_metadata(MessageMetadata::agent_only());
     continuation_messages.push(continuation_msg);
 
+    // Add back the preserved user message if it exists (as a separate message, not embedded in continuation text)
     if let Some(user_text) = preserved_user_text {
         continuation_messages.push(Message::user().with_text(&user_text));
     }
