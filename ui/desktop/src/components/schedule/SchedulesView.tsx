@@ -223,6 +223,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingDeepLink, setPendingDeepLink] = useState<string | null>(null);
+  const [pendingTempFile, setPendingTempFile] = useState<string | null>(null);
 
   // Individual loading states for each action to prevent double-clicks
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
@@ -322,7 +323,23 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }
   }, [fetchSchedules]);
 
-  const handleCloseCreateModal = () => {
+  const cleanupTempFile = async (filePath: string | null | undefined) => {
+    if (!filePath) return;
+
+    try {
+      await window.electron.deleteFile(filePath);
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'ENOENT') {
+        return;
+      }
+      console.error('Failed to delete temporary file:', error);
+    } finally {
+      setPendingTempFile(null);
+    }
+  };
+
+  const handleCloseCreateModal = async () => {
+    await cleanupTempFile(pendingTempFile);
     setIsCreateModalOpen(false);
     setSubmitApiError(null);
     setPendingDeepLink(null);
@@ -340,9 +357,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setSubmitApiError(null);
   };
 
-  const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
+  const handleCreateScheduleSubmit = async (payload: NewSchedulePayload, tempFilePath?: string) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
+
     try {
       await createSchedule(payload);
       await fetchSchedules();
@@ -353,6 +371,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         error instanceof Error ? error.message : 'Unknown error creating schedule.';
       setSubmitApiError(errorMessage);
     } finally {
+      await cleanupTempFile(tempFilePath);
       setIsSubmitting(false);
     }
   };

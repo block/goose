@@ -28,7 +28,7 @@ export interface NewSchedulePayload {
 interface CreateScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (payload: NewSchedulePayload) => Promise<void>;
+  onSubmit: (payload: NewSchedulePayload, tempFilePath?: string) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
   initialDeepLink?: string | null;
@@ -469,6 +469,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
 
     let finalRecipeSource = '';
+    let tempFilePathForCleanup: string | undefined = undefined;
 
     if (sourceType === 'file') {
       if (!recipeSourcePath) {
@@ -492,16 +493,17 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         console.log('Generated YAML content:', yamlContent); // Debug log
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
-        const tempFilePath = `${tempDir}/${tempFileName}`;
+        const tempFilePathLocal = `${tempDir}/${tempFileName}`;
 
         // Write the YAML file
-        const writeSuccess = await window.electron.writeFile(tempFilePath, yamlContent);
+        const writeSuccess = await window.electron.writeFile(tempFilePathLocal, yamlContent);
         if (!writeSuccess) {
           setInternalValidationError('Failed to create temporary recipe file.');
           return;
         }
 
-        finalRecipeSource = tempFilePath;
+        tempFilePathForCleanup = tempFilePathLocal;
+        finalRecipeSource = tempFilePathLocal;
       } catch (error) {
         console.error('Failed to convert recipe to YAML:', error);
         setInternalValidationError('Failed to process the recipe from deep link.');
@@ -531,7 +533,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       execution_mode: executionMode,
     };
 
-    await onSubmit(newSchedulePayload);
+    await onSubmit(newSchedulePayload, tempFilePathForCleanup);
   };
 
   const handleClose = () => {
