@@ -32,7 +32,11 @@ interface BaseChatProps {
   renderHeader?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
+  contentClassName?: string;
+  disableSearch?: boolean;
+  showPopularTopics?: boolean;
   suppressEmptyState: boolean;
+  autoSubmit?: boolean;
   sessionId: string;
   initialMessage?: string;
 }
@@ -44,6 +48,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  autoSubmit = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -72,6 +77,7 @@ function BaseChatContent({
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
+    tokenState,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -189,7 +195,9 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
-  const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
+  const initialPrompt =
+    initialMessage || (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
+  const shouldAutoSubmit = autoSubmit || !!initialMessage;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -285,9 +293,13 @@ function BaseChatContent({
             //commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            numTokens={session?.total_tokens || undefined}
-            inputTokens={session?.input_tokens || undefined}
-            outputTokens={session?.output_tokens || undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            accumulatedInputTokens={
+              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+            }
+            accumulatedOutputTokens={
+              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+            }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
@@ -298,7 +310,7 @@ function BaseChatContent({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
-            autoSubmit={false}
+            autoSubmit={shouldAutoSubmit}
             {...customChatInputProps}
           />
         </div>

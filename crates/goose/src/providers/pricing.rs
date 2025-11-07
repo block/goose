@@ -72,13 +72,8 @@ impl PricingCache {
                         let age_days = (now - cached.fetched_at) / (24 * 60 * 60);
 
                         if age_days < CACHE_TTL_DAYS {
-                            tracing::debug!(
-                                "Loaded pricing data from disk cache (age: {} days)",
-                                age_days
-                            );
                             Ok(Some(cached))
                         } else {
-                            tracing::debug!("Disk cache expired (age: {} days)", age_days);
                             Ok(None)
                         }
                     }
@@ -103,8 +98,6 @@ impl PricingCache {
         let cache_path = cache_dir.join(CACHE_FILE_NAME);
         let json_data = serde_json::to_vec_pretty(data)?;
         tokio::fs::write(&cache_path, json_data).await?;
-
-        tracing::debug!("Saved pricing data to disk cache");
         Ok(())
     }
 
@@ -187,19 +180,6 @@ impl PricingCache {
             fetched_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         };
 
-        // Log how many models we fetched
-        let total_models: usize = cached_data
-            .pricing
-            .values()
-            .map(|models| models.len())
-            .sum();
-        tracing::debug!(
-            "Fetched pricing for {} providers with {} total models from OpenRouter",
-            cached_data.pricing.len(),
-            total_models
-        );
-
-        // Save to disk
         self.save_to_disk(&cached_data).await?;
 
         // Update memory cache

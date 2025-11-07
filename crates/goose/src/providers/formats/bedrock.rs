@@ -345,13 +345,15 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage {
-        input_tokens: Some(usage.input_tokens),
-        output_tokens: Some(usage.output_tokens),
-        total_tokens: Some(usage.total_tokens),
-        cache_read_input_tokens: usage.cache_read_input_tokens,
-        cache_write_input_tokens: usage.cache_write_input_tokens,
-    }
+    Usage::new(
+        Some(usage.input_tokens),
+        Some(usage.output_tokens),
+        Some(usage.total_tokens),
+    )
+    .with_cache_tokens(
+        usage.cache_read_input_tokens,
+        usage.cache_write_input_tokens,
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {

@@ -24,17 +24,31 @@ use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
 
-pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
+pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5-mini",
+    "gpt-5",
     "gpt-4o",
-    "o1",
-    "o3-mini",
-    "claude-3.7-sonnet",
+    "grok-code-fast-1",
+    "gpt-5-codex",
     "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
 ];
 
-pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
+pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-codex",
+    "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
+    "grok-code-fast-1",
+];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -169,7 +183,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }
@@ -235,7 +251,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
                     token
                 }
                 _ => return Err(err.into()),
@@ -500,7 +516,7 @@ impl Provider for GithubCopilotProvider {
 
         // Save the token
         config
-            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
         Ok(())

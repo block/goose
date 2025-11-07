@@ -268,6 +268,12 @@ validate version:
       exit 1
     fi
 
+get-next-minor-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{int(v[1])+1}.0')" $(just get-tag-version)
+
+get-next-patch-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
+
 # set cargo and app versions, must be semver
 prepare-release version:
     @just validate {{ version }} || exit 1
@@ -280,7 +286,8 @@ prepare-release version:
     # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
-    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json
+    @just generate-openapi
+    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json
     @git commit --message "chore(release): release version {{ version }}"
 
 # extract version from Cargo.toml

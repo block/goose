@@ -2597,9 +2597,9 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "globset"
-version = "0.4.16"
+version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54a1028dfc5f5df5da8a56a73e6c153c9a9708ec57232470703592a3f18e49f5"
+checksum = "52dfc19153a48bde0cbd630453615c8151bce3a5adfac7a0aebfbf0a1e1f57e3"
 dependencies = [
  "aho-corasick",
  "bstr",
@@ -2610,7 +2610,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2632,7 +2632,9 @@ dependencies = [
  "etcetera",
  "fs2",
  "futures",
+ "ignore",
  "include_dir",
+ "indexmap 2.12.0",
  "indoc",
  "insta",
  "jsonschema",
@@ -2646,6 +2648,7 @@ dependencies = [
  "oauth2",
  "once_cell",
  "opentelemetry",
+ "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "paste",
@@ -2689,7 +2692,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2712,7 +2715,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2764,7 +2767,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2830,7 +2833,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2867,7 +2870,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.11.0"
+version = "1.13.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -2899,7 +2902,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.12",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -2918,7 +2921,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.2.0",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -2961,6 +2964,12 @@ dependencies = [
  "equivalent",
  "foldhash",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
 
 [[package]]
 name = "hashlink"
@@ -3407,9 +3416,9 @@ dependencies = [
 
 [[package]]
 name = "ignore"
-version = "0.4.23"
+version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d89fd380afde86567dfba715db065673989d6253f42b88179abd3eae47bda4b"
+checksum = "d3d782a365a015e0f5c04902246139249abf769125006fbe7649e2ee88169b4a"
 dependencies = [
  "crossbeam-deque",
  "globset",
@@ -3510,13 +3519,14 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.7.1"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c9c992b02b5b4c94ea26e32fe5bccb7aa7d9f390ab5c1221ff895bc7ea8b652"
+checksum = "6717a8d2a5a929a1a2eb43a12812498ed141a0bcfb7e8f7844fbdbe4303bba9f"
 dependencies = [
  "equivalent",
- "hashbrown 0.15.2",
+ "hashbrown 0.16.0",
  "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -3968,7 +3978,7 @@ dependencies = [
  "chrono",
  "encoding_rs",
  "flate2",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "itoa",
  "log",
  "md-5",
@@ -4562,6 +4572,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry-appender-tracing"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab5feffc321035ad94088a7e5333abb4d84a8726e54a802e736ce9dd7237e85b"
+dependencies = [
+ "opentelemetry",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opentelemetry-http"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4859,7 +4881,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42cf17e9a1800f5f396bc67d193dc9411b59012a5876445ef450d449881e1016"
 dependencies = [
  "base64 0.22.1",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "quick-xml 0.32.0",
  "serde",
  "time",
@@ -5012,7 +5034,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d35f4dc9988d1326b065b4def5e950c3ed727aa03e3151b86cc9e2aec6b03f54"
 dependencies = [
  "futures",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "nix 0.29.0",
  "tokio",
  "tracing",
@@ -5540,9 +5562,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.8.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f35acda8f89fca5fd8c96cae3c6d5b4c38ea0072df4c8030915f3b5ff469c1c"
+checksum = "1fdad1258f7259fdc0f2dfc266939c82c3b5d1fd72bcde274d600cdc27e60243"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5568,9 +5590,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.8.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9f1d5220aaa23b79c3d02e18f7a554403b3ccea544bbb6c69d6bcb3e854a274"
+checksum = "ede0589a208cc7ce81d1be68aa7e74b917fcd03c81528408bab0457e187dcd9b"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
@@ -5979,7 +6001,7 @@ version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "itoa",
  "memchr",
  "ryu",
@@ -6028,7 +6050,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -6054,7 +6076,7 @@ version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
 dependencies = [
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "itoa",
  "ryu",
  "serde",
@@ -6301,7 +6323,7 @@ dependencies = [
  "futures-util",
  "hashlink",
  "hex",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "log",
  "memchr",
  "once_cell",
@@ -7034,6 +7056,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]
@@ -7065,7 +7088,7 @@ version = "0.22.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17b4795ff5edd201c7cd6dca065ae59972ce77d1b80fa0a84d94950ece7d1474"
 dependencies = [
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -7549,7 +7572,7 @@ version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5afb1a60e207dca502682537fefcfd9921e71d0b83e9576060f09abc6efab23"
 dependencies = [
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "serde",
  "serde_json",
  "utoipa-gen",
@@ -8666,7 +8689,7 @@ dependencies = [
  "crc32fast",
  "crossbeam-utils",
  "flate2",
- "indexmap 2.7.1",
+ "indexmap 2.12.0",
  "memchr",
  "zopfli",
 ]

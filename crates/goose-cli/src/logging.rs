@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Once;
 use tokio::sync::Mutex;
@@ -15,12 +14,6 @@ use goose_bench::error_capture::ErrorCaptureLayer;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
-
-/// Returns the directory where log files should be stored.
-/// Creates the directory structure if it doesn't exist.
-fn get_log_directory() -> Result<PathBuf> {
-    goose::logging::get_log_directory("cli", true)
-}
 
 /// Sets up the logging infrastructure for the application.
 /// This includes:
@@ -50,20 +43,15 @@ fn setup_logging_internal(
 
     let mut setup = || {
         result = (|| {
-            // Set up file appender for goose module logs
-            let log_dir = get_log_directory()?;
+            let log_dir = goose::logging::prepare_log_directory("cli", true)?;
             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-
-            // Create log file name by prefixing with timestamp
             let log_filename = if name.is_some() {
                 format!("{}-{}.log", timestamp, name.unwrap())
             } else {
                 format!("{}.log", timestamp)
             };
-
-            // Create non-rolling file appender for detailed logs
             let file_appender = tracing_appender::rolling::RollingFileAppender::new(
-                Rotation::NEVER,
+                Rotation::NEVER, // we do manual rotation via file naming and cleanup_old_logs
                 log_dir,
                 log_filename,
             );
@@ -102,7 +90,9 @@ fn setup_logging_internal(
             }
 
             if !force {
-                if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
+                if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) =
+                    otlp_layer::init_otlp()
+                {
                     layers.push(
                         otlp_tracing_layer
                             .with_filter(otlp_layer::create_otlp_tracing_filter())
@@ -111,6 +101,11 @@ fn setup_logging_internal(
                     layers.push(
                         otlp_metrics_layer
                             .with_filter(otlp_layer::create_otlp_metrics_filter())
+                            .boxed(),
+                    );
+                    layers.push(
+                        otlp_logs_layer
+                            .with_filter(otlp_layer::create_otlp_logs_filter())
                             .boxed(),
                     );
                 }
@@ -170,7 +165,7 @@ mod tests {
     #[test]
     fn test_log_directory_creation() {
         let _temp_dir = setup_temp_home();
-        let log_dir = get_log_directory().unwrap();
+        let log_dir = goose::logging::prepare_log_directory("cli", true).unwrap();
         assert!(log_dir.exists());
         assert!(log_dir.is_dir());
 

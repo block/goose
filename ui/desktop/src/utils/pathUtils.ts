@@ -71,9 +71,7 @@ const addPaths = (
   executableName: string,
   app: Electron.App
 ): void => {
-  const isDev = process.env.NODE_ENV === 'development';
-  const isPackaged = app.isPackaged;
-  if (isDev && !isPackaged) {
+  if (!app.isPackaged) {
     possiblePaths.push(
       path.join(process.cwd(), 'src', 'bin', executableName),
       path.join(process.cwd(), 'bin', executableName),

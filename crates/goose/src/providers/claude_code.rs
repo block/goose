@@ -9,16 +9,15 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::RequestLog;
-use crate::config::Config;
+use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-sonnet-4-20250514"];
-
-pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus"];
+pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCodeProvider {
@@ -103,28 +102,6 @@ impl ClaudeCodeProvider {
         None
     }
 
-    /// Filter out the Extensions section from the system prompt
-    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
-        if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
-            let after_extensions = &system[extensions_start..];
-            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
-                let before_extensions = &system[..extensions_start];
-                let next_section_start = extensions_start + next_section_pos + 1;
-                let after_next_section = &system[next_section_start..];
-                format!("{}{}", before_extensions.trim_end(), after_next_section)
-            } else {
-                // No next section found, just remove everything from Extensions onward
-                system[..extensions_start].trim_end().to_string()
-            }
-        } else {
-            // No Extensions section found, return original
-            system.to_string()
-        }
-    }
-
     /// Convert goose messages to the format expected by claude CLI
     fn messages_to_claude_format(&self, _system: &str, messages: &[Message]) -> Result<Value> {
         let mut claude_messages = Vec::new();
@@ -191,6 +168,34 @@ impl ClaudeCodeProvider {
     }
 
     /// Parse the JSON response from claude CLI
+    fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
+        let config = Config::global();
+        match config.get_goose_mode() {
+            Ok(GooseMode::Auto) => {
+                cmd.arg("--dangerously-skip-permissions");
+            }
+            Ok(GooseMode::SmartApprove) => {
+                cmd.arg("--permission-mode").arg("acceptEdits");
+            }
+            Ok(GooseMode::Approve) => {
+                return Err(ProviderError::RequestFailed(
+                    "\n\n\n### NOTE\n\n\n \
+                    Claude Code CLI provider does not support Approve mode.\n \
+                    Please use Auto (which will run anything it needs to) or \
+                    SmartApprove (most things will run or Chat Mode)\n\n\n"
+                        .to_string(),
+                ));
+            }
+            Ok(GooseMode::Chat) => {
+                // Chat mode doesn't need permission flags
+            }
+            Err(_) => {
+                // Default behavior if mode is not set
+            }
+        }
+        Ok(())
+    }
+
     fn parse_claude_response(
         &self,
         json_lines: &[String],
@@ -303,8 +308,7 @@ impl ClaudeCodeProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        // Create a filtered system prompt without Extensions section
-        let filtered_system = self.filter_extensions_from_system_prompt(system);
+        let filtered_system = filter_extensions_from_system_prompt(system);
 
         if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
             println!("=== CLAUDE CODE PROVIDER DEBUG ===");
@@ -337,21 +341,21 @@ impl ClaudeCodeProvider {
         cmd.arg("--verbose").arg("--output-format").arg("json");
 
         // Add permission mode based on GOOSE_MODE setting
-        let config = Config::global();
-        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
-            if goose_mode.as_str() == "auto" {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-            }
-        }
+        Self::apply_permission_flags(&mut cmd)?;
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd
             .spawn()
             .map_err(|e| ProviderError::RequestFailed(format!(
-                "Failed to spawn Claude CLI command '{}': {}. \
-                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
-                self.command, e
+                "\n\n ## Unable to find Claude Code CLI on the path.\n\n\
+                **Error details:** Failed to spawn command '{}': {}\n\n\
+                **Please ensure:**\n\
+                - Claude Code CLI is installed and logged in\n\
+                - The command is in your PATH, or set `CLAUDE_CODE_COMMAND` in your config\n\n\
+                **For full features, please use the Anthropic provider with an API key if possible.**\n\n\
+                Visit {} for installation instructions.",
+                self.command, e, CLAUDE_CODE_DOC_URL
             )))?;
 
         let stdout = child
@@ -452,8 +456,8 @@ impl Provider for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "claude-code",
-            "Claude Code",
-            "Execute Claude models via claude CLI tool",
+            "Claude Code CLI",
+            "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
             CLAUDE_CODE_DEFAULT_MODEL,
             CLAUDE_CODE_KNOWN_MODELS.to_vec(),
             CLAUDE_CODE_DOC_URL,
@@ -522,18 +526,6 @@ impl Provider for ClaudeCodeProvider {
 mod tests {
     use super::ModelConfig;
     use super::*;
-
-    #[test]
-    fn test_permission_mode_flag_construction() {
-        // Test that in auto mode, the --permission-mode acceptEdits flag is added
-        std::env::set_var("GOOSE_MODE", "auto");
-
-        let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
-        assert_eq!(goose_mode, "auto");
-
-        std::env::remove_var("GOOSE_MODE");
-    }
 
     #[tokio::test]
     async fn test_claude_code_invalid_model_no_fallback() {

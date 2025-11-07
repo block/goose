@@ -508,13 +508,11 @@ impl Provider for VeniceProvider {
 
         // Extract usage
         let usage_data = &response_json["usage"];
-        let usage = Usage {
-            input_tokens: usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
-            output_tokens: usage_data["completion_tokens"].as_i64().map(|v| v as i32),
-            total_tokens: usage_data["total_tokens"].as_i64().map(|v| v as i32),
-            cache_read_input_tokens: None,
-            cache_write_input_tokens: None,
-        };
+        let usage = Usage::new(
+            usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
+            usage_data["completion_tokens"].as_i64().map(|v| v as i32),
+            usage_data["total_tokens"].as_i64().map(|v| v as i32),
+        );
 
         Ok((
             Message::new(Role::Assistant, Utc::now().timestamp(), content),

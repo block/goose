@@ -27,7 +27,7 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
-import { DraftProvider } from './contexts/DraftContext';
+import LauncherView from './components/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
@@ -76,6 +76,8 @@ const PairRouteWrapper = ({
   setFatalError,
   agentState,
   loadCurrentChat,
+  activeSessionId,
+  setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -84,23 +86,26 @@ const PairRouteWrapper = ({
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   agentState: AgentState;
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
   const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const [initialMessage] = useState(routeState.initialMessage);
-
+  const initialMessage = routeState.initialMessage;
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   // Determine which session ID to use:
   // 1. From route state (when navigating from Hub with a new session)
-  // 2. From URL params (when resuming a session)
-  // 3. From the existing chat state (when navigating to Pair directly)
-  const sessionId = routeState.resumeSessionId || resumeSessionId || chat.sessionId;
+  // 2. From URL params (when resuming a session or after refresh)
+  // 3. From active session state (when navigating back from other routes)
+  // 4. From the existing chat state
+  const sessionId =
+    routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
 
-  // Update URL with session ID if it's not already there (new chat from pair)
+  // Update URL with session ID when on /pair route (for refresh support)
   useEffect(() => {
     if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
       setSearchParams((prev) => {
@@ -109,6 +114,13 @@ const PairRouteWrapper = ({
       });
     }
   }, [sessionId, resumeSessionId, setSearchParams]);
+
+  // Update active session state when session ID changes
+  useEffect(() => {
+    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessionId, activeSessionId, setActiveSessionId]);
 
   return process.env.ALPHA ? (
     <Pair2
@@ -322,6 +334,9 @@ export function AppInner() {
     recipe: null,
   });
 
+  // Store the active session ID for navigation persistence
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
   const resetChatIfNecessary = useCallback(() => {
@@ -508,6 +523,62 @@ export function AppInner() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!window.electron) return;
+
+    const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
+      const themeData = args[0] as { mode: string; useSystemTheme: boolean; theme: string };
+
+      if (themeData.useSystemTheme) {
+        localStorage.setItem('use_system_theme', 'true');
+      } else {
+        localStorage.setItem('use_system_theme', 'false');
+        localStorage.setItem('theme', themeData.theme);
+      }
+
+      const isDark = themeData.useSystemTheme
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        : themeData.mode === 'dark';
+
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      }
+
+      const storageEvent = new Event('storage') as Event & {
+        key: string | null;
+        newValue: string | null;
+      };
+      storageEvent.key = themeData.useSystemTheme ? 'use_system_theme' : 'theme';
+      storageEvent.newValue = themeData.useSystemTheme ? 'true' : themeData.theme;
+      window.dispatchEvent(storageEvent);
+    };
+
+    window.electron.on('theme-changed', handleThemeChanged);
+
+    return () => {
+      window.electron.off('theme-changed', handleThemeChanged);
+    };
+  }, []);
+
+  // Handle initial message from launcher
+  useEffect(() => {
+    const handleSetInitialMessage = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const initialMessage = args[0] as string;
+      if (initialMessage) {
+        console.log('Received initial message from launcher:', initialMessage);
+        navigate('/pair', { state: { initialMessage } });
+      }
+    };
+    window.electron.on('set-initial-message', handleSetInitialMessage);
+    return () => {
+      window.electron.off('set-initial-message', handleSetInitialMessage);
+    };
+  }, [navigate]);
+
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
   }
@@ -533,6 +604,7 @@ export function AppInner() {
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
+          <Route path="launcher" element={<LauncherView />} />
           <Route
             path="welcome"
             element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
@@ -574,6 +646,8 @@ export function AppInner() {
                   setFatalError={setFatalError}
                   setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  activeSessionId={activeSessionId}
+                  setActiveSessionId={setActiveSessionId}
                 />
               }
             />
@@ -620,13 +694,11 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ModelAndProviderProvider>
+      <HashRouter>
+        <AppInner />
+      </HashRouter>
+      <AnnouncementModal />
+    </ModelAndProviderProvider>
   );
 }

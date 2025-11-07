@@ -8,7 +8,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
@@ -126,12 +126,14 @@ impl IntoResponse for SseResponse {
 pub enum MessageEvent {
     Message {
         message: Message,
+        token_state: TokenState,
     },
     Error {
         error: String,
     },
     Finish {
         reason: String,
+        token_state: TokenState,
     },
     ModelChange {
         model: String,
@@ -148,6 +150,27 @@ pub enum MessageEvent {
     Ping,
 }
 
+async fn get_token_state(session_id: &str) -> TokenState {
+    SessionManager::get_session(session_id, false)
+        .await
+        .map(|session| TokenState {
+            input_tokens: session.input_tokens.unwrap_or(0),
+            output_tokens: session.output_tokens.unwrap_or(0),
+            total_tokens: session.total_tokens.unwrap_or(0),
+            accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+            accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+            accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+        })
+        .inspect_err(|e| {
+            tracing::warn!(
+                "Failed to fetch session token state for {}: {}",
+                session_id,
+                e
+            );
+        })
+        .unwrap_or_default()
+}
+
 async fn stream_event(
     event: MessageEvent,
     tx: &mpsc::Sender<String>,
@@ -159,6 +182,7 @@ async fn stream_event(
             e
         )
     });
+
     if tx.send(format!("data: {}\n\n", json)).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
@@ -255,17 +279,30 @@ pub async fn reply(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            execution_mode: None,
             max_turns: None,
             retry_config: None,
         };
 
+        let user_message = match messages.last() {
+            Some(msg) => msg,
+            _ => {
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: "Reply started with empty messages".to_string(),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
+
         let mut stream = match agent
             .reply(
-                messages.clone(),
-                Some(session_config.clone()),
+                user_message.clone(),
+                session_config,
                 Some(task_cancel.clone()),
             )
             .await
@@ -305,7 +342,10 @@ pub async fn reply(
                             }
 
                             all_messages.push(message.clone());
-                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+
+                            let token_state = get_token_state(&session_id).await;
+
+                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
@@ -397,9 +437,12 @@ pub async fn reply(
             );
         }
 
+        let final_token_state = get_token_state(&session_id).await;
+
         let _ = stream_event(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
+                token_state: final_token_state,
             },
             &task_tx,
             &cancel_token,

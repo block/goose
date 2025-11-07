@@ -134,6 +134,7 @@ function BaseChatContent({
     sessionCacheWriteTokens,
     localInputTokens,
     localOutputTokens,
+    tokenState,
     commandHistory,
     toolCallNotifications,
     sessionMetadata,
@@ -448,9 +449,13 @@ function BaseChatContent({
             commandHistory={commandHistory}
             initialValue={input || ''}
             setView={setView}
-            numTokens={sessionTokenCount}
-            inputTokens={sessionInputTokens || localInputTokens}
-            outputTokens={sessionOutputTokens || localOutputTokens}
+            totalTokens={tokenState?.totalTokens || sessionTokenCount}
+            accumulatedInputTokens={
+              tokenState?.accumulatedInputTokens || sessionInputTokens || localInputTokens
+            }
+            accumulatedOutputTokens={
+              tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
+            }
             cacheReadTokens={sessionCacheReadTokens}
             cacheWriteTokens={sessionCacheWriteTokens}
             droppedFiles={droppedFiles}

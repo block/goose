@@ -20,7 +20,6 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
@@ -70,9 +69,9 @@ interface ChatInputProps {
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
-  numTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  totalTokens?: number;
+  accumulatedInputTokens?: number;
+  accumulatedOutputTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   messages?: Message[];
@@ -107,9 +106,9 @@ export default function ChatInput({
   droppedFiles = [],
   onFilesProcessed,
   setView,
-  numTokens,
-  inputTokens,
-  outputTokens,
+  totalTokens,
+  accumulatedInputTokens,
+  accumulatedOutputTokens,
   cacheReadTokens,
   cacheWriteTokens,
   messages = [],
@@ -148,19 +147,7 @@ export default function ChatInput({
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
-
-  // Draft functionality - get chat context and global draft context
-  // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
-  const chatContext = useChatContext(); // This should always be available now
-  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
-  const draftLoadedRef = useRef(false);
-
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-
-  // Debug logging for draft context
-  useEffect(() => {
-    // Debug logging removed - draft functionality is working correctly
-  }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -287,9 +274,6 @@ export default function ChatInput({
     setValue(initialValue);
     setDisplayValue(initialValue);
 
-    // Reset draft loaded flag when initialValue changes
-    draftLoadedRef.current = false;
-
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
@@ -318,38 +302,6 @@ export default function ChatInput({
       }, 0);
     }
   }, [recipeAccepted, initialPrompt, messages.length]);
-
-  // Draft functionality - load draft if no initial value or recipe
-  useEffect(() => {
-    // Reset draft loaded flag when context changes
-    draftLoadedRef.current = false;
-  }, [chatContext?.contextKey]);
-
-  useEffect(() => {
-    // Only load draft once and if conditions are met
-    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
-      const draftText = chatContext.draft || '';
-
-      if (draftText) {
-        setDisplayValue(draftText);
-        setValue(draftText);
-      }
-
-      // Always mark as loaded after checking, regardless of whether we found a draft
-      draftLoadedRef.current = true;
-    }
-  }, [chatContext, initialValue, recipe]);
-
-  // Save draft when user types (debounced)
-  const debouncedSaveDraft = useMemo(
-    () =>
-      debounce((value: string) => {
-        if (chatContext && chatContext.setDraft) {
-          chatContext.setDraft(value);
-        }
-      }, 500), // Save draft after 500ms of no typing
-    [chatContext]
-  );
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -511,16 +463,16 @@ export default function ChatInput({
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
-    if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+    if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: numTokens || 0,
+          current: totalTokens || 0,
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !numTokens,
+        compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
 
@@ -548,7 +500,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -614,13 +566,9 @@ export default function ChatInput({
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
-    setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
-    // Mark that the user has typed something
+    setDisplayValue(val);
+    updateValue(val);
     setHasUserTyped(true);
-
-    // Check for @ mention
     checkForMention(val, cursorPosition, evt.target);
   };
 
@@ -775,9 +723,8 @@ export default function ChatInput({
   useEffect(() => {
     return () => {
       debouncedAutosize.cancel?.();
-      debouncedSaveDraft.cancel?.();
     };
-  }, [debouncedAutosize, debouncedSaveDraft]);
+  }, [debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -916,7 +863,6 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
-    agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -970,11 +916,6 @@ export default function ChatInput({
         setIsInGlobalHistory(false);
         setHasUserTyped(false);
 
-        // Clear draft when message is sent
-        if (chatContext && chatContext.clearDraft) {
-          chatContext.clearDraft();
-        }
-
         // Clear both parent and local dropped files after processing
         if (onFilesProcessed && droppedFiles.length > 0) {
           onFilesProcessed();
@@ -986,7 +927,6 @@ export default function ChatInput({
     },
     [
       allDroppedFiles,
-      chatContext,
       displayValue,
       droppedFiles.length,
       handleSubmit,
@@ -1072,7 +1012,6 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1126,7 +1065,6 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    !agentIsReady ||
     isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
@@ -1378,7 +1316,7 @@ export default function ChatInput({
                           ? 'Recording...'
                           : isTranscribing
                             ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                            : 'Send'}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1546,8 +1484,8 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
+                  inputTokens={accumulatedInputTokens}
+                  outputTokens={accumulatedOutputTokens}
                   cacheReadTokens={cacheReadTokens}
                   cacheWriteTokens={cacheWriteTokens}
                   sessionCosts={sessionCosts}

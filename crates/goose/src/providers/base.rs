@@ -280,19 +280,21 @@ impl Add for Usage {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self {
-            input_tokens: sum_optionals(self.input_tokens, other.input_tokens),
-            output_tokens: sum_optionals(self.output_tokens, other.output_tokens),
-            total_tokens: sum_optionals(self.total_tokens, other.total_tokens),
-            cache_read_input_tokens: sum_optionals(
+        Self::new(
+            sum_optionals(self.input_tokens, other.input_tokens),
+            sum_optionals(self.output_tokens, other.output_tokens),
+            sum_optionals(self.total_tokens, other.total_tokens),
+        )
+        .with_cache_tokens(
+            sum_optionals(
                 self.cache_read_input_tokens,
                 other.cache_read_input_tokens,
             ),
-            cache_write_input_tokens: sum_optionals(
+            sum_optionals(
                 self.cache_write_input_tokens,
                 other.cache_write_input_tokens,
             ),
-        }
+        )
     }
 }
 
@@ -308,10 +310,21 @@ impl Usage {
         output_tokens: Option<i32>,
         total_tokens: Option<i32>,
     ) -> Self {
+        let calculated_total = if total_tokens.is_none() {
+            match (input_tokens, output_tokens) {
+                (Some(input), Some(output)) => Some(input + output),
+                (Some(input), None) => Some(input),
+                (None, Some(output)) => Some(output),
+                (None, None) => None,
+            }
+        } else {
+            total_tokens
+        };
+
         Self {
             input_tokens,
             output_tokens,
-            total_tokens,
+            total_tokens: calculated_total,
             cache_read_input_tokens: None,
             cache_write_input_tokens: None,
         }

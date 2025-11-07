@@ -83,7 +83,6 @@ export async function activateExtension({
 }
 
 interface AddToAgentOnStartupProps {
-  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
   toastOptions?: ToastServiceOptions;
   sessionId: string;
@@ -95,40 +94,23 @@ interface AddToAgentOnStartupProps {
  * TODO(Douwe): Delete this after basecamp lands
  */
 export async function addToAgentOnStartup({
-  addToConfig,
   extensionConfig,
   sessionId,
+  toastOptions,
 }: AddToAgentOnStartupProps): Promise<void> {
-  try {
-    await retryWithBackoff(() => addToAgent(extensionConfig, sessionId, true), {
-      retries: 3,
-      delayMs: 1000,
-      shouldRetry: (error: ExtensionError) =>
-        !!error.message &&
-        (error.message.includes('428') ||
-          error.message.includes('Precondition Required') ||
-          error.message.includes('Agent is not initialized')),
-    });
-  } catch (finalError) {
-    toastService.configure({ silent: false });
-    toastService.error({
-      title: extensionConfig.name,
-      msg: 'Extension failed to start and will be disabled.',
-      traceback: finalError instanceof Error ? finalError.message : String(finalError),
-    });
+  const showToast = !toastOptions?.silent;
 
-    try {
-      await toggleExtension({
-        toggle: 'toggleOff',
-        extensionConfig,
-        addToConfig,
-        toastOptions: { silent: true },
-        sessionId,
-      });
-    } catch (toggleErr) {
-      console.error('Failed to toggle off after error:', toggleErr);
-    }
-  }
+  // Errors are caught by the grouped notification in providerUtils.ts
+  // Individual error toasts are suppressed during startup (showToast=false)
+  await retryWithBackoff(() => addToAgent(extensionConfig, sessionId, showToast), {
+    retries: 3,
+    delayMs: 1000,
+    shouldRetry: (error: ExtensionError) =>
+      !!error.message &&
+      (error.message.includes('428') ||
+        error.message.includes('Precondition Required') ||
+        error.message.includes('Agent is not initialized')),
+  });
 }
 
 interface UpdateExtensionProps {
