@@ -143,7 +143,7 @@ async fn create_app(
             .get_file("Clock.gapp")
             .and_then(|f| f.contents_utf8())
             .ok_or_else(|| ErrorResponse::internal("invalid or missing Clock.gapp"))?;
-        GooseApp::from_file_content(clock_gapp)?
+        GooseApp::from_file_content(&clock_gapp)?
     } else {
         request.app
     };

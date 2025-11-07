@@ -77,40 +77,44 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   };
 
   const handleUpdate = async () => {
-    setIsIterating(true);
-    setIterationMessage('Starting iteration...');
+    try {
+      setIsIterating(true);
+      setIterationMessage('Starting iteration...');
 
-    let currentJs = jsImplementation;
-    let done = false;
+      let currentJs = jsImplementation;
+      let done = false;
 
-    while (!done) {
-      const screenshot = await captureScreenshot();
-      const arrayBuffer = await screenshot.arrayBuffer();
-      const base64 = globalThis.btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      while (!done) {
+        const screenshot = await captureScreenshot();
+        const arrayBuffer = await screenshot.arrayBuffer();
+        const base64 = globalThis.btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-      const response = await iterateApp({
-        body: {
-          jsImplementation: currentJs,
-          prd,
-          screenshotBase64: base64,
-          errors: iframeErrors.join('\n'),
-        },
-        throwOnError: true,
-      });
+        const response = await iterateApp({
+          body: {
+            jsImplementation: currentJs,
+            prd,
+            screenshotBase64: base64,
+            errors: iframeErrors.join('\n'),
+          },
+          throwOnError: true,
+        });
 
-      setIterationMessage(response.data.message);
+        setIterationMessage(response.data.message);
 
-      if (response.data.done) {
-        done = true;
-        setIterationMessage('Done! ' + response.data.message);
-      } else {
-        currentJs = response.data.jsImplementation!;
-        setJsImplementation(currentJs);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (response.data.done) {
+          done = true;
+          setIterationMessage('Done! ' + response.data.message);
+        } else {
+          currentJs = response.data.jsImplementation!;
+          setJsImplementation(currentJs);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
+    } catch (e) {
+      setIterationMessage('Iteration failed ' + errorMessage(e));
+    } finally {
+      setIsIterating(false);
     }
-
-    setIsIterating(false);
   };
 
   const handleSave = async () => {
