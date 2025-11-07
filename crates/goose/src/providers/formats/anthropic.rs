@@ -1205,13 +1205,6 @@ mod tests {
 
         let usage = get_usage(&response)?;
 
-        // All values should be within i32 bounds
-        assert!(usage.input_tokens.unwrap() <= i32::MAX);
-        assert!(usage.output_tokens.unwrap() <= i32::MAX);
-        assert!(usage.cache_write_input_tokens.unwrap() <= i32::MAX);
-        assert!(usage.cache_read_input_tokens.unwrap() <= i32::MAX);
-        assert!(usage.total_tokens.unwrap() <= i32::MAX);
-
         // Verify actual values
         assert_eq!(usage.input_tokens, Some(1000000));
         assert_eq!(usage.output_tokens, Some(500000));
