@@ -247,31 +247,20 @@ impl McpClientTrait for TodoClient {
     }
 
     async fn get_moim(&self) -> Option<String> {
-        // Retrieve TODO content from session or fallback storage
-        let content = if let Some(session_id) = &self.context.session_id {
-            // Session-aware: get from session metadata
-            match SessionManager::get_session(session_id, false).await {
-                Ok(metadata) => {
-                    extension_data::TodoState::from_extension_data(&metadata.extension_data)
-                        .map(|state| state.content)
-                        .filter(|c| !c.trim().is_empty())
-                }
-                Err(e) => {
-                    tracing::debug!("Could not read session for MOIM: {}", e);
-                    None
-                }
+        let session_id = self.context.session_id.as_ref()?;
+
+        let content = match SessionManager::get_session(session_id, false).await {
+            Ok(metadata) => {
+                extension_data::TodoState::from_extension_data(&metadata.extension_data)
+                    .map(|state| state.content)
+                    .filter(|c| !c.trim().is_empty())
             }
-        } else {
-            // No session: use fallback storage
-            let fallback = self.fallback_content.read().await;
-            if !fallback.trim().is_empty() {
-                Some(fallback.clone())
-            } else {
+            Err(e) => {
+                tracing::debug!("Could not read session for MOIM: {}", e);
                 None
             }
         };
 
-        // Format content for MOIM injection
         content.map(|c| format!("Current tasks and notes:\n{}\n", c))
     }
 }

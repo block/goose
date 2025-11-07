@@ -71,8 +71,6 @@ impl TestProvider {
     fn hash_input(messages: &[Message]) -> String {
         let stable_messages: Vec<_> = messages
             .iter()
-            // Filter out MOIM messages (ephemeral context that shouldn't affect test determinism)
-            .filter(|msg| !msg.id.as_ref().is_some_and(|id| id.starts_with("moim_")))
             .map(|msg| (msg.role.clone(), msg.content.clone()))
             .collect();
         let serialized = serde_json::to_string(&stable_messages).unwrap_or_default();
