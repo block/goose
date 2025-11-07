@@ -57,6 +57,7 @@ fn extract_task_parameters(params: &Value) -> Vec<Value> {
 async fn create_tasks_from_params(
     sub_recipe: &SubRecipe,
     command_params: &[std::collections::HashMap<String, String>],
+    parent_working_dir: &std::path::Path,
 ) -> Result<Vec<Task>> {
     let recipe_file = load_local_recipe_file(&sub_recipe.path)
         .map_err(|e| anyhow::anyhow!("Failed to load recipe {}: {}", sub_recipe.path, e))?;
@@ -64,7 +65,7 @@ async fn create_tasks_from_params(
     let mut tasks = Vec::new();
     for task_command_param in command_params {
         let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            parent_working_dir.to_path_buf(),
             format!("Subagent: {}", sub_recipe.name),
             crate::session::session_manager::SessionType::SubAgent,
         )
@@ -114,10 +115,11 @@ pub async fn create_sub_recipe_task(
     sub_recipe: &SubRecipe,
     params: Value,
     tasks_manager: &TasksManager,
+    parent_working_dir: &std::path::Path,
 ) -> Result<String> {
     let task_params_array = extract_task_parameters(&params);
     let command_params = prepare_command_params(sub_recipe, task_params_array.clone())?;
-    let tasks = create_tasks_from_params(sub_recipe, &command_params).await?;
+    let tasks = create_tasks_from_params(sub_recipe, &command_params, parent_working_dir).await?;
     let task_execution_payload = create_task_execution_payload(&tasks, sub_recipe);
 
     let tasks_json = serde_json::to_string(&task_execution_payload)

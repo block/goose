@@ -454,7 +454,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    arguments,
+                    &self.tasks_manager,
+                    &session.working_dir,
+                )
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = match self.provider().await {
@@ -542,7 +547,13 @@ impl Agent {
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
+            create_dynamic_task(
+                arguments,
+                &self.tasks_manager,
+                loaded_extensions,
+                &session.working_dir,
+            )
+            .await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(

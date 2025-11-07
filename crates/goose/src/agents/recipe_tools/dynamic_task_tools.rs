@@ -277,6 +277,7 @@ pub async fn create_dynamic_task(
     params: Value,
     tasks_manager: &TasksManager,
     loaded_extensions: Vec<String>,
+    parent_working_dir: &std::path::Path,
 ) -> ToolCallResult {
     let task_params_array = extract_task_parameters(&params);
 
@@ -302,7 +303,7 @@ pub async fn create_dynamic_task(
 
                 // Create a session for this task - use its ID as the task ID
                 let session = match SessionManager::create_session(
-                    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                    parent_working_dir.to_path_buf(),
                     "Subagent task".to_string(),
                     crate::session::session_manager::SessionType::SubAgent,
                 )
