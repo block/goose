@@ -67,7 +67,7 @@ pub async fn run() -> Result<()> {
 
     let app_state_clone = app_state.clone();
     tokio::spawn(async move {
-        //tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         app_state_clone.auto_start_tunnel(port).await;
     });
 
