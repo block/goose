@@ -887,6 +887,66 @@ impl SessionStorage {
         Ok(session)
     }
 
+    fn bind_update_params<'q>(
+        mut q: sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>,
+        builder: &'q SessionUpdateBuilder,
+    ) -> Result<sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>> {
+        if let Some(ref name) = builder.name {
+            q = q.bind(name);
+        }
+        if let Some(user_set_name) = builder.user_set_name {
+            q = q.bind(user_set_name);
+        }
+        if let Some(ref session_type) = builder.session_type {
+            q = q.bind(session_type.to_string());
+        }
+        if let Some(ref wd) = builder.working_dir {
+            q = q.bind(wd.to_string_lossy().to_string());
+        }
+        if let Some(ref ed) = builder.extension_data {
+            q = q.bind(serde_json::to_string(ed)?);
+        }
+        if let Some(tt) = builder.total_tokens {
+            q = q.bind(tt);
+        }
+        if let Some(it) = builder.input_tokens {
+            q = q.bind(it);
+        }
+        if let Some(ot) = builder.output_tokens {
+            q = q.bind(ot);
+        }
+        if let Some(att) = builder.accumulated_total_tokens {
+            q = q.bind(att);
+        }
+        if let Some(ait) = builder.accumulated_input_tokens {
+            q = q.bind(ait);
+        }
+        if let Some(aot) = builder.accumulated_output_tokens {
+            q = q.bind(aot);
+        }
+        if let Some(acrt) = builder.accumulated_cache_read_input_tokens {
+            q = q.bind(acrt);
+        }
+        if let Some(acwt) = builder.accumulated_cache_write_input_tokens {
+            q = q.bind(acwt);
+        }
+        if let Some(ref sid) = builder.schedule_id {
+            q = q.bind(sid);
+        }
+        if let Some(ref recipe) = builder.recipe {
+            let recipe_json = recipe.as_ref().map(serde_json::to_string).transpose()?;
+            q = q.bind(recipe_json);
+        }
+        if let Some(ref user_recipe_values) = builder.user_recipe_values {
+            let user_recipe_values_json = user_recipe_values
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?;
+            q = q.bind(user_recipe_values_json);
+        }
+        Ok(q)
+    }
+
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
@@ -937,62 +997,9 @@ impl SessionStorage {
         query.push_str(", ");
         query.push_str("updated_at = datetime('now') WHERE id = ?");
 
-        let mut q = sqlx::query(&query);
-
-        if let Some(name) = builder.name {
-            q = q.bind(name);
-        }
-        if let Some(user_set_name) = builder.user_set_name {
-            q = q.bind(user_set_name);
-        }
-        if let Some(session_type) = builder.session_type {
-            q = q.bind(session_type.to_string());
-        }
-        if let Some(wd) = builder.working_dir {
-            q = q.bind(wd.to_string_lossy().to_string());
-        }
-        if let Some(ed) = builder.extension_data {
-            q = q.bind(serde_json::to_string(&ed)?);
-        }
-        if let Some(tt) = builder.total_tokens {
-            q = q.bind(tt);
-        }
-        if let Some(it) = builder.input_tokens {
-            q = q.bind(it);
-        }
-        if let Some(ot) = builder.output_tokens {
-            q = q.bind(ot);
-        }
-        if let Some(att) = builder.accumulated_total_tokens {
-            q = q.bind(att);
-        }
-        if let Some(ait) = builder.accumulated_input_tokens {
-            q = q.bind(ait);
-        }
-        if let Some(aot) = builder.accumulated_output_tokens {
-            q = q.bind(aot);
-        }
-        if let Some(acrt) = builder.accumulated_cache_read_input_tokens {
-            q = q.bind(acrt);
-        }
-        if let Some(acwt) = builder.accumulated_cache_write_input_tokens {
-            q = q.bind(acwt);
-        }
-        if let Some(sid) = builder.schedule_id {
-            q = q.bind(sid);
-        }
-        if let Some(recipe) = builder.recipe {
-            let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
-            q = q.bind(recipe_json);
-        }
-        if let Some(user_recipe_values) = builder.user_recipe_values {
-            let user_recipe_values_json = user_recipe_values
-                .map(|urv| serde_json::to_string(&urv))
-                .transpose()?;
-            q = q.bind(user_recipe_values_json);
-        }
-
-        q = q.bind(&builder.session_id);
+        let q = sqlx::query(&query);
+        let q = Self::bind_update_params(q, &builder)?;
+        let q = q.bind(&builder.session_id);
         q.execute(&self.pool).await?;
 
         Ok(())
