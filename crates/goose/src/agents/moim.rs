@@ -36,10 +36,9 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_moim_injection() {
+    async fn test_moim_injection_before_assistant() {
         let em = ExtensionManager::new_without_provider();
 
-        // Test 1: Insert before last assistant message
         let conv = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi"),
@@ -52,8 +51,12 @@ mod tests {
         assert_eq!(msgs[2].content[0].as_text().unwrap(), "Bye");
         assert!(msgs[3].content[0].as_text().unwrap().contains("<info-msg>")); // MOIM before last assistant
         assert_eq!(msgs[4].content[0].as_text().unwrap(), "Goodbye");
+    }
 
-        // Test 2: Append when no assistant messages
+    #[tokio::test]
+    async fn test_moim_injection_no_assistant() {
+        let em = ExtensionManager::new_without_provider();
+
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
         let result = inject_moim(conv, &em).await;
         assert_eq!(result.messages().len(), 2);
