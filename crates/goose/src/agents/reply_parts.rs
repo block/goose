@@ -107,7 +107,10 @@ async fn toolshim_postprocess(
 }
 
 impl Agent {
-    pub async fn prepare_tools_and_prompt(&self) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(
+        &self,
+        working_dir: &std::path::Path,
+    ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get router enabled status
         let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
@@ -156,6 +159,7 @@ impl Agent {
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_router_enabled(router_enabled)
+            .with_hints(working_dir)
             .build();
 
         // Handle toolshim if enabled
@@ -468,7 +472,9 @@ mod tests {
             .await
             .unwrap();
 
-        let (tools, _toolshim_tools, _system_prompt) = agent.prepare_tools_and_prompt().await?;
+        let working_dir = std::env::current_dir()?;
+        let (tools, _toolshim_tools, _system_prompt) =
+            agent.prepare_tools_and_prompt(&working_dir).await?;
 
         // Ensure both platform and frontend tools are present
         let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();

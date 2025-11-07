@@ -374,6 +374,7 @@ export type MessageEvent = {
     type: 'Error';
 } | {
     reason: string;
+    token_state: TokenState;
     type: 'Finish';
 } | {
     mode: string;
@@ -547,7 +548,6 @@ export type RawTextContent = {
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
-    context?: Array<string> | null;
     description: string;
     extensions?: Array<ExtensionConfig> | null;
     instructions?: string | null;
