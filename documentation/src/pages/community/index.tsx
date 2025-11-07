@@ -234,8 +234,8 @@ function CommunityContentSpotlightSection() {
     return communityContentData.submissions.filter(content => content.type === contentFilter);
   }, [contentFilter]);
 
-  const handleScroll = (e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = (e.target as HTMLDivElement);
     const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
     setShowScrollIndicator(!isAtBottom);
   };
