@@ -158,6 +158,8 @@
 
 @theme inline {
   --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
+  
+  --animate-blink: blink 1s step-end infinite;
 
   --color-background-default: var(--background-default);
   --color-background-muted: var(--background-muted);
@@ -287,6 +289,15 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
   }
 }
 
@@ -767,3 +778,27 @@ p > code.bg-inline-code {
 .animate-shimmer {
   animation: shimmer 6s ease-in-out infinite;
 }
+
+
+/* Enhanced text selection styling */
+.rich-text-input textarea::selection {
+  background-color: #3b82f6 !important; /* Blue-500 with !important */
+  color: white !important;
+  opacity: 1 !important;
+}
+
+.rich-text-input textarea::-moz-selection {
+  background-color: #3b82f6 !important; /* Blue-500 with !important */
+  color: white !important;
+  opacity: 1 !important;
+}
+
+/* Make sure selection is visible over visual content */
+.rich-text-input {
+  position: relative;
+}
+
+.rich-text-input textarea {
+  mix-blend-mode: multiply; /* Blend with background for better visibility */
+}
+
