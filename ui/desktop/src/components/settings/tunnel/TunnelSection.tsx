@@ -54,7 +54,7 @@ export default function TunnelSection() {
   const handleStopTunnel = async () => {
     try {
       const baseUrl = await window.electron.getGoosedHostPort();
-      if (!baseUrl) throw new Error('No port available');
+      if (!baseUrl) throw new Error('goose server not available');
       await window.electron.stopTunnel(baseUrl);
       setTunnelStatus((prev) => ({ ...prev, state: 'idle', info: null }));
       setShowQRModal(false);
@@ -62,7 +62,7 @@ export default function TunnelSection() {
       setError(errorMessage(err, 'Failed to stop tunnel'));
       try {
         const baseUrl = await window.electron.getGoosedHostPort();
-        if (!baseUrl) throw new Error('No port available');
+        if (!baseUrl) throw new Error('goose server not available');
         const status = await window.electron.getTunnelStatus(baseUrl);
         setTunnelStatus(status);
       } catch (statusErr) {
@@ -181,7 +181,7 @@ export default function TunnelSection() {
               </div>
 
               <div className="text-center text-sm text-text-muted">
-                Scan this QR code with the Goose mobile app. Do not share this code with anyone else
+                Scan this QR code with the goose mobile app. Do not share this code with anyone else
                 as it is for your personal access.
               </div>
 

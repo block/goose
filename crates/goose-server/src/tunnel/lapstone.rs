@@ -20,7 +20,7 @@ use url::Url;
 const WORKER_URL: &str = "https://cloudflare-tunnel-proxy.michael-neale.workers.dev";
 const IDLE_TIMEOUT_SECS: u64 = 600; // 10 minutes
 const RECONNECT_DELAY_MS: u64 = 100;
-const MAX_WS_SIZE: usize = 900_000; // we need to limit size of chunks specificially for websocket tunnelling
+const MAX_WS_SIZE: usize = 900_000; // we need to limit size of chunks for websocket tunnelling
 
 type WebSocketSender = Arc<
     RwLock<
