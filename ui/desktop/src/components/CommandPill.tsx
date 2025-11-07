@@ -28,9 +28,9 @@ const pillStyles = `
 `;
 
 // Inject styles
-if (typeof document !== "undefined" && !document.getElementById("pill-styles")) {
-  const style = document.createElement("style");
-  style.id = "pill-styles";
+if (typeof document !== 'undefined' && !document.getElementById('pill-styles')) {
+  const style = document.createElement('style');
+  style.id = 'pill-styles';
   style.textContent = pillStyles;
   document.head.appendChild(style);
 }
@@ -38,8 +38,8 @@ if (typeof document !== "undefined" && !document.getElementById("pill-styles")) 
 import React from 'react';
 import { X } from 'lucide-react';
 
-interface ActionPillProps {
-  actionId: string;
+interface CommandPillProps {
+  commandId: string;
   label: string;
   icon: React.ReactNode;
   onRemove?: () => void; // Optional for read-only pills in messages
@@ -47,31 +47,33 @@ interface ActionPillProps {
   size?: 'sm' | 'md';
 }
 
-export const ActionPill: React.FC<ActionPillProps> = ({ 
-  label, 
-  icon, 
-  onRemove, 
+export const CommandPill: React.FC<CommandPillProps> = ({
+  label,
+  icon,
+  onRemove,
   variant = 'default',
-  size = 'sm'
+  size = 'sm',
 }) => {
-  const baseClasses = "inline-flex items-center gap-1.5 font-medium border rounded-full";
-  
+  const baseClasses = 'inline-flex items-center gap-1.5 font-medium border rounded-full';
+
   const variantClasses = {
-    default: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900",
-    message: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700"
+    default:
+      'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900',
+    message:
+      'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
   };
-  
+
   const sizeClasses = {
-    sm: "px-2 py-1 text-xs",
-    md: "px-3 py-1.5 text-sm"
+    sm: 'px-2 py-1 text-xs',
+    md: 'px-3 py-1.5 text-sm',
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200`}>
+    <div
+      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200`}
+    >
       <span className="flex items-center gap-1">
-        <span className="text-blue-500 flex items-center justify-center w-3 h-3">
-          {icon}
-        </span>
+        <span className="text-blue-500 flex items-center justify-center w-3 h-3">{icon}</span>
         {label}
       </span>
       {onRemove && (
@@ -79,7 +81,7 @@ export const ActionPill: React.FC<ActionPillProps> = ({
           type="button"
           onClick={onRemove}
           className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors animate-in fade-in-0 slide-in-from-left-1 duration-200"
-          aria-label={`Remove ${label} action`}
+          aria-label={`Remove ${label} command`}
         >
           <X size={10} />
         </button>
@@ -88,4 +90,4 @@ export const ActionPill: React.FC<ActionPillProps> = ({
   );
 };
 
-export default ActionPill;
+export default CommandPill;

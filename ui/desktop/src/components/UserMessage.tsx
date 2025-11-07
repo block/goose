@@ -39,7 +39,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
 
   // Check if the message contains action pills
-  const hasActionPills = useMemo(() => {
+  const hasCommandPills = useMemo(() => {
     return /\[[^\]]+\]/.test(displayText);
   }, [displayText]);
 
@@ -199,7 +199,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
               <div className="flex flex-col group">
                 <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
                   <div ref={contentRef}>
-                    {process.env.ALPHA && hasActionPills ? (
+                    {process.env.ALPHA && hasCommandPills ? (
                       <MessageContent
                         content={displayText}
                         className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
