@@ -16,10 +16,41 @@ use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 use std::time::Duration;
+use std::collections::HashSet;
 use sysinfo::System;
+
+// Global registry of llama-server PIDs that must be killed on process exit
+static LLAMA_SERVER_PIDS: LazyLock<StdMutex<HashSet<u32>>> = LazyLock::new(|| {
+    let registry = StdMutex::new(HashSet::new());
+    
+    // Register cleanup handler to kill all llama-servers on exit
+    let _ = std::panic::catch_unwind(|| {
+        extern "C" fn cleanup_llama_servers() {
+            if let Ok(pids) = LLAMA_SERVER_PIDS.lock() {
+                for pid in pids.iter() {
+                    eprintln!("CLEANUP: Killing llama-server PID {}", pid);
+                    #[cfg(unix)]
+                    unsafe {
+                        let _ = libc::kill(-(*pid as i32), libc::SIGKILL);
+                    }
+                    #[cfg(windows)]
+                    {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/F", "/T", "/PID", &pid.to_string()])
+                            .output();
+                    }
+                }
+            }
+        }
+        unsafe {
+            libc::atexit(cleanup_llama_servers);
+        }
+    });
+    
+    registry
+});
 use tokio::pin;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -469,9 +500,9 @@ async fn download_and_extract_llama_server(
 /// This struct ensures single-instance management:
 /// - Only one llama-server process runs at a time per ServerProcess instance
 /// - Automatically restarts if model changes
-/// - Properly shuts down on drop
+/// - Properly shuts down on drop via tokio::spawn pattern (rmcp style)
 struct ServerProcess {
-    child: Option<Child>,
+    child: Option<tokio::process::Child>,
     port: u16,
     binary_path: Option<PathBuf>,
     /// Track which model is currently loaded to detect model changes
@@ -572,7 +603,7 @@ impl ServerProcess {
                     loaded_model,
                     model_path
                 );
-                self.stop();
+                self.stop().await;
             }
         }
 
@@ -597,8 +628,9 @@ impl ServerProcess {
             self.port
         );
 
-        let mut command = Command::new(binary_path);
-        command
+        // Create std::process::Command first so we can use pre_exec
+        let mut std_command = std::process::Command::new(binary_path);
+        std_command
             .arg("--model")
             .arg(model_path)
             .arg("--host")
@@ -617,68 +649,95 @@ impl ServerProcess {
             .arg("--json-schema")
             .arg("{}")
             .arg("--verbose")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
 
-        // On Unix, ensure child process dies when parent dies
+        // On Unix, use pre_exec to set up process group for proper cleanup
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
             unsafe {
-                command.pre_exec(|| {
+                std_command.pre_exec(|| {
+                    // Create a new process group with this process as leader
+                    // This allows us to kill the entire process tree with kill(-pid)
+                    if libc::setpgid(0, 0) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    
                     #[cfg(target_os = "linux")]
                     {
-                        // On Linux, use PR_SET_PDEATHSIG to kill child when parent dies
-                        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-                    }
-                    #[cfg(target_os = "macos")]
-                    {
-                        // On macOS, create a new process group so we can kill it
-                        libc::setpgid(0, 0);
+                        // On Linux, ensure child dies when parent dies
+                        if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
                     }
                     Ok(())
                 });
             }
         }
 
-        let child = command
+        // Convert to tokio Command and spawn with kill_on_drop
+        let mut command = tokio::process::Command::from(std_command);
+        command.kill_on_drop(true);
+
+        let mut child = command
             .spawn()
             .map_err(|e| anyhow::anyhow!("Failed to start llama-server: {}", e))?;
+
+        // Register PID in global registry for cleanup on exit
+        if let Some(pid) = child.id() {
+            if let Ok(mut pids) = LLAMA_SERVER_PIDS.lock() {
+                pids.insert(pid);
+                tracing::info!("Registered llama-server PID {} for cleanup on exit", pid);
+            }
+        }
 
         self.child = Some(child);
         self.loaded_model_path = Some(model_path.to_string());
         Ok(())
     }
 
-    fn stop(&mut self) {
+    async fn stop(&mut self) {
         if let Some(mut child) = self.child.take() {
             tracing::info!("Stopping llama-server on port {}", self.port);
-            
+
+            let pid = child.id();
+
+            // Use the same kill_process_group pattern as MCP
             #[cfg(unix)]
             {
-                // On Unix, kill the entire process group
-                if let Some(pid) = child.id().map(|p| p as i32) {
+                if let Some(pid) = pid {
+                    // Try SIGTERM first
                     unsafe {
-                        #[cfg(target_os = "macos")]
-                        {
-                            // Kill process group on macOS
-                            let _ = libc::kill(-pid, libc::SIGTERM);
-                            std::thread::sleep(std::time::Duration::from_millis(100));
-                            let _ = libc::kill(-pid, libc::SIGKILL);
-                        }
-                        #[cfg(target_os = "linux")]
-                        {
-                            // Kill process group on Linux  
-                            let _ = libc::kill(-pid, libc::SIGTERM);
-                            std::thread::sleep(std::time::Duration::from_millis(100));
-                            let _ = libc::kill(-pid, libc::SIGKILL);
-                        }
+                        let _ = libc::kill(-(pid as i32), libc::SIGTERM);
+                    }
+
+                    // Wait a brief moment for graceful shutdown
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+                    // Force kill with SIGKILL
+                    unsafe {
+                        let _ = libc::kill(-(pid as i32), libc::SIGKILL);
                     }
                 }
+
+                // Final fallback
+                let _ = child.kill().await;
             }
-            
-            let _ = child.kill();
-            let _ = child.wait();
+
+            #[cfg(windows)]
+            {
+                if let Some(pid) = pid {
+                    // Use taskkill to kill the process tree on Windows
+                    let _ = tokio::process::Command::new("taskkill")
+                        .args(["/F", "/T", "/PID", &pid.to_string()])
+                        .output()
+                        .await;
+                }
+
+                // Final fallback
+                let _ = child.kill().await;
+            }
 
             // Clear the loaded model path since server is stopped
             self.loaded_model_path = None;
@@ -696,7 +755,70 @@ impl ServerProcess {
 
 impl Drop for ServerProcess {
     fn drop(&mut self) {
-        self.stop();
+        if let Some(mut child) = self.child.take() {
+            let pid = child.id();
+            
+            tracing::warn!(
+                "Dropping ServerProcess - MUST kill llama-server PID {:?} on port {}",
+                pid,
+                self.port
+            );
+
+            // Use the sync kill syscalls directly in Drop (can't await)
+            #[cfg(unix)]
+            {
+                if let Some(pid) = pid {
+                    // Kill the entire process group - SIGTERM first
+                    let result = unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
+                    if result != 0 {
+                        tracing::error!("Failed to send SIGTERM to process group {}: errno {}", pid, result);
+                    } else {
+                        tracing::info!("Sent SIGTERM to process group {}", pid);
+                    }
+                    
+                    // Give it time to shut down gracefully
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    
+                    // Force kill with SIGKILL to ensure it's dead
+                    let result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
+                    if result != 0 {
+                        tracing::error!("Failed to send SIGKILL to process group {}: errno {}", pid, result);
+                    } else {
+                        tracing::info!("Sent SIGKILL to process group {}", pid);
+                    }
+                    
+                    // Wait a moment for the kill to take effect
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+
+            #[cfg(windows)]
+            {
+                if let Some(pid) = pid {
+                    // Use taskkill to kill the process tree on Windows (synchronous)
+                    match std::process::Command::new("taskkill")
+                        .args(["/F", "/T", "/PID", &pid.to_string()])
+                        .output()
+                    {
+                        Ok(output) => {
+                            if !output.status.success() {
+                                tracing::error!("taskkill failed: {}", String::from_utf8_lossy(&output.stderr));
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to execute taskkill: {}", e);
+                        }
+                    }
+                }
+            }
+            
+            // Also try the standard kill as fallback
+            if let Err(e) = child.start_kill() {
+                tracing::error!("Failed to kill child process: {}", e);
+            }
+            
+            tracing::info!("ServerProcess Drop completed for port {}", self.port);
+        }
     }
 }
 
@@ -1211,7 +1333,11 @@ impl ToolExecutor {
                 if let Some(command) = args.get("command").and_then(|v| v.as_str()) {
                     tracing::info!("Executing shell command: {}", command);
 
-                    match Command::new("sh").arg("-c").arg(command).output() {
+                    match std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(command)
+                        .output()
+                    {
                         Ok(output) => {
                             let stdout = String::from_utf8_lossy(&output.stdout);
                             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1517,10 +1643,4 @@ impl Provider for EmbeddedProvider {
     }
 }
 
-impl Drop for EmbeddedProvider {
-    fn drop(&mut self) {
-        if let Ok(mut process) = self.server_process.try_lock() {
-            process.stop();
-        }
-    }
-}
+// No Drop impl - rely on ServerProcess's Drop and kill_on_drop(true) for cleanup
