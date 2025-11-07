@@ -81,307 +81,35 @@ Bearer nostr+walletconnect://...
   <TabItem value="cli" label="goose CLI">
     <Tabs>
       <TabItem value="local" label="Local" default>
-        1. Run the `configure` command:
-        ```sh
-        goose configure
-        ```
-
-        2. Choose to add a `Command-line Extension`
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◆  What type of extension would you like to add?
-          │  ○ Built-in Extension 
-          // highlight-start    
-          │  ● Command-line Extension (Run a local command or script)
-          // highlight-end    
-          │  ○ Remote Extension 
-          └ 
-        ```
-
-        3. Give your extension a name
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Command-line Extension 
-          │
-          // highlight-start
-          ◆  What would you like to call this extension?
-          │  Alby
-          // highlight-end
-          └ 
-        ```
-
-        4. Enter the command
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Command-line Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          // highlight-start
-          ◆  What command should be run?
-          │  npx -y @getalby/mcp
-          // highlight-end
-          └ 
-        ```  
-
-        5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-          ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Command-line Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What command should be run?
-          │  npx -y @getalby/mcp
-          │
-          // highlight-start
-          ◆  Please set the timeout for this tool (in secs):
-          │  300
-          // highlight-end
-          │
-          └ 
-        ``` 
-
-        6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-          ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Command-line Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What command should be run?
-          │  npx -y @getalby/mcp
-          │
-          ◇  Please set the timeout for this tool (in secs):
-          │  300
-          │
-          // highlight-start
-          ◇  Would you like to add a description?
-          │  No
-          // highlight-end
-          │
-          └ 
-        ```
-        
-        7. Obtain a NWC connection secret from your lightning wallet and paste it in.
-
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Command-line Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What command should be run?
-          │  npx -y @getalby/mcp
-          │     
-          ◇  Please set the timeout for this tool (in secs):
-          │  300
-          │
-          ◇  Would you like to add a description?
-          │  No
-          │    
-          // highlight-start
-          ◆  Would you like to add environment variables?
-          │  Yes 
-          │
-          ◇  Environment variable name:
-          │  NWC_CONNECTION_STRING
-          │
-          ◇  Environment variable value:
-          │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-          │
-          ◇  Add another environment variable?
-          │  No 
-          // highlight-end
-          └  Added Alby extension
-        ```
+        <CLIExtensionInstructions
+          name="Alby"
+          description="Connect goose to your Bitcoin Lightning Wallet"
+          command="npx -y @getalby/mcp"
+          envVars={[
+            { key: "NWC_CONNECTION_STRING", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+          ]}
+          infoNote={
+            <>
+              Obtain an NWC Connection secret from your lightning wallet (<code>nostr+walletconnect://...</code>) and paste it in.
+            </>
+          }
+        />
       </TabItem>
       <TabItem value="remote" label="Remote">
-        8. Run the `configure` command:
-        ```sh
-        goose configure
-        ```
-
-        9. Choose to add a `Remote Extension`
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◆  What type of extension would you like to add?
-          │  ○ Built-in Extension 
-          │  ○ Command-line Extension (Run a local command or script)
-          │  ○ Remote Extension (SSE)
-          // highlight-start    
-          │  ● Remote Extension (Streaming HTTP) 
-          // highlight-end    
-          └ 
-        ```
-
-        10. Give your extension a name
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Remote Extension 
-          │
-          // highlight-start
-          ◆  What would you like to call this extension?
-          │  Alby
-          // highlight-end
-          └ 
-        ```
-
-        11. Enter the Streaming HTTP endpoint URI
-
-        ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Remote Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          // highlight-start
-          ◆  What is the Streaming HTTP URI?
-          │  https://mcp.getalby.com/mcp
-          // highlight-end
-          └ 
-        ```
-
-        12. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-          ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Remote Extension
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What is the Streaming HTTP endpoint URI?
-          │  https://mcp.getalby.com/mcp
-          │
-          // highlight-start
-          ◆  Please set the timeout for this tool (in secs):
-          │  300
-          // highlight-end
-          │
-          └ 
-        ``` 
-
-        13. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-          ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Remote Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What is the Streaming HTTP endpoint URI?
-          │  https://mcp.getalby.com/mcp
-          │
-          ◇  Please set the timeout for this tool (in secs):
-          │  300
-          │
-          // highlight-start
-          ◆  Would you like to add a description?
-          │  No
-          // highlight-end
-          │
-          └ 
-        ```
-
-        14. Add a custom header containing `Bearer YOUR_CONNECTIONSECRET`.
-          ```sh
-          ┌   goose-configure 
-          │
-          ◇  What would you like to configure?
-          │  Add Extension (Connect to a new extension) 
-          │
-          ◇  What type of extension would you like to add?
-          │  Remote Extension 
-          │
-          ◇  What would you like to call this extension?
-          │  Alby
-          │
-          ◇  What is the Streaming HTTP endpoint URI?
-          │  https://mcp.getalby.com/mcp
-          │
-          ◇  Please set the timeout for this tool (in secs):
-          │  300
-          │
-          ◇  Would you like to add a description?
-          │  No
-          │
-          ◆  Would you like to add custom headers?
-          // highlight-start
-          │  ● Yes  / ○ No 
-          // highlight-end
-          │
-          ◆  Header name:
-          // highlight-start
-          │  Authorization 
-          // highlight-end
-          │
-          ◆  Header name:
-          // highlight-start
-          │  Bearer nostr+walletconnect://...
-          // highlight-end
-          │
-          ◆  Add another header?
-          │  ○ Yes  / ● No
-          └
-        ```
+        <CLIExtensionInstructions
+          name="Alby"
+          description="Connect goose to your Bitcoin Lightning Wallet"
+          type="http"
+          url="https://mcp.getalby.com/mcp"
+          envVars={[
+            { key: "Authorization", value: "Bearer nostr+walletconnect://..." }
+          ]}
+          infoNote={
+            <>
+              Obtain an NWC connection secret from your lightning wallet and paste it as the <code>Bearer</code> token.
+            </>
+          }
+        />
       </TabItem>  
     </Tabs>
   </TabItem>

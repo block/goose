@@ -29,7 +29,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 <Tabs groupId="interface">
   <TabItem value="cli" label="goose CLI" default>
 
-1. First, install Cognee:
+**Install Cognee:**
+
 ```bash
 # Clone and install Cognee
 git clone https://github.com/topoteretes/cognee
@@ -40,158 +41,26 @@ uv sync --dev --all-extras --reinstall
 sudo apt install -y libpq-dev python3-dev
 ```
 
-2. Run the `configure` command:
-```sh
-goose configure
-```
+**Configure the extension:**
 
-3. Choose to add a `Command-line Extension`
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◆  What type of extension would you like to add?
-  │  ○ Built-in Extension 
-  // highlight-start    
-  │  ● Command-line Extension (Run a local command or script)
-  // highlight-end    
-  │  ○ Remote Extension (SSE) 
-  │  ○ Remote Extension (Streaming HTTP) 
-  └ 
-```
-
-4. Give your extension a name
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  // highlight-start
-  ◆  What would you like to call this extension?
-  │  Cognee
-  // highlight-end
-  └ 
-```
-
-5. Enter the command
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  // highlight-start
-  ◆  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  // highlight-end
-  └ 
-```  
-
-6. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │
-  // highlight-start
-  ◆  Please set the timeout for this tool (in secs):
-  │  300
-  // highlight-end
-  │
-  └ 
-``` 
-
-7. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  // highlight-start
-  ◇  Would you like to add a description?
-  │  No
-  // highlight-end
-  │
-  └ 
-```
-
-8. Add the required environment variables:
-:::info
-You'll need an API key for your LLM provider. By default, this is an [OpenAI API key](https://platform.openai.com/api-keys).
-:::
-
- ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │     
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  ◇  Would you like to add a description?
-  │  No
-  │    
-  // highlight-start
-  ◆  Would you like to add environment variables?
-  │  Yes 
-  │
-  ◇  Environment variable name:
-  │  LLM_API_KEY
-  │
-  ◇  Environment variable value:
-  │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-  │
-  ◇  Add another environment variable?
-  │  No 
-  // highlight-end
-  └  Added Cognee extension
-```
-
+<CLIExtensionInstructions
+  name="Cognee"
+  description="Knowledge graph memory capabilities with 30+ data source connections"
+  command="uv --directory /path/to/cognee-mcp run python src/server.py"
+  envVars={[
+    { key: "LLM_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+  ]}
+  commandNote={
+    <>
+      Replace <code>/path/to/cognee-mcp</code> with the actual path to your cloned cognee-mcp directory.
+    </>
+  }
+  infoNote={
+    <>
+      Obtain an API key for your LLM provider and paste it in. By default, this is an <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API key</a>.
+    </>
+  }
+/>
   </TabItem>
 </Tabs>
 
