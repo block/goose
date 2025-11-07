@@ -63,7 +63,6 @@ async fn create_tasks_from_params(
 
     let mut tasks = Vec::new();
     for task_command_param in command_params {
-        // Create a session for this task - use its ID as the task ID
         let session = SessionManager::create_session(
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             format!("Subagent: {}", sub_recipe.name),
