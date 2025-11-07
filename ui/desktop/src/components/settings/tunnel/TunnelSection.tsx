@@ -181,7 +181,8 @@ export default function TunnelSection() {
               </div>
 
               <div className="text-center text-sm text-text-muted">
-                Scan this QR code with the Goose mobile app
+                Scan this QR code with the Goose mobile app. Do not share this code with anyone else
+                as it is for your personal access.
               </div>
 
               <div className="border-t pt-4">
@@ -234,21 +235,6 @@ export default function TunnelSection() {
                             <Copy className="h-4 w-4" />
                           )}
                         </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <h3 className="text-xs font-medium mb-1 text-text-muted">IPv4</h3>
-                        <code className="block p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-                          {tunnelStatus.info.ipv4}
-                        </code>
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-medium mb-1 text-text-muted">Port</h3>
-                        <code className="block p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-                          {tunnelStatus.info.port}
-                        </code>
                       </div>
                     </div>
 
