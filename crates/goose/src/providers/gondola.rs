@@ -151,10 +151,7 @@ mod tests {
     fn test_gondola_provider_creation() {
         let provider = GondolaProvider::with_endpoint("https://endpoint.com/api");
         assert!(provider.is_ok());
-        assert_eq!(
-            provider.unwrap().endpoint,
-            "https://endpoint.com/api"
-        );
+        assert_eq!(provider.unwrap().endpoint, "https://endpoint.com/api");
     }
 
     #[test]
