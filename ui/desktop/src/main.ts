@@ -1227,10 +1227,10 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
-ipcMain.handle('start-tunnel', async (_event, port: number) => {
+ipcMain.handle('start-tunnel', async (_event, baseUrl: string) => {
   try {
     const { startTunnel } = await import('./utils/tunnel');
-    const tunnelInfo = await startTunnel(port, SERVER_SECRET);
+    const tunnelInfo = await startTunnel(baseUrl, SERVER_SECRET);
     return tunnelInfo;
   } catch (error) {
     console.error('Error starting tunnel:', error);
@@ -1238,20 +1238,20 @@ ipcMain.handle('start-tunnel', async (_event, port: number) => {
   }
 });
 
-ipcMain.handle('stop-tunnel', async (_event, port: number) => {
+ipcMain.handle('stop-tunnel', async (_event, baseUrl: string) => {
   try {
     const { stopTunnel } = await import('./utils/tunnel');
-    await stopTunnel(port, SERVER_SECRET);
+    await stopTunnel(baseUrl, SERVER_SECRET);
   } catch (error) {
     console.error('Error stopping tunnel:', error);
     throw error;
   }
 });
 
-ipcMain.handle('get-tunnel-status', async (_event, port: number) => {
+ipcMain.handle('get-tunnel-status', async (_event, baseUrl: string) => {
   try {
     const { syncTunnelStatus } = await import('./utils/tunnel');
-    return await syncTunnelStatus(port, SERVER_SECRET);
+    return await syncTunnelStatus(baseUrl, SERVER_SECRET);
   } catch (error) {
     console.error('Error getting tunnel status:', error);
     return { state: 'error', info: null, auto_start: false };

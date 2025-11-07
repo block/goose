@@ -23,16 +23,17 @@ export interface TunnelStatus {
 /**
  * Start the tunnel via Rust API and remember it
  */
-export async function startTunnel(goosedPort: number, serverSecret: string): Promise<TunnelInfo> {
-  log.info(`Starting tunnel via Rust API on port ${goosedPort}`);
+export async function startTunnel(baseUrl: string, serverSecret: string): Promise<TunnelInfo> {
+  log.info(`Starting tunnel via Rust API at ${baseUrl}`);
 
-  const response = await fetch(`http://127.0.0.1:${goosedPort}/api/tunnel/start`, {
+  const port = parseInt(baseUrl.replace('http://127.0.0.1:', ''));
+  const response = await fetch(`${baseUrl}/api/tunnel/start`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Secret-Key': serverSecret,
     },
-    body: JSON.stringify({ port: goosedPort }),
+    body: JSON.stringify({ port }),
   });
 
   if (!response.ok) {
@@ -53,11 +54,11 @@ export async function startTunnel(goosedPort: number, serverSecret: string): Pro
 /**
  * Stop the tunnel via Rust API, and remember it
  */
-export async function stopTunnel(port: number, secret: string): Promise<void> {
+export async function stopTunnel(baseUrl: string, secret: string): Promise<void> {
   log.info('Stopping tunnel via Rust API');
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/tunnel/stop`, {
+    const response = await fetch(`${baseUrl}/api/tunnel/stop`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,8 +80,8 @@ export async function stopTunnel(port: number, secret: string): Promise<void> {
  * Get tunnel status from Rust API
  * Note: Rust backend is the source of truth
  */
-export async function syncTunnelStatus(port: number, secret: string): Promise<TunnelStatus> {
-  const response = await fetch(`http://127.0.0.1:${port}/api/tunnel/status`, {
+export async function syncTunnelStatus(baseUrl: string, secret: string): Promise<TunnelStatus> {
+  const response = await fetch(`${baseUrl}/api/tunnel/status`, {
     headers: {
       'X-Secret-Key': secret,
     },

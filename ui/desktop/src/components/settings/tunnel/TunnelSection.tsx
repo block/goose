@@ -22,10 +22,9 @@ export default function TunnelSection() {
   useEffect(() => {
     const loadTunnelStatus = async () => {
       try {
-        const portStr = await window.electron.getGoosedHostPort();
-        if (!portStr) throw new Error('No port available');
-        const port = parseInt(portStr.replace('http://127.0.0.1:', ''));
-        const status = await window.electron.getTunnelStatus(port);
+        const baseUrl = await window.electron.getGoosedHostPort();
+        if (!baseUrl) throw new Error('goose server not available');
+        const status = await window.electron.getTunnelStatus(baseUrl);
         setTunnelStatus(status);
       } catch (err) {
         setError(errorMessage(err, 'Failed to load tunnel status'));
@@ -41,10 +40,9 @@ export default function TunnelSection() {
     setTunnelStatus((prev) => ({ ...prev, state: 'starting', info: null }));
 
     try {
-      const portStr = await window.electron.getGoosedHostPort();
-      if (!portStr) throw new Error('No port available');
-      const port = parseInt(portStr.replace('http://127.0.0.1:', ''));
-      const tunnelInfo = await window.electron.startTunnel(port);
+      const baseUrl = await window.electron.getGoosedHostPort();
+      if (!baseUrl) throw new Error('goose server not available');
+      const tunnelInfo = await window.electron.startTunnel(baseUrl);
       setTunnelStatus((prev) => ({ ...prev, state: 'running', info: tunnelInfo }));
       setShowQRModal(true);
     } catch (err) {
@@ -55,19 +53,17 @@ export default function TunnelSection() {
 
   const handleStopTunnel = async () => {
     try {
-      const portStr = await window.electron.getGoosedHostPort();
-      if (!portStr) throw new Error('No port available');
-      const port = parseInt(portStr.replace('http://127.0.0.1:', ''));
-      await window.electron.stopTunnel(port);
+      const baseUrl = await window.electron.getGoosedHostPort();
+      if (!baseUrl) throw new Error('No port available');
+      await window.electron.stopTunnel(baseUrl);
       setTunnelStatus((prev) => ({ ...prev, state: 'idle', info: null }));
       setShowQRModal(false);
     } catch (err) {
       setError(errorMessage(err, 'Failed to stop tunnel'));
       try {
-        const portStr = await window.electron.getGoosedHostPort();
-        if (!portStr) throw new Error('No port available');
-        const port = parseInt(portStr.replace('http://127.0.0.1:', ''));
-        const status = await window.electron.getTunnelStatus(port);
+        const baseUrl = await window.electron.getGoosedHostPort();
+        if (!baseUrl) throw new Error('No port available');
+        const status = await window.electron.getTunnelStatus(baseUrl);
         setTunnelStatus(status);
       } catch (statusErr) {
         console.error('Failed to fetch tunnel status after error:', statusErr);
