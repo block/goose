@@ -448,7 +448,10 @@ async fn run_single_connection(
             return;
         }
         Err(_) => {
-            error!("✗ WebSocket connection timeout after {}s", CONNECTION_TIMEOUT_SECS);
+            error!(
+                "✗ WebSocket connection timeout after {}s",
+                CONNECTION_TIMEOUT_SECS
+            );
             let _ = restart_tx.send(()).await;
             return;
         }
