@@ -3,6 +3,7 @@
 #  - release.yml
 #  - canary.yml
 #  - pr-comment-bundle-desktop.yml
+#  - bundle-desktop-manual.yml
 on:
   workflow_call:
     inputs:
@@ -127,9 +128,9 @@ jobs:
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-build-release-
 
       # Build the project
       - name: Build goosed

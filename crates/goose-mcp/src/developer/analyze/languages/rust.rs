@@ -83,7 +83,9 @@ pub fn extract_function_name_for_kind(
         for i in 0..node.child_count() {
             if let Some(child) = node.child(i) {
                 if child.kind() == "type_identifier" {
-                    return Some(format!("impl {}", &source[child.byte_range()]));
+                    return source
+                        .get(child.byte_range())
+                        .map(|s| format!("impl {}", s));
                 }
             }
         }
@@ -109,7 +111,7 @@ pub fn find_method_for_receiver(
             for i in 0..parent.child_count() {
                 if let Some(child) = parent.child(i) {
                     if child.kind() == "identifier" {
-                        return Some(source[child.byte_range()].to_string());
+                        return source.get(child.byte_range()).map(|s| s.to_string());
                     }
                 }
             }
@@ -133,7 +135,7 @@ pub fn find_receiver_type(node: &tree_sitter::Node, source: &str) -> Option<Stri
             for i in 0..parent.child_count() {
                 if let Some(child) = parent.child(i) {
                     if child.kind() == "type_identifier" {
-                        return Some(source[child.byte_range()].to_string());
+                        return source.get(child.byte_range()).map(|s| s.to_string());
                     }
                 }
             }

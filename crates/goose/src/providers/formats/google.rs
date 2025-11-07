@@ -238,7 +238,7 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
                         value.clone()
                     }
                 }
-                _ => value.clone(),
+                _ => process_value(value, Some(key.as_str())),
             };
 
             Some((key.clone(), processed_value))
@@ -857,5 +857,37 @@ mod tests {
         })];
 
         assert_eq!(payload, expected_payload);
+    }
+
+    #[test]
+    fn test_tools_with_nullable_types_converted_to_single_type() {
+        // Test that type arrays like ["string", "null"] are converted to single types
+        let params = object!({
+            "properties": {
+                "nullable_field": {
+                    "type": ["string", "null"],
+                    "description": "A nullable string field"
+                },
+                "regular_field": {
+                    "type": "number",
+                    "description": "A regular number field"
+                }
+            }
+        });
+        let tools = vec![Tool::new("test_tool", "test description", params)];
+        let result = format_tools(&tools);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["name"], "test_tool");
+
+        // Verify that the type array was converted to a single string type
+        let nullable_field = &result[0]["parameters"]["properties"]["nullable_field"];
+        assert_eq!(nullable_field["type"], "string");
+        assert_eq!(nullable_field["description"], "A nullable string field");
+
+        // Verify that regular types are unchanged
+        let regular_field = &result[0]["parameters"]["properties"]["regular_field"];
+        assert_eq!(regular_field["type"], "number");
+        assert_eq!(regular_field["description"], "A regular number field");
     }
 }

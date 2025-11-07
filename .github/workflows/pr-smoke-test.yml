@@ -2,6 +2,9 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       branch:
@@ -16,7 +19,7 @@ jobs:
   check-fork:
     runs-on: ubuntu-latest
     # Skip entire workflow for PRs from forks (they don't have access to secrets)
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - run: echo "Not a fork PR - proceeding with smoke tests"
 
@@ -70,9 +73,9 @@ jobs:
             ${{ env.CARGO_HOME }}/registry/cache/
             ${{ env.CARGO_HOME }}/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-release-
 
       - name: Build Release Binary for Smoke Tests
         run: |
@@ -125,6 +128,21 @@ jobs:
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
 
+      - name: Run MCP Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+          HOME: /tmp/goose-home
+          GOOSE_DISABLE_KEYRING: 1
+          SKIP_BUILD: 1
+        run: |
+          bash scripts/test_mcp.sh
+
       - name: Run Subrecipe Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -135,3 +153,14 @@ jobs:
           SKIP_BUILD: 1
         run: |
           bash scripts/test_subrecipes.sh
+
+      - name: Run Compaction Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+          HOME: /tmp/goose-home
+          GOOSE_DISABLE_KEYRING: 1
+          SKIP_BUILD: 1
+        run: |
+          bash scripts/test_compaction.sh

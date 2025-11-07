@@ -1,0 +1,50 @@
+---
+title: Troubleshooting
+hide_title: true
+description: Get help, report issues, and troubleshoot common problems with goose.
+---
+
+import Card from '@site/src/components/Card';
+import styles from '@site/src/components/Card/styles.module.css';
+
+<h1 className={styles.pageTitle}>Troubleshooting</h1>
+<p className={styles.pageDescription}>
+  Get help when you need it, report bugs, request features, and find solutions to common issues. goose provides built-in diagnostics and direct links to our support channels.
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🛠️ Getting Help</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Diagnostics and Reporting"
+      description="Use built-in diagnostics, report bugs, and request new features. Includes step-by-step guides for generating troubleshooting data."
+      link="/docs/troubleshooting/diagnostics-and-reporting"
+    />
+    <Card 
+      title="Known Issues"
+      description="Comprehensive troubleshooting guide covering common problems, error messages, and platform-specific issues with step-by-step solutions."
+      link="/docs/troubleshooting/known-issues"
+    />
+    <Card 
+      title="Logs"
+      description="Learn how to access and interpret goose session logs and system logs for debugging and troubleshooting purposes."
+      link="/docs/guides/logs"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>💬 Community Support</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Discord Community"
+      description="Join our active Discord server for real-time help, discussions, and community support from goose users and maintainers."
+      link="https://discord.gg/goose-oss"
+    />
+    <Card 
+      title="GitHub Issues"
+      description="Browse existing issues, contribute to discussions, or create new bug reports and feature requests on our GitHub repository."
+      link="https://github.com/block/goose/issues"
+    />
+  </div>
+</div>

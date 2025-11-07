@@ -409,6 +409,7 @@ export type MessageEvent = {
     type: 'Error';
 } | {
     reason: string;
+    token_state: TokenState;
     type: 'Finish';
 } | {
     mode: string;
@@ -582,7 +583,6 @@ export type RawTextContent = {
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
-    context?: Array<string> | null;
     description: string;
     extensions?: Array<ExtensionConfig> | null;
     instructions?: string | null;
@@ -702,7 +702,6 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
-    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
@@ -724,6 +723,7 @@ export type Session = {
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
+    session_type?: SessionType;
     total_tokens?: number | null;
     updated_at: string;
     user_recipe_values?: {
@@ -759,6 +759,8 @@ export type SessionListResponse = {
      */
     sessions: Array<Session>;
 };
+
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
     limit?: number;

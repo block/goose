@@ -2,7 +2,7 @@
 sidebar_position: 1
 title: MCP-UI Extensions
 sidebar_label: MCP-UI Extensions
-description: Learn how Goose can render graphical and interactive UI components from MCP-UI-enabled extensions
+description: Learn how goose can render graphical and interactive UI components from MCP-UI-enabled extensions
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import { PanelLeft } from 'lucide-react';
 
-Extensions built on MCP-UI allow Goose Desktop to provide interactive and engaging user experiences. Imagine using a graphical, clickable UI instead of reading text responses and typing all your prompts:
+Extensions built on MCP-UI allow goose Desktop to provide interactive and engaging user experiences. Imagine using a graphical, clickable UI instead of reading text responses and typing all your prompts:
 
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
   <video 
@@ -29,11 +29,11 @@ Extensions built on MCP-UI allow Goose Desktop to provide interactive and engagi
 </div>
 
 <br/>
-MCP-UI-enabled extensions return content that Goose can render as embedded UI elements for rich, dynamic, and streamlined interactions.
+MCP-UI-enabled extensions return content that goose can render as embedded UI elements for rich, dynamic, and streamlined interactions.
 
 ## Try It Out
 
-See how interactive responses work in Goose. 
+See how interactive responses work in goose. 
 
 ### Add Enabled Extension
 
@@ -52,6 +52,7 @@ For this exercise, we'll add an MCP-UI-enabled extension that connects to [MCP-U
     <TabItem value="cli" label="goose CLI">
         <CLIExtensionInstructions
           name="rich_demo"
+          description="Demo MCP-UI-enabled extension"
           type="http"
           url="https://mcp-aharvard.netlify.app/mcp"
           timeout={300}
@@ -61,7 +62,7 @@ For this exercise, we'll add an MCP-UI-enabled extension that connects to [MCP-U
 
 ### Interact in Chat
 
-In Goose Desktop, ask:
+In goose Desktop, ask:
 
 - `Help me select seats for my flight`
 

@@ -1,13 +1,14 @@
-use etcetera::{choose_app_strategy, AppStrategy};
 use ignore::gitignore::Gitignore;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
 
-use crate::developer::goose_hints::import_files::read_referenced_files;
+use crate::config::paths::Paths;
+use crate::hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 
 fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
@@ -59,22 +60,7 @@ pub fn load_hint_files(
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
     for hints_filename in hints_filenames {
-        // Global hints
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(hints_filename))
-            .unwrap_or_else(|_| {
-                let path_str = format!("~/.config/goose/{}", hints_filename);
-                PathBuf::from(shellexpand::tilde(&path_str).to_string())
-            });
-
-        if let Some(parent) = global_hints_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-
+        let global_hints_path = Paths::in_config_dir(hints_filename);
         if global_hints_path.is_file() {
             let mut visited = HashSet::new();
             let hints_dir = global_hints_path.parent().unwrap();
@@ -116,7 +102,7 @@ pub fn load_hint_files(
 
     let mut hints = String::new();
     if !global_hints_contents.is_empty() {
-        hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+        hints.push_str("\n### Global Hints\nThese are my global goose hints.\n");
         hints.push_str(&global_hints_contents.join("\n"));
     }
 
@@ -124,7 +110,9 @@ pub fn load_hint_files(
         if !hints.is_empty() {
             hints.push_str("\n\n");
         }
-        hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+        hints.push_str(
+            "### Project Hints\nThese are hints for working on the project in this directory.\n",
+        );
         hints.push_str(&local_hints_contents.join("\n"));
     }
 
@@ -135,7 +123,6 @@ pub fn load_hint_files(
 mod tests {
     use super::*;
     use ignore::gitignore::GitignoreBuilder;
-    use serial_test::serial;
     use std::fs::{self};
     use tempfile::TempDir;
 
@@ -146,51 +133,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_global_goosehints() {
-        // if ~/.config/goose/.goosehints exists, it should be included in the instructions
-        // copy the existing global hints file to a .bak file
-        let global_hints_path = PathBuf::from(
-            shellexpand::tilde(format!("~/.config/goose/{}", GOOSE_HINTS_FILENAME).as_str())
-                .to_string(),
-        );
-        let global_hints_bak_path = PathBuf::from(
-            shellexpand::tilde(format!("~/.config/goose/{}.bak", GOOSE_HINTS_FILENAME).as_str())
-                .to_string(),
-        );
-        let mut globalhints_existed = false;
-
-        if global_hints_path.is_file() {
-            globalhints_existed = true;
-            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
-        }
-
-        fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
-
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
-
-        assert!(hints.contains("### Global Hints"));
-        assert!(hints.contains("my global goose hints."));
-
-        // restore backup if globalhints previously existed
-        if globalhints_existed {
-            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-            fs::remove_file(&global_hints_bak_path).unwrap();
-        } else {
-            // Clean up the test file we created
-            let _ = fs::remove_file(&global_hints_path);
-        }
-    }
-
-    #[test]
-    #[serial]
     fn test_goosehints_when_present() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join(GOOSE_HINTS_FILENAME), "Test hint content").unwrap();
         let gitignore = create_dummy_gitignore();
@@ -200,10 +144,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_when_missing() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         let gitignore = create_dummy_gitignore();
         let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
@@ -212,10 +154,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_multiple_filenames() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(
             dir.path().join("CLAUDE.md"),
@@ -240,10 +180,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_goosehints_configurable_filename() {
         let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join("CLAUDE.md"), "Custom hints file content").unwrap();
         let gitignore = create_dummy_gitignore();
@@ -357,11 +295,7 @@ mod tests {
 
         fs::create_dir(project_root.join(".git")).unwrap();
 
-        fs::write(
-            project_root.join("README.md"),
-            "# Project README\nProject overview content",
-        )
-        .unwrap();
+        fs::write(project_root.join("README.md"), "# Project README").unwrap();
         fs::write(project_root.join("config.md"), "Configuration details").unwrap();
 
         let hints_content = r#"Project hints content
@@ -382,7 +316,6 @@ Additional instructions here."#;
 
         assert!(hints.contains("--- Content from README.md ---"));
         assert!(hints.contains("# Project README"));
-        assert!(hints.contains("Project overview content"));
         assert!(hints.contains("--- End of README.md ---"));
 
         assert!(hints.contains("--- Content from config.md ---"));

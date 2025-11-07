@@ -83,9 +83,9 @@ jobs:
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: target
-          key: ${{ runner.os }}-intel-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-intel-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-intel-cargo-build-
+            ${{ runner.os }}-intel-cargo-build-release-
 
 
       - name: Build goose-server for Intel macOS (x86_64)

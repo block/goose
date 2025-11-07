@@ -89,6 +89,7 @@ module.exports = {
         options: {
           icon: 'src/images/icon.png',
           prefix: '/opt',
+          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
         },
       },
     },

@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.11.0"
+    "version": "1.13.0"
   },
   "paths": {
     "/agent/add_extension": {
@@ -3835,11 +3835,15 @@
             "type": "object",
             "required": [
               "reason",
+              "token_state",
               "type"
             ],
             "properties": {
               "reason": {
                 "type": "string"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
@@ -4272,13 +4276,6 @@
             ],
             "nullable": true
           },
-          "context": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
           "description": {
             "type": "string"
           },
@@ -4641,10 +4638,6 @@
           "currently_running": {
             "type": "boolean"
           },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
-          },
           "id": {
             "type": "string"
           },
@@ -4739,6 +4732,9 @@
           "schedule_id": {
             "type": "string",
             "nullable": true
+          },
+          "session_type": {
+            "$ref": "#/components/schemas/SessionType"
           },
           "total_tokens": {
             "type": "integer",
@@ -4857,6 +4853,15 @@
             "description": "List of available session information objects"
           }
         }
+      },
+      "SessionType": {
+        "type": "string",
+        "enum": [
+          "user",
+          "scheduled",
+          "sub_agent",
+          "hidden"
+        ]
       },
       "SessionsQuery": {
         "type": "object",

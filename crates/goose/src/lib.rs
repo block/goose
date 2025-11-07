@@ -6,6 +6,7 @@ pub mod conversation;
 mod cron_test;
 pub mod execution;
 pub mod goose_apps;
+pub mod hints;
 pub mod logging;
 pub mod mcp_utils;
 pub mod model;
