@@ -6,6 +6,7 @@ import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
+import RichChatInput from './RichChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { Message } from '../api';
@@ -281,34 +282,69 @@ function BaseChatContent({
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          <ChatInput
-            sessionId={sessionId}
-            handleSubmit={handleFormSubmit}
-            chatState={chatState}
-            onStop={stopStreaming}
-            //commandHistory={commandHistory}
-            initialValue={initialPrompt}
-            setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
-            accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
-            }
-            accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
-            }
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            autoSubmit={shouldAutoSubmit}
-            {...customChatInputProps}
-          />
+          {process.env.ALPHA ? (
+            <RichChatInput
+              sessionId={sessionId}
+              handleSubmit={handleFormSubmit}
+              chatState={chatState}
+              onStop={stopStreaming}
+              //commandHistory={commandHistory}
+              initialValue={initialPrompt}
+              setView={setView}
+              totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+              accumulatedInputTokens={
+                tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              }
+              accumulatedOutputTokens={
+                tokenState?.accumulatedOutputTokens ??
+                session?.accumulated_output_tokens ??
+                undefined
+              }
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              recipe={recipe}
+              recipeAccepted={!hasNotAcceptedRecipe}
+              initialPrompt={initialPrompt}
+              toolCount={toolCount || 0}
+              autoSubmit={shouldAutoSubmit}
+              {...customChatInputProps}
+            />
+          ) : (
+            <ChatInput
+              sessionId={sessionId}
+              handleSubmit={handleFormSubmit}
+              chatState={chatState}
+              onStop={stopStreaming}
+              //commandHistory={commandHistory}
+              initialValue={initialPrompt}
+              setView={setView}
+              totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+              accumulatedInputTokens={
+                tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              }
+              accumulatedOutputTokens={
+                tokenState?.accumulatedOutputTokens ??
+                session?.accumulated_output_tokens ??
+                undefined
+              }
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              recipe={recipe}
+              recipeAccepted={!hasNotAcceptedRecipe}
+              initialPrompt={initialPrompt}
+              toolCount={toolCount || 0}
+              autoSubmit={shouldAutoSubmit}
+              {...customChatInputProps}
+            />
+          )}
         </div>
       </MainPanelLayout>
 

@@ -16,6 +16,7 @@
 
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
+import RichChatInput from './RichChatInput';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -48,27 +49,51 @@ export default function Hub({
         <SessionInsights />
       </div>
 
-      <ChatInput
-        sessionId={null}
-        handleSubmit={handleSubmit}
-        autoSubmit={false}
-        chatState={ChatState.Idle}
-        onStop={() => {}}
-        commandHistory={[]}
-        initialValue=""
-        setView={setView}
-        totalTokens={0}
-        accumulatedInputTokens={0}
-        accumulatedOutputTokens={0}
-        droppedFiles={[]}
-        onFilesProcessed={() => {}}
-        messages={[]}
-        disableAnimation={false}
-        sessionCosts={undefined}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        isExtensionsLoading={isExtensionsLoading}
-        toolCount={0}
-      />
+      {process.env.ALPHA ? (
+        <RichChatInput
+          sessionId={null}
+          handleSubmit={handleSubmit}
+          autoSubmit={false}
+          chatState={ChatState.Idle}
+          onStop={() => {}}
+          commandHistory={[]}
+          initialValue=""
+          setView={setView}
+          totalTokens={0}
+          accumulatedInputTokens={0}
+          accumulatedOutputTokens={0}
+          droppedFiles={[]}
+          onFilesProcessed={() => {}}
+          messages={[]}
+          disableAnimation={false}
+          sessionCosts={undefined}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          isExtensionsLoading={isExtensionsLoading}
+          toolCount={0}
+        />
+      ) : (
+        <ChatInput
+          sessionId={null}
+          handleSubmit={handleSubmit}
+          autoSubmit={false}
+          chatState={ChatState.Idle}
+          onStop={() => {}}
+          commandHistory={[]}
+          initialValue=""
+          setView={setView}
+          totalTokens={0}
+          accumulatedInputTokens={0}
+          accumulatedOutputTokens={0}
+          droppedFiles={[]}
+          onFilesProcessed={() => {}}
+          messages={[]}
+          disableAnimation={false}
+          sessionCosts={undefined}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          isExtensionsLoading={isExtensionsLoading}
+          toolCount={0}
+        />
+      )}
     </div>
   );
 }

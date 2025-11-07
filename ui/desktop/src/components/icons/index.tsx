@@ -1,4 +1,3 @@
-import Action from './Action';
 import ArrowDown from './ArrowDown';
 import ArrowUp from './ArrowUp';
 import Attach from './Attach';
@@ -50,7 +49,6 @@ import { Watch5 } from './Watch5';
 import { Watch6 } from './Watch6';
 
 export {
-  Action,
   ArrowDown,
   ArrowUp,
   Attach,

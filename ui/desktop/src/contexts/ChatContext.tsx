@@ -15,6 +15,9 @@ interface ChatContextType {
   // Context identification
   contextKey: string; // 'hub' or 'pair-{sessionId}'
   agentWaitingMessage: string | null;
+  // Draft functionality
+  draft?: string;
+  setDraft?: (draft: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
