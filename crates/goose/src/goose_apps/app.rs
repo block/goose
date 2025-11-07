@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -24,6 +24,10 @@ impl GooseApp {
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
+        Self::from_file_content(&content)
+    }
+
+    pub fn from_file_content(content: &str) -> Result<GooseApp, Error> {
         let parts: Vec<&str> = content.splitn(3, Self::FRONTMATTER_DELIMITER).collect();
 
         if parts.len() != 3 {
@@ -42,6 +46,7 @@ impl GooseApp {
     pub fn to_file_content(&self) -> Result<String> {
         let mut metadata = self.clone();
         metadata.js_implementation = String::new();
+        metadata.prd = String::new();
         let yaml_content = serde_yaml::to_string(&metadata)?;
         Ok(format!(
             "{}{}{}{}{}",

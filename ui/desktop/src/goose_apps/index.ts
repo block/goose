@@ -44,10 +44,13 @@ export function getContainerHtml(gapp: GooseApp): string {
 }
 
 export async function launchGooseApp(gapp: GooseApp): Promise<void> {
+  const desiredContentWidth = gapp.width || 800;
+  const desiredContentHeight = gapp.height || 600;
+
   const appWindow = new BrowserWindow({
     title: gapp.name,
-    width: gapp.width || 800,
-    height: gapp.height || 600,
+    width: desiredContentWidth,
+    height: desiredContentHeight,
     resizable: gapp.resizable ?? true,
     webPreferences: {
       nodeIntegration: false,
@@ -56,10 +59,16 @@ export async function launchGooseApp(gapp: GooseApp): Promise<void> {
     },
   });
 
-  const html = getContainerHtml(gapp);
+  const [currentContentWidth, currentContentHeight] = appWindow.getContentSize();
+  const [currentWindowWidth, currentWindowHeight] = appWindow.getSize();
 
+  const frameWidth = currentWindowWidth - currentContentWidth;
+  const frameHeight = currentWindowHeight - currentContentHeight;
+
+  appWindow.setSize(desiredContentWidth + frameWidth, desiredContentHeight + frameHeight);
+
+  const html = getContainerHtml(gapp);
   await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  appWindow.show();
 
   appWindow.show();
 }
