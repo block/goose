@@ -136,10 +136,7 @@ pub async fn compact_messages(
     let mut continuation_messages = vec![summary_msg];
 
     // Choose continuation text based on whether the most recent message is a user text message
-    let last_message_is_user_text = messages
-        .last()
-        .map(is_user_submitted_text)
-        .unwrap_or(false);
+    let last_message_is_user_text = messages.last().map(is_user_submitted_text).unwrap_or(false);
 
     let continuation_text = if last_message_is_user_text {
         CONVERSATION_CONTINUATION_TEXT
