@@ -34,12 +34,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
       <div className="absolute top-4 right-4 z-50 flex gap-2">
         <Button
           onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
+          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
           variant="ghost"
           size="xs"
           title="Toggle navigation"
         >
           {isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span className="ml-2 text-xs text-text-muted font-mono">
+            {isNavExpanded ? 'Hide menu' : 'Show menu'}
+          </span>
         </Button>
         <Button
           onClick={handleNewWindow}
