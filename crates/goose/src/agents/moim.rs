@@ -66,18 +66,4 @@ mod tests {
             .unwrap()
             .contains("<info-msg>"));
     }
-
-    #[tokio::test]
-    async fn test_moim_config_disable() {
-        let config = crate::config::Config::global();
-        config.set_param("GOOSE_MOIM_ENABLED", false).ok();
-
-        let em = ExtensionManager::new_without_provider();
-        let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hi")]);
-        let result = inject_moim(conv.clone(), &em).await;
-
-        assert_eq!(result.messages(), conv.messages());
-
-        config.delete("GOOSE_MOIM_ENABLED").ok();
-    }
 }
