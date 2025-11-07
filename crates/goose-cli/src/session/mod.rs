@@ -137,8 +137,8 @@ pub async fn classify_planner_response(
 
 fn generate_extension_name(extension_command: &str) -> String {
     let cmd_name: String = extension_command
-        .split(|c| c == ' ' || c == '/')
-        .last()
+        .split([' ', '/'])
+        .next_back()
         .unwrap_or("")
         .chars()
         .filter(|c| c.is_alphanumeric())
@@ -154,7 +154,7 @@ fn generate_extension_name(extension_command: &str) -> String {
 
     let name = format!("{}_{}", prefix, random_suffix);
 
-    if name.chars().next().map_or(true, |c| !c.is_alphabetic()) {
+    if name.chars().next().is_none_or(|c| !c.is_alphabetic()) {
         format!("g{}", name)
     } else {
         name
