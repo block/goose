@@ -294,6 +294,9 @@ Note: if you change the javascript, you will be called back with the next render
 don't have to get it right in one iteration. For complicated things it might be better
 to do multiple turns.
 
+in the message return exactly what you see on the screenshot or if there is no screenshot,
+say that. and then also tell the user the changes you need to make or made to adjust.
+
 "#;
 
 fn iterate_app_prompt(iterate_on: &IterateAppRequest, goose_widget: &str) -> String {
