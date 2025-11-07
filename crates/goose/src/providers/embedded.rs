@@ -465,10 +465,17 @@ async fn download_and_extract_llama_server(
 }
 
 /// Manages a local llama-server process
+///
+/// This struct ensures single-instance management:
+/// - Only one llama-server process runs at a time per ServerProcess instance
+/// - Automatically restarts if model changes
+/// - Properly shuts down on drop
 struct ServerProcess {
     child: Option<Child>,
     port: u16,
     binary_path: Option<PathBuf>,
+    /// Track which model is currently loaded to detect model changes
+    loaded_model_path: Option<String>,
 }
 
 impl ServerProcess {
@@ -477,6 +484,7 @@ impl ServerProcess {
             child: None,
             port,
             binary_path: None,
+            loaded_model_path: None,
         }
     }
 
@@ -556,8 +564,20 @@ impl ServerProcess {
         batch_size: u32,
         threads: u32,
     ) -> Result<()> {
+        // Check if model has changed - if so, stop existing server
+        if let Some(ref loaded_model) = self.loaded_model_path {
+            if loaded_model != model_path && self.child.is_some() {
+                tracing::info!(
+                    "Model changed from {} to {}, restarting server",
+                    loaded_model,
+                    model_path
+                );
+                self.stop();
+            }
+        }
+
         if self.child.is_some() {
-            return Ok(()); // Already running
+            return Ok(()); // Already running with correct model
         }
 
         // Kill any existing process on this port to ensure only one embedded server runs
@@ -577,7 +597,8 @@ impl ServerProcess {
             self.port
         );
 
-        let child = Command::new(binary_path)
+        let mut command = Command::new(binary_path);
+        command
             .arg("--model")
             .arg(model_path)
             .arg("--host")
@@ -597,19 +618,70 @@ impl ServerProcess {
             .arg("{}")
             .arg("--verbose")
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::null());
+
+        // On Unix, ensure child process dies when parent dies
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            unsafe {
+                command.pre_exec(|| {
+                    #[cfg(target_os = "linux")]
+                    {
+                        // On Linux, use PR_SET_PDEATHSIG to kill child when parent dies
+                        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                    }
+                    #[cfg(target_os = "macos")]
+                    {
+                        // On macOS, create a new process group so we can kill it
+                        libc::setpgid(0, 0);
+                    }
+                    Ok(())
+                });
+            }
+        }
+
+        let child = command
             .spawn()
             .map_err(|e| anyhow::anyhow!("Failed to start llama-server: {}", e))?;
 
         self.child = Some(child);
+        self.loaded_model_path = Some(model_path.to_string());
         Ok(())
     }
 
     fn stop(&mut self) {
         if let Some(mut child) = self.child.take() {
             tracing::info!("Stopping llama-server on port {}", self.port);
+            
+            #[cfg(unix)]
+            {
+                // On Unix, kill the entire process group
+                if let Some(pid) = child.id().map(|p| p as i32) {
+                    unsafe {
+                        #[cfg(target_os = "macos")]
+                        {
+                            // Kill process group on macOS
+                            let _ = libc::kill(-pid, libc::SIGTERM);
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            let _ = libc::kill(-pid, libc::SIGKILL);
+                        }
+                        #[cfg(target_os = "linux")]
+                        {
+                            // Kill process group on Linux  
+                            let _ = libc::kill(-pid, libc::SIGTERM);
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            let _ = libc::kill(-pid, libc::SIGKILL);
+                        }
+                    }
+                }
+            }
+            
             let _ = child.kill();
             let _ = child.wait();
+
+            // Clear the loaded model path since server is stopped
+            self.loaded_model_path = None;
         }
     }
 
