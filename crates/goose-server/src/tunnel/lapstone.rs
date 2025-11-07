@@ -508,7 +508,7 @@ pub async fn start(
     let worker_url =
         std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
 
-    if worker_url.to_lowercase() == "none" || worker_url.to_lowercase() == "no" {
+    if worker_url.to_lowercase() == "none" {
         anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL_WORKER_URL environment variable");
     }
 

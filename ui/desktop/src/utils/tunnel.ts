@@ -9,7 +9,6 @@ export interface TunnelInfo {
   port: number;
   pids: {
     goosed: number;
-    tailscale_serve: number;
   };
 }
 

@@ -18,7 +18,6 @@ pub enum TunnelState {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TunnelPids {
     pub goosed: u32,
-    pub tailscale_serve: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,8 +98,8 @@ impl TunnelManager {
         let config = self.config.read().await.clone();
 
         let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
-        let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-            .expect("GOOSE_SERVER__SECRET_KEY must be set for tunnel to work");
+        let server_secret =
+            std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
         let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
         self.update_config(|c| {
