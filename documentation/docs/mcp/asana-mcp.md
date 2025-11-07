@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
 
@@ -43,7 +44,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <GooseDesktopInstaller
     extensionId="asana"
     extensionName="Asana"
-    description="enable task automation, project tracking, and team collaboration"
+    description="Enable task automation, project tracking, and team collaboration"
     command="npx"
     args={["-y", "@roychri/mcp-server-asana"]}
     envVars={[
@@ -57,158 +58,19 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   :::
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  Asana
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Asana
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y @roychri/mcp-server-asana
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Asana
-    │
-    ◇  What command should be run?
-    │  npx -y @roychri/mcp-server-asana
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ``` 
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Asana
-    │
-    ◇  What command should be run?
-    │  npx -y @roychri/mcp-server-asana
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```
-  
-  7. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in.
-  :::info
-  See [Asana's developer docs](https://developers.asana.com/docs/personal-access-token) if you need detailed instructions on creating an access token.
-  :::
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Asana
-    │
-    ◇  What command should be run?
-    │  npx -y @roychri/mcp-server-asana
-    │     
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes 
-    │
-    ◇  Environment variable name:
-    │  ASANA_ACCESS_TOKEN
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  No 
-    // highlight-end
-    └  Added Asana extension
-  ```  
-
+    <CLIExtensionInstructions
+      name="Asana"
+      description="Enable task automation, project tracking, and team collaboration"
+      command="npx -y @roychri/mcp-server-asana"
+      envVars={[
+        { key: "ASANA_ACCESS_TOKEN", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Obtain your <a href="https://app.asana.com/0/my-apps" target="_blank" rel="noopener noreferrer">Asana Access Token</a> and paste it in. See <a href="https://developers.asana.com/docs/personal-access-token" target="_blank" rel="noopener noreferrer">Asana's developer docs</a> if you need detailed instructions on creating an access token.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 

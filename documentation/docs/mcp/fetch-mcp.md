@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/_WMm4kDYMog" />
 
@@ -47,145 +48,11 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  fetch
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  fetch
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  uvx mcp-server-fetch
-    // highlight-end
-    └ 
-  ``` 
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  fetch
-    │
-    ◇  What command should be run?
-    │  uvx mcp-server-fetch
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```  
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  fetch
-    │
-    ◇  What command should be run?
-    │  uvx mcp-server-fetch
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```
-
-  7. Choose No when asked to add environment variables
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  fetch
-    │
-    ◇  What command should be run?
-    │  uvx mcp-server-fetch
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◇  Would you like to add environment variables?
-    │  No 
-    // highlight-end
-    │
-    └  Added fetch extension 
-  ```  
-
+    <CLIExtensionInstructions
+      name="Fetch"
+      description="Web content fetching and processing capabilities"
+      command="uvx mcp-server-fetch"
+    />
   </TabItem>
 </Tabs>
 

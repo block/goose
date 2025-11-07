@@ -6,6 +6,7 @@ description: Add Browserbase MCP Server as a Goose Extension for Web Automation
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 This tutorial covers how to add the Browserbase MCP Server as a Goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
 
@@ -31,6 +32,10 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
@@ -44,147 +49,24 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
       { name: "BROWSERBASE_API_KEY", label: "Browserbase API Key" }
     ]}
     apiKeyLink="https://browserbase.io/dashboard"
-    apiKeyLinkText="Get your Browserbase credentials"
+    apiKeyLinkText="Browserbase credentials"
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  browserbase
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  browserbase
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx @browserbasehq/mcp
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the timeout (default 300s)
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  browserbase
-    │
-    ◇  What command should be run?
-    │  npx @browserbasehq/mcp
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```  
-
-  6. Add a description (optional)
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  browserbase
-    │
-    ◇  What command should be run?
-    │  npx @browserbasehq/mcp
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```
-
-  7. Add environment variables
-  ```sh
-    ┌   goose-configure 
-    │
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes
-    │
-    ◇  Environment variable name:
-    │  BROWSERBASE_PROJECT_ID
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  Yes
-    │
-    ◇  Environment variable name:
-    │  BROWSERBASE_API_KEY
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  No
-    // highlight-end
-    └  Added browserbase extension
-  ```
-
+    <CLIExtensionInstructions
+      name="Browserbase"
+      description="Automate web browsing and data extraction"
+      command="npx @browserbasehq/mcp"
+      envVars={[
+        { key: "BROWSERBASE_PROJECT_ID", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" },
+        { key: "BROWSERBASE_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Obtain your <a href="https://browserbase.io/dashboard" target="_blank" rel="noopener noreferrer">Browserbase credentials</a> and paste them in.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 

@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
@@ -52,156 +53,19 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
   />
 </TabItem>
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  tavily
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  tavily
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y tavily-mcp
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  tavily
-    │
-    ◇  What command should be run?
-    │  npx -y tavily-mcp
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```  
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  tavily
-    │
-    ◇  What command should be run?
-    │  npx -y tavily-mcp
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```  
-
-  7. Obtain a [Tavily API Key](https://tavily.com/) and paste it in.
-  :::info
-  You can get your API key by signing up at [tavily.com](https://app.tavily.com/) and navigating to your account settings.
-  :::
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  tavily
-    │
-    ◇  What command should be run?
-    │  npx -y tavily-mcp
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes 
-    │
-    ◇  Environment variable name:
-    │  TAVILY_API_KEY
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  No 
-    // highlight-end
-    └  Added tavily extension
-  ```  
-
+    <CLIExtensionInstructions
+      name="Tavily Web Search"
+      description="Search the web with Tavily MCP"
+      command="npx -y tavily-mcp"
+      envVars={[
+        { key: "TAVILY_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Obtain your <a href="https://tavily.com/" target="_blank" rel="noopener noreferrer">Tavily API Key</a> and paste it in. You can get your API key by signing up at <a href="https://app.tavily.com/" target="_blank" rel="noopener noreferrer">tavily.com</a> and navigating to your account settings.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 

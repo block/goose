@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/V8zp9m9__t4" />
 
@@ -42,156 +43,17 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-
-      ```sh
-      goose configure
-      ```
-
-  2. Choose to add a `Remote Extension`
-
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◆  What type of extension would you like to add?
-        │  ○ Built-in Extension 
-        │  ○ Command-line Extension (Run a local command or script)
-        // highlight-start    
-        │  ● Remote Extension (SSE)
-        // highlight-end
-        │  ○ Remote Extension (Streaming HTTP)     
-        └ 
-      ```
-    
-
-  3. Give your extension a name
-  
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (SSE)
-        │
-        // highlight-start
-        ◆  What would you like to call this extension?
-        │  Pieces
-        // highlight-end
-        └ 
-      ```
-
-  4. Enter the SSE endpoint URI.
-
-      :::info
-      Use the server URL you copied from PiecesOS settings earlier.
-      :::
-
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (SSE)
-        │
-        ◇  What would you like to call this extension?
-        │  Pieces
-        │
-        // highlight-start
-        ◆  What is the SSE endpoint URI?
-        │  http://localhost:39300/model_context_protocol/2024-11-05/sse
-        // highlight-end
-        └ 
-      ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (SSE)
-        │
-        ◇  What would you like to call this extension?
-        │  Pieces
-        │
-        ◇  What is the SSE endpoint URI?
-        │  http://localhost:39300/model_context_protocol/2024-11-05/sse
-        │
-        // highlight-start
-        ◆  Please set the timeout for this tool (in secs):
-        │  300
-        // highlight-end
-        └ 
-      ```
-
-  6. Add a description if you want, otherwise to leave the description blank select No.
-
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (SSE)
-        │
-        ◇  What would you like to call this extension?
-        │  Pieces
-        │
-        ◇  What is the SSE endpoint URI?
-        │  http://localhost:39300/model_context_protocol/2024-11-05/sse
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        // highlight-start
-        ◆  Would you like to add a description?
-        │  ○ Yes  / ● No 
-        // highlight-end
-        │
-        └ 
-      ```
-
-  7. No environment variables are needed, so select No.
-
-      ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (SSE)
-        │
-        ◇  What would you like to call this extension?
-        │  Pieces
-        │
-        ◇  What is the SSE endpoint URI?
-        │  http://localhost:39300/model_context_protocol/2024-11-05/sse
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        ◇  Would you like to add a description?
-        │  No 
-        │
-        // highlight-start
-        ◆  Would you like to add environment variables?
-        │  ○ Yes  / ● No 
-        // highlight-end
-        └ 
-      ```
-
+    <CLIExtensionInstructions
+      name="Pieces"
+      description="Provides access to your Pieces Long-Term Memory"
+      type="sse"
+      url="http://localhost:39300/model_context_protocol/2024-11-05/sse"
+      commandNote={
+        <>
+          Use the server URL you copied from PiecesOS settings. PiecesOS may use a different port if 39300 is already in use on your system.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 

@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/QKg2Q6YCzdw" />
 
@@ -30,176 +31,28 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  1. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  2. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  mbot2
-    // highlight-end
-    └ 
-  ```
-
-  3. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  mbot2
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
-    // highlight-end
-    └ 
-  ```  
-
-  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  mbot2
-    │
-    ◇  What command should be run?
-    │  /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ```  
-
-  5. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  mbot2
-    │
-    ◇  What command should be run?
-    │  /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```  
-
-  6. Add environment variables for MQTT
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  mbot2
-    │
-    ◇  What command should be run?
-    │  /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes 
-    │
-    ◇  Environment variable name:
-    │  MQTT_SERVER_URI
-    │
-    ◇  Environment variable value:
-    │  tcp://1.2.3.4:1883
-    │
-    ◇  Add another environment variable?
-    │  Yes
-    │
-    ◇  Environment variable name:
-    │  MQTT_USERNAME
-    │
-    ◇  Environment variable value:
-    │  username
-    │
-    ◇  Add another environment variable?
-    │  Yes
-    │
-    ◇  Environment variable name:
-    │  MQTT_PASSWORD
-    │
-    ◇  Environment variable value:
-    │  password
-    // highlight-end
-    │
-    └  Added mbot2 extension
-  ```  
-
+    <CLIExtensionInstructions
+      name="mbot2"
+      description="Control a MakeBlock mbot2 rover through MQTT and MCP"
+      command="/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar"
+      envVars={[
+        { key: "MQTT_SERVER_URI", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" },
+        { key: "MQTT_USERNAME", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" },
+        { key: "MQTT_PASSWORD", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      commandNote={
+        <>
+          Replace <code>/path/to/java</code> and <code>/path/to/mbotmcp-0.0.1-SNAPSHOT.jar</code> with your actual Java installation and JAR file paths.
+        </>
+      }
+      infoNote={
+        <>
+          MQTT_SERVER_URI has a value like <code>tcp://1.2.3.4:1883</code>. MQTT_USERNAME and MQTT_PASSWORD are required to exist, but can be empty strings if your MQTT server does not require authentication.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
-
-    :::info 
-    MQTT_USERNAME and MQTT_PASSWORD are required to exist, but can be empty strings if your MQTT server does not require authentication.
-    :::
 
 ## Example Usage
 

@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1Z8XtjQ9El0" />
 
@@ -34,18 +35,41 @@ This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/e
 
 ## Configuration
 
-<GooseDesktopInstaller
-  extensionId="elevenlabs"
-  extensionName="ElevenLabs"
-  description="ElevenLabs voice synthesis server"
-  command="uvx"
-  args={["elevenlabs-mcp"]}
-  envVars={[
-    { name: "ELEVENLABS_API_KEY", label: "ElevenLabs API Key" }
-  ]}
-  apiKeyLink="https://elevenlabs.io/app/settings/api-keys"
-  apiKeyLinkText="Get your ElevenLabs API Key"
-/>
+:::info
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+:::
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="elevenlabs"
+      extensionName="ElevenLabs"
+      description="ElevenLabs voice synthesis server"
+      command="uvx"
+      args={["elevenlabs-mcp"]}
+      envVars={[
+        { name: "ELEVENLABS_API_KEY", label: "ElevenLabs API Key" }
+      ]}
+      apiKeyLink="https://elevenlabs.io/app/settings/api-keys"
+      apiKeyLinkText="ElevenLabs API Key"
+    />
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="ElevenLabs"
+      description="ElevenLabs voice synthesis server"
+      command="uvx elevenlabs-mcp"
+      envVars={[
+        { key: "ELEVENLABS_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Obtain your <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener noreferrer">ElevenLabs API Key</a> and paste it in.
+        </>
+      }
+    />
+  </TabItem>
+</Tabs>
 
 ## Example Usage
 
