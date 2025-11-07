@@ -13,6 +13,8 @@ use crate::session::task_execution_display::{
 use goose::conversation::Conversation;
 use std::io::Write;
 use std::str::FromStr;
+use tokio::signal::ctrl_c;
+use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -26,7 +28,7 @@ use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use goose::agents::extension::{Envs, ExtensionConfig};
+use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
 use goose::config::{Config, GooseMode};
@@ -133,6 +135,32 @@ pub async fn classify_planner_response(
     }
 }
 
+fn generate_extension_name(extension_command: &str) -> String {
+    let cmd_name: String = extension_command
+        .split([' ', '/'])
+        .next_back()
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect();
+
+    let prefix: String = cmd_name.chars().take(16).collect();
+
+    let random_suffix: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect();
+
+    let name = format!("{}_{}", prefix, random_suffix);
+
+    if name.chars().next().is_none_or(|c| !c.is_alphabetic()) {
+        format!("g{}", name)
+    } else {
+        name
+    }
+}
+
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -192,11 +220,7 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_command);
 
         let config = ExtensionConfig::Stdio {
             name,
@@ -227,11 +251,7 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_remote_extension(&mut self, extension_url: String) -> Result<()> {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_url);
 
         let config = ExtensionConfig::Sse {
             name,
@@ -261,11 +281,7 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let name = generate_extension_name(&extension_url);
 
         let config = ExtensionConfig::StreamableHttp {
             name,
@@ -297,15 +313,24 @@ impl CliSession {
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
-            let extension_name = name.trim().to_string();
-            let config = ExtensionConfig::Builtin {
-                name: extension_name,
-                display_name: None,
-                // TODO: should set a timeout
-                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                bundled: None,
-                description: name.trim().to_string(),
-                available_tools: Vec::new(),
+            let extension_name = name.trim();
+
+            let config = if PLATFORM_EXTENSIONS.contains_key(extension_name) {
+                ExtensionConfig::Platform {
+                    name: extension_name.to_string(),
+                    bundled: None,
+                    description: name.to_string(),
+                    available_tools: Vec::new(),
+                }
+            } else {
+                ExtensionConfig::Builtin {
+                    name: extension_name.to_string(),
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    description: name.to_string(),
+                    available_tools: Vec::new(),
+                }
             };
             self.agent
                 .add_extension(config)
@@ -775,8 +800,6 @@ impl CliSession {
         interactive: bool,
         cancel_token: CancellationToken,
     ) -> Result<()> {
-        let cancel_token_clone = cancel_token.clone();
-
         // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
 
@@ -790,6 +813,15 @@ impl CliSession {
             .messages
             .last()
             .ok_or_else(|| anyhow::anyhow!("No user message"))?;
+
+        let cancel_token_interrupt = cancel_token.clone();
+        let handle = tokio::spawn(async move {
+            if ctrl_c().await.is_ok() {
+                cancel_token_interrupt.cancel();
+            }
+        });
+        let _drop_handle = AbortOnDropHandle::new(handle);
+
         let mut stream = self
             .agent
             .reply(
@@ -800,6 +832,7 @@ impl CliSession {
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
+        let cancel_token_clone = cancel_token.clone();
 
         use futures::StreamExt;
         loop {
@@ -1075,8 +1108,7 @@ impl CliSession {
                         None => break,
                     }
                 }
-                _ = tokio::signal::ctrl_c() => {
-                    cancel_token_clone.cancel();
+                _ = cancel_token_clone.cancelled() => {
                     drop(stream);
                     if let Err(e) = self.handle_interrupted_messages(true).await {
                         eprintln!("Error handling interruption: {}", e);
