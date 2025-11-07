@@ -25,16 +25,17 @@ interface TopNavigationProps {
 
 // Analog Clock Widget Component
 const AnalogClock: React.FC = () => {
-  const [rotation, setRotation] = useState(0); // Track total rotations for second hand
+  const [secondAngle, setSecondAngle] = useState(() => {
+    const now = new Date();
+    return now.getSeconds() * 6;
+  });
   const [angles, setAngles] = useState(() => {
     const now = new Date();
     const hours = now.getHours() % 12;
     const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
     return {
       hour: (hours * 30) + (minutes * 0.5),
       minute: minutes * 6,
-      second: seconds * 6,
     };
   });
 
@@ -45,18 +46,12 @@ const AnalogClock: React.FC = () => {
       const minutes = now.getMinutes();
       const seconds = now.getSeconds();
       
-      setAngles(prev => {
-        const newSecondAngle = seconds * 6;
-        // If second hand crosses from 59 to 0, increment rotation
-        if (prev.second > 300 && newSecondAngle < 60) {
-          setRotation(r => r + 360);
-        }
-        
-        return {
-          hour: (hours * 30) + (minutes * 0.5),
-          minute: minutes * 6,
-          second: newSecondAngle,
-        };
+      // Increment second angle by 6 degrees each second
+      setSecondAngle(prev => prev + 6);
+      
+      setAngles({
+        hour: (hours * 30) + (minutes * 0.5),
+        minute: minutes * 6,
       });
     }, 1000);
     return () => clearInterval(interval);
@@ -64,7 +59,6 @@ const AnalogClock: React.FC = () => {
 
   const hourAngle = angles.hour;
   const minuteAngle = angles.minute;
-  const secondAngle = rotation + angles.second;
 
   return (
     <div className="w-full h-full flex items-center justify-center">
