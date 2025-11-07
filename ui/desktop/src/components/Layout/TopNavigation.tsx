@@ -464,7 +464,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 stiffness: 400,
                 damping: 25,
               }}
-              className="pb-0.5 pt-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
+              className="pb-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
             {navItems.map((item, index) => {
