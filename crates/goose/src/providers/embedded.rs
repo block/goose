@@ -680,7 +680,7 @@ impl ServerProcess {
         let mut command = tokio::process::Command::from(std_command);
         command.kill_on_drop(true);
 
-        let mut child = command
+        let child = command
             .spawn()
             .map_err(|e| anyhow::anyhow!("Failed to start llama-server: {}", e))?;
 
