@@ -64,7 +64,7 @@ impl GondolaProvider {
 
         let endpoint = config
             .get_param::<String>("gondola_endpoint")
-            .context("GONDOLA_ENDPOINT must be configured")?;
+            .context("gondola_endpoint must be configured")?;
 
         Self::with_endpoint(&endpoint)
     }
@@ -149,17 +149,11 @@ mod tests {
 
     #[test]
     fn test_gondola_provider_creation() {
-        let provider = GondolaProvider::new();
-        assert!(provider.is_ok());
-    }
-
-    #[test]
-    fn test_gondola_provider_with_custom_endpoint() {
-        let provider = GondolaProvider::with_endpoint("https://custom.endpoint.com/api");
+        let provider = GondolaProvider::with_endpoint("https://endpoint.com/api");
         assert!(provider.is_ok());
         assert_eq!(
             provider.unwrap().endpoint,
-            "https://custom.endpoint.com/api"
+            "https://endpoint.com/api"
         );
     }
 

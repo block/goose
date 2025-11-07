@@ -13,7 +13,7 @@ interface SecurityConfig {
 const AVAILABLE_MODELS = [
   {
     value: 'deberta-prompt-injection-v2',
-    label: 'DeBERTa v2 (Default)',
+    label: 'ProtectAI DeBERTa',
     description: 'BERT-based model trained for prompt injection detection',
   },
 ];
