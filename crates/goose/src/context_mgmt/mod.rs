@@ -92,15 +92,11 @@ pub async fn compact_messages(
 
     // Find and preserve the most recent user message for non-manual compacts
     let (preserved_user_message, is_most_recent) = if !manual_compact {
-        let found_msg = messages
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, msg)| {
-                msg.is_agent_visible()
-                    && matches!(msg.role, rmcp::model::Role::User)
-                    && has_text_only(msg)
-            });
+        let found_msg = messages.iter().enumerate().rev().find(|(_, msg)| {
+            msg.is_agent_visible()
+                && matches!(msg.role, rmcp::model::Role::User)
+                && has_text_only(msg)
+        });
 
         if let Some((idx, msg)) = found_msg {
             let is_last = idx == messages.len() - 1;
