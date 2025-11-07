@@ -6,7 +6,7 @@ use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_execution_tool::{
     lib::ExecutionMode,
-    task_types::{Task, TaskType},
+    task_types::{Task, TaskPayload},
 };
 use crate::agents::tool_execution::ToolCallResult;
 use crate::config::GooseMode;
@@ -82,9 +82,6 @@ pub struct TaskParameter {
     pub retry: Option<JsonObject>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<String>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<String>>,
 
     /// If true, return only the last message from the subagent (default: false, returns full conversation)
@@ -116,7 +113,7 @@ pub fn create_dynamic_task_tool() -> Tool {
 
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, activities. Arrays for multiple tasks.".to_string(),
         input_schema,
     ).annotate(ToolAnnotations {
         title: Some("Create Dynamic Tasks".to_string()),
@@ -228,7 +225,6 @@ pub fn task_params_to_inline_recipe(
     builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
     builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
     builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
-    builder = apply_if_ok(builder, task_param.get("context"), RecipeBuilder::context);
     builder = apply_if_ok(
         builder,
         task_param.get("activities"),
@@ -297,17 +293,6 @@ pub async fn create_dynamic_task(
         // All tasks must use the new inline recipe path
         match task_params_to_inline_recipe(task_param, &loaded_extensions) {
             Ok(recipe) => {
-                let recipe_json = match serde_json::to_value(&recipe) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        return ToolCallResult::from(Err(ErrorData {
-                            code: ErrorCode::INTERNAL_ERROR,
-                            message: Cow::from(format!("Failed to serialize recipe: {}", e)),
-                            data: None,
-                        }));
-                    }
-                };
-
                 // Extract return_last_only flag if present
                 let return_last_only = task_param
                     .get("return_last_only")
@@ -316,11 +301,12 @@ pub async fn create_dynamic_task(
 
                 let task = Task {
                     id: uuid::Uuid::new_v4().to_string(),
-                    task_type: TaskType::InlineRecipe,
-                    payload: json!({
-                        "recipe": recipe_json,
-                        "return_last_only": return_last_only
-                    }),
+                    payload: TaskPayload {
+                        recipe,
+                        return_last_only,
+                        sequential_when_repeated: false,
+                        parameter_values: None,
+                    },
                 };
                 tasks.push(task);
             }
