@@ -20,6 +20,7 @@ use url::Url;
 const WORKER_URL: &str = "https://cloudflare-tunnel-proxy.michael-neale.workers.dev";
 const IDLE_TIMEOUT_SECS: u64 = 600; // 10 minutes
 const RECONNECT_DELAY_MS: u64 = 100;
+const MAX_WS_SIZE: usize = 900_000; // we need to limit size of chunks specificially for websocket tunnelling
 
 type WebSocketSender = Arc<
     RwLock<
@@ -187,7 +188,6 @@ async fn handle_chunked_response(
     message_path: String,
     ws_tx: WebSocketSender,
 ) -> Result<()> {
-    const MAX_WS_SIZE: usize = 900_000;
     let total_chunks = body.len().div_ceil(MAX_WS_SIZE);
     info!(
         "← {} {} [{}] ({} bytes, {} chunks)",
@@ -281,7 +281,6 @@ async fn handle_request(
         .await?;
     } else {
         let body = response.text().await.unwrap_or_default();
-        const MAX_WS_SIZE: usize = 900_000;
 
         if body.len() > MAX_WS_SIZE {
             handle_chunked_response(body, status, headers_map, request_id, message.path, ws_tx)
