@@ -62,7 +62,6 @@ impl BedrockProvider {
         set_aws_env_vars(config.all_values());
         set_aws_env_vars(config.all_secrets());
 
-        // Validate credentials at initialization time by loading config and checking credentials
         let sdk_config = aws_config::load_from_env().await;
         sdk_config
             .credentials_provider()
