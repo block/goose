@@ -39,13 +39,13 @@ The diagnostics feature creates a comprehensive troubleshooting bundle that incl
 
     ```sh
     # Generate diagnostics for a specific session
-    goose session diagnostics --id <session_id>
+    goose session diagnostics --session-id <session_id>
 
     # Interactive selection (prompts you to choose a session)
     goose session diagnostics
 
     # Save to a custom location
-    goose session diagnostics --id <session_id> --output /path/to/diagnostics.zip
+    goose session diagnostics --session-id <session_id> --output /path/to/diagnostics.zip
     ```
 
     To find your session ID, first list available sessions:

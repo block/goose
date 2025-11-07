@@ -553,7 +553,7 @@ impl RequestLog {
     fn finish(&mut self) -> Result<()> {
         if let Some(mut writer) = self.writer.take() {
             writer.flush()?;
-            let logs_dir = crate::logging::prepare_log_directory("llm", true)?;
+            let logs_dir = Paths::in_state_dir("logs");
             let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
             for i in (0..LOGS_TO_KEEP - 1).rev() {

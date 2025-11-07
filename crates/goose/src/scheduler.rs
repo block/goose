@@ -1421,7 +1421,7 @@ mod tests {
             instructions: None,
             prompt: Some("This is a test prompt for a scheduled job.".to_string()),
             extensions: None,
-            context: None,
+
             activities: None,
             author: None,
             parameters: None,

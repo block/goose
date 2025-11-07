@@ -3,6 +3,7 @@ pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
 pub mod execution;
+pub mod hints;
 pub mod logging;
 pub mod mcp_utils;
 pub mod model;
