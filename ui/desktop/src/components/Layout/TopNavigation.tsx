@@ -44,7 +44,6 @@ const AnalogClock: React.FC = () => {
       const now = new Date();
       const hours = now.getHours() % 12;
       const minutes = now.getMinutes();
-      const seconds = now.getSeconds();
       
       // Increment second angle by 6 degrees each second
       setSecondAngle(prev => prev + 6);
