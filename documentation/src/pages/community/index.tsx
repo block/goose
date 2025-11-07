@@ -280,8 +280,8 @@ function CommunityContentSpotlightSection() {
             {/* Persistent Hacktoberfest CTA Card */}
             <HacktoberfestCTACard />
             
-            {filteredSubmissions.map((content, index) => (
-              <ContentCard key={index} content={content} />
+            {filteredSubmissions.map((content) => (
+              <ContentCard key={content.url} content={content} />
             ))}
           </div>
           
