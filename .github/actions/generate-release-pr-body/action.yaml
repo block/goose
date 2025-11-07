@@ -29,7 +29,7 @@ runs:
         PRIOR_REF: ${{ inputs.prior_ref }}
         TEMPLATE_FILE: "${{ github.action_path }}/pr_body_template.txt"
       run: |
-        git fetch origin --tags
+        git fetch origin "$HEAD_REF" "$PRIOR_REF"
 
         {
           sed -e "s/{{VERSION}}/${VERSION}/g" \
