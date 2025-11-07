@@ -470,8 +470,6 @@ const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
   ? 'test'
   : crypto.randomBytes(32).toString('hex');
 
-let globalGoosedPort = 0;
-
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
@@ -525,10 +523,6 @@ const createChat = async (
     port = newPort;
     workingDir = newWorkingDir;
     goosedProcess = newGoosedProcess;
-
-    if (globalGoosedPort === 0) {
-      globalGoosedPort = port;
-    }
   }
 
   // Create window config with loading state for recipe deeplinks
@@ -1233,10 +1227,10 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
-ipcMain.handle('start-tunnel', async () => {
+ipcMain.handle('start-tunnel', async (_event, port: number) => {
   try {
     const { startTunnel } = await import('./utils/tunnel');
-    const tunnelInfo = await startTunnel(globalGoosedPort, SERVER_SECRET);
+    const tunnelInfo = await startTunnel(port, SERVER_SECRET);
     return tunnelInfo;
   } catch (error) {
     console.error('Error starting tunnel:', error);
@@ -1244,20 +1238,20 @@ ipcMain.handle('start-tunnel', async () => {
   }
 });
 
-ipcMain.handle('stop-tunnel', async () => {
+ipcMain.handle('stop-tunnel', async (_event, port: number) => {
   try {
     const { stopTunnel } = await import('./utils/tunnel');
-    await stopTunnel(globalGoosedPort, SERVER_SECRET);
+    await stopTunnel(port, SERVER_SECRET);
   } catch (error) {
     console.error('Error stopping tunnel:', error);
     throw error;
   }
 });
 
-ipcMain.handle('get-tunnel-status', async () => {
+ipcMain.handle('get-tunnel-status', async (_event, port: number) => {
   try {
     const { syncTunnelStatus } = await import('./utils/tunnel');
-    return await syncTunnelStatus(globalGoosedPort, SERVER_SECRET);
+    return await syncTunnelStatus(port, SERVER_SECRET);
   } catch (error) {
     console.error('Error getting tunnel status:', error);
     return { state: 'error', info: null, auto_start: false };
