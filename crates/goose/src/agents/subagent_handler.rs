@@ -20,8 +20,9 @@ pub async fn run_complete_subagent_task(
     task_config: TaskConfig,
     return_last_only: bool,
     session_id: String,
+    schedule_id: Option<String>,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id)
+    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id, schedule_id)
         .await
         .map_err(|e| {
             ErrorData::new(
@@ -99,6 +100,7 @@ fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
     session_id: String,
+    schedule_id: Option<String>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
@@ -146,7 +148,7 @@ fn get_agent_messages(
         }
         let session_config = SessionConfig {
             id: session_id.clone(),
-            schedule_id: None,
+            schedule_id,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: recipe.retry,
         };
