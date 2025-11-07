@@ -11,7 +11,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::os::windows::io::{AsRawSocket, FromRawSocket};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
@@ -19,7 +19,6 @@ use url::Url;
 
 const WORKER_URL: &str = "https://cloudflare-tunnel-proxy.michael-neale.workers.dev";
 const IDLE_TIMEOUT_SECS: u64 = 600; // 10 minutes
-const RECONNECT_DELAY_MS: u64 = 100;
 const MAX_WS_SIZE: usize = 900_000; // we need to limit size of chunks for websocket tunnelling
 
 type WebSocketSender = Arc<
@@ -416,11 +415,11 @@ async fn cleanup_connection(
     }
 }
 
-async fn run_tunnel_loop(
+async fn run_single_connection(
     port: u16,
     agent_id: String,
     server_secret: String,
-    handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    restart_tx: mpsc::Sender<()>,
 ) {
     let worker_url =
         std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
@@ -430,72 +429,64 @@ async fn run_tunnel_loop(
 
     let url = format!("{}/connect?agent_id={}", ws_url, agent_id);
 
-    loop {
-        info!("Connecting to {}...", url);
+    info!("Connecting to {}...", url);
 
-        let ws_stream = match connect_async(url.clone()).await {
-            Ok((stream, _)) => {
-                configure_tcp_keepalive(&stream);
-                stream
-            }
-            Err(e) => {
-                error!("✗ WebSocket connection error: {}", e);
-                tokio::time::sleep(Duration::from_millis(RECONNECT_DELAY_MS)).await;
-                continue;
-            }
-        };
+    let ws_stream = match connect_async(url.clone()).await {
+        Ok((stream, _)) => {
+            configure_tcp_keepalive(&stream);
+            stream
+        }
+        Err(e) => {
+            error!("✗ WebSocket connection error: {}", e);
+            let _ = restart_tx.send(()).await;
+            return;
+        }
+    };
 
-        info!("✓ Connected as agent: {}", agent_id);
-        info!("✓ Proxying to: http://127.0.0.1:{}", port);
-        let public_url = format!("{}/tunnel/{}", worker_url, agent_id);
-        info!("✓ Public URL: {}", public_url);
+    info!("✓ Connected as agent: {}", agent_id);
+    info!("✓ Proxying to: http://127.0.0.1:{}", port);
+    let public_url = format!("{}/tunnel/{}", worker_url, agent_id);
+    info!("✓ Public URL: {}", public_url);
 
-        let (write, read) = ws_stream.split();
-        let ws_tx: WebSocketSender = Arc::new(RwLock::new(Some(write)));
-        let last_activity = Arc::new(RwLock::new(Instant::now()));
-        let active_tasks: Arc<RwLock<Vec<JoinHandle<()>>>> = Arc::new(RwLock::new(Vec::new()));
+    let (write, read) = ws_stream.split();
+    let ws_tx: WebSocketSender = Arc::new(RwLock::new(Some(write)));
+    let last_activity = Arc::new(RwLock::new(Instant::now()));
+    let active_tasks: Arc<RwLock<Vec<JoinHandle<()>>>> = Arc::new(RwLock::new(Vec::new()));
 
-        let last_activity_clone = last_activity.clone();
-        let idle_task = async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(60)).await;
-                let elapsed = last_activity_clone.read().await.elapsed();
-                if elapsed > Duration::from_secs(IDLE_TIMEOUT_SECS) {
-                    warn!(
-                        "No activity for {} minutes, forcing reconnect",
-                        IDLE_TIMEOUT_SECS / 60
-                    );
-                    break;
-                }
-            }
-        };
-
-        tokio::select! {
-            _ = idle_task => {
-                info!("✗ Idle timeout triggered, reconnecting...");
-            }
-            _ = handle_websocket_messages(
-                read,
-                ws_tx.clone(),
-                port,
-                server_secret.clone(),
-                last_activity,
-                active_tasks.clone()
-            ) => {
-                info!("✗ Connection ended");
+    let last_activity_clone = last_activity.clone();
+    let idle_task = async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let elapsed = last_activity_clone.read().await.elapsed();
+            if elapsed > Duration::from_secs(IDLE_TIMEOUT_SECS) {
+                warn!(
+                    "No activity for {} minutes, forcing reconnect",
+                    IDLE_TIMEOUT_SECS / 60
+                );
+                break;
             }
         }
+    };
 
-        cleanup_connection(ws_tx, active_tasks).await;
-
-        if handle.read().await.is_none() {
-            info!("Tunnel stopped, not reconnecting");
-            break;
+    tokio::select! {
+        _ = idle_task => {
+            info!("✗ Idle timeout triggered");
         }
-
-        info!("✗ Connection lost, reconnecting...");
-        tokio::time::sleep(Duration::from_millis(RECONNECT_DELAY_MS)).await;
+        _ = handle_websocket_messages(
+            read,
+            ws_tx.clone(),
+            port,
+            server_secret.clone(),
+            last_activity,
+            active_tasks.clone()
+        ) => {
+            info!("✗ Connection ended");
+        }
     }
+
+    cleanup_connection(ws_tx, active_tasks).await;
+
+    let _ = restart_tx.send(()).await;
 }
 
 pub async fn start(
@@ -504,6 +495,7 @@ pub async fn start(
     server_secret: String,
     agent_id: String,
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    restart_tx: mpsc::Sender<()>,
 ) -> Result<TunnelInfo> {
     let worker_url =
         std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
@@ -514,10 +506,9 @@ pub async fn start(
 
     let agent_id_clone = agent_id.clone();
     let server_secret_clone = server_secret;
-    let handle_clone = handle.clone();
 
     let task = tokio::spawn(async move {
-        run_tunnel_loop(port, agent_id_clone, server_secret_clone, handle_clone).await;
+        run_single_connection(port, agent_id_clone, server_secret_clone, restart_tx).await;
     });
 
     *handle.write().await = Some(task);
