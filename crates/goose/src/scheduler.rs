@@ -803,15 +803,22 @@ mod tests {
     use tempfile::tempdir;
     use tokio::time::{sleep, Duration};
 
+    fn create_test_recipe(dir: &Path, name: &str) -> PathBuf {
+        let recipe_path = dir.join(format!("{}.yaml", name));
+        fs::write(&recipe_path, "prompt: test\n").unwrap();
+        recipe_path
+    }
+
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedules.json");
+        let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 
         let job = ScheduledJob {
             id: "scheduled_job".to_string(),
-            source: String::new(),
+            source: recipe_path.to_string_lossy().to_string(),
             cron: "* * * * * *".to_string(),
             last_run: None,
             currently_running: false,
@@ -831,11 +838,12 @@ mod tests {
     async fn test_paused_job_does_not_run() {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedules.json");
+        let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 
         let job = ScheduledJob {
             id: "paused_job".to_string(),
-            source: String::new(),
+            source: recipe_path.to_string_lossy().to_string(),
             cron: "* * * * * *".to_string(),
             last_run: None,
             currently_running: false,
