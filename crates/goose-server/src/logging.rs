@@ -37,6 +37,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with_target(true)
         .with_level(true)
         .with_file(true)
+        .with_ansi(false)
         .with_line_number(true)
         .pretty();
 

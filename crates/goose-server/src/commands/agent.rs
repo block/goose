@@ -28,8 +28,9 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
-    // Initialize logging and telemetry
     crate::logging::setup_logging(Some("goosed"))?;
+
+    let settings = configuration::Settings::new()?;
 
     if let Err(e) = initialize_pricing_cache().await {
         tracing::warn!(
@@ -55,7 +56,9 @@ pub async fn run() -> Result<()> {
         ))
         .layer(cors);
 
-    panic!("Hello world");
+    if 4 / 2 == 2 {
+        panic!("Hello world")
+    };
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);

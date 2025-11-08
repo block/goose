@@ -29,9 +29,13 @@ export const checkServerStatus = async (client: Client, errorLog: string[]): Pro
   const interval = 100; // ms
   const maxAttempts = 300; // 3s
 
+  const fatal = (line: string) => {
+    const trimmed = line.trim().toLowerCase();
+    return trimmed.startsWith("thread 'main' panicked at") || trimmed.startsWith('error:');
+  };
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const hasFatalError = errorLog.some((line) => line.trim().toLowerCase().startsWith('error:'));
-    if (hasFatalError) {
+    if (errorLog.some(fatal)) {
       log.error('Detected fatal error in server logs');
       return false;
     }
