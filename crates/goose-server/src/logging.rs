@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
@@ -20,11 +20,8 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
     } else {
         format!("{}.log", timestamp)
     };
-    let file_appender = tracing_appender::rolling::RollingFileAppender::new(
-        Rotation::NEVER, // we do manual rotation via file naming and cleanup_old_logs
-        log_dir,
-        log_filename,
-    );
+    let file_appender =
+        tracing_appender::rolling::RollingFileAppender::new(Rotation::NEVER, log_dir, log_filename);
 
     // Create JSON file logging layer
     let file_layer = fmt::layer()
@@ -39,7 +36,6 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with_writer(std::io::stderr)
         .with_target(true)
         .with_level(true)
-        .with_ansi(true)
         .with_file(true)
         .with_line_number(true)
         .pretty();
@@ -89,9 +85,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
 
     let subscriber = Registry::default().with(layers);
 
-    subscriber
-        .try_init()
-        .context("Failed to set global subscriber")?;
+    subscriber.try_init()?;
 
     Ok(())
 }

@@ -2,7 +2,6 @@ import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
@@ -11,7 +10,6 @@ import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client } from './api/client';
 
-// Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {
     const server = createServer();
@@ -27,11 +25,16 @@ export const findAvailablePort = (): Promise<number> => {
 };
 
 // Check if goosed server is ready by polling the status endpoint
-export const checkServerStatus = async (client: Client): Promise<boolean> => {
+export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
   const interval = 100; // ms
-  const maxAttempts = 1200; // 120s
+  const maxAttempts = 300; // 3s
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const hasFatalError = errorLog.some((line) => line.trim().toLowerCase().startsWith('error:'));
+    if (hasFatalError) {
+      log.error('Detected fatal error in server logs');
+      return false;
+    }
     try {
       await status({ client, throwOnError: true });
       return true;
@@ -48,7 +51,7 @@ export const checkServerStatus = async (client: Client): Promise<boolean> => {
 const connectToExternalBackend = async (
   workingDir: string,
   port: number = 3000
-): Promise<[number, string, ChildProcess]> => {
+): Promise<[number, string, ChildProcess, string[]]> => {
   log.info(`Using external goosed backend on port ${port}`);
 
   const mockProcess = {
@@ -58,7 +61,7 @@ const connectToExternalBackend = async (
     },
   } as ChildProcess;
 
-  return [port, workingDir, mockProcess];
+  return [port, workingDir, mockProcess, []];
 };
 
 interface GooseProcessEnv {
@@ -76,32 +79,15 @@ interface GooseProcessEnv {
 export const startGoosed = async (
   app: App,
   serverSecret: string,
-  dir: string | null = null,
+  dir: string,
   env: Partial<GooseProcessEnv> = {}
-): Promise<[number, string, ChildProcess]> => {
-  const homeDir = os.homedir();
+): Promise<[number, string, ChildProcess, string[]]> => {
   const isWindows = process.platform === 'win32';
-
-  if (!dir) {
-    dir = homeDir;
-  }
-
+  const homeDir = os.homedir();
   dir = path.resolve(path.normalize(dir));
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     return connectToExternalBackend(dir, 3000);
-  }
-
-  try {
-    const stats = fs.lstatSync(dir);
-
-    if (!stats.isDirectory()) {
-      log.warn(`Provided path is not a directory, falling back to home directory`);
-      dir = homeDir;
-    }
-  } catch {
-    log.warn(`Directory does not exist, falling back to home directory`);
-    dir = homeDir;
   }
 
   let goosedPath = getBinaryPath(app, 'goosed');
@@ -109,6 +95,7 @@ export const startGoosed = async (
   const resolvedGoosedPath = path.resolve(goosedPath);
 
   const port = await findAvailablePort();
+  const stderrLines: string[] = [];
 
   log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
 
@@ -183,7 +170,14 @@ export const startGoosed = async (
   });
 
   goosedProcess.stderr?.on('data', (data: Buffer) => {
-    log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
+    const lines = data
+      .toString()
+      .split('\n')
+      .filter((l) => l.trim());
+    lines.forEach((line) => {
+      log.error(`goosed stderr for port ${port} and dir ${dir}: ${line}`);
+      stderrLines.push(line);
+    });
   });
 
   goosedProcess.on('close', (code: number | null) => {
@@ -215,5 +209,5 @@ export const startGoosed = async (
   });
 
   log.info(`Goosed server successfully started on port ${port}`);
-  return [port, dir, goosedProcess];
+  return [port, dir, goosedProcess, stderrLines];
 };
