@@ -1347,40 +1347,56 @@ ipcMain.handle('get-wakelock-state', () => {
     return false;
   }
 });
+let fileDialogOpen = false;
 
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
-  const dialogOptions: OpenDialogOptions = {
-    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  };
+  // Prevent multiple simultaneous dialogs
+  if (fileDialogOpen) {
+    return null;
+  }
 
-  // Set default path if provided
-  if (defaultPath) {
-    // Expand tilde to home directory
-    const expandedPath = expandTilde(defaultPath);
+  fileDialogOpen = true;
 
-    // Check if the path exists
-    try {
-      const stats = await fs.stat(expandedPath);
-      if (stats.isDirectory()) {
-        dialogOptions.defaultPath = expandedPath;
-      } else {
-        dialogOptions.defaultPath = path.dirname(expandedPath);
+  try {
+    const dialogOptions: OpenDialogOptions = {
+      properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
+    };
+
+    // Set default path if provided
+    if (defaultPath) {
+      // Expand tilde to home directory
+      const expandedPath = expandTilde(defaultPath);
+
+      // Check if the path exists
+      try {
+        const stats = await fs.stat(expandedPath);
+        if (stats.isDirectory()) {
+          dialogOptions.defaultPath = expandedPath;
+        } else {
+          dialogOptions.defaultPath = path.dirname(expandedPath);
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (error) {
+        // If path doesn't exist, fall back to home directory and log error
+        console.error(
+          `Default path does not exist: ${expandedPath}, falling back to home directory`
+        );
+        dialogOptions.defaultPath = os.homedir();
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      // If path doesn't exist, fall back to home directory and log error
-      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
-      dialogOptions.defaultPath = os.homedir();
     }
-  }
 
-  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
+    const result = (await dialog.showOpenDialog(
+      dialogOptions
+    )) as unknown as OpenDialogReturnValue;
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  } finally {
+    fileDialogOpen = false;
   }
-  return null;
 });
 
 // IPC handler to save data URL to a temporary file
