@@ -17,6 +17,7 @@ use thiserror::Error;
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
+pub const CONFIG_YAML_NAME: &str = "config.yaml";
 
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
@@ -119,9 +120,7 @@ impl Default for Config {
     fn default() -> Self {
         let config_dir = Paths::config_dir();
 
-        std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
-
-        let config_path = config_dir.join("config.yaml");
+        let config_path = config_dir.join(CONFIG_YAML_NAME);
 
         let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
             Ok(_) => SecretStorage::File {
@@ -433,7 +432,6 @@ impl Config {
         // Convert to YAML for storage
         let yaml_value = serde_yaml::to_string(&values)?;
 
-        // Ensure the directory exists
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;

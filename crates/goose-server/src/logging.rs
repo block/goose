@@ -31,7 +31,15 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with_ansi(false)
         .with_file(true);
 
-    // Create console logging layer for development - INFO and above only
+    let base_env_filer = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("")
+            .add_directive("mcp_client=info".parse().unwrap())
+            .add_directive("goose=debug".parse().unwrap())
+            .add_directive("goose_server=info".parse().unwrap())
+            .add_directive("tower_http=info".parse().unwrap())
+            .add_directive(LevelFilter::WARN.into())
+    });
+
     let console_layer = fmt::layer()
         .with_writer(std::io::stderr)
         .with_target(true)
@@ -41,25 +49,9 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with_line_number(true)
         .pretty();
 
-    // Base filter for all logging
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        // Set default levels for different modules
-        EnvFilter::new("")
-            // Set mcp-client to DEBUG
-            .add_directive("mcp_client=debug".parse().unwrap())
-            // Set goose module to DEBUG
-            .add_directive("goose=debug".parse().unwrap())
-            // Set goose-server to INFO
-            .add_directive("goose_server=info".parse().unwrap())
-            // Set tower-http to INFO for request logging
-            .add_directive("tower_http=info".parse().unwrap())
-            // Set everything else to WARN
-            .add_directive(LevelFilter::WARN.into())
-    });
-
     let mut layers = vec![
-        file_layer.with_filter(env_filter).boxed(),
-        console_layer.with_filter(LevelFilter::INFO).boxed(),
+        file_layer.with_filter(base_env_filer.clone()).boxed(),
+        console_layer.with_filter(base_env_filer).boxed(),
     ];
 
     if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) = otlp_layer::init_otlp() {
