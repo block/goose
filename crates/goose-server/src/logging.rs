@@ -31,7 +31,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with_ansi(false)
         .with_file(true);
 
-    let base_env_filer = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+    let base_env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new("")
             .add_directive("mcp_client=info".parse().unwrap())
             .add_directive("goose=debug".parse().unwrap())
@@ -50,8 +50,8 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .pretty();
 
     let mut layers = vec![
-        file_layer.with_filter(base_env_filer.clone()).boxed(),
-        console_layer.with_filter(base_env_filer).boxed(),
+        file_layer.with_filter(base_env_filter.clone()).boxed(),
+        console_layer.with_filter(base_env_filter).boxed(),
     ];
 
     if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) = otlp_layer::init_otlp() {

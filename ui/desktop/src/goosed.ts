@@ -27,7 +27,7 @@ export const findAvailablePort = (): Promise<number> => {
 // Check if goosed server is ready by polling the status endpoint
 export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
   const interval = 100; // ms
-  const maxAttempts = 300; // 3s
+  const maxAttempts = 30; // 3s
 
   const fatal = (line: string) => {
     const trimmed = line.trim().toLowerCase();

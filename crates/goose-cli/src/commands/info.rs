@@ -61,10 +61,12 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     println!("{}", style("Paths:").cyan().bold());
     for (label, path) in &paths {
-        let status = check_path_status(path);
-        print!("{:<label_padding$}", label);
-        print!("{:<path_padding$}", path.display());
-        println!("{}", status);
+        println!(
+            "{:<label_padding$}{:<path_padding$}{}",
+            label,
+            path.display(),
+            check_path_status(path)
+        );
     }
 
     if verbose {
