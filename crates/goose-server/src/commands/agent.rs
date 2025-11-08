@@ -56,10 +56,6 @@ pub async fn run() -> Result<()> {
         ))
         .layer(cors);
 
-    if 4 / 2 == 2 {
-        panic!("Hello world")
-    };
-
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);
 
