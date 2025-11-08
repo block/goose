@@ -33,9 +33,7 @@ import {
   EnvToggles,
   loadSettings,
   saveSettings,
-  SchedulingEngine,
   updateEnvironmentVariables,
-  updateSchedulingEngineEnvironment,
 } from './utils/settings';
 import * as crypto from 'crypto';
 // import electron from "electron";
@@ -504,12 +502,7 @@ const createChat = async (
 ) => {
   updateEnvironmentVariables(envToggles);
 
-  // Apply scheduling engine setting
-  const settings = loadSettings();
-  updateSchedulingEngineEnvironment(settings.schedulingEngine);
-
   const envVars = {
-    GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
   };
   const [port, workingDir, goosedProcess, errorLog] = await startGoosed(
@@ -1150,22 +1143,6 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
     return null;
   }
   return client.getConfig().baseUrl || null;
-});
-
-ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
-  try {
-    const settings = loadSettings();
-    settings.schedulingEngine = engine as SchedulingEngine;
-    saveSettings(settings);
-
-    // Update the environment variable immediately
-    updateSchedulingEngineEnvironment(settings.schedulingEngine);
-
-    return true;
-  } catch (error) {
-    console.error('Error setting scheduling engine:', error);
-    return false;
-  }
 });
 
 // Handle menu bar icon visibility
