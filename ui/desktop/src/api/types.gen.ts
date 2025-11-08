@@ -90,7 +90,6 @@ export type CreateRecipeResponse = {
 
 export type CreateScheduleRequest = {
     cron: string;
-    execution_mode?: string | null;
     id: string;
     recipe_source: string;
 };
@@ -732,7 +731,7 @@ export type SessionListResponse = {
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
-    limit?: number;
+    limit: number;
 };
 
 export type SetProviderRequest = {
@@ -2209,8 +2208,8 @@ export type SessionsHandlerData = {
          */
         id: string;
     };
-    query?: {
-        limit?: number;
+    query: {
+        limit: number;
     };
     url: '/schedule/{id}/sessions';
 };

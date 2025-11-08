@@ -40,9 +40,9 @@ mod tests {
                 Ok(())
             }
 
-            async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
+            async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
                 let jobs = self.jobs.lock().await;
-                Ok(jobs.clone())
+                jobs.clone()
             }
 
             async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {

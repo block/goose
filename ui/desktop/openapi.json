@@ -1672,10 +1672,9 @@
           {
             "name": "limit",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "integer",
-              "format": "int32",
               "minimum": 0
             }
           }
@@ -2352,10 +2351,6 @@
         "properties": {
           "cron": {
             "type": "string"
-          },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
           },
           "id": {
             "type": "string"
@@ -4400,10 +4395,12 @@
       },
       "SessionsQuery": {
         "type": "object",
+        "required": [
+          "limit"
+        ],
         "properties": {
           "limit": {
             "type": "integer",
-            "format": "int32",
             "minimum": 0
           }
         }
