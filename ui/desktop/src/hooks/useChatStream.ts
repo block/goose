@@ -185,6 +185,8 @@ export function useChatStream({
     accumulatedInputTokens: 0,
     accumulatedOutputTokens: 0,
     accumulatedTotalTokens: 0,
+    accumulatedCacheReadInputTokens: 0,
+    accumulatedCacheWriteInputTokens: 0,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
 

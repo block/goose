@@ -207,6 +207,8 @@ export function useMessageStream({
     accumulatedInputTokens: 0,
     accumulatedOutputTokens: 0,
     accumulatedTotalTokens: 0,
+    accumulatedCacheReadInputTokens: 0,
+    accumulatedCacheWriteInputTokens: 0,
   });
 
   // expose a way to update the body so we can update the session id when CLE occurs

@@ -363,6 +363,14 @@ impl Agent {
             accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
         let accumulated_output =
             accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+        let accumulated_cache_read = accumulate(
+            session.accumulated_cache_read_input_tokens,
+            usage.usage.cache_read_input_tokens,
+        );
+        let accumulated_cache_write = accumulate(
+            session.accumulated_cache_write_input_tokens,
+            usage.usage.cache_write_input_tokens,
+        );
 
         let (current_total, current_input, current_output) = if is_compaction_usage {
             // After compaction: summary output becomes new input context
@@ -384,6 +392,8 @@ impl Agent {
             .accumulated_total_tokens(accumulated_total)
             .accumulated_input_tokens(accumulated_input)
             .accumulated_output_tokens(accumulated_output)
+            .accumulated_cache_read_input_tokens(accumulated_cache_read)
+            .accumulated_cache_write_input_tokens(accumulated_cache_write)
             .apply()
             .await?;
 

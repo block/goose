@@ -130,6 +130,8 @@ function BaseChatContent({
     sessionTokenCount,
     sessionInputTokens,
     sessionOutputTokens,
+    sessionCacheReadTokens,
+    sessionCacheWriteTokens,
     localInputTokens,
     localOutputTokens,
     tokenState,
@@ -216,8 +218,12 @@ function BaseChatContent({
   const { sessionCosts } = useCostTracking({
     sessionInputTokens,
     sessionOutputTokens,
+    sessionCacheReadTokens,
+    sessionCacheWriteTokens,
     localInputTokens,
     localOutputTokens,
+    localCacheReadTokens: 0,
+    localCacheWriteTokens: 0,
     session: sessionMetadata,
   });
 
@@ -449,6 +455,10 @@ function BaseChatContent({
             }
             accumulatedOutputTokens={
               tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
+            }
+            cacheReadTokens={tokenState?.accumulatedCacheReadInputTokens || sessionCacheReadTokens}
+            cacheWriteTokens={
+              tokenState?.accumulatedCacheWriteInputTokens || sessionCacheWriteTokens
             }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing

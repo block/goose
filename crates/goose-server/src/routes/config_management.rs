@@ -396,6 +396,8 @@ pub struct PricingData {
     pub model: String,
     pub input_token_cost: f64,
     pub output_token_cost: f64,
+    pub cache_read_input_token_cost: Option<f64>,
+    pub cache_write_input_token_cost: Option<f64>,
     pub currency: String,
     pub context_length: Option<u32>,
 }
@@ -445,6 +447,8 @@ pub async fn get_pricing(
                     model: model.clone(),
                     input_token_cost: pricing.input_cost,
                     output_token_cost: pricing.output_cost,
+                    cache_read_input_token_cost: pricing.cache_read_cost,
+                    cache_write_input_token_cost: pricing.cache_write_cost,
                     currency: "$".to_string(),
                     context_length: pricing.context_length,
                 });
@@ -479,6 +483,8 @@ pub async fn get_pricing(
                         model: model_info.name.clone(),
                         input_token_cost: pricing.input_cost,
                         output_token_cost: pricing.output_cost,
+                        cache_read_input_token_cost: pricing.cache_read_cost,
+                        cache_write_input_token_cost: pricing.cache_write_cost,
                         currency: "$".to_string(),
                         context_length: pricing.context_length,
                     });

@@ -350,6 +350,10 @@ pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
         Some(usage.output_tokens),
         Some(usage.total_tokens),
     )
+    .with_cache_tokens(
+        usage.cache_read_input_tokens,
+        usage.cache_write_input_tokens,
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {

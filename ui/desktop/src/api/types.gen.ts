@@ -679,6 +679,8 @@ export type ScheduledJob = {
 };
 
 export type Session = {
+    accumulated_cache_read_input_tokens?: number | null;
+    accumulated_cache_write_input_tokens?: number | null;
     accumulated_input_tokens?: number | null;
     accumulated_output_tokens?: number | null;
     accumulated_total_tokens?: number | null;
@@ -802,6 +804,8 @@ export type ThinkingContent = {
 };
 
 export type TokenState = {
+    accumulatedCacheReadInputTokens: number;
+    accumulatedCacheWriteInputTokens: number;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedTotalTokens: number;
