@@ -33,7 +33,6 @@ use tokio_util::sync::CancellationToken;
 
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
-use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
 use super::shell::{
     configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
 };
@@ -246,17 +245,6 @@ impl ServerHandler for DeveloperServer {
             }
         };
 
-        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), GOOSE_HINTS_FILENAME.to_string()]);
-
-        // Build ignore patterns for file reference processing
-        let ignore_patterns = Self::build_ignore_patterns(&cwd);
-
-        // Load hints using the centralized function
-        let hints = load_hint_files(&cwd, &hints_filenames, &ignore_patterns);
-
         // Check if editor model exists and augment with custom llm editor tool description
         let editor_description = if let Some(ref editor) = self.editor_model {
             formatdoc! {r#"
@@ -373,12 +361,7 @@ impl ServerHandler for DeveloperServer {
             _ => format!("{}{}", common_shell_instructions, unix_specific),
         };
 
-        // Return base instructions directly when no hints are found
-        let instructions = if hints.is_empty() {
-            format!("{base_instructions}{editor_description}\n{shell_tool_desc}")
-        } else {
-            format!("{base_instructions}\n{editor_description}\n{shell_tool_desc}\n{hints}")
-        };
+        let instructions = format!("{base_instructions}{editor_description}\n{shell_tool_desc}");
 
         ServerInfo {
             server_info: Implementation {
@@ -3395,161 +3378,6 @@ mod tests {
             !server.is_ignored(Path::new("normal.txt")),
             "normal.txt should not be ignored"
         );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_global_goosehints() {
-        // Note: This test checks if ~/.config/goose/.goosehints exists and includes it in instructions
-        // Since RMCP version uses get_info() instead of instructions(), we test that method
-        let global_hints_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let global_hints_bak_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
-        let mut globalhints_existed = false;
-
-        if global_hints_path.is_file() {
-            globalhints_existed = true;
-            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
-        }
-
-        fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
-
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("my global goose hints."));
-
-        // restore backup if globalhints previously existed
-        if globalhints_existed {
-            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-            fs::remove_file(&global_hints_bak_path).unwrap();
-        } else {
-            fs::remove_file(&global_hints_path).unwrap();
-        }
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_with_file_references() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create referenced files
-        let readme_path = temp_dir.path().join("README.md");
-        std::fs::write(
-            &readme_path,
-            "# Project README\n\nThis is the project documentation.",
-        )
-        .unwrap();
-
-        let guide_path = temp_dir.path().join("guide.md");
-        std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
-
-        // Create .goosehints with references
-        let hints_content = r#"# Project Information
-
-Please refer to:
-@README.md
-@guide.md
-
-Additional instructions here.
-"#;
-        let hints_path = temp_dir.path().join(".goosehints");
-        std::fs::write(&hints_path, hints_content).unwrap();
-
-        // Create server and check instructions
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-
-        // Should contain the .goosehints content
-        assert!(instructions.contains("Project Information"));
-        assert!(instructions.contains("Additional instructions here"));
-
-        // Should contain the referenced files' content
-        assert!(instructions.contains("# Project README"));
-        assert!(instructions.contains("This is the project documentation"));
-        assert!(instructions.contains("# Development Guide"));
-        assert!(instructions.contains("Follow these steps"));
-
-        // Should have attribution markers
-        assert!(instructions.contains("--- Content from"));
-        assert!(instructions.contains("--- End of"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_when_present() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        fs::write(".goosehints", "Test hint content").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Test hint content"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_when_missing() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        // When no hints are present, instructions should not contain hint content
-        assert!(!instructions.contains("AGENTS.md:") && !instructions.contains(".goosehints:"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_multiple_filenames() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
-
-        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
-        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
-        assert!(instructions.contains("Custom hints file content from .goosehints"));
-        std::env::remove_var("CONTEXT_FILE_NAMES");
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_configurable_filename() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
-
-        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Custom hints file content"));
-        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
-        std::env::remove_var("CONTEXT_FILE_NAMES");
     }
 
     #[test]

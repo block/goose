@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use std::fmt;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
+use crate::recipe::Recipe;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -16,59 +17,19 @@ pub enum ExecutionMode {
     Parallel,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskType {
-    InlineRecipe,
-    SubRecipe,
-}
-
-impl fmt::Display for TaskType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TaskType::InlineRecipe => write!(f, "inline_recipe"),
-            TaskType::SubRecipe => write!(f, "sub_recipe"),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskPayload {
+    pub recipe: Recipe,
+    pub return_last_only: bool,
+    pub sequential_when_repeated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_values: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
-    pub task_type: TaskType,
-    pub payload: Value,
-}
-
-impl Task {
-    pub fn get_sub_recipe(&self) -> Option<&Map<String, Value>> {
-        matches!(self.task_type, TaskType::SubRecipe)
-            .then(|| self.payload.get("sub_recipe")?.as_object())
-            .flatten()
-    }
-
-    pub fn get_command_parameters(&self) -> Option<&Map<String, Value>> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("command_parameters"))
-            .and_then(|cp| cp.as_object())
-    }
-
-    pub fn get_sequential_when_repeated(&self) -> bool {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("sequential_when_repeated").and_then(|v| v.as_bool()))
-            .unwrap_or_default()
-    }
-
-    pub fn get_sub_recipe_name(&self) -> Option<&str> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("name"))
-            .and_then(|name| name.as_str())
-    }
-
-    pub fn get_sub_recipe_path(&self) -> Option<&str> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("recipe_path"))
-            .and_then(|path| path.as_str())
-    }
+    pub payload: TaskPayload,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

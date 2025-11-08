@@ -74,6 +74,7 @@ pub fn get_input(
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
+            rustyline::error::ReadlineError::Eof => return Ok(InputResult::Exit),
             _ => return Err(e.into()),
         },
     };

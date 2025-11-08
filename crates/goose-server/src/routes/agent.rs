@@ -3,6 +3,7 @@ use crate::routes::recipe_utils::{
     apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
 };
 use crate::state::AppState;
+use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -399,36 +400,42 @@ async fn get_tools(
 async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<(), impl IntoResponse> {
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
-        .await?;
+        .await
+        .map_err(|e| (e, "No agent for session id".to_owned()))?;
 
     let config = Config::global();
     let model = match payload.model.or_else(|| config.get_goose_model().ok()) {
         Some(m) => m,
         None => {
-            tracing::error!("No model specified");
-            return Err(StatusCode::BAD_REQUEST);
+            return Err((StatusCode::BAD_REQUEST, "No model specified".to_owned()));
         }
     };
 
     let model_config = ModelConfig::new(&model).map_err(|e| {
-        tracing::error!("Invalid model config: {}", e);
-        StatusCode::BAD_REQUEST
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid model config: {}", e),
+        )
     })?;
 
     let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
-        tracing::error!("Failed to create provider: {}", e);
-        StatusCode::BAD_REQUEST
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create {} provider: {}", &payload.provider, e),
+        )
     })?;
 
     agent.update_provider(new_provider).await.map_err(|e| {
-        tracing::error!("Failed to update provider: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to update provider: {}", e),
+        )
     })?;
 
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 #[utoipa::path(

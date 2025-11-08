@@ -32,6 +32,10 @@ export type ChatRequest = {
     session_id: string;
 };
 
+export type CheckProviderRequest = {
+    provider: string;
+};
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -373,6 +377,7 @@ export type MessageEvent = {
     type: 'Error';
 } | {
     reason: string;
+    token_state: TokenState;
     type: 'Finish';
 } | {
     mode: string;
@@ -546,7 +551,6 @@ export type RawTextContent = {
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
-    context?: Array<string> | null;
     description: string;
     extensions?: Array<ExtensionConfig> | null;
     instructions?: string | null;
@@ -728,6 +732,11 @@ export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
 
 export type SessionsQuery = {
     limit: number;
+};
+
+export type SetProviderRequest = {
+    model: string;
+    provider: string;
 };
 
 export type Settings = {
@@ -1211,6 +1220,13 @@ export type BackupConfigResponses = {
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
+export type CheckProviderData = {
+    body: CheckProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/check_provider';
+};
+
 export type CreateCustomProviderData = {
     body: UpdateCustomProviderRequest;
     path?: never;
@@ -1576,6 +1592,13 @@ export type RemoveConfigResponses = {
 };
 
 export type RemoveConfigResponse = RemoveConfigResponses[keyof RemoveConfigResponses];
+
+export type SetConfigProviderData = {
+    body: SetProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/set_provider';
+};
 
 export type UpsertConfigData = {
     body: UpsertConfigQuery;
