@@ -55,6 +55,7 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
+    supports_tool_calling: bool,
     name: String,
 }
 
@@ -78,6 +79,11 @@ impl OpenAiProvider {
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
+        let supports_tool_calling: bool = config
+            .get_param("OPENAI_SUPPORTS_TOOL_CALLING")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
 
         let auth = AuthMethod::BearerToken(api_key);
         let mut api_client =
@@ -109,6 +115,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
+            supports_tool_calling,
             name: Self::metadata().name,
         })
     }
@@ -123,6 +130,7 @@ impl OpenAiProvider {
             model,
             custom_headers: None,
             supports_streaming: true,
+            supports_tool_calling: true,
             name: Self::metadata().name,
         }
     }
@@ -180,6 +188,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_tool_calling: config.supports_tool_calling.unwrap_or(true),
             name: config.name.clone(),
         })
     }
@@ -215,6 +224,7 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("OPENAI_SUPPORTS_TOOL_CALLING", false, false, Some("true")),
             ],
         )
     }
@@ -238,31 +248,67 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        if self.supports_tool_calling || tools.is_empty() {
+            let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let json_response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(&payload_clone).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            let mut log = RequestLog::start(&self.model, &payload)?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post(&payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
 
-        let message = response_to_message(&json_response)?;
-        let usage = json_response
-            .get("usage")
-            .map(get_usage)
-            .unwrap_or_else(|| {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            });
+            let message = response_to_message(&json_response)?;
+            let usage = json_response
+                .get("usage")
+                .map(get_usage)
+                .unwrap_or_else(|| {
+                    tracing::debug!("Failed to get usage data");
+                    Usage::default()
+                });
 
-        let model = get_model(&json_response);
-        log.write(&json_response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(model, usage)))
+            let model = get_model(&json_response);
+            log.write(&json_response, Some(&usage))?;
+            Ok((message, ProviderUsage::new(model, usage)))
+        } else {
+            use super::toolshim::{augment_message_with_tool_calls, convert_tool_messages_to_text, modify_system_prompt_for_tool_json, OllamaInterpreter};
+
+            let converted_messages = convert_tool_messages_to_text(messages);
+            let modified_system = modify_system_prompt_for_tool_json(system, tools);
+            let payload = create_request(model_config, &modified_system, converted_messages.messages(), &[], &ImageFormat::OpenAi)?;
+
+            let mut log = RequestLog::start(&self.model, &payload)?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post(&payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            let mut message = response_to_message(&json_response)?;
+            let usage = json_response
+                .get("usage")
+                .map(get_usage)
+                .unwrap_or_else(|| {
+                    tracing::debug!("Failed to get usage data");
+                    Usage::default()
+                });
+
+            let model = get_model(&json_response);
+            log.write(&json_response, Some(&usage))?;
+
+            let interpreter = OllamaInterpreter::new()?;
+            message = augment_message_with_tool_calls(&interpreter, message, tools).await?;
+
+            Ok((message, ProviderUsage::new(model, usage)))
+        }
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
@@ -319,6 +365,12 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        if !self.supports_tool_calling && !tools.is_empty() {
+            use super::base::stream_from_single_message;
+            let (message, usage) = self.complete_with_model(&self.model, system, messages, tools).await?;
+            return Ok(stream_from_single_message(message, usage));
+        }
+
         let mut payload =
             create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
         payload["stream"] = serde_json::Value::Bool(true);
