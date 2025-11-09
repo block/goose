@@ -14,17 +14,17 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 use std::time::Duration;
-use std::collections::HashSet;
 use sysinfo::System;
 
 // Global registry of llama-server PIDs that must be killed on process exit
 static LLAMA_SERVER_PIDS: LazyLock<StdMutex<HashSet<u32>>> = LazyLock::new(|| {
     let registry = StdMutex::new(HashSet::new());
-    
+
     // Register cleanup handler to kill all llama-servers on exit
     let _ = std::panic::catch_unwind(|| {
         extern "C" fn cleanup_llama_servers() {
@@ -48,7 +48,7 @@ static LLAMA_SERVER_PIDS: LazyLock<StdMutex<HashSet<u32>>> = LazyLock::new(|| {
             libc::atexit(cleanup_llama_servers);
         }
     });
-    
+
     registry
 });
 use tokio::pin;
@@ -663,7 +663,7 @@ impl ServerProcess {
                     if libc::setpgid(0, 0) != 0 {
                         return Err(std::io::Error::last_os_error());
                     }
-                    
+
                     #[cfg(target_os = "linux")]
                     {
                         // On Linux, ensure child dies when parent dies
@@ -757,7 +757,7 @@ impl Drop for ServerProcess {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
             let pid = child.id();
-            
+
             tracing::warn!(
                 "Dropping ServerProcess - MUST kill llama-server PID {:?} on port {}",
                 pid,
@@ -771,22 +771,30 @@ impl Drop for ServerProcess {
                     // Kill the entire process group - SIGTERM first
                     let result = unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
                     if result != 0 {
-                        tracing::error!("Failed to send SIGTERM to process group {}: errno {}", pid, result);
+                        tracing::error!(
+                            "Failed to send SIGTERM to process group {}: errno {}",
+                            pid,
+                            result
+                        );
                     } else {
                         tracing::info!("Sent SIGTERM to process group {}", pid);
                     }
-                    
+
                     // Give it time to shut down gracefully
                     std::thread::sleep(std::time::Duration::from_millis(500));
-                    
+
                     // Force kill with SIGKILL to ensure it's dead
                     let result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
                     if result != 0 {
-                        tracing::error!("Failed to send SIGKILL to process group {}: errno {}", pid, result);
+                        tracing::error!(
+                            "Failed to send SIGKILL to process group {}: errno {}",
+                            pid,
+                            result
+                        );
                     } else {
                         tracing::info!("Sent SIGKILL to process group {}", pid);
                     }
-                    
+
                     // Wait a moment for the kill to take effect
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
@@ -802,7 +810,10 @@ impl Drop for ServerProcess {
                     {
                         Ok(output) => {
                             if !output.status.success() {
-                                tracing::error!("taskkill failed: {}", String::from_utf8_lossy(&output.stderr));
+                                tracing::error!(
+                                    "taskkill failed: {}",
+                                    String::from_utf8_lossy(&output.stderr)
+                                );
                             }
                         }
                         Err(e) => {
@@ -811,12 +822,12 @@ impl Drop for ServerProcess {
                     }
                 }
             }
-            
+
             // Also try the standard kill as fallback
             if let Err(e) = child.start_kill() {
                 tracing::error!("Failed to kill child process: {}", e);
             }
-            
+
             tracing::info!("ServerProcess Drop completed for port {}", self.port);
         }
     }
@@ -1252,33 +1263,61 @@ struct ToolExecutor;
 
 impl ToolExecutor {
     /// Parse and execute JSON tool calls from the response text
+    /// Always converts JSON to human-readable format
     async fn execute_tool_calls(text: &str) -> String {
         let mut result = String::new();
         let mut remaining = text;
 
-        // Look for JSON tool calls in the format: {"tool": "name", "args": {...}}
-        while let Some(start_idx) = remaining.find(r#"{"tool":"#) {
+        // Look for JSON objects starting with { - need to handle both compact and spaced JSON
+        while let Some(start_idx) = remaining.find('{') {
+            // Preserve text before the JSON
             result.push_str(remaining.get(..start_idx).unwrap_or(""));
 
             let json_start = remaining.get(start_idx..).unwrap_or("");
             if let Some(end_idx) = Self::find_json_end(json_start) {
                 let json_str = json_start.get(..=end_idx).unwrap_or("");
 
+                // Try to parse as JSON and check if it has a "tool" field
                 match serde_json::from_str::<Value>(json_str) {
-                    Ok(json) => {
-                        result.push_str(json_str);
+                    Ok(json) if json.get("tool").is_some() => {
+                        // This is a tool call JSON - format it nicely
+                        let tool_name = json.get("tool").and_then(|t| t.as_str());
 
-                        if let Some(tool_result) = Self::execute_tool_call(&json).await {
-                            result.push_str(&format!("\n\n{}\n", tool_result));
+                        match tool_name {
+                            Some("shell") => {
+                                // Execute shell command and show formatted result
+                                if let Some(tool_result) = Self::execute_tool_call(&json).await {
+                                    if let Some(args) = json.get("args") {
+                                        if let Some(command) =
+                                            args.get("command").and_then(|v| v.as_str())
+                                        {
+                                            result.push_str(&format!(
+                                                "**Running command:** `{}`\n\n",
+                                                command
+                                            ));
+                                        }
+                                    }
+                                    result.push_str(&tool_result);
+                                }
+                            }
+                            Some("final_output") | _ => {
+                                // For final_output or unknown tools, extract and display content nicely
+                                let formatted = Self::format_json_as_text(&json);
+                                if !formatted.is_empty() {
+                                    result.push_str(&formatted);
+                                }
+                            }
                         }
+                        remaining = json_start.get(end_idx + 1..).unwrap_or("");
                     }
-                    Err(_) => {
-                        result.push_str(json_start.get(..=end_idx).unwrap_or(""));
+                    _ => {
+                        // Not a tool call JSON, just a regular brace - include it and continue
+                        result.push('{');
+                        remaining = json_start.get(1..).unwrap_or("");
                     }
                 }
-
-                remaining = json_start.get(end_idx + 1..).unwrap_or("");
             } else {
+                // No matching end brace
                 result.push_str(remaining);
                 break;
             }
@@ -1292,6 +1331,54 @@ impl ToolExecutor {
         } else {
             result
         }
+    }
+
+    /// Format JSON tool call as human-readable text
+    /// Extracts content from args, formats as clean text without JSON syntax
+    fn format_json_as_text(json: &Value) -> String {
+        // Try to extract from common content fields
+        if let Some(args) = json.get("args") {
+            if let Some(content) = args
+                .get("summary")
+                .or_else(|| args.get("message"))
+                .or_else(|| args.get("content"))
+                .or_else(|| args.get("result"))
+                .or_else(|| args.get("text"))
+                .and_then(|v| v.as_str())
+            {
+                return content.to_string();
+            }
+
+            // Format all args as clean key: value pairs (no JSON syntax)
+            if let Some(obj) = args.as_object() {
+                if !obj.is_empty() {
+                    let mut lines = Vec::new();
+                    for (key, value) in obj {
+                        let value_str = match value {
+                            Value::String(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b) => b.to_string(),
+                            Value::Null => "null".to_string(),
+                            Value::Array(arr) => {
+                                arr.iter()
+                                    .map(|v| match v {
+                                        Value::String(s) => s.clone(),
+                                        other => other.to_string(),
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            }
+                            Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
+                        };
+                        lines.push(format!("{}: {}", key, value_str));
+                    }
+                    return lines.join("\n");
+                }
+            }
+        }
+
+        // If we get here with empty/no args, return empty string to avoid cluttering output
+        String::new()
     }
 
     /// Find the end of a JSON object in text
