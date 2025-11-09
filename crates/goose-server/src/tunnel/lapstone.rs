@@ -3,12 +3,8 @@ use anyhow::{Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest;
 use serde::{Deserialize, Serialize};
-use socket2::{Socket, TcpKeepalive};
+use socket2::{SockRef, TcpKeepalive};
 use std::collections::HashMap;
-#[cfg(unix)]
-use std::os::unix::io::{AsRawFd, FromRawFd};
-#[cfg(windows)]
-use std::os::windows::io::{AsRawSocket, FromRawSocket};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
@@ -323,30 +319,17 @@ fn configure_tcp_keepalive(
     >,
 ) {
     let tcp_stream = stream.get_ref().get_ref();
-
-    #[cfg(unix)]
-    let socket: Socket = {
-        let fd = tcp_stream.as_raw_fd();
-        unsafe { Socket::from_raw_fd(fd) }
-    };
-
-    #[cfg(windows)]
-    let socket: Socket = {
-        let sock = tcp_stream.as_raw_socket();
-        unsafe { Socket::from_raw_socket(sock) }
-    };
+    let socket_ref = SockRef::from(tcp_stream);
 
     let keepalive = TcpKeepalive::new()
         .with_time(Duration::from_secs(30))
         .with_interval(Duration::from_secs(30));
 
-    if let Err(e) = socket.set_tcp_keepalive(&keepalive) {
+    if let Err(e) = socket_ref.set_tcp_keepalive(&keepalive) {
         warn!("Failed to set TCP keep-alive: {}", e);
     } else {
         info!("✓ TCP keep-alive enabled (30s interval)");
     }
-
-    std::mem::forget(socket);
 }
 
 async fn handle_websocket_messages(
@@ -378,7 +361,11 @@ async fn handle_websocket_messages(
                                 error!("Error handling request: {}", e);
                             }
                         });
-                        active_tasks.write().await.push(task);
+                        {
+                            let mut tasks = active_tasks.write().await;
+                            tasks.retain(|t| !t.is_finished());
+                            tasks.push(task);
+                        }
                     }
                     Err(e) => {
                         error!("Error parsing tunnel message: {}", e);
