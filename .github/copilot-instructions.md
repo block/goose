@@ -22,17 +22,17 @@
 - Resource leaks (files, connections, memory)
 - Off-by-one errors or boundary conditions
 - Incorrect error propagation (using `unwrap()` inappropriately)
+- Optional types that don't need to be optional
+- Booleans that should default to false but are set as optional
+- Error context that doesn't add useful information (e.g., `.context("Failed to do X")` when error already says it failed)
+- Overly defensive code that adds unnecessary checks
+- Unnecessary comments that just restate what the code already shows (remove them)
 
 ### Architecture & Patterns
 - Code that violates existing patterns in the codebase
 - Missing error handling (should use `anyhow::Result`)
 - Async/await misuse or blocking operations in async contexts
 - Improper trait implementations
-
-### Testing Gaps
-- New features without tests
-- Changed logic without corresponding test updates
-- Missing error case coverage
 
 ## Skip These (Low Value)
 
@@ -42,6 +42,8 @@
 - Obvious code that doesn't need explanation
 - Suggestions to add comments for self-documenting code
 - Refactoring suggestions unless there's a clear bug or maintainability issue
+- Listing multiple potential issues in one comment (choose the single most critical issue)
+- Suggestions to add more logging (the codebase needs less logging, not more)
 
 ## Response Format
 
