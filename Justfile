@@ -4,6 +4,20 @@
 default:
   @just --list
 
+# Run all style checks and formatting (precommit validation)
+check-everything:
+    @echo "🔧 RUNNING ALL STYLE CHECKS..."
+    @echo "  → Formatting Rust code..."
+    cargo fmt --all
+    @echo "  → Running clippy linting..."
+    ./scripts/clippy-lint.sh
+    @echo "  → Checking UI code formatting..."
+    cd ui/desktop && npm run lint:check
+    @echo "  → Validating OpenAPI schema..."
+    ./scripts/check-openapi-schema.sh
+    @echo ""
+    @echo "✅ All style checks passed!"
+
 # Default release command
 release-binary:
     @echo "Building release version..."
@@ -286,7 +300,8 @@ prepare-release version:
     # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
-    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json
+    @just generate-openapi
+    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json
     @git commit --message "chore(release): release version {{ version }}"
 
 # extract version from Cargo.toml

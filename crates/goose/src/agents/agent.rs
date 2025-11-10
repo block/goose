@@ -39,7 +39,6 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
-use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -60,6 +59,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 
@@ -245,6 +245,7 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
+        working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -261,7 +262,8 @@ impl Agent {
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+        let (tools, toolshim_tools, system_prompt) =
+            self.prepare_tools_and_prompt(working_dir).await?;
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
         self.tool_inspection_manager
@@ -344,7 +346,6 @@ impl Agent {
         Ok(tool_futures)
     }
 
-    /// Set the scheduler service for this agent
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
@@ -383,6 +384,23 @@ impl Agent {
     pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
         let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
+    }
+
+    pub async fn apply_recipe_components(
+        &self,
+        sub_recipes: Option<Vec<SubRecipe>>,
+        response: Option<Response>,
+        include_final_output: bool,
+    ) {
+        if let Some(sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes).await;
+        }
+
+        if include_final_output {
+            if let Some(response) = response {
+                self.add_final_output_tool(response).await;
+            }
+        }
     }
 
     /// Dispatch a single tool call to the appropriate client
@@ -435,7 +453,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    arguments,
+                    &self.tasks_manager,
+                    &session.working_dir,
+                )
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = match self.provider().await {
@@ -523,7 +546,13 @@ impl Agent {
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
+            create_dynamic_task(
+                arguments,
+                &self.tasks_manager,
+                loaded_extensions,
+                &session.working_dir,
+            )
+            .await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -750,14 +779,14 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact =
-            crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
+        let needs_auto_compact = !is_manual_compact
+            && crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
                 .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact {
+            let final_conversation = if !needs_auto_compact && !is_manual_compact {
                 conversation
             } else {
                 if !is_manual_compact {
@@ -830,7 +859,9 @@ impl Agent {
         session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(conversation).await?;
+        let context = self
+            .prepare_reply_context(conversation, &session.working_dir)
+            .await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -844,6 +875,7 @@ impl Agent {
 
         let provider = self.provider().await?;
         let session_id = session_config.id.clone();
+        let working_dir = session.working_dir.clone();
         tokio::spawn(async move {
             if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
                 warn!("Failed to generate session description: {}", e);
@@ -1137,7 +1169,8 @@ impl Agent {
                     }
                 }
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                    (tools, toolshim_tools, system_prompt) =
+                        self.prepare_tools_and_prompt(&working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {

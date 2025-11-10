@@ -9,7 +9,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-// Import the new handlers from commands::schedule
+
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
     handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
@@ -41,17 +41,17 @@ struct Cli {
 #[group(required = false, multiple = false)]
 pub struct Identifier {
     #[arg(
-        short,
+        short = 'n',
         long,
         value_name = "NAME",
         help = "Name for the chat session (e.g., 'project-x')",
-        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
-        alias = "id"
+        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
     )]
     pub name: Option<String>,
 
     #[arg(
         long = "session-id",
+        alias = "id",
         value_name = "SESSION_ID",
         help = "Session ID (e.g., '20250921_143022')",
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
@@ -59,7 +59,6 @@ pub struct Identifier {
     pub session_id: Option<String>,
 
     #[arg(
-        short,
         long,
         value_name = "PATH",
         help = "Legacy: Path for the chat session",
@@ -188,7 +187,8 @@ enum SessionCommand {
         ascending: bool,
 
         #[arg(
-            short = 'p',
+            short = 'w',
+            short_alias = 'p',
             long = "working_dir",
             help = "Filter sessions by working directory"
         )]
@@ -197,16 +197,15 @@ enum SessionCommand {
         #[arg(short = 'l', long = "limit", help = "Limit the number of results")]
         limit: Option<usize>,
     },
-    #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
+    #[command(about = "Remove sessions. Runs interactively if no ID, name, or regex is provided.")]
     Remove {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
         #[arg(
-            short,
+            short = 'r',
             long,
-            alias = "name",
-            help = "Session ID to be removed (optional)"
+            help = "Regex for removing matched sessions (optional)"
         )]
-        id: Option<String>,
-        #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
     },
     #[command(about = "Export a session")]
@@ -232,12 +231,12 @@ enum SessionCommand {
     },
     #[command(name = "diagnostics")]
     Diagnostics {
-        /// Session ID to generate diagnostics for
-        #[arg(short, long)]
-        session_id: String,
+        /// Session identifier for generating diagnostics
+        #[command(flatten)]
+        identifier: Option<Identifier>,
 
         /// Output path for the diagnostics zip file (optional, defaults to current directory)
-        #[arg(short, long)]
+        #[arg(short = 'o', long)]
         output: Option<PathBuf>,
     },
 }
@@ -246,8 +245,12 @@ enum SessionCommand {
 enum SchedulerCommand {
     #[command(about = "Add a new scheduled job")]
     Add {
-        #[arg(long, help = "Unique ID for the job")]
-        id: String,
+        #[arg(
+            long = "schedule-id",
+            alias = "id",
+            help = "Unique ID for the recurring scheduled job"
+        )]
+        schedule_id: String,
         #[arg(
             long,
             help = "Cron expression for the schedule",
@@ -264,29 +267,33 @@ enum SchedulerCommand {
     List {},
     #[command(about = "Remove a scheduled job by ID")]
     Remove {
-        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
-        id: String,
+        #[arg(
+            long = "schedule-id",
+            alias = "id",
+            help = "ID of the scheduled job to remove (removes the recurring schedule)"
+        )]
+        schedule_id: String,
     },
     /// List sessions created by a specific schedule
     #[command(about = "List sessions created by a specific schedule")]
     Sessions {
         /// ID of the schedule
-        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
-        id: String,
-        #[arg(long, help = "Maximum number of sessions to return")]
+        #[arg(long = "schedule-id", alias = "id", help = "ID of the schedule")]
+        schedule_id: String,
+        #[arg(short = 'l', long, help = "Maximum number of sessions to return")]
         limit: Option<usize>,
     },
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
         /// ID of the schedule to run
-        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
-        id: String,
+        #[arg(long = "schedule-id", alias = "id", help = "ID of the schedule to run")]
+        schedule_id: String,
     },
     /// Check status of scheduler services (deprecated - no external services needed)
-    #[command(about = "Check status of scheduler services")]
+    #[command(about = "[Deprecated] Check status of scheduler services")]
     ServicesStatus {},
     /// Stop scheduler services (deprecated - no external services needed)
-    #[command(about = "Stop scheduler services")]
+    #[command(about = "[Deprecated] Stop scheduler services")]
     ServicesStop {},
     /// Show cron expression examples and help
     #[command(about = "Show cron expression examples and help")]
@@ -435,8 +442,8 @@ enum Command {
         #[arg(
             short,
             long,
-            help = "Resume a previous session (last used or specified by --name)",
-            long_help = "Continue from a previous chat session. If --name or --path is provided, resumes that specific session. Otherwise resumes the last used session."
+            help = "Resume a previous session (last used or specified by --name/--session-id)",
+            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise resumes the most recently used session."
         )]
         resume: bool,
 
@@ -903,8 +910,13 @@ pub async fn cli() -> anyhow::Result<()> {
                     working_dir,
                     limit,
                 }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
-                Some(SessionCommand::Remove { id, regex }) => {
-                    Ok(handle_session_remove(id, regex).await?)
+                Some(SessionCommand::Remove { identifier, regex }) => {
+                    let (session_id, name) = if let Some(id) = identifier {
+                        (id.session_id, id.name)
+                    } else {
+                        (None, None)
+                    };
+                    Ok(handle_session_remove(session_id, name, regex).await?)
                 }
                 Some(SessionCommand::Export {
                     identifier,
@@ -933,7 +945,19 @@ pub async fn cli() -> anyhow::Result<()> {
                     .await?;
                     Ok(())
                 }
-                Some(SessionCommand::Diagnostics { session_id, output }) => {
+                Some(SessionCommand::Diagnostics { identifier, output }) => {
+                    let session_id = if let Some(id) = identifier {
+                        lookup_session_id(id).await?
+                    } else {
+                        match crate::commands::session::prompt_interactive_session_selection().await
+                        {
+                            Ok(id) => id,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return Ok(());
+                            }
+                        }
+                    };
                     crate::commands::session::handle_diagnostics(&session_id, output).await?;
                     Ok(())
                 }
@@ -1264,25 +1288,25 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Schedule { command }) => {
             match command {
                 SchedulerCommand::Add {
-                    id,
+                    schedule_id,
                     cron,
                     recipe_source,
                 } => {
-                    handle_schedule_add(id, cron, recipe_source).await?;
+                    handle_schedule_add(schedule_id, cron, recipe_source).await?;
                 }
                 SchedulerCommand::List {} => {
                     handle_schedule_list().await?;
                 }
-                SchedulerCommand::Remove { id } => {
-                    handle_schedule_remove(id).await?;
+                SchedulerCommand::Remove { schedule_id } => {
+                    handle_schedule_remove(schedule_id).await?;
                 }
-                SchedulerCommand::Sessions { id, limit } => {
+                SchedulerCommand::Sessions { schedule_id, limit } => {
                     // New arm
-                    handle_schedule_sessions(id, limit).await?;
+                    handle_schedule_sessions(schedule_id, limit).await?;
                 }
-                SchedulerCommand::RunNow { id } => {
+                SchedulerCommand::RunNow { schedule_id } => {
                     // New arm
-                    handle_schedule_run_now(id).await?;
+                    handle_schedule_run_now(schedule_id).await?;
                 }
                 SchedulerCommand::ServicesStatus {} => {
                     handle_schedule_services_status().await?;
