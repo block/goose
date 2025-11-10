@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Globe, FileText, Edit, ExternalLink } from 'lucide-react';
+import { Plus, Globe, FileText, Edit, ExternalLink, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useSidecar } from '../SidecarLayout';
 
 interface SidecarInvokerProps {
   onShowLocalhost: () => void;
   onShowFileViewer: (filePath: string) => void;
-  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => void;
   isVisible: boolean;
 }
 
@@ -116,6 +116,13 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
     setIsHovering(false);
   };
 
+  const handleAppInstallerClick = () => {
+    console.log('🔍 SidecarInvoker: App Installer button clicked');
+    onAddContainer('app-installer');
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
   const handleMouseEnter = () => {
     setIsHovering(true);
   };
@@ -164,6 +171,16 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
               className="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-background-default border border-border-subtle rounded-lg shadow-xl p-2 min-w-[160px] pointer-events-auto animate-in fade-in slide-in-from-right-2 duration-200"
             >
               <div className="space-y-1">
+                <Button
+                  onClick={handleAppInstallerClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Install App
+                </Button>
+                
                 <Button
                   onClick={handleDocumentEditorClick}
                   className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"

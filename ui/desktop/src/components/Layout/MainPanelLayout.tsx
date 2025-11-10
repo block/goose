@@ -5,11 +5,12 @@ import SidecarTabs from '../SidecarTabs';
 import { FileViewer } from '../FileViewer';
 import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
+import AppInstaller from '../AppInstaller';
 
 interface SidecarContainer {
   id: string;
   content: React.ReactNode;
-  contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | null;
+  contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer' | null;
   title?: string;
 }
 
@@ -412,7 +413,7 @@ export const MainPanelLayout: React.FC<{
   }, [hasBentoBox]);
 
   // Add content to bento box
-  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => {
+  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => {
     const newContainer: SidecarContainer = {
       id: `bento-${Date.now()}`,
       content: null,
@@ -445,6 +446,10 @@ export const MainPanelLayout: React.FC<{
       newContainer.content = <WebViewer initialUrl="https://google.com" allowAllSites={true} />;
       newContainer.contentType = 'web-viewer';
       newContainer.title = 'Web Viewer';
+    } else if (contentType === 'app-installer') {
+      newContainer.content = <AppInstaller />;
+      newContainer.contentType = 'app-installer';
+      newContainer.title = 'App Installer';
     }
 
     // If no bento box exists, create it first
@@ -481,7 +486,7 @@ export const MainPanelLayout: React.FC<{
 
   // Listen for add-container events from SidecarInvoker
   useEffect(() => {
-    const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer'; filePath?: string }>) => {
+    const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer'; filePath?: string }>) => {
       console.log('🔍 MainPanelLayout: Received add-container event:', e.detail.type, e.detail.filePath);
       addToBentoBox(e.detail.type, e.detail.filePath);
     };
