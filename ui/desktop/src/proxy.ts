@@ -133,7 +133,21 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
   MCP_UI_PROXY_TOKEN = `${TOKEN_PREFIX}:${crypto.randomBytes(TOKEN_BYTE_LENGTH).toString('hex')}`;
 
   // IPC handler to provide the proxy URL to renderer processes
-  ipcMain.handle('get-mcp-ui-proxy-url', () => {
+  // Security: Only allow trusted renderer processes to access the proxy URL
+  ipcMain.handle('get-mcp-ui-proxy-url', (event) => {
+    // Validate that the request comes from a trusted renderer
+    const senderUrl = event.sender.getURL();
+    
+    // Allow requests from the main app (file:// in production, localhost in dev)
+    const isTrustedOrigin = 
+      senderUrl.startsWith('file://') || 
+      (ALLOWED_ORIGIN && senderUrl.startsWith(ALLOWED_ORIGIN));
+    
+    if (!isTrustedOrigin) {
+      log.warn(`Rejected get-mcp-ui-proxy-url request from untrusted origin: ${senderUrl}`);
+      return undefined;
+    }
+    
     if (mcpUIProxyServerPort) {
       return `http://${PROXY_SERVER_HOST}:${mcpUIProxyServerPort}${PROXY_HTML_PATH}`;
     }
