@@ -6,16 +6,21 @@ on:
     paths:
       - 'documentation/src/pages/recipes/data/recipes/**'
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   send-api-key:
     if: github.event.pull_request.merged == true
-
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repo at merge commit
         uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Check if recipe files were added or modified in merged PR
@@ -24,26 +29,21 @@ jobs:
           set -e
           echo "🔍 Checking if recipe files were added or modified in merged PR..."
           
-          # Get the PR merge information
-          MERGE_COMMIT=$(git rev-parse HEAD)
+          MERGE_COMMIT="${{ github.event.pull_request.merge_commit_sha }}"
           echo "Merge commit: $MERGE_COMMIT"
-          
-          # For merged PRs, compare the PR's changes against the base branch
-          # Use the PR information from the event to get the actual changes
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          
-          echo "PR base SHA: $BASE_SHA"
-          echo "PR head SHA: $HEAD_SHA"
-          
-          # Get the list of files that were added or modified in the PR (not deleted)
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_SHA..$HEAD_SHA)
-          
+
+          # Get parent commit of the merge
+          PARENT_COMMIT=$(git rev-parse "$MERGE_COMMIT^1")
+          echo "Parent commit: $PARENT_COMMIT"
+
+          # Get list of added or modified files in the PR (ignore deletions)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM "$PARENT_COMMIT" "$MERGE_COMMIT")
+
           echo "Files added/modified in merged PR:"
           echo "$CHANGED_FILES"
           echo ""
-          
-          # Check if any recipe files were added or modified
+
+          # Detect recipe changes only
           if echo "$CHANGED_FILES" | grep -q "^documentation/src/pages/recipes/data/recipes/"; then
             echo "recipe_files_changed=true" >> "$GITHUB_OUTPUT"
             echo "✅ Recipe files were added/modified in merged PR - proceeding with API key sending"

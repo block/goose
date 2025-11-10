@@ -12,6 +12,7 @@ use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
@@ -89,6 +90,30 @@ pub struct UpdateCustomProviderRequest {
     pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct CheckProviderRequest {
+    pub provider: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct SetProviderRequest {
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MaskedSecret {
+    pub masked_value: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum ConfigValueResponse {
+    Value(Value),
+    MaskedValue(MaskedSecret),
+}
+
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -102,7 +127,7 @@ pub async fn upsert_config(
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     let config = Config::global();
-    let result = config.set(&query.key, query.value, query.is_secret);
+    let result = config.set(&query.key, &query.value, query.is_secret);
 
     match result {
         Ok(_) => Ok(Json(Value::String(format!("Upserted key {}", query.key)))),
@@ -135,6 +160,22 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
     }
 }
 
+const SECRET_MASK_SHOW_LEN: usize = 8;
+
+fn mask_secret(secret: Value) -> String {
+    let as_string = match secret {
+        Value::String(s) => s,
+        _ => serde_json::to_string(&secret).unwrap_or_else(|_| secret.to_string()),
+    };
+
+    let chars: Vec<_> = as_string.chars().collect();
+    let show_len = std::cmp::min(chars.len() / 2, SECRET_MASK_SHOW_LEN);
+    let visible: String = chars.iter().take(show_len).collect();
+    let mask = "*".repeat(chars.len() - show_len);
+
+    format!("{}{}", visible, mask)
+}
+
 #[utoipa::path(
     post,
     path = "/config/read",
@@ -144,12 +185,14 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
         (status = 500, description = "Unable to get the configuration value"),
     )
 )]
-pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value>, StatusCode> {
+pub async fn read_config(
+    Json(query): Json<ConfigKeyQuery>,
+) -> Result<Json<ConfigValueResponse>, StatusCode> {
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(
+        return Ok(Json(ConfigValueResponse::Value(
             serde_json::to_value(limits).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-        ));
+        )));
     }
 
     let config = Config::global();
@@ -157,18 +200,14 @@ pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value
     let response_value = match config.get(&query.key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
-                Value::Bool(true)
+                ConfigValueResponse::MaskedValue(MaskedSecret {
+                    masked_value: mask_secret(value),
+                })
             } else {
-                value
+                ConfigValueResponse::Value(value)
             }
         }
-        Err(ConfigError::NotFound(_)) => {
-            if query.is_secret {
-                Value::Bool(false)
-            } else {
-                Value::Null
-            }
-        }
+        Err(ConfigError::NotFound(_)) => ConfigValueResponse::Value(Value::Null),
         Err(_) => {
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -246,7 +285,7 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     let config = Config::global();
 
     let values = config
-        .load_values()
+        .all_values()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
 
     Ok(Json(ConfigResponse { config: values }))
@@ -483,7 +522,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 
     // Use the shared function to load init-config.yaml
     match goose::config::base::load_init_config_from_workspace() {
-        Ok(init_values) => match config.save_values(init_values) {
+        Ok(init_values) => match config.initialize_if_empty(init_values) {
             Ok(_) => Ok(Json("Config initialized successfully".to_string())),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         },
@@ -558,7 +597,7 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     // Force a reload which will trigger recovery if needed
-    match config.load_values() {
+    match config.all_values() {
         Ok(values) => {
             let recovered_keys: Vec<String> = values.keys().cloned().collect();
             if recovered_keys.is_empty() {
@@ -709,6 +748,41 @@ pub async fn update_custom_provider(
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/check_provider",
+    request_body = CheckProviderRequest,
+)]
+pub async fn check_provider(
+    Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
+) -> Result<(), (StatusCode, String)> {
+    create_with_default_model(&provider)
+        .await
+        .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/set_provider",
+    request_body = SetProviderRequest,
+)]
+pub async fn set_config_provider(
+    Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
+) -> Result<(), (StatusCode, String)> {
+    create_with_default_model(&provider)
+        .await
+        .and_then(|_| {
+            let config = Config::global();
+            config
+                .set_goose_provider(provider)
+                .and_then(|_| config.set_goose_model(model))
+                .map_err(|e| anyhow::anyhow!(e))
+        })
+        .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
+    Ok(())
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -733,6 +807,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/config/custom-providers/{id}", put(update_custom_provider))
         .route("/config/custom-providers/{id}", get(get_custom_provider))
+        .route("/config/check_provider", post(check_provider))
+        .route("/config/set_provider", post(set_config_provider))
         .with_state(state)
 }
 
@@ -754,10 +830,12 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        let response = result.unwrap();
+        let response = match result.unwrap().0 {
+            ConfigValueResponse::Value(value) => value,
+            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
+        };
 
-        let limits: Vec<goose::model::ModelLimitConfig> =
-            serde_json::from_value(response.0).unwrap();
+        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
         assert!(!limits.is_empty());
 
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");

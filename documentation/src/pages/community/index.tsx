@@ -11,6 +11,8 @@ import may2025Data from "./data/may-2025.json";
 import june2025Data from "./data/june-2025.json";
 import july2025Data from "./data/july-2025.json";
 import august2025Data from "./data/august-2025.json";
+import september2025Data from "./data/september-2025.json";
+import october2025Data from "./data/october-2025.json";
 import communityContentData from "./data/community-content.json";
 
 // Create a data map for easy access
@@ -20,6 +22,8 @@ const communityDataMap = {
   "june-2025": june2025Data,
   "july-2025": july2025Data,
   "august-2025": august2025Data,
+  "september-2025": september2025Data,
+  "october-2025": october2025Data,
 };
 
 function UpcomingEventsSection() {
@@ -40,7 +44,7 @@ function UpcomingEventsSection() {
       {/* Call to Action */}
       <p className="italic text-textStandard">
         Want to join us on a livestream or have ideas for future events? 
-        Reach out to the team on <Link href="https://discord.gg/block-opensource">Discord</Link>.
+        Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>.
       </p>
     </section>
   );
@@ -96,19 +100,23 @@ function CommunityAllStarsSection() {
         ))}
       </div>
       
-      {/* Team Stars */}
-      <div className="text-center">
-        <Heading as="h3">⭐ Team Stars</Heading>
-        <p className="text-sm text-textStandard">
-          Top 5 Contributors from all Block teams!
-        </p>
-      </div>
-      
-      <div className="flex justify-center">
-        {currentData.teamStars.map((contributor, index) => (
-          <StarsCard key={index} contributor={{...contributor, totalCount: currentData.teamStars.length}} />
-        ))}
-      </div>
+      {/* Team Stars - only show if there are team stars */}
+      {currentData.teamStars.length > 0 && (
+        <>
+          <div className="text-center">
+            <Heading as="h3">⭐ Team Stars</Heading>
+            <p className="text-sm text-textStandard">
+              Top 5 Contributors from all Block teams!
+            </p>
+          </div>
+          
+          <div className="flex justify-center">
+            {currentData.teamStars.map((contributor, index) => (
+              <StarsCard key={index} contributor={{...contributor, totalCount: currentData.teamStars.length}} />
+            ))}
+          </div>
+        </>
+      )}
       
       {/* Monthly Leaderboard */}
       <div className="text-center">
@@ -201,7 +209,7 @@ function CommunityAllStarsSection() {
           <div className="text-sm">
             Want to be a Community All Star? Just start contributing on{' '}
             <Link href="https://github.com/block/goose">GitHub</Link>, helping others on{' '}
-            <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
+            <Link href="https://discord.gg/goose-oss">Discord</Link>, or share your 
             goose projects with the community! You can check out the{' '}
             <Link href="https://github.com/block/goose/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
             for more tips.
@@ -214,6 +222,7 @@ function CommunityAllStarsSection() {
 
 function CommunityContentSpotlightSection() {
   const [contentFilter, setContentFilter] = React.useState('all');
+  const [showScrollIndicator, setShowScrollIndicator] = React.useState(true);
   
   const filteredSubmissions = React.useMemo(() => {
     if (contentFilter === 'all') return communityContentData.submissions;
@@ -224,6 +233,12 @@ function CommunityContentSpotlightSection() {
     }
     return communityContentData.submissions.filter(content => content.type === contentFilter);
   }, [contentFilter]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = (e.target as HTMLDivElement);
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+    setShowScrollIndicator(!isAtBottom);
+  };
 
   return (
     <section className="w-full flex flex-col items-center gap-8 my-8">
@@ -256,19 +271,33 @@ function CommunityContentSpotlightSection() {
       </div>
       
       {/* Content Grid */}
-      <div className="w-full max-w-6xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Persistent Hacktoberfest CTA Card */}
-          <HacktoberfestCTACard />
+      <div className="w-full max-w-6xl relative">
+        <div 
+          className="max-h-[800px] overflow-y-auto pr-2"
+          onScroll={handleScroll}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Persistent Hacktoberfest CTA Card */}
+            <HacktoberfestCTACard />
+            
+            {filteredSubmissions.map((content) => (
+              <ContentCard key={content.url} content={content} />
+            ))}
+          </div>
           
-          {filteredSubmissions.map((content, index) => (
-            <ContentCard key={index} content={content} />
-          ))}
+          {filteredSubmissions.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-textSubtle">No content found for this filter.</p>
+            </div>
+          )}
         </div>
         
-        {filteredSubmissions.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-textSubtle">No content found for this filter.</p>
+        {/* Simple scroll indicator - only show when not at bottom */}
+        {showScrollIndicator && (
+          <div className="absolute bottom-5 inset-x-0 flex justify-center">
+            <span className="w-fit text-xs bg-bgProminent p-2 rounded-full font-medium pointer-events-none flex items-center gap-1.5">
+              Scroll for more ↓
+            </span>
           </div>
         )}
       </div>
@@ -432,8 +461,8 @@ export default function Community(): ReactNode {
       description="Join the goose community - connect with developers, contribute to the project, and help shape the future of AI-powered development tools."
     >
       <main className="container">
-        <CommunityContentSpotlightSection />
         <CommunityAllStarsSection />
+        <CommunityContentSpotlightSection />
         <UpcomingEventsSection />
       </main>
     </Layout>

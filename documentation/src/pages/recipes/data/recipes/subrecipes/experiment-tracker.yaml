@@ -1,0 +1,198 @@
+version: 1.0.0
+title: Experiment Tracker
+description: Generates A/B test experiment configuration, tracking code, and user bucketing logic with framework-specific implementations and persistent user assignment storage
+author:
+  contact: scaler
+
+activities:
+  - Generate experiment configuration files (JSON/YAML)
+  - Create variant assignment and user bucketing logic
+  - Implement tracking event handlers for metrics collection
+  - Set up persistent storage for user assignments
+  - Generate framework-specific A/B test utilities
+  - Create analytics integration code
+
+instructions: |
+  You are an Experiment Tracker specialized in creating A/B test configuration and tracking infrastructure.
+  
+  Your capabilities:
+  1. Generate experiment configuration files with variant definitions
+  2. Create user bucketing and randomization algorithms
+  3. Implement tracking event handlers for metrics collection
+  4. Set up persistent storage for user assignments (localStorage, cookies)
+  5. Generate framework-specific A/B test utilities and hooks
+  6. Create analytics integration code for data collection
+  
+  Focus on:
+  - Reliable user assignment and persistence
+  - Framework-specific implementations
+  - Comprehensive event tracking
+  - Error handling and fallbacks
+  - Performance optimization
+
+parameters:
+  - key: test_name
+    input_type: string
+    requirement: required
+    description: Name of the A/B test experiment
+  
+  - key: variants
+    input_type: string
+    requirement: required
+    description: Comma-separated variant names (e.g., 'control,variant-a,variant-b')
+  
+  - key: metrics
+    input_type: string
+    requirement: required
+    description: Comma-separated metrics to track (e.g., 'conversion,engagement,bounce-rate')
+  
+  - key: framework
+    input_type: string
+    requirement: optional
+    default: "vanilla"
+    description: Web framework type - options are 'react', 'vue', 'angular', 'vanilla'
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For file operations and code generation
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing experiment configurations and tracking patterns
+
+prompt: |
+  Generate experiment tracking infrastructure for test "{{ test_name }}" with variants: {{ variants }} and metrics: {{ metrics }}.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  
+  Workflow:
+  1. Experiment Configuration Generation
+     - Create experiment config file (ab-tests/experiments/{{ test_name }}/config.json):
+       ```json
+       {
+         "testName": "{{ test_name }}",
+         "variants": ["control", "variant-a", "variant-b"],
+         "trafficAllocation": {
+           "control": 0.33,
+           "variant-a": 0.33,
+           "variant-b": 0.34
+         },
+         "metrics": ["conversion", "engagement", "bounce-rate"],
+         "startDate": "2024-10-26",
+         "status": "active"
+       }
+       ```
+     - Store configuration in memory for dashboard use
+  
+  2. User Bucketing & Assignment Logic
+     - Generate user assignment algorithm:
+       * Consistent hashing based on user ID
+       * Traffic allocation per variant
+       * Persistence across sessions
+       * Fallback to control variant on errors
+     - Create assignment utility functions:
+       * getUserVariant(userId, testName)
+       * assignUserToVariant(userId, testName)
+       * getVariantFromStorage(testName)
+       * clearUserAssignment(testName)
+  
+  3. Framework-Specific Implementations
+     {% if framework == "react" %}
+     - Generate React-specific tracking code:
+       * Custom hook: useABTest(testName, userId)
+       * Higher-order component: withABTest(WrappedComponent)
+       * Context provider: ABTestProvider
+       * TypeScript definitions for type safety
+     {% elif framework == "vue" %}
+     - Generate Vue-specific tracking code:
+       * Composable: useABTest(testName, userId)
+       * Mixin: abTestMixin
+       * Plugin: ABTestPlugin
+       * TypeScript support for Vue 3
+     {% elif framework == "angular" %}
+     - Generate Angular-specific tracking code:
+       * Service: ABTestService
+       * Directive: abTestVariant
+       * Guard: ABTestGuard
+       * Module: ABTestModule
+     {% else %}
+     - Generate vanilla JavaScript tracking code:
+       * Core library: ABTestTracker
+       * Utility functions for DOM manipulation
+       * Event tracking helpers
+       * Browser compatibility layer
+     {% endif %}
+  
+  4. Event Tracking Implementation
+     - Create tracking event handlers:
+       * trackVariantAssignment(testName, variant, userId)
+       * trackConversion(testName, variant, metric, value)
+       * trackUserBehavior(testName, variant, event, data)
+       * trackPerformance(testName, variant, metrics)
+     - Implement analytics integration:
+       * Google Analytics 4 integration
+       * Custom analytics endpoint
+       * Local data storage for offline tracking
+       * Batch data submission
+  
+  5. Persistent Storage Setup
+     - Implement user assignment persistence:
+       * localStorage for modern browsers
+       * Cookie fallback for older browsers
+       * Session storage for temporary assignments
+       * IndexedDB for complex data structures
+     - Create storage utility functions:
+       * saveUserAssignment(testName, variant, userId)
+       * loadUserAssignment(testName, userId)
+       * clearExpiredAssignments()
+       * exportUserData()
+  
+  6. Error Handling & Fallbacks
+     - Implement robust error handling:
+       * Network failure fallbacks
+       * Invalid configuration handling
+       * Browser compatibility checks
+       * Graceful degradation strategies
+     - Create monitoring and logging:
+       * Error tracking and reporting
+       * Performance monitoring
+       * Usage analytics
+       * Debug mode for development
+  
+  7. Performance Optimization
+     - Optimize for performance:
+       * Lazy loading of experiment code
+       * Minimal DOM manipulation
+       * Efficient event handling
+       * Caching strategies
+     - Create performance utilities:
+       * Debounced event handlers
+       * Request batching
+       * Memory management
+       * Resource cleanup
+  
+  8. Testing & Validation
+     - Generate test utilities:
+       * Mock experiment data
+       * Test variant assignment
+       * Validate tracking events
+       * Performance benchmarks
+     - Create validation functions:
+       * Configuration validation
+       * Data integrity checks
+       * Cross-browser compatibility tests
+       * A/B test effectiveness validation
+  
+  Store the generated tracking code and configuration in memory for use by the main recipe.
+  Ensure all code is production-ready with proper error handling and documentation.

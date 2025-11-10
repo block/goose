@@ -1,0 +1,100 @@
+version: "1.0.0"
+title: "Locust TaskSet Generator"
+description: "Generate Locust TaskSet classes for different API endpoint groups"
+instructions: |
+  You are a Locust performance testing expert. Generate TaskSet classes that
+  simulate realistic user behavior for different parts of the API.
+
+  For each endpoint group, create a TaskSet that:
+  - Uses appropriate task weights based on expected traffic patterns
+  - Includes proper request construction with headers, params, and body
+  - Handles authentication tokens/sessions
+  - Validates responses with assertions
+  - Uses realistic wait times between requests
+  - Extracts data from responses for subsequent requests (e.g., IDs)
+  - Includes error handling and logging
+
+  Follow Locust best practices:
+  - Use @task decorator with weights
+  - Use self.client for making requests
+  - Store shared data in self attributes
+  - Use context managers for setup/teardown if needed
+  - Add descriptive names for better reporting
+
+parameters:
+  - key: output_dir
+    input_type: string
+    requirement: required
+    description: "Directory for output files"
+
+  - key: test_complexity
+    input_type: string
+    requirement: optional
+    default: "standard"
+    description: "Complexity level for tests"
+
+  - key: include_auth
+    input_type: string
+    requirement: required
+    description: "Whether to include auth handling"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 600
+    bundled: true
+
+prompt: |
+  Generate Locust TaskSet classes based on the API analysis.
+
+  Use the analysis data to understand endpoint groups and relationships.
+
+  For each endpoint group (e.g., Users, Products, Orders):
+  1. Create a separate TaskSet class
+  2. Implement tasks for each endpoint in that group
+  3. Set realistic task weights (common operations get higher weights)
+  4. Handle data dependencies between requests
+
+  Example structure for each TaskSet:
+  ```python
+  from locust import TaskSet, task, between
+  import json
+  import random
+
+  class UsersTaskSet(TaskSet):
+      wait_time = between(1, 3)
+
+      def on_start(self):
+          # Setup code, e.g., login
+          pass
+
+      @task(3)  # Higher weight for common operations
+      def list_users(self):
+          with self.client.get("/users", catch_response=True) as response:
+              if response.status_code == 200:
+                  response.success()
+              else:
+                  response.failure(f"Got status code {response.status_code}")
+
+      @task(2)
+      def get_user_details(self):
+          # Use data from previous requests
+          pass
+
+      @task(1)
+      def create_user(self):
+          # POST with realistic payload
+          pass
+  ```
+
+  Save each TaskSet to a separate file in {{ output_dir }}/tasks/
+  Files should be named: users_tasks.py, products_tasks.py, etc.
+
+  Configuration:
+  - Test complexity: {{ test_complexity }}
+  - Include authentication: {{ include_auth }}
+
+  If test_complexity is "advanced", include:
+  - Data-driven tests with parameterized inputs
+  - Complex user flows with multiple dependent requests
+  - Performance-focused optimizations

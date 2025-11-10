@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 Response Styles customize how tool interactions are displayed in the Goose Desktop chat window. 
 
 To change this setting:
@@ -30,7 +30,7 @@ To change this setting:
 This setting only affects the default state of tool calls in the conversation. You can always manually expand or collapse any tool call regardless of your chosen style.
 
 </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 When working with the Goose CLI, you can control the verbosity of tool output.
 
 To adjust the tool output, run:

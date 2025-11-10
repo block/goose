@@ -77,6 +77,7 @@ export const useChatEngine = ({
     notifications,
     session,
     setError,
+    tokenState,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.sessionId,
@@ -212,7 +213,6 @@ export const useChatEngine = ({
 
   // Update token counts when session changes from the message stream
   useEffect(() => {
-    console.log('Session received:', session);
     if (session) {
       setSessionTokenCount(session.total_tokens || 0);
       setSessionInputTokens(session.accumulated_input_tokens || 0);
@@ -451,6 +451,7 @@ export const useChatEngine = ({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    tokenState,
 
     // UI helpers
     commandHistory,

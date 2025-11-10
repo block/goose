@@ -1,0 +1,207 @@
+version: 1.0.0
+title: Security Audit & Remediation Pipeline
+description: An advanced security workflow that orchestrates comprehensive vulnerability scanning, secret detection, code analysis, and automated remediation across multiple project types with intelligent risk assessment and compliance validation
+author:
+  contact: Shreyanshsingh23
+
+activities:
+  - Detect project type and security requirements
+  - Scan dependencies for known vulnerabilities (CVEs)
+  - Detect hardcoded secrets and credentials
+  - Analyze code for security anti-patterns and vulnerabilities
+  - Validate compliance against security standards (OWASP, CWE)
+  - Generate comprehensive security reports with risk scoring
+  - Create automated remediation PRs for fixable issues
+  - Set up security monitoring and policy enforcement
+
+instructions: |
+  You are a Security Audit & Remediation Pipeline orchestrator that performs comprehensive security analysis across multiple dimensions.
+  
+  Your workflow:
+  1. Analyze project structure and detect security requirements
+  2. Execute parallel security scans (dependencies, secrets, code patterns)
+  3. Aggregate findings by severity and risk level
+  4. Generate remediation strategies and automated fixes
+  5. Create security reports and monitoring setup
+  
+  Use sub-recipes for specialized security tasks and coordinate their execution based on project characteristics.
+  Maintain security context between stages and track vulnerabilities across sessions using memory.
+
+parameters:
+  - key: project_path
+    input_type: string
+    requirement: required
+    description: Path to the project directory to audit (supports Node.js, Python, Go, Rust, Java, .NET)
+  
+  - key: audit_depth
+    input_type: string
+    requirement: optional
+    default: "comprehensive"
+    description: Depth of security audit - options are 'quick', 'comprehensive', 'deep', 'compliance'
+  
+  - key: risk_threshold
+    input_type: string
+    requirement: optional
+    default: "medium"
+    description: Minimum risk level to report - options are 'low', 'medium', 'high', 'critical'
+  
+  - key: auto_remediate
+    input_type: string
+    requirement: optional
+    default: "false"
+    description: Whether to create automated fix PRs for known issues (true/false)
+  
+  - key: compliance_standard
+    input_type: string
+    requirement: optional
+    default: "owasp-top10"
+    description: Compliance standard to validate against - options are 'owasp-top10', 'cwe-top25', 'pci-dss', 'sox', 'custom'
+  
+  - key: output_format
+    input_type: string
+    requirement: optional
+    default: "markdown"
+    description: Security report format - options are 'markdown', 'json', 'sarif', 'html'
+  
+  - key: exclude_patterns
+    input_type: string
+    requirement: optional
+    default: ""
+    description: Comma-separated patterns to exclude from scanning (e.g., "node_modules,*.min.js,dist/")
+
+sub_recipes:
+  - name: "vulnerability_scanner"
+    path: "./subrecipes/vulnerability-scanner.yaml"
+    values:
+      scan_depth: "{{ audit_depth }}"
+      risk_threshold: "{{ risk_threshold }}"
+  
+  - name: "secret_detector"
+    path: "./subrecipes/secret-detector.yaml"
+    values:
+      scan_patterns: "comprehensive"
+      exclude_patterns: "{{ exclude_patterns }}"
+  
+  - name: "code_security_analyzer"
+    path: "./subrecipes/code-security-analyzer.yaml"
+    values:
+      analysis_depth: "{{ audit_depth }}"
+      compliance_standard: "{{ compliance_standard }}"
+  
+  - name: "compliance_checker"
+    path: "./subrecipes/compliance-checker.yaml"
+    values:
+      standard: "{{ compliance_standard }}"
+      output_format: "{{ output_format }}"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For file operations, dependency scanning, and script execution
+  
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing security findings and tracking vulnerabilities across sessions
+  
+  - type: stdio
+    name: filesystem
+    cmd: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "{{ project_path }}"
+    timeout: 300
+    description: Enhanced filesystem operations for managing security reports and scan results
+  
+  - type: stdio
+    name: github
+    cmd: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-github"
+    timeout: 300
+    description: GitHub integration for creating security fix PRs and managing security policies
+
+prompt: |
+  Perform comprehensive security audit on {{ project_path }} with {{ audit_depth }} depth and {{ risk_threshold }} risk threshold.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  - Create security report directories if they don't exist
+  
+  Workflow:
+  1. Project Analysis: Detect project type and security requirements
+     - Identify programming language and framework
+     - Determine dependency management system
+     - Check for existing security configurations
+     - Store project context in memory
+  
+  2. Conditional Security Scanning: Run only the relevant sub-recipes
+     - Always run:
+       - vulnerability_scanner (dependency CVEs)
+       - secret_detector (hardcoded credentials)
+     - Run code_security_analyzer ONLY if the detected language is supported (Node.js, Python, Go, Rust, Java, .NET)
+     - Run compliance_checker ONLY when:
+       - audit_depth == "compliance"
+       OR
+       - compliance_standard != "owasp-top10"
+     - Capture each sub-recipe's returned output and write it to files under {{ project_path }}/security-reports/:
+       * vulns.{{ output_format }}, secrets.{{ output_format }}, code.{{ output_format }}, compliance.{{ output_format }}
+     - Do not rely on sub-recipe memory (it is isolated); aggregate from the written files.
+  
+  3. Risk Assessment: Aggregate and prioritize findings
+     - Calculate risk scores based on severity and exploitability
+     - Group findings by category and impact
+     - Identify false positives and validate critical issues
+     - Store risk assessment in memory
+  
+  {% if auto_remediate == "true" %}
+  4. Automated Remediation: Create fix branches and PRs
+     - Generate fix strategies for known vulnerabilities
+     - Create security fix branches
+     - Implement automated patches where possible
+     - Create pull requests with security fix descriptions
+     - Link PRs to security findings in memory
+  {% endif %}
+  
+  5. Report Generation: Create comprehensive security report
+     - Generate {{ output_format }} security report
+     - Include executive summary and detailed findings
+     - Provide remediation recommendations
+     - Save to {{ project_path }}/security-reports/
+  
+  6. Security Monitoring Setup: Configure ongoing security
+     - Create security policy files
+     - Set up dependency scanning in CI/CD
+     - Configure secret scanning alerts
+     - Document security procedures
+  
+  Error Recovery:
+  - If a sub-recipe fails, continue with remaining scans
+  - Log security scan errors clearly with context
+  - Provide partial security assessment if complete audit fails
+  - Always prioritize critical security findings
+  
+  Security Context Management:
+  - Use memory extension to track vulnerabilities across sessions
+  - Store project security baseline for future comparisons
+  - Maintain security policy compliance status
+  - Track remediation progress over time
+  
+  Depth hints:
+  - quick: focus high/critical only; shallow scans
+  - comprehensive: full scans; include medium+
+  - deep: full scans plus slower checks
+  - compliance: emphasize standard mapping/attestation; include roll-up in report
+  
+  Always verify paths work on the current OS before file operations.
+  Prioritize findings that could lead to data breaches or system compromise.

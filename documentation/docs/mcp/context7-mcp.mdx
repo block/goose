@@ -1,6 +1,6 @@
 ---
 title: Context7 Extension
-description: Add Context7 MCP Server as a Goose Extension
+description: Add Context7 MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -13,14 +13,14 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/LNmPi6YCocI" /> 
 
 
-This tutorial covers how to add the [Context7 MCP Server](https://github.com/upstash/context7) as a Goose extension to pull up-to-date, version-specific code and docs so Goose can vibe code with real context, not hallucinated or outdated answers.
+This tutorial covers how to add the [Context7 MCP Server](https://github.com/upstash/context7) as a goose extension to pull up-to-date, version-specific code and docs so goose can vibe code with real context, not hallucinated or outdated answers.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Context7%20MCP%20server%20for%20up-to-date%20code%20and%20docs)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y @upstash/context7-mcp
@@ -31,28 +31,42 @@ This tutorial covers how to add the [Context7 MCP Server](https://github.com/ups
 
 ## Configuration
 
-<GooseDesktopInstaller
-  extensionId="context7"
-  extensionName="Context7"
-  description="Context7 MCP server for up-to-date code and docs"
-  command="npx"
-  args={["-y", "@upstash/context7-mcp"]}
-  cliCommand="npx -y @upstash/context7-mcp"
-  timeout={300}
-  note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
-/>
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="context7"
+      extensionName="Context7"
+      description="Context7 MCP server for up-to-date code and docs"
+      command="npx"
+      args={["-y", "@upstash/context7-mcp"]}
+      cliCommand="npx -y @upstash/context7-mcp"
+      timeout={300}
+    />
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Context7"
+      description="Context7 MCP server for up-to-date code and docs"
+      command="npx -y @upstash/context7-mcp"
+    />
+  </TabItem>
+</Tabs>
 
 ## Example Usage
 
-In this example, Goose uses Context7 to pull real-time docs, compare tools, and scaffold a modern app using only the latest, official implementation patterns.
+In this example, goose uses Context7 to pull real-time docs, compare tools, and scaffold a modern app using only the latest, official implementation patterns.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-   1. Open a new session in Goose Desktop
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Open a new session in goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session
@@ -61,7 +75,7 @@ In this example, Goose uses Context7 to pull real-time docs, compare tools, and 
   </TabItem>
 </Tabs>
 
-### Goose Prompt
+### goose Prompt
 
 I need help building a modern web application. Could you:
 
@@ -89,7 +103,7 @@ I need help building a modern web application. Could you:
 
 Please reference specific documentation sections and explain why certain approaches are recommended over others.
 
-### Goose Output
+### goose Output
 
 :::note Desktop
 

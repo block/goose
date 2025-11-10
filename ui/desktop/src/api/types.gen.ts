@@ -4,6 +4,11 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
+    session_id: string;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -25,6 +30,10 @@ export type ChatRequest = {
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
+};
+
+export type CheckProviderRequest = {
+    provider: string;
 };
 
 /**
@@ -67,39 +76,7 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
-/**
- * Request payload for context management operations
- */
-export type ContextManageRequest = {
-    /**
-     * Collection of messages to be managed
-     */
-    messages: Array<Message>;
-    /**
-     * Optional session ID for session-specific agent
-     */
-    sessionId: string;
-};
-
-/**
- * Response from context management operations
- */
-export type ContextManageResponse = {
-    /**
-     * Processed messages after the operation
-     */
-    messages: Array<Message>;
-    /**
-     * Token counts for each processed message
-     */
-    tokenCounts: Array<number>;
-};
-
 export type Conversation = Array<Message>;
-
-export type ConversationCompacted = {
-    msg: string;
-};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -113,7 +90,6 @@ export type CreateRecipeResponse = {
 
 export type CreateScheduleRequest = {
     cron: string;
-    execution_mode?: string | null;
     id: string;
     recipe_source: string;
 };
@@ -312,7 +288,7 @@ export type GetToolsQuery = {
 
 export type Icon = {
     mimeType?: string;
-    sizes?: string;
+    sizes?: Array<string>;
     src: string;
 };
 
@@ -388,9 +364,37 @@ export type MessageContent = (TextContent & {
     type: 'thinking';
 }) | (RedactedThinkingContent & {
     type: 'redactedThinking';
-}) | (ConversationCompacted & {
-    type: 'conversationCompacted';
+}) | (SystemNotificationContent & {
+    type: 'systemNotification';
 });
+
+export type MessageEvent = {
+    message: Message;
+    token_state: TokenState;
+    type: 'Message';
+} | {
+    error: string;
+    type: 'Error';
+} | {
+    reason: string;
+    token_state: TokenState;
+    type: 'Finish';
+} | {
+    mode: string;
+    model: string;
+    type: 'ModelChange';
+} | {
+    message: {
+        [key: string]: unknown;
+    };
+    request_id: string;
+    type: 'Notification';
+} | {
+    conversation: Conversation;
+    type: 'UpdateConversation';
+} | {
+    type: 'Ping';
+};
 
 /**
  * Metadata for message visibility
@@ -547,7 +551,6 @@ export type RawTextContent = {
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
-    context?: Array<string> | null;
     description: string;
     extensions?: Array<ExtensionConfig> | null;
     instructions?: string | null;
@@ -584,6 +587,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -605,6 +613,7 @@ export type Response = {
 };
 
 export type ResumeAgentRequest = {
+    load_model_and_extensions: boolean;
     session_id: string;
 };
 
@@ -661,7 +670,6 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
-    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
@@ -675,19 +683,21 @@ export type Session = {
     accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
-    description: string;
     extension_data: ExtensionData;
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    name: string;
     output_tokens?: number | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
+    session_type?: SessionType;
     total_tokens?: number | null;
     updated_at: string;
     user_recipe_values?: {
         [key: string]: string;
     } | null;
+    user_set_name?: boolean;
     working_dir: string;
 };
 
@@ -707,13 +717,7 @@ export type SessionDisplayInfo = {
 };
 
 export type SessionInsights = {
-    /**
-     * Total number of sessions
-     */
     totalSessions: number;
-    /**
-     * Total tokens used across all sessions
-     */
     totalTokens: number;
 };
 
@@ -724,8 +728,15 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
+
 export type SessionsQuery = {
-    limit?: number;
+    limit: number;
+};
+
+export type SetProviderRequest = {
+    model: string;
+    provider: string;
 };
 
 export type Settings = {
@@ -767,6 +778,13 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
+export type SystemNotificationContent = {
+    msg: string;
+    notificationType: SystemNotificationType;
+};
+
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -780,6 +798,15 @@ export type TextContent = {
 export type ThinkingContent = {
     signature: string;
     thinking: string;
+};
+
+export type TokenState = {
+    accumulatedInputTokens: number;
+    accumulatedOutputTokens: number;
+    accumulatedTotalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
 };
 
 export type Tool = {
@@ -869,11 +896,11 @@ export type UpdateScheduleRequest = {
     cron: string;
 };
 
-export type UpdateSessionDescriptionRequest = {
+export type UpdateSessionNameRequest = {
     /**
-     * Updated description (name) for the session (max 200 characters)
+     * Updated name for the session (max 200 characters)
      */
-    description: string;
+    name: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -898,6 +925,68 @@ export type UpsertConfigQuery = {
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
+
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/add_extension';
+};
+
+export type AgentAddExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
+
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/remove_extension';
+};
+
+export type AgentRemoveExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
@@ -1130,6 +1219,13 @@ export type BackupConfigResponses = {
 };
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
+
+export type CheckProviderData = {
+    body: CheckProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/check_provider';
+};
 
 export type CreateCustomProviderData = {
     body: UpdateCustomProviderRequest;
@@ -1497,6 +1593,13 @@ export type RemoveConfigResponses = {
 
 export type RemoveConfigResponse = RemoveConfigResponses[keyof RemoveConfigResponses];
 
+export type SetConfigProviderData = {
+    body: SetProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/set_provider';
+};
+
 export type UpsertConfigData = {
     body: UpsertConfigQuery;
     path?: never;
@@ -1568,36 +1671,30 @@ export type ConfirmPermissionResponses = {
     200: unknown;
 };
 
-export type ManageContextData = {
-    body: ContextManageRequest;
-    path?: never;
+export type DiagnosticsData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
     query?: never;
-    url: '/context/manage';
+    url: '/diagnostics/{session_id}';
 };
 
-export type ManageContextErrors = {
+export type DiagnosticsErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
+     * Failed to generate diagnostics
      */
     500: unknown;
 };
 
-export type ManageContextResponses = {
+export type DiagnosticsResponses = {
     /**
-     * Context managed successfully
+     * Diagnostics zip file
      */
-    200: ContextManageResponse;
+    200: Blob | File;
 };
 
-export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
@@ -1860,8 +1957,10 @@ export type ReplyResponses = {
     /**
      * Streaming response initiated
      */
-    200: unknown;
+    200: MessageEvent;
 };
+
+export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
@@ -2109,8 +2208,8 @@ export type SessionsHandlerData = {
          */
         id: string;
     };
-    query?: {
-        limit?: number;
+    query: {
+        limit: number;
     };
     url: '/schedule/{id}/sessions';
 };
@@ -2318,44 +2417,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type UpdateSessionDescriptionData = {
-    body: UpdateSessionDescriptionRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/description';
-};
-
-export type UpdateSessionDescriptionErrors = {
-    /**
-     * Bad request - Description too long (max 200 characters)
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionDescriptionResponses = {
-    /**
-     * Session description updated successfully
-     */
-    200: unknown;
-};
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -2391,6 +2452,44 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type UpdateSessionNameData = {
+    body: UpdateSessionNameRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/name';
+};
+
+export type UpdateSessionNameErrors = {
+    /**
+     * Bad request - Name too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionNameResponses = {
+    /**
+     * Session name updated successfully
+     */
+    200: unknown;
+};
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;

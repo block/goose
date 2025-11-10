@@ -132,7 +132,7 @@ SQL can get complex with joins, stored procedures, and subqueries. Goose helps m
 ### How to Try It
 
 1. Follow [this tutorial](/docs/mcp/postgres-mcp)
-2. Enable the [`PostgreSQL`](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/postgres) and [`Developer`](/extensions/detail?id=developer) extensions
+2. Enable the [`PostgreSQL`](https://github.com/bytebase/dbhub/) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
    > Find my top 3 blog posts by average weekly views over the past 90 days. Include title, URL, average weekly views, and whether they were promoted on social.
 
@@ -223,9 +223,9 @@ Legal documents are often dense and repetitive. Goose can highlight what actuall
 2. Prompt Goose:
    > Highlight the differences between these two versions of FinCEN's Investment Adviser AML regulations:
    >
-   > Proposed version (2015): https://www.federalregister.gov/documents/2015/09/01/2015-21318
+   > Proposed version (2015): https://www.federalregister.gov/documents/2015/09/01/2015-21318/anti-money-laundering-program-and-suspicious-activity-report-filing-requirements-for-registered
    > 
-   > Final version (2024): https://www.federalregister.gov/documents/2024/09/04/2024-19260
+   > Final version (2024): https://www.federalregister.gov/documents/2024/09/04/2024-19260/financial-crimes-enforcement-network-anti-money-launderingcountering-the-financing-of-terrorism
    >
    > Focus on key changes in requirements for investment advisers' AML/CFT programs and how they affect compliance obligations.
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -8,10 +8,10 @@ import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../api';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
@@ -20,14 +20,14 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useContextManager } from './context_management/ContextManager';
-import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
+import { DiagnosticsModal } from './ui/DownloadDiagnostics';
+import { Message } from '../api';
 
 interface QueuedMessage {
   id: string;
@@ -51,6 +51,9 @@ const MAX_IMAGE_SIZE_MB = 5;
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
+// Manual compact trigger message - must match backend constant
+const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
+
 interface ModelLimit {
   pattern: string;
   context_limit: number;
@@ -66,11 +69,10 @@ interface ChatInputProps {
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
-  numTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  totalTokens?: number;
+  accumulatedInputTokens?: number;
+  accumulatedOutputTokens?: number;
   messages?: Message[];
-  setMessages: (messages: Message[]) => void;
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
@@ -100,11 +102,10 @@ export default function ChatInput({
   droppedFiles = [],
   onFilesProcessed,
   setView,
-  numTokens,
-  inputTokens,
-  outputTokens,
+  totalTokens,
+  accumulatedInputTokens,
+  accumulatedOutputTokens,
   messages = [],
-  setMessages,
   disableAnimation = false,
   sessionCosts,
   setIsGoosehintsModalOpen,
@@ -114,7 +115,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   autoSubmit = false,
-  append,
+  append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -136,23 +137,11 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
-  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
-
-  // Draft functionality - get chat context and global draft context
-  // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
-  const chatContext = useChatContext(); // This should always be available now
-  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
-  const draftLoadedRef = useRef(false);
-
-  // Debug logging for draft context
-  useEffect(() => {
-    // Debug logging removed - draft functionality is working correctly
-  }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -279,9 +268,6 @@ export default function ChatInput({
     setValue(initialValue);
     setDisplayValue(initialValue);
 
-    // Reset draft loaded flag when initialValue changes
-    draftLoadedRef.current = false;
-
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
@@ -310,38 +296,6 @@ export default function ChatInput({
       }, 0);
     }
   }, [recipeAccepted, initialPrompt, messages.length]);
-
-  // Draft functionality - load draft if no initial value or recipe
-  useEffect(() => {
-    // Reset draft loaded flag when context changes
-    draftLoadedRef.current = false;
-  }, [chatContext?.contextKey]);
-
-  useEffect(() => {
-    // Only load draft once and if conditions are met
-    if (!initialValue && !recipe && !draftLoadedRef.current && chatContext) {
-      const draftText = chatContext.draft || '';
-
-      if (draftText) {
-        setDisplayValue(draftText);
-        setValue(draftText);
-      }
-
-      // Always mark as loaded after checking, regardless of whether we found a draft
-      draftLoadedRef.current = true;
-    }
-  }, [chatContext, initialValue, recipe]);
-
-  // Save draft when user types (debounced)
-  const debouncedSaveDraft = useMemo(
-    () =>
-      debounce((value: string) => {
-        if (chatContext && chatContext.setDraft) {
-          chatContext.setDraft(value);
-        }
-      }, 500), // Save draft after 500ms of no typing
-    [chatContext]
-  );
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -498,51 +452,31 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
-  // Load auto-compact threshold
-  const loadAutoCompactThreshold = useCallback(async () => {
-    try {
-      const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-      if (threshold !== undefined && threshold !== null) {
-        setAutoCompactThreshold(threshold as number);
-      }
-    } catch (err) {
-      console.error('Error fetching auto-compact threshold:', err);
-    }
-  }, [read]);
-
-  useEffect(() => {
-    loadAutoCompactThreshold();
-  }, [loadAutoCompactThreshold]);
-
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
 
     // Show alert when either there is registered token usage, or we know the limit
-    if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
-      // in these conditions we want it to be present but disabled
-      const compactButtonDisabled = !numTokens || isCompacting;
-
+    if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: numTokens || 0,
+          current: totalTokens || 0,
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled,
+        compactButtonDisabled: !totalTokens,
         onCompact: () => {
-          // Hide the alert popup by dispatching a custom event that the popover can listen to
-          // Importantly, this leaves the alert so the dot still shows up, but hides the popover
           window.dispatchEvent(new CustomEvent('hide-alert-popover'));
-          handleManualCompaction(messages, setMessages, append, sessionId || '');
+
+          const customEvent = new CustomEvent('submit', {
+            detail: { value: MANUAL_COMPACT_TRIGGER },
+          }) as unknown as React.FormEvent;
+
+          handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
-        autoCompactThreshold: autoCompactThreshold,
-        onThresholdChange: (newThreshold: number) => {
-          setAutoCompactThreshold(newThreshold);
-        },
       });
     }
 
@@ -560,16 +494,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    numTokens,
-    toolCount,
-    tokenLimit,
-    isTokenLimitLoaded,
-    addAlert,
-    isCompacting,
-    clearAlerts,
-    autoCompactThreshold,
-  ]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -635,13 +560,9 @@ export default function ChatInput({
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
-    setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
-    // Mark that the user has typed something
+    setDisplayValue(val);
+    updateValue(val);
     setHasUserTyped(true);
-
-    // Check for @ mention
     checkForMention(val, cursorPosition, evt.target);
   };
 
@@ -796,9 +717,8 @@ export default function ChatInput({
   useEffect(() => {
     return () => {
       debouncedAutosize.cancel?.();
-      debouncedSaveDraft.cancel?.();
     };
-  }, [debouncedAutosize, debouncedSaveDraft]);
+  }, [debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -937,8 +857,6 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
-    !isCompacting &&
-    agentIsReady &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -992,11 +910,6 @@ export default function ChatInput({
         setIsInGlobalHistory(false);
         setHasUserTyped(false);
 
-        // Clear draft when message is sent
-        if (chatContext && chatContext.clearDraft) {
-          chatContext.clearDraft();
-        }
-
         // Clear both parent and local dropped files after processing
         if (onFilesProcessed && droppedFiles.length > 0) {
           onFilesProcessed();
@@ -1008,7 +921,6 @@ export default function ChatInput({
     },
     [
       allDroppedFiles,
-      chatContext,
       displayValue,
       droppedFiles.length,
       handleSubmit,
@@ -1094,8 +1006,6 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isCompacting &&
-      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1149,8 +1059,6 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isCompacting ||
-    !agentIsReady ||
     isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
@@ -1394,17 +1302,15 @@ export default function ChatInput({
                 <p>
                   {isExtensionsLoading
                     ? 'Loading extensions...'
-                    : isCompacting
-                      ? 'Compacting conversation...'
-                      : isAnyImageLoading
-                        ? 'Waiting for images to save...'
-                        : isAnyDroppedFileLoading
-                          ? 'Processing dropped files...'
-                          : isRecording
-                            ? 'Recording...'
-                            : isTranscribing
-                              ? 'Transcribing...'
-                              : (chatContext?.agentWaitingMessage ?? 'Send')}
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : 'Send'}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1548,7 +1454,6 @@ export default function ChatInput({
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Attach button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1563,6 +1468,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
+
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1572,8 +1478,8 @@ export default function ChatInput({
             <>
               <div className="flex items-center h-full ml-1 mr-1">
                 <CostTracker
-                  inputTokens={inputTokens}
-                  outputTokens={outputTokens}
+                  inputTokens={accumulatedInputTokens}
+                  outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
                 />
               </div>
@@ -1594,7 +1500,12 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          {process.env.ALPHA && sessionId && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <BottomMenuExtensionSelection sessionId={sessionId} />
+            </>
+          )}
           <div className="flex items-center h-full">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1610,7 +1521,31 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
+          {sessionId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={() => setDiagnosticsOpen(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                >
+                  <Bug className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Generate diagnostics bundle</TooltipContent>
+            </Tooltip>
+          )}
         </div>
+
+        {sessionId && diagnosticsOpen && (
+          <DiagnosticsModal
+            isOpen={diagnosticsOpen}
+            onClose={() => setDiagnosticsOpen(false)}
+            sessionId={sessionId}
+          />
+        )}
 
         <MentionPopover
           ref={mentionPopoverRef}

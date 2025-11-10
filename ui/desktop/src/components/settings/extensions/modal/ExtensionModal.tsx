@@ -353,7 +353,6 @@ export default function ExtensionModal({
                 submitAttempted={submitAttempted}
               />
 
-              {/* Divider */}
               <hr className="border-t border-borderSubtle" />
 
               {/* Command */}
@@ -374,40 +373,41 @@ export default function ExtensionModal({
                 />
               </div>
 
-              {/* Divider */}
-              <hr className="border-t border-borderSubtle" />
+              {formData.type === 'stdio' && (
+                <>
+                  <hr className="border-t border-borderSubtle" />
 
-              {/* Environment Variables */}
-              <div>
-                <EnvVarsSection
-                  envVars={formData.envVars}
-                  onAdd={handleAddEnvVar}
-                  onRemove={handleRemoveEnvVar}
-                  onChange={handleEnvVarChange}
-                  submitAttempted={submitAttempted}
-                  onPendingInputChange={setHasPendingEnvVars}
-                />
-              </div>
+                  <div>
+                    <EnvVarsSection
+                      envVars={formData.envVars}
+                      onAdd={handleAddEnvVar}
+                      onRemove={handleRemoveEnvVar}
+                      onChange={handleEnvVarChange}
+                      submitAttempted={submitAttempted}
+                      onPendingInputChange={setHasPendingEnvVars}
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.type === 'streamable_http' && (
+                <>
+                  {/* Divider */}
+                  <hr className="border-t border-borderSubtle" />
+
+                  <div>
+                    <HeadersSection
+                      headers={formData.headers}
+                      onAdd={handleAddHeader}
+                      onRemove={handleRemoveHeader}
+                      onChange={handleHeaderChange}
+                      submitAttempted={submitAttempted}
+                      onPendingInputChange={handlePendingHeaderChange}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          )}
-
-          {/* Request Headers - Only for streamable_http */}
-          {formData.type === 'streamable_http' && (
-            <>
-              {/* Divider */}
-              <hr className="border-t border-borderSubtle mb-4" />
-
-              <div className="mb-6">
-                <HeadersSection
-                  headers={formData.headers}
-                  onAdd={handleAddHeader}
-                  onRemove={handleRemoveHeader}
-                  onChange={handleHeaderChange}
-                  submitAttempted={submitAttempted}
-                  onPendingInputChange={handlePendingHeaderChange}
-                />
-              </div>
-            </>
           )}
 
           <DialogFooter className="pt-2">

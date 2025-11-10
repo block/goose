@@ -22,5 +22,11 @@
       "type": "text",
       "text": "{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"
     }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "LLM sampling result: \"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"
+    }
   ]
 ]

@@ -1,20 +1,21 @@
 ---
 title: MongoDB Extension
-description: Add MongoDB MCP Server as a Goose Extension
+description: Add MongoDB MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows Goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
+The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mongodb-mcp-server&arg=--connection-string&arg=mongodb://localhost:27017&id=mongodb&name=MongoDB&description=MongoDB%20database%20integration)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
@@ -55,7 +56,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="mongodb"
       extensionName="MongoDB"
@@ -69,131 +70,17 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension 
-    └ 
-  ```
-
-  3. Name your extension
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  MongoDB
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command with the database connection string that matches your [MongoDB environment](#customizing-your-connection)
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  MongoDB
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
-    // highlight-end
-    └ 
-  ```  
-
-  5. Set the timeout (default 300s is usually sufficient)
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  MongoDB
-    │
-    ◇  What command should be run?
-    │  npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  MongoDB
-    │
-    ◇  What command should be run?
-    │  npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◆  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```
-
-  7. Complete the configuration
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  MongoDB
-    │
-    ◇  What command should be run?
-    │  npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
-    │     
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  No 
-    // highlight-end
-    └  Added MongoDB extension
-  ```  
-
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="MongoDB"
+      description="MongoDB database integration"
+      command="npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017"
+      commandNote={
+        <>
+          Replace <code>mongodb://localhost:27017</code> with the actual MongoDB connection string that matches your <a href="#customizing-your-connection">MongoDB environment</a>.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 
@@ -223,16 +110,16 @@ The MongoDB extension provides comprehensive database management capabilities th
 - **View collection indexes** and their configurations
 - **Check database statistics** and collection storage sizes
 
-Just describe what you want to accomplish in natural language, and Goose will help you execute the appropriate MongoDB operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate MongoDB operations safely and efficiently.
 
 ## Example Usage
 
-#### Goose Prompt
+#### goose Prompt
 ```
 Update all users in the premium tier who haven't logged in for more than 90 days - set their status to 'inactive' and add a note about when this change was made.
 ```
 
-#### Goose Output
+#### goose Output
 ```
 I've successfully updated inactive premium users using updateMany:
 

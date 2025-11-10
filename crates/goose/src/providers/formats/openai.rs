@@ -96,7 +96,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
-                MessageContent::ConversationCompacted(_) => {
+                MessageContent::SystemNotification(_) => {
                     continue;
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {

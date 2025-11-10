@@ -1,6 +1,6 @@
-use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
+use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
+use crate::config::{GooseMode, PermissionManager};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
-    mode: Arc<Mutex<String>>,
+    mode: Arc<Mutex<GooseMode>>,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
     pub permission_manager: Arc<Mutex<PermissionManager>>,
@@ -20,7 +20,7 @@ pub struct PermissionInspector {
 
 impl PermissionInspector {
     pub fn new(
-        mode: String,
+        mode: GooseMode,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
     ) -> Self {
@@ -33,7 +33,7 @@ impl PermissionInspector {
     }
 
     pub fn with_permission_manager(
-        mode: String,
+        mode: GooseMode,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
         permission_manager: Arc<Mutex<PermissionManager>>,
@@ -47,7 +47,7 @@ impl PermissionInspector {
     }
 
     /// Update the mode of this permission inspector
-    pub async fn update_mode(&self, new_mode: String) {
+    pub async fn update_mode(&self, new_mode: GooseMode) {
         let mut mode = self.mode.lock().await;
         *mode = new_mode;
     }
@@ -139,45 +139,42 @@ impl ToolInspector for PermissionInspector {
             if let Ok(tool_call) = &request.tool_call {
                 let tool_name = &tool_call.name;
 
-                // Handle different modes
-                let action = if *mode == "chat" {
-                    // In chat mode, all tools are skipped (handled elsewhere)
-                    continue;
-                } else if *mode == "auto" {
-                    // In auto mode, all tools are approved
-                    InspectionAction::Allow
-                } else {
-                    // Smart mode - check permissions
-
-                    // 1. Check user-defined permission first
-                    if let Some(level) = permission_manager.get_user_permission(tool_name) {
-                        match level {
-                            PermissionLevel::AlwaysAllow => InspectionAction::Allow,
-                            PermissionLevel::NeverAllow => InspectionAction::Deny,
-                            PermissionLevel::AskBefore => InspectionAction::RequireApproval(None),
+                let action = match *mode {
+                    GooseMode::Chat => continue,
+                    GooseMode::Auto => InspectionAction::Allow,
+                    GooseMode::Approve | GooseMode::SmartApprove => {
+                        // 1. Check user-defined permission first
+                        if let Some(level) = permission_manager.get_user_permission(tool_name) {
+                            match level {
+                                PermissionLevel::AlwaysAllow => InspectionAction::Allow,
+                                PermissionLevel::NeverAllow => InspectionAction::Deny,
+                                PermissionLevel::AskBefore => {
+                                    InspectionAction::RequireApproval(None)
+                                }
+                            }
                         }
-                    }
-                    // 2. Check if it's a readonly or regular tool (both pre-approved)
-                    else if self.readonly_tools.contains(tool_name.as_ref())
-                        || self.regular_tools.contains(tool_name.as_ref())
-                    {
-                        InspectionAction::Allow
-                    }
-                    // 4. Special case for extension management
-                    else if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
-                        InspectionAction::RequireApproval(Some(
-                            "Extension management requires approval for security".to_string(),
-                        ))
-                    }
-                    // 5. Default: require approval for unknown tools
-                    else {
-                        InspectionAction::RequireApproval(None)
+                        // 2. Check if it's a readonly or regular tool (both pre-approved)
+                        else if self.readonly_tools.contains(tool_name.as_ref())
+                            || self.regular_tools.contains(tool_name.as_ref())
+                        {
+                            InspectionAction::Allow
+                        }
+                        // 4. Special case for extension management
+                        else if tool_name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
+                            InspectionAction::RequireApproval(Some(
+                                "Extension management requires approval for security".to_string(),
+                            ))
+                        }
+                        // 5. Default: require approval for unknown tools
+                        else {
+                            InspectionAction::RequireApproval(None)
+                        }
                     }
                 };
 
                 let reason = match &action {
                     InspectionAction::Allow => {
-                        if *mode == "auto" {
+                        if *mode == GooseMode::Auto {
                             "Auto mode - all tools approved".to_string()
                         } else if self.readonly_tools.contains(tool_name.as_ref()) {
                             "Tool marked as read-only".to_string()
@@ -189,7 +186,7 @@ impl ToolInspector for PermissionInspector {
                     }
                     InspectionAction::Deny => "User permission denies this tool".to_string(),
                     InspectionAction::RequireApproval(_) => {
-                        if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                        if tool_name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
                             "Extension management requires user approval".to_string()
                         } else {
                             "Tool requires user approval".to_string()

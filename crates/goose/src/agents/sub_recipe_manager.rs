@@ -57,9 +57,10 @@ impl SubRecipeManager {
         tool_name: &str,
         params: Value,
         tasks_manager: &TasksManager,
+        parent_working_dir: &std::path::Path,
     ) -> ToolCallResult {
         let result = self
-            .call_sub_recipe_tool(tool_name, params, tasks_manager)
+            .call_sub_recipe_tool(tool_name, params, tasks_manager, parent_working_dir)
             .await;
         match result {
             Ok(call_result) => ToolCallResult::from(Ok(call_result)),
@@ -76,6 +77,7 @@ impl SubRecipeManager {
         tool_name: &str,
         params: Value,
         tasks_manager: &TasksManager,
+        parent_working_dir: &std::path::Path,
     ) -> Result<Vec<Content>, ErrorData> {
         let sub_recipe = self.sub_recipes.get(tool_name).ok_or_else(|| {
             let sub_recipe_name = tool_name
@@ -97,7 +99,7 @@ impl SubRecipeManager {
                 data: None,
             }
         })?;
-        let output = create_sub_recipe_task(sub_recipe, params, tasks_manager)
+        let output = create_sub_recipe_task(sub_recipe, params, tasks_manager, parent_working_dir)
             .await
             .map_err(|e| ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,

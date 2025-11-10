@@ -4,8 +4,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::subagent_execution_tool::task_types::Task;
-#[cfg(test)]
-use crate::agents::subagent_execution_tool::task_types::TaskType;
 
 #[derive(Debug, Clone)]
 pub struct TasksManager {
@@ -57,19 +55,26 @@ impl TasksManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use crate::agents::subagent_execution_tool::task_types::TaskPayload;
+    use crate::recipe::Recipe;
 
     fn create_test_task(id: &str, sub_recipe_name: &str) -> Task {
+        let recipe = Recipe::builder()
+            .version("1.0.0")
+            .title(sub_recipe_name)
+            .description("Test recipe")
+            .instructions("Test instructions")
+            .build()
+            .unwrap();
+
         Task {
             id: id.to_string(),
-            task_type: TaskType::SubRecipe,
-            payload: json!({
-                "sub_recipe": {
-                    "name": sub_recipe_name,
-                    "command_parameters": {},
-                    "recipe_path": "/test/path"
-                }
-            }),
+            payload: TaskPayload {
+                recipe,
+                return_last_only: false,
+                sequential_when_repeated: false,
+                parameter_values: None,
+            },
         }
     }
 

@@ -76,6 +76,8 @@ pub struct GcpVertexAIProvider {
     /// Retry configuration for handling rate limit errors
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GcpVertexAIProvider {
@@ -109,6 +111,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -492,6 +495,10 @@ impl Provider for GcpVertexAIProvider {
                 ),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     /// Completes a model interaction by sending a request and processing the response.

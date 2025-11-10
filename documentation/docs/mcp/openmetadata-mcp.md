@@ -1,20 +1,21 @@
 ---
 title: OpenMetadata Extension
-description: Add OpenMetadata MCP Server as a Goose Extension
+description: Add OpenMetadata MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows Goose to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
+The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows goose to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mcp-remote&arghttp://localhost:8585/mcp&arg=--auth-server-url&arg=http://localhost:8585/mcp&id=openmetadata&name=OpenMetadata&description=OpenMetadata%20integration)
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mcp-remote&arg=http%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--auth-server-url%3Dhttp%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--client-id%3Dopenmetadata&arg=--verbose&arg=--clean&arg=--header&arg=Authorization%3A%24%7BAUTH_HEADER%7D&id=openmetadata&name=OpenMetadata&description=Intelligent%20data%20management%20and%20automated%20data%20operations&env=AUTH_HEADER%3DBearer%20YOUR_OPENMETADATA_PAT)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
@@ -34,13 +35,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="openmetadata"
       extensionName="OpenMetadata"
-      description="OpenMetadata integration"
+      description="Intelligent data management and automated data operations"
       command="npx"
       args={["-y", "mcp-remote", "http://localhost:8585/mcp", "--auth-server-url=http://localhost:8585/mcp", "--client-id=openmetadata", "--verbose", "--clean", "--header", "Authorization:${AUTH_HEADER}"]}
+      envVars={[
+        { name: "AUTH_HEADER", label: "Bearer YOUR_OPENMETADATA_PAT" }
+      ]}
+      apiKeyLink="https://docs.open-metadata.org/latest/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client"
+      apiKeyLinkText="OpenMetadata Personal Access Token"
     />
     
     :::info Configure Your Connection String
@@ -48,141 +54,25 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension 
-    └ 
-  ```
-
-  3. Name your extension
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  OpenMetadata
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command with an URL that matches your [OpenMetadata environment](#customizing-your-connection)
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  OpenMetadata
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
-    // highlight-end
-    └ 
-  ```  
-
-  5. Set the timeout (default 300s is usually sufficient)
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  OpenMetadata
-    │
-    ◇  What command should be run?
-    │  npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  OpenMetadata
-    │
-    ◇  What command should be run?
-    │  npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◆  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```
-
-  7. Complete the configuration by added your [OpenMetadata Personal Access Token (PAT)](https://docs.open-metadata.org/latest/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client)
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What would you like to call this extension?
-    │  OpenMetadata
-    │
-    ◇  What command should be run?
-    │  npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
-    │     
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes
-    │ 
-    ◇  Environment variable name:
-    │  AUTH_HEADER
-    │
-    ◇  Environment variable value:
-    │  "Bearer <YOUR_OpenMetadata_PAT>"
-    │
-    ◇  Add another environment variable?
-    │  No
-    │
-// highlight-end
-    └  Added OpenMetadata extension
-  ```  
-
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="OpenMetadata"
+      description="Intelligent data management and automated data operations"
+      command="npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}"
+      envVars={[
+        { key: "AUTH_HEADER", value: "Bearer YOUR_OPENMETADATA_PAT" }
+      ]}
+      commandNote={
+        <>
+          Replace <code>http://localhost:8585/mcp</code> with the actual OpenMetadata instance URL that matches your <a href="#customizing-your-connection">OpenMetadata environment</a>.
+        </>
+      }
+      infoNote={
+        <>
+          Obtain your <a href="https://docs.open-metadata.org/latest/how-to-guides/mcp#adding-a-personal-access-token-to-your-mcp-client" target="_blank" rel="noopener noreferrer">OpenMetadata Personal Access Token</a> and paste it in as the <code>Bearer</code> token.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 
@@ -197,18 +87,18 @@ The OpenMetadata extension provides comprehensive metadata management capabiliti
 - **create_glossary_term** Create a new term within an existing glossary, with support for hierarchical relationships.
 - **get_entity_lineage** Retrieve upstream and downstream lineage information for any entity to understand data dependencies and impact analysis. 
 
-Just describe what you want to accomplish in natural language, and Goose will help you execute the appropriate OpenMetadata operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate OpenMetadata operations safely and efficiently.
 
 ## Example Usage
 
-In this example, Goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, Goose will add it.
+In this example, goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, goose will add it.
 
-#### Goose Prompt
+#### goose Prompt
 ```
 which tables are used to create my customers table in redshift? if the databricks table customerinfo is not already, add it to the customers table lineage.
 ```
 
-#### Goose Output
+#### goose Output
 ```
 Based on my analysis, I found your Redshift customers table at `redshift prod.dev.dbt_jaffle.customers`. Here are the tables currently used to create it:
 

@@ -9,22 +9,26 @@ interface EnvVar {
 
 interface CLIExtensionInstructionsProps {
   name: string;
+  description: string;
   type?: 'stdio' | 'sse' | 'http';
   command?: string; // Only for stdio
   url?: string; // For both sse and http
   timeout?: number;
   envVars?: EnvVar[]; // For stdio: environment variables, for http: headers
   infoNote?: string;
+  commandNote?: React.ReactNode; // Note to display for command/URL step
 }
 
 export default function CLIExtensionInstructions({
   name,
+  description,
   type = 'stdio',
   command,
   url,
   timeout = 300,
   envVars = [],
   infoNote,
+  commandNote,
 }: CLIExtensionInstructionsProps) {
   const hasEnvVars = envVars.length > 0;
   const isSSE = type === 'sse';
@@ -99,6 +103,14 @@ ${
           <ol start={4}>
             <li>Enter the {isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}.</li>
           </ol>
+          {commandNote && (
+            <>
+              <Admonition type="info">
+                {commandNote}
+              </Admonition>
+              <br />
+            </>
+          )}
           <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
@@ -121,6 +133,14 @@ ${
           <ol start={4}>
             <li>Enter the command to run when this extension is used.</li>
           </ol>
+          {commandNote && (
+            <>
+              <Admonition type="info">
+                {commandNote}
+              </Admonition>
+              <br />
+            </>
+          )}
           <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
@@ -169,7 +189,7 @@ ${
 └`}</CodeBlock>
 
       <ol start={6}>
-        <li>Choose to add a description. If you select <code>No</code>, Goose will skip it.</li>
+        <li>Enter a description for this extension.</li>
       </ol>
       <CodeBlock language="sh">{`┌   goose-configure 
 │
@@ -191,8 +211,8 @@ ${
 │  ${timeout}
 │
 // highlight-start
-◆  Would you like to add a description?
-│  No
+◆  Enter a description for this extension:
+│  ${description}
 // highlight-end
 └`}</CodeBlock>
 
@@ -200,8 +220,8 @@ ${
         <li>
           {hasEnvVars
             ? isHttp
-              ? <>Add custom header{envVars.length > 1 ? 's' : ''} for {name}.</>
-              : <>Add environment variable{envVars.length > 1 ? 's' : ''} for {name}.</>
+              ? <>Add {envVars.length > 1 ? 'custom headers' : 'a custom header'} for this extension.</>
+              : <>Add {envVars.length > 1 ? 'environment variables' : 'an environment variable'} for this extension.</>
             : isHttp
             ? <>Choose <code>No</code> when asked to add custom headers.</>
             : <>Choose <code>No</code> when asked to add environment variables.</>
@@ -229,8 +249,8 @@ ${
 ◇  Please set the timeout for this tool (in secs):
 │  ${timeout}
 │
-◇  Would you like to add a description?
-│  No
+◇  Enter a description for this extension:
+│  ${description}
 │
 // highlight-start
 ◆  ${lastStepText}
@@ -270,8 +290,8 @@ ${
 ◇  Please set the timeout for this tool (in secs):
 │  ${timeout}
 │
-◇  Would you like to add a description?
-│  No
+◇  Enter a description for this extension:
+│  ${description}
 │
 // highlight-start
 ◆  ${lastStepText}

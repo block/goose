@@ -22,12 +22,12 @@ use super::formats::bedrock::{
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
-pub const BEDROCK_DEFAULT_MODEL: &str = "anthropic.claude-sonnet-4-20250514-v1:0";
+pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-20250514-v1:0";
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
-    "anthropic.claude-sonnet-4-20250514-v1:0",
-    "anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "anthropic.claude-opus-4-20250514-v1:0",
-    "anthropic.claude-opus-4-1-20250805-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
@@ -37,11 +37,11 @@ pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
-    #[serde(skip)]
-    client: Client,
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl BedrockProvider {
@@ -59,25 +59,22 @@ impl BedrockProvider {
             }
         };
 
-        set_aws_env_vars(config.load_values());
-        set_aws_env_vars(config.load_secrets());
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(config.all_secrets());
 
         let sdk_config = aws_config::load_from_env().await;
-
-        // validate credentials or return error back up
         sdk_config
             .credentials_provider()
             .unwrap()
             .provide_credentials()
             .await?;
-        let client = Client::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
 
         Ok(Self {
-            client,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -114,8 +111,10 @@ impl BedrockProvider {
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let mut request = self
-            .client
+        let sdk_config = aws_config::load_from_env().await;
+        let client = Client::new(&sdk_config);
+
+        let mut request = client
             .converse()
             .system(bedrock::SystemContentBlock::Text(system.to_string()))
             .model_id(model_name.to_string())
@@ -182,6 +181,10 @@ impl Provider for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {

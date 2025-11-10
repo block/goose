@@ -1,23 +1,24 @@
 ---
 title: PDF Reader Extension
-description: Add PDF Reader MCP Server as a Goose Extension
+description: Add PDF Reader MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EJf2_iZfaWk" />
 
-This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a Goose extension, enabling Goose to read and extract text from protected and unprotected PDFs.
+This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a goose extension, enabling goose to read and extract text from protected and unprotected PDFs.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   uvx mcp-read-pdf
@@ -33,7 +34,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="pdf_read"
     extensionName="PDF Reader"
@@ -42,160 +43,20 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["mcp-read-pdf"]}
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-2. Choose to add a `Command-line Extension`
-
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◆  What type of extension would you like to add?
-│  ○ Built-in Extension
-// highlight-start
-│  ● Command-line Extension (Run a local command or script)
-// highlight-end
-│  ○ Remote Extension (SSE) 
-│  ○ Remote Extension (Streaming HTTP) 
-└
-```
-
-3. Give your extension a name
-
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◇  What type of extension would you like to add?
-│  Command-line Extension
-│
-// highlight-start
-◆  What would you like to call this extension?
-│  pdf
-// highlight-end
-└
-```
-
-4. Enter the command
-
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◇  What type of extension would you like to add?
-│  Command-line Extension
-│
-◇  What would you like to call this extension?
-│  pdf
-│
-// highlight-start
-◆  What command should be run?
-│  uvx mcp-read-pdf
-// highlight-end
-└
-```
-
-5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◇  What type of extension would you like to add?
-│  Command-line Extension
-│
-◇  What would you like to call this extension?
-│  pdf
-│
-◇  What command should be run?
-│  uvx mcp-read-pdf
-│
-// highlight-start
-◆  Please set the timeout for this tool (in secs):
-│  300
-// highlight-end
-│
-└
-```
-
-6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◇  What type of extension would you like to add?
-│  Command-line Extension
-│
-◇  What would you like to call this extension?
-│  pdf
-│
-◇  What command should be run?
-│  uvx mcp-read-pdf
-│
-◇  Please set the timeout for this tool (in secs):
-│  300
-│
-// highlight-start
-◇  Would you like to add a description?
-│  No
-// highlight-end
-│
-└
-```
-
-7. Choose No when asked to add environment variables
-
-```sh
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
-│
-◇  What type of extension would you like to add?
-│  Command-line Extension
-│
-◇  What would you like to call this extension?
-│  pdf
-│
-◇  What command should be run?
-│  uvx mcp-read-pdf
-│
-◇  Please set the timeout for this tool (in secs):
-│  300
-│
-◇  Would you like to add a description?
-│  No
-│
-// highlight-start
-◆  Would you like to add environment variables?
-│  No
-│
-// highlight-end
-└  Added pdf extension
-```
-
-</TabItem>
-   </Tabs>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="PDF Reader"
+      description="Read large and complex PDF documents"
+      command="uvx mcp-read-pdf"
+    />
+  </TabItem>
+</Tabs>
 
 ## Example Usage
 
-This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, Goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
+This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate aligns with the following role requirements:
@@ -209,7 +70,7 @@ Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate a
 Give a score out of 5 for each requirement, supporting evidence, and a summary at the end with pros, cons, and a decision: Strong Fit / Moderate Fit / Weak Fit.
 ```
 
-### Goose Output
+### goose Output
 
 :::note CLI
 

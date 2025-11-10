@@ -1,24 +1,25 @@
 ---
 title: Knowledge Graph Memory Extension
-description: Add Knowledge Graph Memory MCP Server as a Goose Extension
+description: Add Knowledge Graph Memory MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PF6hpDaI9Mc" />
 
 
-This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a Goose extension. This enables Goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across Goose sessions.
+This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a goose extension. This enables goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across goose sessions.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y @modelcontextprotocol/server-memory
@@ -34,7 +35,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="knowledge_graph_memory"
     extensionName="Knowledge Graph Memory"
@@ -43,157 +44,23 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@modelcontextprotocol/server-memory"]}
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  knowledge graph memory
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  knowledge graph memory
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-memory
-    // highlight-end
-    └ 
-  ```  
-
- 5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  knowledge graph memory
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-memory
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ``` 
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  knowledge graph memory
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-memory
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```
-
-  7. Choose No when asked to add environment variables
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  knowledge graph memory
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-memory
-	│
-	◇  Please set the timeout for this tool (in secs):
-	│  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-	│    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  No 
-    │
-    // highlight-end
-    └  Added knowledge graph memory extension
-  ```  
-
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Knowledge Graph Memory"
+      description="Graph-based memory system for persistent knowledge storage"
+      command="npx -y @modelcontextprotocol/server-memory"
+    />
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-In this example, I'll show you how Goose can become an intelligent security reviewer by using connected knowledge patterns to detect and analyze vulnerabilities. Goose will be able to understand the relationship between security issues, their impacts, and mitigations.
+In this example, I'll show you how goose can become an intelligent security reviewer by using connected knowledge patterns to detect and analyze vulnerabilities. goose will be able to understand the relationship between security issues, their impacts, and mitigations.
 
-This means Goose doesn't just spot issues - it understands how vulnerabilities connect to real world impacts and can suggest comprehensive solutions.
+This means goose doesn't just spot issues - it understands how vulnerabilities connect to real world impacts and can suggest comprehensive solutions.
 
-### Step 1: Teach Goose About Security Patterns
-    #### Goose Prompt #1
+### Step 1: Teach goose About Security Patterns
+    #### goose Prompt #1
     ```
     goose, learn these security vulnerability patterns and their relationships:
 
@@ -216,7 +83,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         - JWT-based solutions
     ```
 
-    #### Goose Output
+    #### goose Output
 
     ```
     I'll store this security knowledge in the Knowledge Graph Memory with proper entities and relationships
@@ -257,7 +124,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         - Understand how different security issues are related
     ```
 ### Step 2:  Use Connected Knowledge for Code Review
-    #### Goose Prompt # 2
+    #### goose Prompt # 2
 
     ```
     Review this API endpoint for security issues:
@@ -275,7 +142,7 @@ This means Goose doesn't just spot issues - it understands how vulnerabilities c
         });
     });
     ```
-    #### Goose Output
+    #### goose Output
     ```
     I'll analyze this code using our connected knowledge graph to trace security vulnerabilities and their implications:
 

@@ -3,7 +3,7 @@ import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
-import { ProviderDetails } from '../../../api';
+import { ProviderDetails, setConfigProvider } from '../../../api';
 import { toastService } from '../../../toasts';
 
 interface ProviderSettingsProps {
@@ -12,7 +12,7 @@ interface ProviderSettingsProps {
 }
 
 export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
-  const { getProviders, upsert } = useConfig();
+  const { getProviders } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -56,15 +56,13 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       const model = provider.metadata.default_model;
 
       try {
-        // update the config
-        // set GOOSE_PROVIDER in the config file
-        upsert('GOOSE_PROVIDER', provider_name, false).then((_) =>
-          console.log('Setting GOOSE_PROVIDER to', provider_name)
-        );
-        // set GOOSE_MODEL in the config file
-        upsert('GOOSE_MODEL', model, false).then((_) =>
-          console.log('Setting GOOSE_MODEL to', model)
-        );
+        await setConfigProvider({
+          body: {
+            provider: provider_name,
+            model,
+          },
+          throwOnError: true,
+        });
 
         toastService.configure({ silent: false });
         toastService.success({
@@ -85,7 +83,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         });
       }
     },
-    [onClose, upsert]
+    [onClose]
   );
 
   return (

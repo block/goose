@@ -1,11 +1,11 @@
-use rmcp::model::{Content, Role};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-
 use crate::developer::analyze::types::{
     AnalysisMode, AnalysisResult, CallChain, EntryType, FocusedAnalysisData,
 };
 use crate::developer::lang;
+use goose::utils::safe_truncate;
+use rmcp::model::{Content, Role};
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 pub struct Formatter;
 
@@ -164,13 +164,7 @@ impl Formatter {
                     if imports.len() > 1 {
                         format!("{}({})", group, imports.len())
                     } else {
-                        // For single imports, show more detail
-                        let imp = &imports[0];
-                        if imp.len() > 40 {
-                            format!("{}...", &imp[..37])
-                        } else {
-                            imp.clone()
-                        }
+                        safe_truncate(&imports[0], 40)
                     }
                 })
                 .collect();
@@ -727,7 +721,7 @@ impl Formatter {
                 if let Some(header_line) = output
                     .lines()
                     .rev()
-                    .find(|l| l.starts_with("##") && line.contains(&l[3..]))
+                    .find(|l| l.starts_with("##") && l.get(3..).is_some_and(|s| line.contains(s)))
                 {
                     if !filtered.contains(header_line) {
                         filtered.push_str(header_line);

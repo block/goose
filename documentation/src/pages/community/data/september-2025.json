@@ -1,0 +1,65 @@
+{
+  "month": "September 2025",
+  "communityStars": [
+    {
+      "name": "Abhijay Jain",
+      "handle": "Abhijay007"
+    },
+    {
+      "name": "Sings to Bees on Wednesdays",
+      "handle": "sings-to-bees-on-wednesdays"
+    },
+    {
+      "name": "Arya Pratap Singh",
+      "handle": "ARYPROGRAMMER"
+    },
+    {
+      "name": "Jim Alateras",
+      "handle": "jalateras"
+    },
+    {
+      "name": "Better Boy",
+      "handle": "Better-Boy"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "Kvadratni",
+      "handle": "Kvadratni"
+    },
+    {
+      "name": "William Pfleger",
+      "handle": "wpfleger96"
+    },
+    {
+      "name": "Dhanji Prasanna",
+      "handle": "dhanji"
+    },
+    {
+      "name": "Exit Code 0",
+      "handle": "exitcode0"
+    },
+    {
+      "name": "Dorien Koelemeijer",
+      "handle": "dorien-koelemeijer"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "Abhijay007", "rank": 1, "medal": "🥇" },
+    { "handle": "jalateras", "rank": 2, "medal": "🥈" },
+    { "handle": "Kvadratni", "rank": 3, "medal": "🥉" },
+    { "handle": "wpfleger96", "rank": 4 },
+    { "handle": "dhanji", "rank": 5 },
+    { "handle": "exitcode0", "rank": 6 },
+    { "handle": "dorien-koelemeijer", "rank": 7 },
+    { "handle": "sings-to-bees-on-wednesdays", "rank": 8 },
+    { "handle": "ARYPROGRAMMER", "rank": 9 },
+    { "handle": "spencrmartin", "rank": 10 },
+    { "handle": "Better-Boy", "rank": 11 },
+    { "handle": "finn-block", "rank": 12 },
+    { "handle": "johnlanda", "rank": 13 },
+    { "handle": "aegntic", "rank": 14 },
+    { "handle": "Anudhyan", "rank": 15 },
+    { "handle": "eyelight", "rank": 16 }
+  ]
+}

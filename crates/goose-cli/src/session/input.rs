@@ -20,7 +20,7 @@ pub enum InputResult {
     EndPlan,
     Clear,
     Recipe(Option<String>),
-    Summarize,
+    Compact,
 }
 
 #[derive(Debug)]
@@ -74,6 +74,7 @@ pub fn get_input(
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
+            rustyline::error::ReadlineError::Eof => return Ok(InputResult::Exit),
             _ => return Err(e.into()),
         },
     };
@@ -120,7 +121,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_ENDPLAN: &str = "/endplan";
     const CMD_CLEAR: &str = "/clear";
     const CMD_RECIPE: &str = "/recipe";
-    const CMD_SUMMARIZE: &str = "/summarize";
+    const CMD_COMPACT: &str = "/compact";
+    const CMD_SUMMARIZE_DEPRECATED: &str = "/summarize";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -168,19 +170,25 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             }
         }
         s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(
-            s[CMD_EXTENSION.len()..].to_string(),
+            s.get(CMD_EXTENSION.len()..).unwrap_or("").to_string(),
         )),
-        s if s.starts_with(CMD_BUILTIN) => {
-            Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string()))
+        s if s.starts_with(CMD_BUILTIN) => Some(InputResult::AddBuiltin(
+            s.get(CMD_BUILTIN.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_MODE) => Some(InputResult::GooseMode(
+            s.get(CMD_MODE.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_PLAN) => {
+            parse_plan_command(s.get(CMD_PLAN.len()..).unwrap_or("").trim().to_string())
         }
-        s if s.starts_with(CMD_MODE) => {
-            Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
-        }
-        s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s == CMD_CLEAR => Some(InputResult::Clear),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
-        s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
+        s if s == CMD_COMPACT => Some(InputResult::Compact),
+        s if s == CMD_SUMMARIZE_DEPRECATED => {
+            println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
+            Some(InputResult::Compact)
+        }
         _ => None,
     }
 }
@@ -194,7 +202,7 @@ fn parse_recipe_command(s: &str) -> Option<InputResult> {
     }
 
     // Extract the filepath from the command
-    let filepath = s[CMD_RECIPE.len()..].trim();
+    let filepath = s.get(CMD_RECIPE.len()..).unwrap_or("").trim();
 
     if filepath.is_empty() {
         return Some(InputResult::Recipe(None));
@@ -305,7 +313,7 @@ fn print_help() {
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
-/summarize - Summarize the current conversation to reduce context length while preserving key information.
+/compact - Compact the current conversation to reduce context length while preserving key information.
 /? or /help - Display this help message
 /clear - Clears the current chat history
 
@@ -539,17 +547,6 @@ mod tests {
         // Test recipe with invalid extension
         let result = handle_slash_command("/recipe /path/to/file.txt");
         assert!(matches!(result, Some(InputResult::Retry)));
-    }
-
-    #[test]
-    fn test_summarize_command() {
-        // Test the summarize command
-        let result = handle_slash_command("/summarize");
-        assert!(matches!(result, Some(InputResult::Summarize)));
-
-        // Test with whitespace
-        let result = handle_slash_command("  /summarize  ");
-        assert!(matches!(result, Some(InputResult::Summarize)));
     }
 
     #[test]

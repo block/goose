@@ -20,12 +20,17 @@ Subagents are independent instances that execute tasks while keeping your main c
 
 ## How to Use Subagents
 
-To use subagents, ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
+:::tip Autonomous Subagent Creation
+goose can autonomously decide to use subagents when it determines they would be beneficial for your task - you don't always need to explicitly request them. This happens automatically in autonomous [permission mode](/docs/guides/goose-permissions) (the default). Subagents are disabled in manual approval, smart approval, and chat-only modes.
+:::
+
+To use subagents, ask goose to delegate tasks using natural language. goose automatically decides when to spawn subagents and handles their lifecycle. You can:
 
 1. **Request specialized help**: "Use a code reviewer to analyze this function for security issues"
 2. **Reference specific recipes**: "Use the 'security-auditor' recipe to scan this endpoint"  
 3. **Run parallel tasks**: "Create three HTML templates simultaneously"
 4. **Delegate complex work**: "Research quantum computing developments and summarize findings"
+5. **Control extension access**: "Create a subagent with only the developer extension to refactor the code"
 
 You can run multiple subagents sequentially or in parallel.
 
@@ -40,7 +45,7 @@ If a subagent fails or times out (5-minute default), you will receive no output 
 
 ## Internal Subagents
 
-Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions. There are two ways to configure and execute internal subagents:
+Internal subagents spawn goose instances to handle tasks using your current session's context and extensions. There are two ways to configure and execute internal subagents:
 
 1. **Direct Prompts** - Quick, one-off tasks using natural language instructions
 2. **Recipes** - Reusable, structured configurations for specialized subagent behavior
@@ -48,7 +53,7 @@ Internal subagents spawn Goose instances to handle tasks using your current sess
 ### Direct Prompts
 Direct prompts provided for one-off tasks using natural language prompts. The main agent automatically configures the subagent based on your request.
 
-**Goose Prompt:**
+**goose Prompt:**
 ```
 "Use 2 subagents to create hello.html with 'Hello World' content and goodbye.html with 'Goodbye World' content in parallel"
 ```
@@ -116,16 +121,16 @@ prompt: |
   Provide specific, actionable feedback with examples.
 ```
 
-**Place your recipe file where Goose can find it**
+**Place your recipe file where goose can find it**
 - Set [`GOOSE_RECIPE_PATH`](/docs/guides/recipes/recipe-reference#recipe-location) environment variable to your recipe directory
 - Or place it in your current working directory
 
-**Goose Prompt**
+**goose Prompt**
 ```
 Use the "code-reviewer" recipe to analyze the authentication feature I implemented
 ```
 
-**Goose Output**
+**goose Output**
 ```
 I'll use your code-reviewer recipe to create a specialized subagent for this analysis.
 
@@ -148,9 +153,9 @@ I'll use your code-reviewer recipe to create a specialized subagent for this ana
 
 ## External Subagents
 
-External subagents let you bring in AI agents from other providers and platforms, enabling Goose to coordinate and integrate your workflow with the broader ecosystem. In the below example, we use Codex as a subagent by running it as an MCP server:
+External subagents let you bring in AI agents from other providers and platforms, enabling goose to coordinate and integrate your workflow with the broader ecosystem. In the below example, we use Codex as a subagent by running it as an MCP server:
 
-**[Goose Configuration File](/docs/guides/config-file)** (`.~/.config/goose/config.yaml `):
+**[goose Configuration File](/docs/guides/config-files)** (`.~/.config/goose/config.yaml `):
 ```yaml
 subagent:
   args:
@@ -180,12 +185,12 @@ approval_policy = "never"
 mode = "workspace-write"
 ```
 
-**Goose Prompt:**
+**goose Prompt:**
 ```
 "Use the codex subagent to analyze my codebase structure and identify the main components"
 ```
 
-**Goose Output:**
+**goose Output:**
 
 ```md
 Based on my analysis of your codebase, here are the main components:
@@ -233,26 +238,55 @@ Subagents are temporary instances that exist only for task execution. After the 
 
 ## Configuration
 
-Subagents are automatically have the following pre-configured settings, but you can override any defaults using natural language in your prompts.
+Subagents use the following pre-configured settings, but you can override any defaults using natural language in your prompts.
 
 ### Default Settings
-| Parameter | Default | Source |
-|-----------|---------|--------|
-| **Max Turns** | 10 | Built-in default |
-| **Timeout** | 5 minutes | Built-in default |
+| Parameter | Default | How to Customize |
+|-----------|---------|------------------|
+| **Max Turns** | 25 | Use natural language or set `GOOSE_SUBAGENT_MAX_TURNS` |
+| **Timeout** | 5 minutes | Request longer timeout in your prompt |
+| **Extensions** | Inherited from parent | Specify which extensions to use in your prompt |
+| **Return Mode** | All subagent information provided in main session | Specify how much detail you want in your prompt |
 
 ### Customizing Settings in Prompts
 
 You can override any default by including the setting in your natural language request:
 
 **Examples:**
+```
+"Use subagents to analyze code, limit each to 5 turns"
+```
 
 ```
-"Use subagents to write a test and documentation, but make them timeout after 7 minutes"
+"Use a research subagent with 30 turns and 20-minute timeout to investigate quantum computing trends"
+```
+
+**Environment variable:** Set `GOOSE_SUBAGENT_MAX_TURNS` to change the default max turns for all subagents.
+
+### Extension Control
+
+Control which tools and capabilities subagents can access. By default, subagents inherit all extensions from your main session, but you can restrict access for security, focus or performance.
+
+**Examples:**
+```
+"Create a subagent to write a summary, but don't give it file access"
 ```
 
 ```
-""Use subagents to analyze code, limit each to 5 turns""
+"Use a subagent with only code editing tools to refactor main.py"
+```
+
+### Return Mode Control
+Choose how much information goose provides from its subagents in your main session.
+
+**Full Details (Default):** See all tool executions and reasoning steps
+```
+"Create a subagent to debug this issue - I want to see the full investigation process"
+```
+
+**Summary Only:** Get just the final result to keep your conversation clean
+```
+"Use a subagent to research this topic and summarize the key findings"
 ```
 
 ## Security Constraints

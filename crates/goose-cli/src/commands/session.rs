@@ -2,10 +2,11 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
-use goose::session::{Session, SessionManager};
+use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
@@ -13,7 +14,7 @@ const TRUNCATED_DESC_LENGTH: usize = 60;
 pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
-        println!("- {} {}", session.id, session.description);
+        println!("- {} {}", session.id, session.name);
     }
 
     let should_delete = confirm("Are you sure you want to delete these sessions?")
@@ -45,10 +46,10 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.description
+                &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
             let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
@@ -70,7 +71,11 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     Ok(selected_sessions)
 }
 
-pub async fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
+pub async fn handle_session_remove(
+    session_id: Option<String>,
+    name: Option<String>,
+    regex_string: Option<String>,
+) -> Result<()> {
     let all_sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
@@ -81,11 +86,20 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
 
     let matched_sessions: Vec<Session>;
 
-    if let Some(id_val) = id {
+    if let Some(id_val) = session_id {
         if let Some(session) = all_sessions.iter().find(|s| s.id == id_val) {
             matched_sessions = vec![session.clone()];
         } else {
-            return Err(anyhow::anyhow!("Session '{}' not found.", id_val));
+            return Err(anyhow::anyhow!("Session ID '{}' not found.", id_val));
+        }
+    } else if let Some(name_val) = name {
+        if let Some(session) = all_sessions.iter().find(|s| s.name == name_val) {
+            matched_sessions = vec![session.clone()];
+        } else {
+            return Err(anyhow::anyhow!(
+                "Session with name '{}' not found.",
+                name_val
+            ));
         }
     } else if let Some(regex_val) = regex_string {
         let session_regex = Regex::new(&regex_val)
@@ -154,10 +168,7 @@ pub async fn handle_session_list(
 
             println!("Available sessions:");
             for session in sessions {
-                let output = format!(
-                    "{} - {} - {}",
-                    session.id, session.description, session.updated_at
-                );
+                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
                 println!("{}", output);
             }
         }
@@ -188,7 +199,7 @@ pub async fn handle_session_export(
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.messages().to_vec(), &session.description)
+            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
         }
         _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
@@ -204,10 +215,39 @@ pub async fn handle_session_export(
 
     Ok(())
 }
-/// Convert a list of messages to markdown format for session export
-///
-/// This function handles the formatting of a complete session including headers,
-/// message organization, and proper tool request/response pairing.
+
+pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
+    println!(
+        "Generating diagnostics bundle for session '{}'...",
+        session_id
+    );
+
+    let diagnostics_data = generate_diagnostics(session_id).await.with_context(|| {
+        format!(
+            "Failed to write to generate diagnostics bundle for session '{}'",
+            session_id
+        )
+    })?;
+
+    let output_file = if let Some(path) = output_path {
+        path.clone()
+    } else {
+        PathBuf::from(format!("diagnostics_{}.zip", session_id))
+    };
+
+    let mut file = fs::File::create(&output_file).context(format!(
+        "Failed to create output file: {}",
+        output_file.display()
+    ))?;
+
+    file.write_all(&diagnostics_data)
+        .context("Failed to write diagnostics data")?;
+
+    println!("Diagnostics bundle saved to: {}", output_file.display());
+
+    Ok(())
+}
+
 fn export_session_to_markdown(
     messages: Vec<goose::conversation::message::Message>,
     session_name: &String,
@@ -293,10 +333,10 @@ pub async fn prompt_interactive_session_selection() -> Result<String> {
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.description
+                &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 

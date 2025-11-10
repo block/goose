@@ -1,8 +1,8 @@
-import { FixedExtensionEntry } from '../../../ConfigContext';
-import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs, removeShims } from '../utils';
+import { combineCmdAndArgs } from '../utils';
+import { ExtensionConfig } from '../../../../api';
+import { FixedExtensionEntry } from '../../../ConfigContext';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -10,6 +10,8 @@ interface ExtensionListProps {
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
   disableConfiguration?: boolean;
+  searchTerm?: string;
+  pendingActivationExtensions?: Set<string>;
 }
 
 export default function ExtensionList({
@@ -18,10 +20,27 @@ export default function ExtensionList({
   onConfigure,
   isStatic,
   disableConfiguration: _disableConfiguration,
+  searchTerm = '',
+  pendingActivationExtensions = new Set(),
 }: ExtensionListProps) {
-  // Separate enabled and disabled extensions
-  const enabledExtensions = extensions.filter((ext) => ext.enabled);
-  const disabledExtensions = extensions.filter((ext) => !ext.enabled);
+  const matchesSearch = (extension: FixedExtensionEntry): boolean => {
+    if (!searchTerm) return true;
+
+    const searchLower = searchTerm.toLowerCase();
+    const title = getFriendlyTitle(extension).toLowerCase();
+    const name = extension.name.toLowerCase();
+    const subtitle = getSubtitle(extension);
+    const description = subtitle.description?.toLowerCase() || '';
+
+    return (
+      title.includes(searchLower) || name.includes(searchLower) || description.includes(searchLower)
+    );
+  };
+
+  // Separate enabled and disabled extensions, then filter by search term
+  const enabledExtensions = extensions.filter((ext) => ext.enabled && matchesSearch(ext));
+  const disabledExtensions = extensions.filter((ext) => !ext.enabled && matchesSearch(ext));
+
   // Sort each group alphabetically by their friendly title
   const sortedEnabledExtensions = [...enabledExtensions].sort((a, b) =>
     getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))
@@ -46,6 +65,7 @@ export default function ExtensionList({
                 onToggle={onToggle}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
+                isPendingActivation={pendingActivationExtensions.has(extension.name)}
               />
             ))}
           </div>
@@ -115,7 +135,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(removeShims(config.cmd), config.args) : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
       };
   }
 }

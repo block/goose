@@ -39,6 +39,8 @@ pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GoogleProvider {
@@ -59,7 +61,11 @@ impl GoogleProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            name: Self::metadata().name,
+        })
     }
 
     async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
@@ -84,6 +90,10 @@ impl Provider for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST)),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

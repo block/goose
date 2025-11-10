@@ -1,6 +1,6 @@
 ---
 title: Computer Controller Extension
-description: Use Computer Controller MCP Server as a Goose Extension
+description: Use Computer Controller MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,102 +12,60 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Computer Controller extension helps automate everyday computer tasks and web interactions such as searching the web, controlling system settings, processing data files, and controlling applications without needing to know how to code.
 
-This tutorial covers enabling and using the Computer Controller MCP Server, which is a built-in Goose extension.
+This tutorial covers enabling and using the Computer Controller MCP Server, which is a built-in goose extension.
 
 :::tip
-Let Goose complete its tasks without interruption - avoid using your mouse or keyboard until it's done.
+Let goose complete its tasks without interruption - avoid using your mouse or keyboard until it's done.
 :::
 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Computer Controller"
     description="Automate everyday computer tasks and web interactions"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Run the `configure` command:
   ```sh
   goose configure
   ```
 
-  2. Choose to add a `Built-in Extension`
+  2. Choose to `Toggle Extensions`
   ```sh
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
+  │  Toggle Extensions 
   │
-  ◆  What type of extension would you like to add?
+  ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
   // highlight-start    
-  │  ● Built-in Extension (Use an extension that comes with Goose)
-  // highlight-end  
-  │  ○ Command-line Extension 
-  │  ○ Remote Extension (SSE) 
-  │  ○ Remote Extension (Streaming HTTP) 
-  └  
-  ```
-
-  3. Select the `Computer Controller` extension
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◆  Which built-in extension would you like to enable?
-  │  ○ Developer Tools 
-  // highlight-start
-  │  ● Computer Controller 
+  │  ● computercontroller
   // highlight-end
-  │  ○ Memory 
-  |  ○ JetBrains
-  └  Enabled Computer Controller extension
+  |
+  └  Extension settings updated successfully
   ```
-
-  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◆  Which built-in extension would you like to enable?
-  │  Computer Controller 
-  │  
-  // highlight-start
-  ◆  Please set the timeout for this tool (in secs):
-  │  300
-  // highlight-end  
-  └  Enabled Computer Controller extension
-  ```  
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-In this example, I'll show you how Goose can multitask, handling everything from system controls and music playback to web research and data organization.
+In this example, I'll show you how goose can multitask, handling everything from system controls and music playback to web research and data organization.
 
 :::info LLM
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-   1. Open a new session in Goose Desktop
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Open a new session in goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session
@@ -116,9 +74,9 @@ Anthropic's Claude 4 Sonnet was used for this task.
   </TabItem>
 </Tabs>
 
-### Goose Prompt
+### goose Prompt
 ```
-Goose, I need to decompress while researching AI models for tomorrow's meeting. Can you create a relaxing environment and help me research?
+goose, I need to decompress while researching AI models for tomorrow's meeting. Can you create a relaxing environment and help me research?
 
 1. Play classical music in Safari
 2. Dim screen brightness (2 levels)
@@ -131,7 +89,7 @@ Goose, I need to decompress while researching AI models for tomorrow's meeting. 
 6. Reset brightness and close Safari
 ```
 
-### Goose Output
+### goose Output
 ```md
 I'll help you create a relaxing research environment and gather information about AI models. I'll break this down into steps:
 

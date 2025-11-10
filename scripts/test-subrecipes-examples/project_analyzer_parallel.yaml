@@ -1,0 +1,36 @@
+version: 1.0.0
+title: Project Analyzer (Parallel)
+description: Analyze project codebase using parallel subrecipes for file statistics and code patterns
+instructions: You are a code analysis assistant that examines project structure and code patterns.
+parameters:
+  - key: target_directory
+    input_type: string
+    requirement: optional
+    default: "."
+    description: "Directory to analyze"
+  - key: include_tests
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to include test files in analysis"
+prompt: |
+  Run two subrecipes in parallel:
+    - use file_stats subrecipe to gather file statistics for {{ target_directory }}
+    - use code_patterns subrecipe to analyze code patterns in {{ target_directory }}
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+sub_recipes:
+  - name: file_stats
+    path: "./subrecipes/file_stats.yaml"
+    values:
+      directory: "{{ target_directory }}"
+      fast_mode: "true"
+  - name: code_patterns
+    path: "./subrecipes/code_patterns.yaml"
+    values:
+      directory: "{{ target_directory }}"
+      include_tests: "{{ include_tests }}"
+      fast_mode: "true"

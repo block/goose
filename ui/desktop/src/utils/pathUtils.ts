@@ -5,24 +5,6 @@ import Electron from 'electron';
 import log from './logger';
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
-  // Security validation: Ensure binaryName doesn't contain suspicious characters
-  if (
-    !binaryName ||
-    typeof binaryName !== 'string' ||
-    binaryName.includes('..') ||
-    binaryName.includes('/') ||
-    binaryName.includes('\\') ||
-    binaryName.includes(';') ||
-    binaryName.includes('|') ||
-    binaryName.includes('&') ||
-    binaryName.includes('`') ||
-    binaryName.includes('$') ||
-    binaryName.length > 50
-  ) {
-    // Reasonable length limit
-    throw new Error(`Invalid binary name: ${binaryName}`);
-  }
-
   // On Windows, rely on PATH we just patched in ensureWinShims for command-line tools
   // but use explicit resources/bin path for goosed.exe
   if (process.platform === 'win32') {
@@ -89,9 +71,7 @@ const addPaths = (
   executableName: string,
   app: Electron.App
 ): void => {
-  const isDev = process.env.NODE_ENV === 'development';
-  const isPackaged = app.isPackaged;
-  if (isDev && !isPackaged) {
+  if (!app.isPackaged) {
     possiblePaths.push(
       path.join(process.cwd(), 'src', 'bin', executableName),
       path.join(process.cwd(), 'bin', executableName),

@@ -26,7 +26,7 @@ impl GooseCompleter {
     /// Complete prompt names for the /prompt command
     fn complete_prompt_names(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
         // Get the prefix of the prompt name being typed
-        let prefix = if line.len() > 8 { &line[8..] } else { "" };
+        let prefix = line.get(8..).unwrap_or("");
 
         // Get available prompts from cache
         let cache = self.completion_cache.read().unwrap();
@@ -156,7 +156,7 @@ impl GooseCompleter {
 
     /// Complete argument keys for a specific prompt
     fn complete_argument_keys(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        let parts: Vec<&str> = line[8..].split_whitespace().collect();
+        let parts: Vec<&str> = line.get(8..).unwrap_or("").split_whitespace().collect();
 
         // We need at least the prompt name
         if parts.is_empty() {

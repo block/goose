@@ -39,3 +39,38 @@ export async function getProviderMetadata(
   }
   return matches.metadata;
 }
+
+export interface ProviderModelsResult {
+  provider: ProviderDetails;
+  models: string[] | null;
+  error: string | null;
+}
+
+/**
+ * Fetches models for all active providers in parallel.
+ * Falls back to known_models if fetching fails or returns no models.
+ */
+export async function fetchModelsForProviders(
+  activeProviders: ProviderDetails[],
+  getProviderModelsFunc: (providerName: string) => Promise<string[]>
+): Promise<ProviderModelsResult[]> {
+  const modelPromises = activeProviders.map(async (p) => {
+    const providerName = p.name;
+    try {
+      let models = await getProviderModelsFunc(providerName);
+      if ((!models || models.length === 0) && p.metadata.known_models?.length) {
+        models = p.metadata.known_models.map((m) => m.name);
+      }
+      return { provider: p, models, error: null };
+    } catch (e: unknown) {
+      const errorMessage = `Failed to fetch models for ${providerName}${e instanceof Error ? `: ${e.message}` : ''}`;
+      return {
+        provider: p,
+        models: null,
+        error: errorMessage,
+      };
+    }
+  });
+
+  return await Promise.all(modelPromises);
+}

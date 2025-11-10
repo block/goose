@@ -1,0 +1,44 @@
+name: 'Generate Release Notes'
+description: 'Generate release notes for a given version'
+
+inputs:
+  version:
+    description: 'The version being released'
+    required: true
+  head_ref:
+    description: 'The commit SHA or reference of the head of the release branch'
+    required: true
+  prior_ref:
+    description: 'The previous version to compare against'
+    required: true
+
+outputs:
+  pr_body_file:
+    description: 'Path to the generated PR body file'
+    value: ${{ steps.generate.outputs.pr_body_file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate release notes
+      id: generate
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        HEAD_REF: ${{ inputs.head_ref }}
+        PRIOR_REF: ${{ inputs.prior_ref }}
+        TEMPLATE_FILE: "${{ github.action_path }}/pr_body_template.txt"
+      run: |
+        git fetch origin "$HEAD_REF" "$PRIOR_REF"
+
+        {
+          sed -e "s/{{VERSION}}/${VERSION}/g" \
+              -e "s/{{PRIOR_VERSION}}/${PRIOR_REF}/g" \
+              "$TEMPLATE_FILE"
+          git log --pretty=format:"- %s (%h)" --reverse ${PRIOR_REF}..${HEAD_REF}
+          echo ""
+          echo "---"
+          echo "*This release PR was generated automatically.*"
+        } > pr_body.txt
+
+        echo "pr_body_file=pr_body.txt" >> $GITHUB_OUTPUT

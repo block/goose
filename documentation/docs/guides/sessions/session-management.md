@@ -5,10 +5,10 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2 } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload } from 'lucide-react';
 
 
-A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
+A session is a single, continuous interaction between you and goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
 
 ## Start Session 
 
@@ -17,7 +17,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 :::
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         When you open Goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and Goose will immediately get to work. 
         
         When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where Goose reads and writes files by default.
@@ -59,7 +59,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
         | Toggle Sidebar | `Cmd+B` | `Ctrl+B` |
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         From your terminal, navigate to the directory from which you'd like to start, and run the [session](/docs/guides/goose-cli-commands#session-options) command:
         ```sh
         goose session 
@@ -74,7 +74,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 
 ## Name Session
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         In the Desktop app, session tiles display auto-generated descriptions based on the context of your initial prompt.
 
         You can edit session descriptions after they're created:
@@ -94,7 +94,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
         ::: 
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
 
         ```
@@ -113,10 +113,10 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 ## Exit Session
 Note that sessions are automatically saved when you exit.
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
     To exit a session, simply close the application.
     </TabItem>    
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         To exit a session, type `exit`. Alternatively, you exit the session by holding down `Ctrl+C`.
 
         Your session will be stored locally in `~/.local/share/goose/sessions`.
@@ -128,9 +128,9 @@ Note that sessions are automatically saved when you exit.
 Search allows you to find specific content within sessions or find specific sessions.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 
-    You can use keyboard shortcuts and search bar buttons to search sessions in Goose Desktop.
+    You can use keyboard shortcuts and search bar buttons to search sessions in goose Desktop.
 
     | Action | macOS | Windows/Linux |
     |--------|-------|---------------|
@@ -183,7 +183,7 @@ Search allows you to find specific content within sessions or find specific sess
     :::
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
     Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
 
@@ -231,7 +231,7 @@ Search allows you to find specific content within sessions or find specific sess
 ## Resume Session
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `History` in the sidebar
     3. Click the session you'd like to resume. Goose provides [search features](#search-sessions) to help you find the session.
@@ -244,7 +244,7 @@ Search allows you to find specific content within sessions or find specific sess
     :::
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         To resume your latest session, you can run the following command:
 
         ```
@@ -263,7 +263,7 @@ Search allows you to find specific content within sessions or find specific sess
         ```
 
         :::tip
-        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
+        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting/known-issues#stuck-in-a-loop-or-unresponsive).
         :::
     </TabItem>
 </Tabs>
@@ -273,7 +273,7 @@ Search allows you to find specific content within sessions or find specific sess
 You can resume a CLI session in Desktop.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
     All saved sessions are listed in the Desktop app, even CLI sessions. To resume a CLI session within the Desktop:
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -284,7 +284,7 @@ You can resume a CLI session in Desktop.
        - Click `New Window` to open in a new window
 
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
     Currently, you cannot resume a Desktop session within the CLI.
     </TabItem>
 </Tabs>
@@ -292,10 +292,10 @@ You can resume a CLI session in Desktop.
 ### Resume Project-Based Sessions
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         Project-based sessions are only available through the CLI.
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         You can use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
     </TabItem>
 </Tabs>
@@ -303,7 +303,7 @@ You can resume a CLI session in Desktop.
 ## Delete Sessions
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
+    <TabItem value="ui" label="goose Desktop" default>
         You can delete sessions directly from the Desktop app:
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -314,32 +314,57 @@ You can resume a CLI session in Desktop.
         6. Confirm the deletion in the modal that appears
 
         :::warning Permanent deletion
-        Deleting a session from Goose Desktop will also delete it from the CLI. This action cannot be undone.
+        Deleting a session from goose Desktop will also delete it from the CLI. This action cannot be undone.
         :::
 
         The session will be immediately removed from your session history and the underlying session file will be deleted from your local storage.
     </TabItem>
-    <TabItem value="cli" label="Goose CLI">
+    <TabItem value="cli" label="goose CLI">
         You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
+    </TabItem>
+</Tabs>
+
+## Import Sessions
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+        Import complete sessions from JSON files to restore, share, or migrate sessions between goose instances. Importing creates a new session with a new ID rather than overwriting existing sessions.
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Click the <Upload className="inline" size={16} /> `Import Session` button in the top-right corner
+        4. Select a `.json` session file that was previously exported from goose
+        5. The session will be imported with a new session ID
+        6. A success notification will confirm the import
+
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Session import is currently only available through the Desktop app.
     </TabItem>
 </Tabs>
 
 ## Export Sessions
 
-Export sessions to Markdown to share with your team, create documentation, archive conversations, or review them in a readable format.
-
 <Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-        Session export is currently only available through the CLI.
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        Export sessions using the `export` subcommand:
+    <TabItem value="ui" label="goose Desktop" default>
+        Export complete sessions as JSON files for backup, sharing, migration, or archival. Exported files preserve all session data including conversation history, metadata, and settings.
 
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Find the session you want to export
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Download className="inline" size={16} /> button that appears
+        6. The session will be downloaded as a `.json` file named after the session description
+
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Export sessions for backup, sharing, migration, or documentation purposes. You can export as JSON files to preserve complete session data including conversation history, metadata, and settings, or as Markdown files to get a formatted, readable version of the conversation.
+
+        From your terminal, run the [`session export`](/docs/guides/goose-cli-commands#session-export-options) subcommand:
+        
         ```bash
-        # Interactive export - prompts you to select a session
         goose session export
         ```
-        
-        For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
+
     </TabItem>
 </Tabs>

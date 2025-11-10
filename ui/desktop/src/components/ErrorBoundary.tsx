@@ -34,7 +34,7 @@ export function ErrorUI({ error }: { error: Error }) {
           </p>
         )}
 
-        <pre className="text-destructive text-sm dark:text-white p-4 bg-muted rounded-lg w-full overflow-auto border border-border">
+        <pre className="text-destructive text-sm dark:text-white p-4 bg-muted rounded-lg w-full overflow-auto border border-border whitespace-pre-wrap">
           {error.message}
         </pre>
 

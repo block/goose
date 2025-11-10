@@ -60,7 +60,7 @@ thread_local! {
             .unwrap_or_else(||
                 Config::global().get_param::<String>("GOOSE_CLI_THEME").ok()
                     .map(|val| Theme::from_config_str(&val))
-                    .unwrap_or(Theme::Dark)
+                    .unwrap_or(Theme::Ansi)
             )
     );
 }
@@ -68,7 +68,7 @@ thread_local! {
 pub fn set_theme(theme: Theme) {
     let config = Config::global();
     config
-        .set_param("GOOSE_CLI_THEME", Value::String(theme.as_config_string()))
+        .set_param("GOOSE_CLI_THEME", theme.as_config_string())
         .expect("Failed to set theme");
     CURRENT_THEME.with(|t| *t.borrow_mut() = theme);
 
@@ -79,7 +79,7 @@ pub fn set_theme(theme: Theme) {
         Theme::Ansi => "ansi",
     };
 
-    if let Err(e) = config.set_param("GOOSE_CLI_THEME", Value::String(theme_str.to_string())) {
+    if let Err(e) = config.set_param("GOOSE_CLI_THEME", theme_str) {
         eprintln!("Failed to save theme setting to config: {}", e);
     }
 }
@@ -185,8 +185,18 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
-            MessageContent::ConversationCompacted(summarization) => {
-                println!("\n{}", style(&summarization.msg).yellow());
+            MessageContent::SystemNotification(notification) => {
+                use goose::conversation::message::SystemNotificationType;
+
+                match notification.notification_type {
+                    SystemNotificationType::ThinkingMessage => {
+                        show_thinking();
+                        set_thinking_message(&notification.msg);
+                    }
+                    SystemNotificationType::InlineMessage => {
+                        println!("\n{}", style(&notification.msg).yellow());
+                    }
+                }
             }
             _ => {
                 println!("WARNING: Message content type could not be rendered");

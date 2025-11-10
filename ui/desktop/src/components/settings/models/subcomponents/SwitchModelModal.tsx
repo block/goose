@@ -16,7 +16,7 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata } from '../modelInterface';
+import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 
@@ -146,24 +146,7 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
         setLoadingModels(true);
 
         // Fetching models for all providers
-        const modelPromises = activeProviders.map(async (p) => {
-          const providerName = p.name;
-          try {
-            let models = await getProviderModels(providerName);
-            // Fallback to known_models if server returned none
-            if ((!models || models.length === 0) && p.metadata.known_models?.length) {
-              models = p.metadata.known_models.map((m) => m.name);
-            }
-            return { provider: p, models, error: null };
-          } catch (e: unknown) {
-            return {
-              provider: p,
-              models: null,
-              error: `Failed to fetch models for ${providerName}${e instanceof Error ? `: ${e.message}` : ''}`,
-            };
-          }
-        });
-        const results = await Promise.all(modelPromises);
+        const results = await fetchModelsForProviders(activeProviders, getProviderModels);
 
         // Process results and build grouped options
         const groupedOptions: {

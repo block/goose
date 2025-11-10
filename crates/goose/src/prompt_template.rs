@@ -16,6 +16,8 @@ static CORE_PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/prompts");
 /// - *Not* used for extension prompts (which are ephemeral).
 static GLOBAL_ENV: Lazy<Arc<RwLock<Environment<'static>>>> = Lazy::new(|| {
     let mut env = Environment::new();
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
 
     // Pre-load all core templates from the embedded dir.
     for file in CORE_PROMPTS_DIR.files() {

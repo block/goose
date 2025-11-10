@@ -15,8 +15,18 @@ use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-4-sonnet";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-4-sonnet", "claude-3-7-sonnet"];
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.5 series
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    // Claude 4 series
+    "claude-4-sonnet",
+    "claude-4-opus",
+    // Claude 3 series
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+];
 
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model";
@@ -38,6 +48,8 @@ pub struct SnowflakeProvider {
     api_client: ApiClient,
     model: ModelConfig,
     image_format: ImageFormat,
+    #[serde(skip)]
+    name: String,
 }
 
 impl SnowflakeProvider {
@@ -91,6 +103,7 @@ impl SnowflakeProvider {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
+            name: Self::metadata().name,
         })
     }
 
@@ -290,6 +303,10 @@ impl Provider for SnowflakeProvider {
                 ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

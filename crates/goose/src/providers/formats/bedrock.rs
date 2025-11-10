@@ -48,8 +48,8 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::ConversationCompacted(_) => {
-            bail!("SummarizationRequested should not get passed to the provider")
+        MessageContent::SystemNotification(_) => {
+            bail!("SystemNotification should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
@@ -94,12 +94,18 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(_) => None,
+                Err(error) => {
+                    // For errors, create a text content block with the error message
+                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                        "The tool call returned the following error:\n{}",
+                        error
+                    ))])
+                }
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
                     .tool_use_id(tool_res.id.to_string())
-                    .status(if content.is_some() {
+                    .status(if tool_res.tool_result.is_ok() {
                         bedrock::ToolResultStatus::Success
                     } else {
                         bedrock::ToolResultStatus::Error
@@ -339,11 +345,11 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage {
-        input_tokens: Some(usage.input_tokens),
-        output_tokens: Some(usage.output_tokens),
-        total_tokens: Some(usage.total_tokens),
-    }
+    Usage::new(
+        Some(usage.input_tokens),
+        Some(usage.output_tokens),
+        Some(usage.total_tokens),
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {

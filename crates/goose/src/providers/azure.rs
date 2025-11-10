@@ -27,6 +27,7 @@ pub struct AzureProvider {
     deployment_name: String,
     api_version: String,
     model: ModelConfig,
+    name: String,
 }
 
 impl Serialize for AzureProvider {
@@ -94,6 +95,7 @@ impl AzureProvider {
             deployment_name,
             api_version,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -126,6 +128,10 @@ impl Provider for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, Some("")),
             ],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {

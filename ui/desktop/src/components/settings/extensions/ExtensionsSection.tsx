@@ -24,6 +24,7 @@ interface ExtensionSectionProps {
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
   onModalClose?: (extensionName: string) => void;
+  searchTerm?: string;
 }
 
 export default function ExtensionsSection({
@@ -35,6 +36,7 @@ export default function ExtensionsSection({
   customToggle,
   selectedExtensions = [],
   onModalClose,
+  searchTerm = '',
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -46,11 +48,22 @@ export default function ExtensionsSection({
   const [showEnvVarsStateVar, setShowEnvVarsStateVar] = useState<boolean | undefined | null>(
     showEnvVars
   );
+  const [pendingActivationExtensions, setPendingActivationExtensions] = useState<Set<string>>(
+    new Set()
+  );
 
   // Update deep link state when props change
   useEffect(() => {
     setDeepLinkConfigStateVar(deepLinkConfig);
     setShowEnvVarsStateVar(showEnvVars);
+
+    if (deepLinkConfig && !showEnvVars) {
+      setPendingActivationExtensions((prev) => {
+        const updated = new Set(prev);
+        updated.add(deepLinkConfig.name);
+        return updated;
+      });
+    }
   }, [deepLinkConfig, showEnvVars]);
 
   // Process extensions from context - this automatically updates when extensionsList changes
@@ -100,6 +113,12 @@ export default function ExtensionsSection({
       sessionId: sessionId,
     });
 
+    setPendingActivationExtensions((prev) => {
+      const updated = new Set(prev);
+      updated.delete(extensionConfig.name);
+      return updated;
+    });
+
     await fetchExtensions();
     return true;
   };
@@ -120,8 +139,21 @@ export default function ExtensionsSection({
         extensionConfig: extensionConfig,
         sessionId: sessionId,
       });
+      setPendingActivationExtensions((prev) => {
+        const updated = new Set(prev);
+        updated.delete(extensionConfig.name);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to activate extension:', error);
+      // If activation fails, mark as pending if it's enabled in config
+      if (formData.enabled) {
+        setPendingActivationExtensions((prev) => {
+          const updated = new Set(prev);
+          updated.add(extensionConfig.name);
+          return updated;
+        });
+      }
     } finally {
       await fetchExtensions();
       if (onModalClose) {
@@ -199,6 +231,8 @@ export default function ExtensionsSection({
           onToggle={handleExtensionToggle}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
+          searchTerm={searchTerm}
+          pendingActivationExtensions={pendingActivationExtensions}
         />
 
         {!hideButtons && (

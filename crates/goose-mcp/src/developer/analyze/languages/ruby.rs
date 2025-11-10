@@ -140,7 +140,7 @@ fn find_method_in_body_with_depth(
                 for j in 0..child.child_count() {
                     if let Some(name_node) = child.child(j) {
                         if name_node.kind() == "identifier" {
-                            return Some(source[name_node.byte_range()].to_string());
+                            return source.get(name_node.byte_range()).map(|s| s.to_string());
                         }
                     }
                 }

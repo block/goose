@@ -9,6 +9,7 @@ import {
   runNowHandler as apiRunScheduleNow,
   killRunningJob as apiKillRunningJob,
   inspectRunningJob as apiInspectRunningJob,
+  SessionDisplayInfo,
 } from './api';
 
 export interface ScheduledJob {
@@ -20,7 +21,6 @@ export interface ScheduledJob {
   paused?: boolean;
   current_session_id?: string | null;
   process_start_time?: string | null;
-  execution_mode?: string | null; // "foreground" or "background"
 }
 
 export interface ScheduleSession {
@@ -82,23 +82,15 @@ export async function deleteSchedule(id: string): Promise<void> {
 
 export async function getScheduleSessions(
   scheduleId: string,
-  limit?: number
-): Promise<ScheduleSession[]> {
-  try {
-    const response = await apiGetScheduleSessions<true>({
-      path: { id: scheduleId },
-      query: { limit },
-    });
+  limit: number
+): Promise<Array<SessionDisplayInfo>> {
+  const response = await apiGetScheduleSessions<true>({
+    path: { id: scheduleId },
+    query: { limit },
+    throwOnError: true,
+  });
 
-    if (response && response.data) {
-      return response.data as ScheduleSession[];
-    }
-    console.error('Unexpected response format from apiGetScheduleSessions', response);
-    throw new Error('Failed to get schedule sessions: Unexpected response format');
-  } catch (error) {
-    console.error(`Error fetching sessions for schedule ${scheduleId}:`, error);
-    throw error;
-  }
+  return response.data;
 }
 
 export async function runScheduleNow(scheduleId: string): Promise<string> {

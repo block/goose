@@ -320,6 +320,11 @@ impl Provider for LeadWorkerProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        // Return the lead provider's name as the default
+        self.lead_provider.get_name()
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the lead provider's model config as the default
         // In practice, this might need to be more sophisticated
@@ -470,6 +475,10 @@ mod tests {
     impl Provider for MockProvider {
         fn metadata() -> ProviderMetadata {
             ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-lead"
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -632,6 +641,10 @@ mod tests {
     impl Provider for MockFailureProvider {
         fn metadata() -> ProviderMetadata {
             ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-lead"
         }
 
         fn get_model_config(&self) -> ModelConfig {

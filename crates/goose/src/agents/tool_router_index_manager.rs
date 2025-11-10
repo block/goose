@@ -3,7 +3,6 @@ use std::sync::Arc;
 use tracing;
 
 use crate::agents::extension_manager::ExtensionManager;
-use crate::agents::platform_tools;
 use crate::agents::router_tool_selector::RouterToolSelector;
 
 /// Manages tool indexing operations for the router when LLM routing is enabled
@@ -72,33 +71,6 @@ impl ToolRouterIndexManager {
             }
         }
 
-        Ok(())
-    }
-
-    /// Indexes platform tools (search_available_extensions, manage_extensions, etc.)
-    pub async fn index_platform_tools(
-        selector: &Arc<Box<dyn RouterToolSelector>>,
-        extension_manager: &ExtensionManager,
-    ) -> Result<()> {
-        let mut tools = Vec::new();
-
-        // Add the standard platform tools
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::manage_extensions_tool());
-
-        // Add resource tools if supported
-        if extension_manager.supports_resources().await {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
-        }
-
-        // Index all platform tools at once
-        selector
-            .index_tools(&tools, "platform")
-            .await
-            .map_err(|e| anyhow!("Failed to index platform tools: {}", e))?;
-
-        tracing::info!("Indexed platform tools for LLM search");
         Ok(())
     }
 }

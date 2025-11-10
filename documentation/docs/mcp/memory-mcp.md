@@ -1,6 +1,6 @@
 ---
 title: Memory Extension
-description: Use Memory MCP Server as a Goose Extension
+description: Use Memory MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,126 +10,61 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/BZ0yrSLXQwk" />
 
-The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it personalized key information (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
+The Memory extension turns goose into a knowledgeable assistant by allowing you to teach it personalized key information (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, goose learns and remembers what matters most to you.
 
-This tutorial covers enabling and using the Memory MCP Server, which is a built-in Goose extension.  
+This tutorial covers enabling and using the Memory MCP Server, which is a built-in goose extension.  
 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Memory"
     description="Store and recall personalized information for consistent assistance"
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
+ 
   1. Run the `configure` command:
   ```sh
   goose configure
   ```
 
-  2. Choose to add a `Built-in Extension`
+  2. Choose to `Toggle Extensions`
   ```sh
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
+  │  Toggle Extensions 
   │
-  ◆  What type of extension would you like to add?
+  ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
   // highlight-start    
-  │  ● Built-in Extension (Use an extension that comes with Goose)
-  // highlight-end  
-  │  ○ Command-line Extension 
-  │  ○ Remote Extension (SSE) 
-  │  ○ Remote Extension (Streaming HTTP)  
-  └  
-  ```
-
-  3. Arrow down to the `Memory` extension and press Enter
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◆  Which built-in extension would you like to enable?
-  │  ○ Developer Tools 
-  │  ○ Computer Controller 
-  // highlight-start
-  │  ● Memory 
+  │  ● memory
   // highlight-end
-  |  ○ JetBrains
-  └  
-  ```
-
-  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◇  Which built-in extension would you like to enable?
-  │  Memory 
-  │
-  // highlight-start
-  ◆  Please set the timeout for this tool (in secs):
-  │  300
-  // highlight-end
-  └  Enabled Memory extension
-  ```  
-
-  5. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◇  Which built-in extension would you like to enable?
-  │  Memory 
-  │
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  // highlight-start
-  ◆  Would you like to add a description?
-  │  No
-  // highlight-end
-  └  Enabled Memory extension
+  |
+  └  Extension settings updated successfully
   ```
   </TabItem>
 </Tabs>
 
 ## Why Use Memory?  
-With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:  
+With the Memory extension, you’re not just storing static notes, you’re teaching goose how to assist you better. Imagine telling goose:  
 
 > _learn everything about MCP servers and save it to memory._
 
 Later, you can ask:
 > _utilizing our MCP server knowledge help me build an MCP server._ 
 
-Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
+goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with goose.
 
-Goose loads all saved memories at the start of a session and includes them in every prompt sent to the LLM. For large or detailed instructions, store them in files and instruct Goose to reference those files:
+goose loads all saved memories at the start of a session and includes them in every prompt sent to the LLM. For large or detailed instructions, store them in files and instruct goose to reference those files:
 
 > _Remember that if I ask for help writing JavaScript, I want you to refer to "/path/to/javascript_notes.txt" and follow the instructions in that file._
 
 
 ## Trigger Words and When to Use Them
-Goose also recognizes certain trigger words that signal when to store, retrieve, or remove memory.
+goose also recognizes certain trigger words that signal when to store, retrieve, or remove memory.
 
 | **Trigger Words**   | **When to Use** |
 |---------------------|----------------|
@@ -144,21 +79,21 @@ Goose also recognizes certain trigger words that signal when to store, retrieve,
 
 ## Example Usage
 
-In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and recall it when needed, helping you stay consistent in your work.
+In this example, I’ll show you how to make goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, goose can store structured information and recall it when needed, helping you stay consistent in your work.
 
-This means you no longer have to repeat yourself. Goose will remember your project’s requirements and automatically apply them to new tasks.
+This means you no longer have to repeat yourself. goose will remember your project’s requirements and automatically apply them to new tasks.
 
 :::tip  
-If you frequently work with API standards or other structured knowledge, Goose may automatically suggest saving them to memory for you when it detects a pattern in your workflow.  
+If you frequently work with API standards or other structured knowledge, goose may automatically suggest saving them to memory for you when it detects a pattern in your workflow.  
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-   1. Open a new session in Goose Desktop
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Open a new session in goose Desktop
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session
@@ -167,10 +102,10 @@ If you frequently work with API standards or other structured knowledge, Goose m
   </TabItem>
 </Tabs>
 
-### Step 1: Teach Goose Your API Standards
-    #### Goose Prompt #1
+### Step 1: Teach goose Your API Standards
+    #### goose Prompt #1
     ```
-    Goose, learn our API development standards:
+    goose, learn our API development standards:
 
     - All endpoints must use TypeScript interfaces
     - Error responses follow RFC 7807 Problem Details spec
@@ -181,7 +116,7 @@ If you frequently work with API standards or other structured knowledge, Goose m
     Remember this so you can help me follow these practices.
     ```
 
-    #### Goose Output
+    #### goose Output
 
     ```
     I've learned your API standards. I'll help enforce these requirements when working on API endpoints.
@@ -198,12 +133,12 @@ If you frequently work with API standards or other structured knowledge, Goose m
         - Documentation requirements
     ```
 ### Step 2: Use Stored Knowledge to Create a New API Endpoint
-    #### Goose Prompt # 2
+    #### goose Prompt # 2
 
     ```
     Help me create a new endpoint for user preferences
     ```
-    #### Goose Output
+    #### goose Output
     ```
     I see you need a new endpoint. Based on our API development standards that I have stored in memory, I'll ensure it meets all our requirements.
 

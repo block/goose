@@ -35,6 +35,7 @@ export type ViewOptions = {
   resetChat?: boolean;
   shareToken?: string;
   resumeSessionId?: string;
+  pendingScheduleDeepLink?: string;
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {

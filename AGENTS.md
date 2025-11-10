@@ -82,6 +82,7 @@ Never: Edit ui/desktop/openapi.json manually
 Never: Edit Cargo.toml use cargo add
 Never: Skip cargo fmt
 Never: Merge without ./scripts/clippy-lint.sh
+Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs

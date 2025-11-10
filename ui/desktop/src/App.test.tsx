@@ -120,7 +120,7 @@ vi.mock('./contexts/ChatContext', () => ({
   useChatContext: () => ({
     chat: {
       id: 'test-id',
-      title: 'Test Chat',
+      name: 'Test Chat',
       messages: [],
       messageHistoryIndex: 0,
       recipe: null,
@@ -131,16 +131,9 @@ vi.mock('./contexts/ChatContext', () => ({
     hasActiveSession: false,
     setRecipe: vi.fn(),
     clearRecipe: vi.fn(),
-    draft: '',
-    setDraft: vi.fn(),
-    clearDraft: vi.fn(),
     contextKey: 'hub',
   }),
   DEFAULT_CHAT_TITLE: 'New Chat', // Keep this from HEAD
-}));
-
-vi.mock('./contexts/DraftContext', () => ({
-  DraftProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('./components/ui/ConfirmationModal', () => ({

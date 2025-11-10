@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: goose Discord discussion
-    url: https://discord.gg/block-opensource
+    url: https://discord.gg/goose-oss
     about: Please ask and answer questions here.
   - name: Report a security vulnerability
     url: https://github.com/block/goose/security/policy

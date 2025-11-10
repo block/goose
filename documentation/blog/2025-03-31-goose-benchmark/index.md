@@ -23,7 +23,7 @@ These community evals aren't the rigorous, peer-reviewed benchmarks that researc
 
 In this spirit, we're introducing our **Goose Vibe Check** leaderboard. 
 
-Thank you to the Ollama team for their help and support in our experimentation contributing to this blog! We used Ollama’s [structured outputs](https://ollama.com/blog/structured-outputs) feature to enable our [toolshim implementation](https://block.github.io/goose/docs/experimental/ollama) (more below) and their recently released [context length parameter override](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size) to enable testing on longer contexts.
+Thank you to the Ollama team for their help and support in our experimentation contributing to this blog! We used Ollama’s [structured outputs](https://ollama.com/blog/structured-outputs) feature to enable our [toolshim implementation](https://block.github.io/goose/docs/experimental/ollama) (more below) and their recently released [context length parameter override](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size) to enable testing on longer contexts.
 
 ## Leaderboard
 

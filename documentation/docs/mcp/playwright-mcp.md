@@ -1,23 +1,24 @@
 ---
 title: Playwright Extension
-description: Add Playwright MCP Server as a Goose Extension for Modern Web Testing
+description: Add Playwright MCP Server as a goose Extension for Modern Web Testing
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iAxiFMlTE1Q" />
 
-This tutorial covers how to add the Playwright MCP Server as a Goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
+This tutorial covers how to add the Playwright MCP Server as a goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   **Command**
   ```sh
   npx -y @playwright/mcp@latest
@@ -33,7 +34,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="playwright"
     extensionName="Playwright"
@@ -42,140 +43,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@playwright/mcp@latest"]}
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◆  What would you like to call this extension?
-    │  Playwright
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Playwright
-    │
-    ◆  What command should be run?
-    │  npx -y @playwright/mcp@latest
-    └ 
-  ```
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Playwright
-    │
-    ◇  What command should be run?
-    │  npx -y @playwright/mcp@latest
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    └ 
-  ```
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Playwright
-    │
-    ◇  What command should be run?
-    │  npx -y @playwright/mcp@latest
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◆  Would you like to add a description?
-    │  No
-    └ 
-  ```
-
-  7. Choose No when asked to add environment variables
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Playwright
-    │
-    ◇  What command should be run?
-    │  npx -y @playwright/mcp@latest
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │
-    ◆  Would you like to add environment variables?
-    │  No 
-    │
-    └  Added Playwright extension
-  ```
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Playwright"
+      description="Modern web testing and automation"
+      command="npx -y @playwright/mcp@latest"
+    />
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-Let's use Goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how Goose can help you:
+Let's use goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how goose can help you:
 
 1. Test a web application across multiple browsers
 2. Generate maintainable test code
@@ -185,7 +64,7 @@ Let's use Goose with the Playwright extension to create a cross-browser testing 
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 ```
 Test the random redesign generator app (https://blackgirlbytes.github.io/random-redesign-picker/) 
 in Chromium and WebKit. For each browser:
@@ -196,7 +75,7 @@ in Chromium and WebKit. For each browser:
 Then generate a Playwright test that works across all browsers.
 ```
 
-### Goose Output
+### goose Output
 ```
 Let's start with Chromium:
 

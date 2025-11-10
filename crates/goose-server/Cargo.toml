@@ -33,7 +33,6 @@ base64 = "0.21"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
-etcetera = "0.8.0"
 serde_yaml = "0.9.34"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }

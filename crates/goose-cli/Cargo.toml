@@ -54,7 +54,7 @@ tower-http = { version = "0.5", features = ["cors", "fs", "auth"] }
 http = "1.0"
 webbrowser = "1.0"
 indicatif = "0.17.11"
-tokio-util = { version = "0.7.15", features = ["compat"] }
+tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
 is-terminal = "0.4.16"
 anstream = "0.6.18"
 url = "2.5.7"

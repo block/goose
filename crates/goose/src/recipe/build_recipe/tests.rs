@@ -435,6 +435,14 @@ mod sub_recipe_path_resolution {
         let temp_dir = tempfile::tempdir().unwrap();
         let parent_dir = temp_dir.path();
 
+        // Create the sub-recipe file
+        let sub_recipe_content = r#"
+version: 1.0.0
+title: Child Recipe
+description: A child recipe
+instructions: Child instructions"#;
+        create_recipe_file(parent_dir, "sub-recipes", "child.yaml", sub_recipe_content);
+
         let result = resolve_sub_recipe_path("./sub-recipes/child.yaml", parent_dir);
         assert!(result.is_ok());
 
@@ -446,11 +454,37 @@ mod sub_recipe_path_resolution {
     fn test_resolve_sub_recipe_path_absolute() {
         let temp_dir = tempfile::tempdir().unwrap();
         let parent_dir = temp_dir.path();
-        let absolute_path = "/absolute/path/to/recipe.yaml";
 
-        let result = resolve_sub_recipe_path(absolute_path, parent_dir);
+        let sub_recipe_content = r#"
+version: 1.0.0
+title: Absolute Recipe
+description: A recipe with absolute path
+instructions: Absolute instructions"#;
+        let absolute_path =
+            create_recipe_file(parent_dir, "absolute", "recipe.yaml", sub_recipe_content);
+        let absolute_path_str = absolute_path.to_str().unwrap();
+
+        let result = resolve_sub_recipe_path(absolute_path_str, parent_dir);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), absolute_path);
+        assert_eq!(result.unwrap(), absolute_path_str);
+    }
+
+    #[test]
+    fn test_resolve_sub_recipe_path_nonexistent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let parent_dir = temp_dir.path();
+
+        let result = resolve_sub_recipe_path("./sub-recipes/nonexistent.yaml", parent_dir);
+
+        assert!(result.is_err());
+        match result {
+            Err(RecipeError::RecipeParsing { source }) => {
+                let error_msg = source.to_string();
+                assert!(error_msg.contains("Sub-recipe file does not exist"));
+                assert!(error_msg.contains("nonexistent.yaml"));
+            }
+            _ => panic!("Expected RecipeError::RecipeParsing"),
+        }
     }
 
     #[test]

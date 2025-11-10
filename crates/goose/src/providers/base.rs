@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
+use crate::config::base::ConfigValue;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -200,6 +201,16 @@ impl ConfigKey {
         }
     }
 
+    pub fn from_value_type<T: ConfigValue>(required: bool, secret: bool) -> Self {
+        Self {
+            name: T::KEY.to_string(),
+            required,
+            secret,
+            default: Some(T::DEFAULT.to_string()),
+            oauth_flow: false,
+        }
+    }
+
     /// Create a new ConfigKey that uses OAuth device code flow for configuration
     ///
     /// This is used for providers that support OAuth authentication instead of manual API key entry.
@@ -278,11 +289,11 @@ impl Add for Usage {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self {
-            input_tokens: sum_optionals(self.input_tokens, other.input_tokens),
-            output_tokens: sum_optionals(self.output_tokens, other.output_tokens),
-            total_tokens: sum_optionals(self.total_tokens, other.total_tokens),
-        }
+        Self::new(
+            sum_optionals(self.input_tokens, other.input_tokens),
+            sum_optionals(self.output_tokens, other.output_tokens),
+            sum_optionals(self.total_tokens, other.total_tokens),
+        )
     }
 }
 
@@ -298,10 +309,21 @@ impl Usage {
         output_tokens: Option<i32>,
         total_tokens: Option<i32>,
     ) -> Self {
+        let calculated_total = if total_tokens.is_none() {
+            match (input_tokens, output_tokens) {
+                (Some(input), Some(output)) => Some(input + output),
+                (Some(input), None) => Some(input),
+                (None, Some(output)) => Some(output),
+                (None, None) => None,
+            }
+        } else {
+            total_tokens
+        };
+
         Self {
             input_tokens,
             output_tokens,
-            total_tokens,
+            total_tokens: calculated_total,
         }
     }
 }
@@ -324,6 +346,9 @@ pub trait Provider: Send + Sync {
     fn metadata() -> ProviderMetadata
     where
         Self: Sized;
+
+    /// Get the name of this provider instance
+    fn get_name(&self) -> &str;
 
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
@@ -386,18 +411,15 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    /// Optional hook to fetch supported models.
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
-    /// Check if this provider supports embeddings
     fn supports_embeddings(&self) -> bool {
         false
     }
 
-    /// Check if this provider supports cache control
-    fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         false
     }
 

@@ -1,17 +1,18 @@
 ---
 title: Filesystem Extension
-description: Add Filesystem MCP Server as Goose Extension
+description: Add Filesystem MCP Server as goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import { PanelLeft, Settings } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/2IVPcjEr-yQ" /> 
 
-This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a Goose extension, enabling powerful code analysis and file management. With this extension, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
+This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a goose extension, enabling powerful code analysis and file management. With this extension, goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 
 :::tip TLDR
   **Command**
@@ -29,11 +30,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="filesystem"
     extensionName="filesystem"
-    description="Filesystem MCP Server"
+    description="Enables code analysis and file management"
     command="npx"
     args={[
         "-y",
@@ -52,157 +53,27 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
-    1. Run the `configure` command:
-    ```sh
-    goose configure
-    ```
-
-    2. Choose to add a `Command-line Extension`
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◆  What type of extension would you like to add?
-        │  ○ Built-in Extension 
-        // highlight-start    
-        │  ● Command-line Extension (Run a local command or script)
-        // highlight-end    
-        │  ○ Remote Extension (SSE) 
-        │  ○ Remote Extension (Streaming HTTP) 
-        └ 
-    ```
-
-    3. Give your extension a name
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Command-line Extension 
-        │
-        // highlight-start
-        ◆  What would you like to call this extension?
-        │  filesystem
-        // highlight-end
-        └ 
-    ```
-
-    4. Enter the command
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Command-line Extension 
-        │
-        ◇  What would you like to call this extension?
-        │  filesystem
-        │
-        // highlight-start
-        ◆  What command should be run?
-        │  npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory
-        // highlight-end
-        └ 
-    ``` 
-    :::tip Multiple Directories
-    You can specify multiple allowed directories by separating them with a space.
-    ::: 
-
-    5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Command-line Extension 
-        │
-        ◇  What would you like to call this extension?
-        │  filesystem
-        │
-        ◇  What command should be run?
-        │  npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory
-        │
-        // highlight-start
-        ◆  Please set the timeout for this tool (in secs):
-        │  300
-        // highlight-end
-        └ 
-    ``` 
-
-    6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Command-line Extension 
-        │
-        ◇  What would you like to call this extension?
-        │  filesystem
-        │
-        ◇  What command should be run?
-        │  npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        // highlight-start
-        ◆  Would you like to add a description?
-        │  No
-        // highlight-end
-        └ 
-    ```
-
-    7. Choose No when asked to add environment variables
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension (Connect to a new extension) 
-        │
-        ◇  What type of extension would you like to add?
-        │  Command-line Extension 
-        │
-        ◇  What would you like to call this extension?
-        │  filesystem
-        │
-        ◇  What command should be run?
-        │  npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        ◇  Would you like to add a description?
-        │  No
-        │    
-        // highlight-start
-        ◆  Would you like to add environment variables?
-        │  No 
-        │
-        // highlight-end
-        └  Added filesystem extension
-    ```  
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Filesystem"
+      description="Enables code analysis and file management"
+      command="npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory"
+      commandNote={
+        <>
+          Replace <code>/path/to/allowed/directory</code> with the actual path(s) to directories you want to allow access to. You can specify multiple directories by separating them with spaces.
+        </>
+      }
+    />
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-In this example, I'll use Goose to perform a comprehensive security audit across multiple projects, including a payment processing system, authentication service, and e-commerce dashboard. I need to identify security vulnerabilities, implement fixes, and ensure sensitive data and operations are properly protected.
+In this example, I'll use goose to perform a comprehensive security audit across multiple projects, including a payment processing system, authentication service, and e-commerce dashboard. I need to identify security vulnerabilities, implement fixes, and ensure sensitive data and operations are properly protected.
 
-### Goose Prompt
+### goose Prompt
     ```
-    Hey Goose, I need to perform a security audit and implement fixes across multiple projects:
+    Hey goose, I need to perform a security audit and implement fixes across multiple projects:
 
         1. Please analyze these codebases for security issues:
             - /Users/ebonyl/e-commerce-dashboard
@@ -234,7 +105,7 @@ In this example, I'll use Goose to perform a comprehensive security audit across
 
     Please focus particularly on the payment system and authentication service as they handle sensitive data.
     ```
-### Goose Output
+### goose Output
     ```
     I'll help you conduct the security audit, starting with the payment system project since it handles sensitive financial data. Let me first check if we have access to these directories.
 

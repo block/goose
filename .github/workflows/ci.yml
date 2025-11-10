@@ -73,9 +73,9 @@ jobs:
             ${{ env.CARGO_HOME }}/registry/cache/
             ${{ env.CARGO_HOME }}/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-debug-
 
       - name: Build and Test
         run: |
@@ -131,13 +131,4 @@ jobs:
         run: source ../../bin/activate-hermit && npm run test:run
         working-directory: ui/desktop
 
-  # Faster Desktop App build for PRs only
-  bundle-desktop-unsigned:
-    uses: ./.github/workflows/bundle-desktop.yml
-    permissions:
-      id-token: write
-      contents: read
-    needs: changes
-    if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
-    with:
-      signing: false
+

@@ -2,7 +2,7 @@ use crate::agents::ExtensionConfig;
 use crate::providers::base::Provider;
 use std::env;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Default maximum number of turns for task execution
@@ -34,17 +34,16 @@ impl fmt::Debug for TaskConfig {
 }
 
 impl TaskConfig {
-    /// Create a new TaskConfig with all required dependencies
     pub fn new(
         provider: Arc<dyn Provider>,
-        parent_session_id: String,
-        parent_working_dir: PathBuf,
+        parent_session_id: &str,
+        parent_working_dir: &Path,
         extensions: Vec<ExtensionConfig>,
     ) -> Self {
         Self {
             provider,
-            parent_session_id,
-            parent_working_dir,
+            parent_session_id: parent_session_id.to_owned(),
+            parent_working_dir: parent_working_dir.to_owned(),
             extensions,
             max_turns: Some(
                 env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
