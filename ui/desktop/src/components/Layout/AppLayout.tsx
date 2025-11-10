@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { SidebarProvider } from '../ui/sidebar';
-import { SidecarProvider, useSidecar } from '../SidecarLayout';
+import { SidecarProvider, useSidecar, Sidecar } from '../SidecarLayout';
 import { SidecarInvoker } from './SidecarInvoker';
 import { TopNavigation } from './TopNavigation';
 
@@ -73,6 +73,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const shouldShowSidecarInvoker = 
     (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair');
 
+  // Check if sidecar has any active views
+  const hasSidecarContent = sidecar && sidecar.activeViews.length > 0;
+
   return (
     <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
       {/* Top Navigation Bar */}
@@ -88,10 +91,17 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
           isVisible={shouldShowSidecarInvoker}
         />
 
-        {/* Main content without sidebar */}
-        <div className="flex-1 overflow-hidden">
+        {/* Main content */}
+        <div className={`${hasSidecarContent ? 'flex-1' : 'flex-1'} overflow-hidden`}>
           <Outlet />
         </div>
+
+        {/* Sidecar - shows when there are active views */}
+        {hasSidecarContent && (
+          <div className="w-96 flex-shrink-0 border-l border-border-subtle">
+            <Sidecar />
+          </div>
+        )}
       </div>
       
       {/* Control Buttons - floating in top right */}
