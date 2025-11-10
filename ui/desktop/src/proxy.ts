@@ -16,33 +16,33 @@
  *
  * SECURITY FLOW:
  * ==============
- * 
+ *
  * A. Initialization (initMcpUIProxy):
  *    1. Generate random proxy authentication token
  *    2. Start HTTP proxy server on dynamic port
  *    3. Set up webRequest.onBeforeSendHeaders handlers for known sessions
  *    4. Register web-contents-created listener to track new webContents
- * 
+ *
  * B. WebContents Registration (web-contents-created event):
  *    1. When a new webContents is created, validate its type (window/webview only)
  *    2. Validate its URL (must be file:// or dev server origin)
  *    3. If valid, add its ID to trustedWebContentsIds Set
  *    4. Set up cleanup to remove ID when webContents is destroyed
- *    
+ *
  *    Note: This event is synchronous, so the ID is added before the webContents
  *    can make any HTTP requests.
- * 
+ *
  * C. Request Interception (onBeforeSendHeaders):
  *    1. When any webContents makes an HTTP request, check if it's to the proxy server
  *    2. Check if the webContents ID is in trustedWebContentsIds Set
  *    3. Only inject the proxy token header if BOTH conditions are true
  *    4. Log warnings when untrusted webContents attempt to access the proxy
- * 
+ *
  * D. IPC Handler (get-mcp-ui-proxy-url):
  *    1. Renderer processes request the proxy URL via IPC
  *    2. Validate the sender's URL (must be file:// or dev server origin)
  *    3. Only return the proxy URL to trusted origins
- * 
+ *
  * This multi-layered approach prevents:
  * - External browsers from accessing the proxy (token + origin validation)
  * - Compromised/untrusted renderer processes from getting the proxy URL (IPC validation)
@@ -177,17 +177,16 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
   ipcMain.handle('get-mcp-ui-proxy-url', (event) => {
     // Validate that the request comes from a trusted renderer
     const senderUrl = event.sender.getURL();
-    
+
     // Allow requests from the main app (file:// in production, localhost in dev)
-    const isTrustedOrigin = 
-      senderUrl.startsWith('file://') || 
-      (ALLOWED_ORIGIN && senderUrl.startsWith(ALLOWED_ORIGIN));
-    
+    const isTrustedOrigin =
+      senderUrl.startsWith('file://') || (ALLOWED_ORIGIN && senderUrl.startsWith(ALLOWED_ORIGIN));
+
     if (!isTrustedOrigin) {
       log.warn(`Rejected get-mcp-ui-proxy-url request from untrusted origin: ${senderUrl}`);
       return undefined;
     }
-    
+
     if (mcpUIProxyServerPort) {
       return `http://${PROXY_SERVER_HOST}:${mcpUIProxyServerPort}${PROXY_HTML_PATH}`;
     }
@@ -206,11 +205,8 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
       // Get the appropriate static file directory
       const staticPath = getStaticPath();
 
-      // Verify static directory exists and log contents for debugging
-      if (fsSync.existsSync(staticPath)) {
-        const files = fsSync.readdirSync(staticPath);
-        log.info(`MCP UI Proxy: static dir contents = ${files.join(', ')}`);
-      } else {
+      // Verify static directory exists (removed file listing for security)
+      if (!fsSync.existsSync(staticPath)) {
         log.error(`MCP UI Proxy: static directory not found at ${staticPath}`);
       }
 
@@ -237,8 +233,22 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
         next();
       });
 
-      // Serve static files from the static directory
-      expressApp.use(express.static(staticPath));
+      // Serve only the specific file we need, not the entire directory
+      expressApp.get(PROXY_HTML_PATH, (req, res) => {
+        const filePath = path.join(staticPath, 'mcp-ui-proxy.html');
+        res.sendFile(filePath, (err) => {
+          if (err) {
+            log.error(`Failed to serve ${PROXY_HTML_PATH}:`, err);
+            res.status(404).send('Not Found');
+          }
+        });
+      });
+
+      // Return 404 for any other paths
+      expressApp.use((req, res) => {
+        log.warn(`MCP-UI Proxy: 404 for path: ${req.path}`);
+        res.status(404).send('Not Found');
+      });
 
       // Create HTTP server
       mcpUIProxyServer = http.createServer(expressApp);
@@ -290,13 +300,13 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
       // Security: Only inject headers for requests from trusted webContents
       const webContentsId = details.webContentsId;
-      
+
       // Skip if webContentsId is undefined (shouldn't happen, but TypeScript requires the check)
       if (webContentsId === undefined) {
         callback({ cancel: false, requestHeaders: details.requestHeaders });
         return;
       }
-      
+
       // Inject MCP-UI proxy token header for requests to the MCP-UI proxy server
       // Only if the request comes from a trusted webContents
       if (mcpUIProxyServerPort && MCP_UI_PROXY_TOKEN && trustedWebContentsIds.has(webContentsId)) {
@@ -321,7 +331,7 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
           const isProxyRequest =
             (ALLOWED_HOSTNAMES as readonly string[]).includes(parsedUrl.hostname) &&
             parsedUrl.port === String(mcpUIProxyServerPort);
-          
+
           if (isProxyRequest) {
             log.warn(`Blocked proxy token injection for untrusted webContents ${webContentsId}`);
           }
@@ -349,34 +359,34 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
   app.on('web-contents-created', (_event, contents) => {
     const contentsType = contents.getType();
     log.debug(`New webContents created (type: ${contentsType}, id: ${contents.id})`);
-    
+
     // Set up header injection for the session (but actual injection only happens for trusted IDs)
     // This ensures the session has the onBeforeSendHeaders handler installed
     setupMcpProxyHeaderInjection(contents.session);
-    
+
     // SECURITY CHECK 1: Type validation
     // Only trust specific types of webContents:
     // - 'window': Main application windows created by BrowserWindow
     // - 'webview': Embedded webviews (used for MCP UIs)
     // - Other types (backgroundPage, remote, etc.) are NOT trusted
     const isTrustedType = contentsType === 'window' || contentsType === 'webview';
-    
+
     if (isTrustedType) {
       // SECURITY CHECK 2: URL validation
       // Validate the URL is from our app before trusting
       // This prevents malicious windows/webviews from being trusted
       const url = contents.getURL();
-      const isTrustedUrl = 
+      const isTrustedUrl =
         !url || // Empty URL at creation time is OK (will be set during load)
-        url.startsWith('file://') ||  // Production: app is served from file://
+        url.startsWith('file://') || // Production: app is served from file://
         (ALLOWED_ORIGIN && url.startsWith(ALLOWED_ORIGIN)); // Dev: app is on localhost
-      
+
       if (isTrustedUrl) {
         // REGISTER AS TRUSTED: Add to whitelist
         // This ID will now pass the check in onBeforeSendHeaders
         trustedWebContentsIds.add(contents.id);
         log.info(`Registered trusted webContents ${contents.id} (type: ${contentsType})`);
-        
+
         // CLEANUP: Remove from trusted set when destroyed
         // This prevents the Set from growing unbounded and prevents
         // ID reuse attacks (though Electron doesn't reuse IDs in practice)
