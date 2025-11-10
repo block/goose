@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect } from 'react';
-import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff } from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
@@ -43,12 +43,25 @@ function formatUrl(input: string, allowAllSites: boolean = true): string {
     return `http://${trimmed}`;
   }
 
-  // If it doesn't start with http:// or https://, add https://
-  if (allowAllSites && !trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-    // Check if it looks like a domain (contains dots but not localhost)
-    if (trimmed.includes('.') && !trimmed.startsWith('localhost')) {
+  // If it's already a complete URL, return as-is
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  if (allowAllSites) {
+    // Check if it looks like a search query (contains spaces or no dots)
+    if (trimmed.includes(' ') || (!trimmed.includes('.') && !trimmed.includes('localhost'))) {
+      // Convert to Google search
+      return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+    }
+    
+    // Check if it looks like a domain
+    if (trimmed.includes('.')) {
       return `https://${trimmed}`;
     }
+    
+    // If it's a single word, try as a .com domain first
+    return `https://${trimmed}.com`;
   }
 
   return trimmed;
@@ -92,6 +105,9 @@ export function WebViewer({
   const [iframeReady, setIframeReady] = useState(false);
   const [isSecure, setIsSecure] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1);
+  const [actualUrl, setActualUrl] = useState(url); // Track the actual loaded URL
   // eslint-disable-next-line no-undef
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -259,7 +275,7 @@ export function WebViewer({
     handleUrlSubmit(homeUrl);
   };
 
-  const handleIframeLoad = () => {
+  const handleIframeLoad = useCallback(() => {
     setIsLoading(false);
     setError(null);
     setRetryCount(0);
@@ -270,16 +286,46 @@ export function WebViewer({
       retryTimeoutRef.current = null;
     }
 
-    // Try to update navigation state (may not work due to CORS)
+    // Try to update navigation state and URL (may not work due to CORS)
     try {
       if (iframeRef.current?.contentWindow) {
-        setCanGoBack(iframeRef.current.contentWindow.history.length > 1);
-        setCanGoForward(false);
+        const iframeWindow = iframeRef.current.contentWindow;
+        
+        // Try to get the actual URL
+        try {
+          const currentUrl = iframeWindow.location.href;
+          if (currentUrl && currentUrl !== 'about:blank' && currentUrl !== url) {
+            setActualUrl(currentUrl);
+            setInputUrl(currentUrl);
+          }
+        } catch (e) {
+          // CORS will prevent this, that's expected
+        }
+
+        // Try to determine navigation state
+        try {
+          setCanGoBack(iframeWindow.history.length > 1);
+          setCanGoForward(false); // Can't reliably detect this
+        } catch (e) {
+          // Fallback: assume we can go back if we've navigated
+          setCanGoBack(navigationHistory.length > 0);
+          setCanGoForward(currentHistoryIndex < navigationHistory.length - 1);
+        }
       }
     } catch (e) {
       // Ignore CORS errors
     }
-  };
+
+    // Update navigation history
+    setNavigationHistory(prev => {
+      const newHistory = [...prev];
+      if (newHistory[newHistory.length - 1] !== url) {
+        newHistory.push(url);
+        setCurrentHistoryIndex(newHistory.length - 1);
+      }
+      return newHistory;
+    });
+  }, [url, navigationHistory, currentHistoryIndex]);
 
   const handleIframeError = () => {
     console.log('Iframe error occurred for URL:', url);
@@ -508,7 +554,7 @@ export function WebViewer({
             title={allowAllSites ? "Web Viewer" : "Localhost Viewer"}
             onLoad={handleIframeLoad}
             onError={handleIframeError}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-top-navigation-by-user-activation"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-top-navigation-by-user-activation allow-downloads allow-modals allow-orientation-lock allow-pointer-lock allow-storage-access-by-user-activation"
           />
         )}
 
