@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff, Search } from 'lucide-react';
+import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
@@ -81,6 +81,10 @@ export function WebViewer({
   onUrlChange,
   allowAllSites = true,
 }: WebViewerProps) {
+  // Generate a unique ID for this BrowserView instance
+  const browserViewId = useRef(`webviewer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   // Initialize from localStorage or use initialUrl
   const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
   const [url, setUrl] = useState(() => {
@@ -101,108 +105,135 @@ export function WebViewer({
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [iframeReady, setIframeReady] = useState(false);
   const [isSecure, setIsSecure] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1);
-  const [actualUrl, setActualUrl] = useState(url); // Track the actual loaded URL
-  // eslint-disable-next-line no-undef
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [actualUrl, setActualUrl] = useState(url);
+  const [pageTitle, setPageTitle] = useState('');
+  const [browserViewCreated, setBrowserViewCreated] = useState(false);
+
+  // Create BrowserView on mount
+  useEffect(() => {
+    const createBrowserView = async () => {
+      try {
+        const success = await window.electron.createBrowserView(browserViewId.current);
+        if (success) {
+          setBrowserViewCreated(true);
+          console.log('BrowserView created:', browserViewId.current);
+        } else {
+          setError('Failed to create browser view');
+        }
+      } catch (err) {
+        console.error('Error creating BrowserView:', err);
+        setError('Failed to initialize browser view');
+      }
+    };
+
+    createBrowserView();
+
+    // Cleanup on unmount
+    return () => {
+      if (browserViewCreated) {
+        window.electron.destroyBrowserView(browserViewId.current).catch(console.error);
+      }
+    };
+  }, []);
+
+  // Update BrowserView bounds when container resizes
+  useEffect(() => {
+    if (!browserViewCreated || !containerRef.current) return;
+
+    const updateBounds = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        window.electron.updateBrowserViewBounds(browserViewId.current, {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        }).catch(console.error);
+      }
+    };
+
+    // Initial bounds update
+    updateBounds();
+
+    // Set up resize observer
+    const resizeObserver = new ResizeObserver(updateBounds);
+    resizeObserver.observe(containerRef.current);
+
+    // Also listen for window resize
+    window.addEventListener('resize', updateBounds);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateBounds);
+    };
+  }, [browserViewCreated]);
+
+  // Navigate to initial URL when BrowserView is ready
+  useEffect(() => {
+    if (browserViewCreated && url) {
+      navigateToUrl(url);
+    }
+  }, [browserViewCreated]);
+
+  // Update navigation state periodically
+  useEffect(() => {
+    if (!browserViewCreated) return;
+
+    const updateNavigationState = async () => {
+      try {
+        const state = await window.electron.getBrowserViewNavigationState(browserViewId.current);
+        if (state) {
+          setCanGoBack(state.canGoBack);
+          setCanGoForward(state.canGoForward);
+          
+          if (state.url && state.url !== actualUrl) {
+            setActualUrl(state.url);
+            setInputUrl(state.url);
+            setIsSecure(state.url.startsWith('https://'));
+          }
+          
+          if (state.title) {
+            setPageTitle(state.title);
+          }
+        }
+      } catch (err) {
+        console.error('Error getting navigation state:', err);
+      }
+    };
+
+    // Update immediately and then periodically
+    updateNavigationState();
+    const interval = setInterval(updateNavigationState, 1000);
+
+    return () => clearInterval(interval);
+  }, [browserViewCreated, actualUrl]);
+
+  const navigateToUrl = async (targetUrl: string) => {
+    if (!browserViewCreated) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const success = await window.electron.browserViewNavigate(browserViewId.current, targetUrl);
+      if (!success) {
+        setError('Failed to navigate to URL');
+        setIsLoading(false);
+      }
+      // Loading state will be cleared by navigation state updates
+    } catch (err) {
+      console.error('Navigation error:', err);
+      setError('Navigation failed');
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (onUrlChange) {
-      onUrlChange(url);
+      onUrlChange(actualUrl);
     }
-    
-    // Check if URL is secure
-    setIsSecure(url.startsWith('https://'));
-  }, [url, onUrlChange]);
-
-  // For localhost URLs, poll the server until it's ready
-  useEffect(() => {
-    const isLocalhost = isLocalhostUrl(url);
-    
-    if (!isLocalhost || iframeReady) {
-      // For non-localhost URLs or if already ready, show iframe immediately
-      if (!isLocalhost) {
-        setIframeReady(true);
-      }
-      return;
-    }
-
-    setIsLoading(true);
-    let mounted = true;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-    let attemptCount = 0;
-    const maxAttempts = 10;
-
-    const checkServerReady = async () => {
-      attemptCount++;
-
-      try {
-        // Try to fetch from the URL to see if server is responding
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
-
-        await fetch(url, {
-          method: 'HEAD',
-          signal: controller.signal,
-          mode: 'no-cors', // Use no-cors to avoid CORS issues during check
-        });
-
-        window.clearTimeout(timeoutId);
-
-        console.log(`Server at ${url} is ready`);
-
-        if (mounted) {
-          setIframeReady(true);
-          if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-          }
-        }
-      } catch (error) {
-        console.log(`Server not ready yet (attempt ${attemptCount}/${maxAttempts}):`, error);
-
-        if (attemptCount >= maxAttempts) {
-          console.log('Max attempts reached, showing iframe anyway');
-          if (mounted) {
-            setIframeReady(true);
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              pollInterval = null;
-            }
-          }
-        }
-      }
-    };
-
-    // Initial delay to let server start
-    const initialTimer = setTimeout(() => {
-      if (!mounted) return;
-
-      // First check
-      checkServerReady();
-
-      // Set up polling
-      pollInterval = setInterval(() => {
-        if (mounted && !iframeReady) {
-          checkServerReady();
-        }
-      }, 1000); // Poll every second
-    }, 800); // Wait 800ms before first check
-
-    return () => {
-      mounted = false;
-      window.clearTimeout(initialTimer);
-      if (pollInterval) {
-        window.clearInterval(pollInterval);
-      }
-    };
-  }, [url, iframeReady]);
+  }, [actualUrl, onUrlChange]);
 
   const handleUrlSubmit = (newUrl: string) => {
     const formattedUrl = formatUrl(newUrl, allowAllSites);
@@ -220,15 +251,13 @@ export function WebViewer({
     setError(null);
     setUrl(formattedUrl);
     setInputUrl(formattedUrl);
-    setIsLoading(true);
-    setRetryCount(0);
-    setIframeReady(false);
-    setIsBlocked(false);
 
     // Save to localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem(storageKey, formattedUrl);
     }
+
+    navigateToUrl(formattedUrl);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -237,36 +266,37 @@ export function WebViewer({
     }
   };
 
-  const handleRefresh = () => {
-    if (iframeRef.current) {
-      setIsLoading(true);
-      const currentSrc = iframeRef.current.src;
-      iframeRef.current.src = '';
-      iframeRef.current.src = currentSrc;
+  const handleRefresh = async () => {
+    if (!browserViewCreated) return;
+    
+    try {
+      await window.electron.browserViewRefresh(browserViewId.current);
+    } catch (err) {
+      console.error('Refresh error:', err);
     }
   };
 
   const handleOpenInBrowser = () => {
-    window.open(url, '_blank');
+    window.electron.openExternal(actualUrl).catch(console.error);
   };
 
-  const handleGoBack = () => {
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.history.back();
-      } catch (e) {
-        console.warn('Cannot access iframe history:', e);
-      }
+  const handleGoBack = async () => {
+    if (!browserViewCreated || !canGoBack) return;
+    
+    try {
+      await window.electron.browserViewGoBack(browserViewId.current);
+    } catch (err) {
+      console.error('Go back error:', err);
     }
   };
 
-  const handleGoForward = () => {
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.history.forward();
-      } catch (e) {
-        console.warn('Cannot access iframe history:', e);
-      }
+  const handleGoForward = async () => {
+    if (!browserViewCreated || !canGoForward) return;
+    
+    try {
+      await window.electron.browserViewGoForward(browserViewId.current);
+    } catch (err) {
+      console.error('Go forward error:', err);
     }
   };
 
@@ -275,106 +305,8 @@ export function WebViewer({
     handleUrlSubmit(homeUrl);
   };
 
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false);
-    setError(null);
-    setRetryCount(0);
-    setIsBlocked(false);
-
-    if (retryTimeoutRef.current) {
-      window.clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-
-    // Try to update navigation state and URL (may not work due to CORS)
-    try {
-      if (iframeRef.current?.contentWindow) {
-        const iframeWindow = iframeRef.current.contentWindow;
-        
-        // Try to get the actual URL
-        try {
-          const currentUrl = iframeWindow.location.href;
-          if (currentUrl && currentUrl !== 'about:blank' && currentUrl !== url) {
-            setActualUrl(currentUrl);
-            setInputUrl(currentUrl);
-          }
-        } catch (e) {
-          // CORS will prevent this, that's expected
-        }
-
-        // Try to determine navigation state
-        try {
-          setCanGoBack(iframeWindow.history.length > 1);
-          setCanGoForward(false); // Can't reliably detect this
-        } catch (e) {
-          // Fallback: assume we can go back if we've navigated
-          setCanGoBack(navigationHistory.length > 0);
-          setCanGoForward(currentHistoryIndex < navigationHistory.length - 1);
-        }
-      }
-    } catch (e) {
-      // Ignore CORS errors
-    }
-
-    // Update navigation history
-    setNavigationHistory(prev => {
-      const newHistory = [...prev];
-      if (newHistory[newHistory.length - 1] !== url) {
-        newHistory.push(url);
-        setCurrentHistoryIndex(newHistory.length - 1);
-      }
-      return newHistory;
-    });
-  }, [url, navigationHistory, currentHistoryIndex]);
-
-  const handleIframeError = () => {
-    console.log('Iframe error occurred for URL:', url);
-    setIsLoading(false);
-    setIsBlocked(true);
-    
-    // Check if this might be a blocking issue
-    if (!isLocalhostUrl(url)) {
-      setError(
-        `This website (${domain}) cannot be displayed in an embedded viewer due to security restrictions. This is common for many websites to prevent clickjacking attacks.`
-      );
-    } else {
-      const maxRetries = 3;
-
-      if (retryCount < maxRetries) {
-        const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-
-        console.log(
-          `Retrying to load ${url} (attempt ${retryCount + 1}/${maxRetries}) in ${retryDelay}ms...`
-        );
-
-        if (retryTimeoutRef.current) {
-          window.clearTimeout(retryTimeoutRef.current);
-        }
-
-        retryTimeoutRef.current = setTimeout(() => {
-          setRetryCount((prev) => prev + 1);
-          if (iframeRef.current) {
-            const currentSrc = iframeRef.current.src;
-            iframeRef.current.src = '';
-            iframeRef.current.src = currentSrc;
-          }
-        }, retryDelay);
-      } else {
-        setError('Failed to load localhost server. Make sure the server is running and accessible.');
-      }
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (retryTimeoutRef.current) {
-        window.clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const domain = getDomainFromUrl(url);
-  const isLocalhost = isLocalhostUrl(url);
+  const domain = getDomainFromUrl(actualUrl);
+  const isLocalhost = isLocalhostUrl(actualUrl);
 
   return (
     <div className="h-full flex flex-col bg-background-default">
@@ -509,93 +441,32 @@ export function WebViewer({
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
           <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
-          {isBlocked && !isLocalhost && (
-            <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800">
-              <p className="text-red-700 dark:text-red-300 text-xs mb-2">Try these alternatives:</p>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  onClick={handleOpenInBrowser}
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Open in Browser
-                </Button>
-                <Button
-                  onClick={() => handleUrlSubmit('https://google.com')}
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                >
-                  Try Google
-                </Button>
-                <Button
-                  onClick={() => handleUrlSubmit('https://wikipedia.org')}
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                >
-                  Try Wikipedia
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Iframe Content */}
-      <div className="flex-1 relative overflow-hidden">
-        {iframeReady && !isBlocked && (
-          <iframe
-            ref={iframeRef}
-            src={url}
-            className="w-full h-full border-0"
-            title={allowAllSites ? "Web Viewer" : "Localhost Viewer"}
-            onLoad={handleIframeLoad}
-            onError={handleIframeError}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-top-navigation-by-user-activation allow-downloads allow-modals allow-orientation-lock allow-pointer-lock allow-storage-access-by-user-activation"
-          />
-        )}
-
-        {/* Blocked content fallback */}
-        {isBlocked && !isLocalhost && (
+      {/* BrowserView Container */}
+      <div 
+        ref={containerRef}
+        className="flex-1 relative overflow-hidden bg-white"
+      >
+        {!browserViewCreated && (
           <div className="absolute inset-0 bg-background-default flex items-center justify-center">
-            <div className="text-center max-w-md p-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                <ShieldOff className="w-8 h-8 text-red-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-textStandard mb-2">Website Blocked</h3>
-              <p className="text-textSubtle text-sm mb-4">
-                {domain} prevents embedding for security reasons. This is normal for many websites.
-              </p>
-              <div className="space-y-2">
-                <Button
-                  onClick={handleOpenInBrowser}
-                  className="w-full"
-                  variant="default"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open {domain} in Browser
-                </Button>
-                <div className="text-xs text-textSubtle">
-                  Or try a different website that allows embedding
-                </div>
-              </div>
+            <div className="text-center">
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
+              <p className="text-textSubtle text-sm">Initializing browser...</p>
             </div>
           </div>
         )}
-
-        {/* Loading overlay */}
-        {(!iframeReady || isLoading) && !isBlocked && (
-          <div className="absolute inset-0 bg-background-default/80 flex items-center justify-center">
-            <div className="text-center">
-              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-              <p className="text-textSubtle text-sm">
-                {!iframeReady ? 'Initializing...' : `Loading ${domain}...`}
-                {retryCount > 0 && ` (retry ${retryCount}/3)`}
-              </p>
-            </div>
+        
+        {browserViewCreated && isLoading && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-200">
+            <div className="h-full bg-blue-500 animate-pulse"></div>
+          </div>
+        )}
+        
+        {pageTitle && (
+          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+            {pageTitle}
           </div>
         )}
       </div>

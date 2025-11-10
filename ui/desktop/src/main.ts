@@ -1054,6 +1054,191 @@ ipcMain.handle('open-external', async (_event, url: string) => {
   }
 });
 
+// Handle creating a BrowserView for web content
+ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: number; y: number; width: number; height: number }) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) {
+      throw new Error('No main window found');
+    }
+
+    // Create a new BrowserView
+    const view = new BrowserView({
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        experimentalFeatures: true,
+      },
+    });
+
+    // Set the view on the window
+    mainWindow.setBrowserView(view);
+    view.setBounds(bounds);
+    
+    // Load the URL
+    await view.webContents.loadURL(url);
+    
+    // Store view reference with a unique ID
+    const viewId = Date.now().toString();
+    if (!mainWindow.browserViews) {
+      (mainWindow as any).browserViews = new Map();
+    }
+    (mainWindow as any).browserViews.set(viewId, view);
+    
+    return { viewId, success: true };
+  } catch (error) {
+    console.error('Error creating browser view:', error);
+    return { viewId: null, success: false, error: error.message };
+  }
+});
+
+// Handle updating BrowserView bounds
+ipcMain.handle('update-browser-view-bounds', async (event, viewId: string, bounds: { x: number; y: number; width: number; height: number }) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view) {
+      view.setBounds(bounds);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error updating browser view bounds:', error);
+    return false;
+  }
+});
+
+// Handle destroying a BrowserView
+ipcMain.handle('destroy-browser-view', async (event, viewId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view) {
+      mainWindow.removeBrowserView(view);
+      (view as any).destroy?.();
+      (mainWindow as any).browserViews.delete(viewId);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error destroying browser view:', error);
+    return false;
+  }
+});
+
+// Handle BrowserView navigation
+ipcMain.handle('browser-view-navigate', async (event, viewId: string, url: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view) {
+      await view.webContents.loadURL(url);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error navigating browser view:', error);
+    return false;
+  }
+});
+
+// Handle BrowserView back/forward navigation
+ipcMain.handle('browser-view-go-back', async (event, viewId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view && view.webContents.canGoBack()) {
+      view.webContents.goBack();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error going back in browser view:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('browser-view-go-forward', async (event, viewId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view && view.webContents.canGoForward()) {
+      view.webContents.goForward();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error going forward in browser view:', error);
+    return false;
+  }
+});
+
+// Handle BrowserView refresh
+ipcMain.handle('browser-view-refresh', async (event, viewId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view) {
+      view.webContents.reload();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error refreshing browser view:', error);
+    return false;
+  }
+});
+
+// Handle getting BrowserView navigation state
+ipcMain.handle('browser-view-navigation-state', async (event, viewId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
+    }
+
+    const view = (mainWindow as any).browserViews.get(viewId);
+    if (view) {
+      return {
+        canGoBack: view.webContents.canGoBack(),
+        canGoForward: view.webContents.canGoForward(),
+        isLoading: view.webContents.isLoading(),
+        url: view.webContents.getURL(),
+      };
+    }
+    return { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
+  } catch (error) {
+    console.error('Error getting browser view navigation state:', error);
+    return { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
+  }
+});
+
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event) => {
   return openDirectoryDialog();
