@@ -496,6 +496,31 @@ const goosedClients = new Map<number, Client>();
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 
+// Helper function to clean up all BrowserViews for a window
+const cleanupBrowserViews = (window: BrowserWindow) => {
+  try {
+    if ((window as any).browserViews) {
+      const browserViews = (window as any).browserViews as Map<string, BrowserView>;
+      console.log(`[Main] Cleaning up ${browserViews.size} BrowserViews for window`);
+      
+      for (const [viewId, view] of browserViews.entries()) {
+        try {
+          window.removeBrowserView(view);
+          (view as any).destroy?.();
+          console.log(`[Main] Cleaned up BrowserView: ${viewId}`);
+        } catch (error) {
+          console.error(`[Main] Error cleaning up BrowserView ${viewId}:`, error);
+        }
+      }
+      
+      browserViews.clear();
+      delete (window as any).browserViews;
+    }
+  } catch (error) {
+    console.error('[Main] Error during BrowserView cleanup:', error);
+  }
+};
+
 const createChat = async (
   app: App,
   _query?: string,
@@ -777,9 +802,18 @@ const createChat = async (
       });
   }
 
+  // Clean up BrowserViews when window reloads
+  mainWindow.webContents.on('did-start-loading', () => {
+    console.log('[Main] Window started loading, cleaning up BrowserViews');
+    cleanupBrowserViews(mainWindow);
+  });
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+
+    // Clean up BrowserViews
+    cleanupBrowserViews(mainWindow);
 
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
