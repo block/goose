@@ -85,7 +85,7 @@ Simplicity: Don't make things optional that don't need to be - the compiler will
 Simplicity: Booleans should default to false, not be optional
 Errors: Don't add error context that doesn't add useful information (e.g., `.context("Failed to X")` when error already says it failed)
 Simplicity: Avoid overly defensive code - trust Rust's type system
-Logging: Clean up existing logs, don't add more
+Logging: Clean up existing logs, don't add more unless for errors or security events
 
 ## Never
 
