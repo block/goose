@@ -1,20 +1,9 @@
 use anyhow::{bail, Context, Result};
-use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use goose::scheduler::{
-    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob,
+    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
 };
-use goose::scheduler_factory::SchedulerFactory;
 use std::path::Path;
-
-// Base64 decoding function - might be needed if recipe_source_arg can be base64
-// For now, handle_schedule_add will assume it's a path.
-async fn _decode_base64_recipe(source: &str) -> Result<String> {
-    let bytes = BASE64_STANDARD
-        .decode(source.as_bytes())
-        .with_context(|| "Recipe source is not a valid path and not valid Base64.")?;
-    String::from_utf8(bytes).with_context(|| "Decoded Base64 recipe source is not valid UTF-8.")
-}
 
 fn validate_cron_expression(cron: &str) -> Result<()> {
     // Basic validation and helpful suggestions
@@ -75,22 +64,21 @@ fn validate_cron_expression(cron: &str) -> Result<()> {
 }
 
 pub async fn handle_schedule_add(
-    id: String,
+    schedule_id: String,
     cron: String,
     recipe_source_arg: String, // This is expected to be a file path by the Scheduler
 ) -> Result<()> {
     println!(
         "[CLI Debug] Scheduling job ID: {}, Cron: {}, Recipe Source Path: {}",
-        id, cron, recipe_source_arg
+        schedule_id, cron, recipe_source_arg
     );
 
-    // Validate cron expression and provide helpful feedback
     validate_cron_expression(&cron)?;
 
     // The Scheduler's add_scheduled_job will handle copying the recipe from recipe_source_arg
     // to its internal storage and validating the path.
     let job = ScheduledJob {
-        id: id.clone(),
+        id: schedule_id.clone(),
         source: recipe_source_arg.clone(), // Pass the original user-provided path
         cron,
         last_run: None,
@@ -102,7 +90,7 @@ pub async fn handle_schedule_add(
 
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
@@ -116,11 +104,12 @@ pub async fn handle_schedule_add(
                 .extension()
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("yaml");
-            let final_recipe_path = scheduled_recipes_dir.join(format!("{}.{}", id, extension));
+            let final_recipe_path =
+                scheduled_recipes_dir.join(format!("{}.{}", schedule_id, extension));
 
             println!(
                 "Scheduled job '{}' added. Recipe expected at {:?}",
-                id, final_recipe_path
+                schedule_id, final_recipe_path
             );
             Ok(())
         }
@@ -138,7 +127,7 @@ pub async fn handle_schedule_add(
                     );
                 }
                 _ => Err(anyhow::Error::new(e))
-                    .context(format!("Failed to add job '{}' to scheduler", id)),
+                    .context(format!("Failed to add job '{}' to scheduler", schedule_id)),
             }
         }
     }
@@ -147,11 +136,11 @@ pub async fn handle_schedule_add(
 pub async fn handle_schedule_list() -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
-    let jobs = scheduler.list_scheduled_jobs().await?;
+    let jobs = scheduler.list_scheduled_jobs().await;
     if jobs.is_empty() {
         println!("No scheduled jobs found.");
     } else {
@@ -179,41 +168,46 @@ pub async fn handle_schedule_list() -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_schedule_remove(id: String) -> Result<()> {
+pub async fn handle_schedule_remove(schedule_id: String) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.remove_scheduled_job(&id).await {
+    match scheduler.remove_scheduled_job(&schedule_id).await {
         Ok(_) => {
-            println!("Scheduled job '{}' and its associated recipe removed.", id);
+            println!(
+                "Scheduled job '{}' and its associated recipe removed.",
+                schedule_id
+            );
             Ok(())
         }
         Err(e) => match e {
             SchedulerError::JobNotFound(job_id) => {
                 bail!("Error: Job with ID '{}' not found.", job_id);
             }
-            _ => Err(anyhow::Error::new(e))
-                .context(format!("Failed to remove job '{}' from scheduler", id)),
+            _ => Err(anyhow::Error::new(e)).context(format!(
+                "Failed to remove job '{}' from scheduler",
+                schedule_id
+            )),
         },
     }
 }
 
-pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Result<()> {
+pub async fn handle_schedule_sessions(schedule_id: String, limit: Option<usize>) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.sessions(&id, limit.unwrap_or(50)).await {
+    match scheduler.sessions(&schedule_id, limit.unwrap_or(50)).await {
         Ok(sessions) => {
             if sessions.is_empty() {
-                println!("No sessions found for schedule ID '{}'.", id);
+                println!("No sessions found for schedule ID '{}'.", schedule_id);
             } else {
-                println!("Sessions for schedule ID '{}':", id);
+                println!("Sessions for schedule ID '{}':", schedule_id);
                 // sessions is now Vec<(String, SessionMetadata)>
                 for (session_name, metadata) in sessions {
                     println!(
@@ -227,31 +221,35 @@ pub async fn handle_schedule_sessions(id: String, limit: Option<usize>) -> Resul
             }
         }
         Err(e) => {
-            bail!("Failed to get sessions for schedule '{}': {:?}", id, e);
+            bail!(
+                "Failed to get sessions for schedule '{}': {:?}",
+                schedule_id,
+                e
+            );
         }
     }
     Ok(())
 }
 
-pub async fn handle_schedule_run_now(id: String) -> Result<()> {
+pub async fn handle_schedule_run_now(schedule_id: String) -> Result<()> {
     let scheduler_storage_path =
         get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    let scheduler = SchedulerFactory::create(scheduler_storage_path)
+    let scheduler = Scheduler::new(scheduler_storage_path)
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.run_now(&id).await {
+    match scheduler.run_now(&schedule_id).await {
         Ok(session_id) => {
             println!(
                 "Successfully triggered schedule '{}'. New session ID: {}",
-                id, session_id
+                schedule_id, session_id
             );
         }
         Err(e) => match e {
             SchedulerError::JobNotFound(job_id) => {
                 bail!("Error: Job with ID '{}' not found.", job_id);
             }
-            _ => bail!("Failed to run schedule '{}' now: {:?}", id, e),
+            _ => bail!("Failed to run schedule '{}' now: {:?}", schedule_id, e),
         },
     }
     Ok(())
@@ -326,12 +324,12 @@ pub async fn handle_schedule_cron_help() -> Result<()> {
 
     println!("💡 EXAMPLES:");
     println!(
-        "  goose schedule add --id hourly-report --cron \"0 * * * *\" --recipe-source report.yaml"
+        "  goose schedule add --schedule-id hourly-report --cron \"0 * * * *\" --recipe-source report.yaml"
     );
     println!(
-        "  goose schedule add --id daily-backup --cron \"@daily\" --recipe-source backup.yaml"
+        "  goose schedule add --schedule-id daily-backup --cron \"@daily\" --recipe-source backup.yaml"
     );
-    println!("  goose schedule add --id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml");
+    println!("  goose schedule add --schedule-id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml");
 
     Ok(())
 }

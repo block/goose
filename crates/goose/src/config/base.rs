@@ -8,6 +8,7 @@ use serde_json::Value;
 use serde_yaml::Mapping;
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -138,17 +139,77 @@ impl Default for Config {
     }
 }
 
-macro_rules! declare_param {
-    ($param_name:ident, $param_type:ty) => {
-        paste::paste! {
-            pub fn [<get_ $param_name:lower>](&self) -> Result<$param_type, ConfigError> {
-                self.get_param(stringify!($param_name))
+pub trait ConfigValue {
+    const KEY: &'static str;
+    const DEFAULT: &'static str;
+}
+
+macro_rules! config_value {
+    ($key:ident, $type:ty) => {
+        impl Config {
+            paste::paste! {
+                pub fn [<get_ $key:lower>](&self) -> Result<$type, ConfigError> {
+                    self.get_param(stringify!($key))
+                }
+            }
+            paste::paste! {
+                pub fn [<set_ $key:lower>](&self, v: impl Into<$type>) -> Result<(), ConfigError> {
+                    self.set_param(stringify!($key), &v.into())
+                }
             }
         }
+    };
+
+    ($key:ident, $inner:ty, $default:expr) => {
         paste::paste! {
-            pub fn [<set_ $param_name:lower>](&self, v: impl Into<$param_type>) -> Result<(), ConfigError> {
-                self.set_param(stringify!($param_name), &v.into())
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+            #[serde(transparent)]
+            pub struct [<$key:camel>]($inner);
+
+            impl ConfigValue for [<$key:camel>] {
+                const KEY: &'static str = stringify!($key);
+                const DEFAULT: &'static str = $default;
             }
+
+            impl Default for [<$key:camel>] {
+                fn default() -> Self {
+                    [<$key:camel>]($default.into())
+                }
+            }
+
+            impl std::ops::Deref for [<$key:camel>] {
+                type Target = $inner;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.0
+                }
+            }
+
+            impl std::ops::DerefMut for [<$key:camel>] {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.0
+                }
+            }
+
+            impl std::fmt::Display for [<$key:camel>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(f, "{:?}", self.0)
+                }
+            }
+
+            impl From<$inner> for [<$key:camel>] {
+                fn from(value: $inner) -> Self {
+                    [<$key:camel>](value)
+                }
+            }
+
+            impl From<[<$key:camel>]> for $inner {
+                fn from(value: [<$key:camel>]) -> $inner {
+                    value.0
+                }
+            }
+
+            config_value!($key, [<$key:camel>]);
         }
     };
 }
@@ -738,12 +799,16 @@ impl Config {
         };
         Ok(())
     }
-
-    declare_param!(GOOSE_SEARCH_PATHS, Vec<String>);
-    declare_param!(GOOSE_MODE, GooseMode);
-    declare_param!(GOOSE_PROVIDER, String);
-    declare_param!(GOOSE_MODEL, String);
 }
+
+config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
+config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
+config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
+
+config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
+config_value!(GOOSE_MODE, GooseMode);
+config_value!(GOOSE_PROVIDER, String);
+config_value!(GOOSE_MODEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.

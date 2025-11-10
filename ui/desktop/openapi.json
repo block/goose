@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.12.0"
+    "version": "1.13.0"
   },
   "paths": {
     "/agent/add_extension": {
@@ -380,6 +380,25 @@
             "description": "Internal server error"
           }
         }
+      }
+    },
+    "/config/check_provider": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "check_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {}
       }
     },
     "/config/custom-providers": {
@@ -838,6 +857,25 @@
             "description": "Internal server error"
           }
         }
+      }
+    },
+    "/config/set_provider": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "set_config_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {}
       }
     },
     "/config/upsert": {
@@ -1634,10 +1672,9 @@
           {
             "name": "limit",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "integer",
-              "format": "int32",
               "minimum": 0
             }
           }
@@ -2152,6 +2189,17 @@
           }
         }
       },
+      "CheckProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
       "ConfigKey": {
         "type": "object",
         "description": "Configuration key metadata for provider setup",
@@ -2303,10 +2351,6 @@
         "properties": {
           "cron": {
             "type": "string"
-          },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
           },
           "id": {
             "type": "string"
@@ -3321,11 +3365,15 @@
             "type": "object",
             "required": [
               "reason",
+              "token_state",
               "type"
             ],
             "properties": {
               "reason": {
                 "type": "string"
+              },
+              "token_state": {
+                "$ref": "#/components/schemas/TokenState"
               },
               "type": {
                 "type": "string",
@@ -3756,13 +3804,6 @@
                 "$ref": "#/components/schemas/Author"
               }
             ],
-            "nullable": true
-          },
-          "context": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
             "nullable": true
           },
           "description": {
@@ -4354,11 +4395,28 @@
       },
       "SessionsQuery": {
         "type": "object",
+        "required": [
+          "limit"
+        ],
         "properties": {
           "limit": {
             "type": "integer",
-            "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "SetProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
           }
         }
       },
