@@ -112,14 +112,16 @@ impl ClaudeCodeProvider {
     /// Parse the JSON response from claude CLI
     fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
         let config = Config::global();
-        match config.get_goose_mode() {
-            Ok(GooseMode::Auto) => {
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+
+        match goose_mode {
+            GooseMode::Auto => {
                 cmd.arg("--dangerously-skip-permissions");
             }
-            Ok(GooseMode::SmartApprove) => {
+            GooseMode::SmartApprove => {
                 cmd.arg("--permission-mode").arg("acceptEdits");
             }
-            Ok(GooseMode::Approve) => {
+            GooseMode::Approve => {
                 return Err(ProviderError::RequestFailed(
                     "\n\n\n### NOTE\n\n\n \
                     Claude Code CLI provider does not support Approve mode.\n \
@@ -128,11 +130,8 @@ impl ClaudeCodeProvider {
                         .to_string(),
                 ));
             }
-            Ok(GooseMode::Chat) => {
+            GooseMode::Chat => {
                 // Chat mode doesn't need permission flags
-            }
-            Err(_) => {
-                // Default behavior if mode is not set
             }
         }
         Ok(())
