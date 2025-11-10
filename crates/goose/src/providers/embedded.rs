@@ -478,7 +478,6 @@ async fn download_and_extract_llama_server(
             let mut outfile = std::fs::File::create(&outpath)?;
             std::io::copy(&mut file, &mut outfile)?;
 
-            // Preserve permissions on Unix
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
