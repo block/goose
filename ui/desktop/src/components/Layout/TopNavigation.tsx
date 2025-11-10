@@ -569,7 +569,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                         ? 'bg-background-accent text-text-on-accent' 
                         : 'bg-background-default hover:bg-background-medium'
                       }
-                      ${isPulsing ? 'ring-2 ring-blue-400' : ''}
                       ${isLastTile && totalTiles === 10 ? 'sm:aspect-[3/1] md:aspect-[3/1] lg:aspect-square' : 'aspect-square'}
                     `}
                   >
@@ -577,6 +576,16 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                       <GripVertical className="w-4 h-4 text-text-muted" />
                     </div>
+
+                    {/* Update indicator dot */}
+                    {isPulsing && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        className="absolute bottom-3 right-3 w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                      />
+                    )}
 
                     {/* Tag in top corner */}
                     {item.getTag && (
