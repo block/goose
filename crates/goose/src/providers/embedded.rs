@@ -1438,11 +1438,18 @@ impl ToolExecutor {
                 if let Some(command) = args.get("command").and_then(|v| v.as_str()) {
                     tracing::info!("Executing shell command: {}", command);
 
-                    match std::process::Command::new("sh")
+                    #[cfg(target_os = "windows")]
+                    let output_result = std::process::Command::new("cmd")
+                        .args(["/C", command])
+                        .output();
+
+                    #[cfg(not(target_os = "windows"))]
+                    let output_result = std::process::Command::new("sh")
                         .arg("-c")
                         .arg(command)
-                        .output()
-                    {
+                        .output();
+
+                    match output_result {
                         Ok(output) => {
                             let stdout = String::from_utf8_lossy(&output.stdout);
                             let stderr = String::from_utf8_lossy(&output.stderr);
