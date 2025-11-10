@@ -333,9 +333,9 @@ export function WebViewer({
   const isLocalhost = isLocalhostUrl(actualUrl);
 
   return (
-    <div className="h-full flex flex-col bg-background-default">
+    <div className="h-full flex flex-col bg-background-default rounded-lg border border-border-subtle">
       {/* URL Bar and Controls */}
-      <div className="flex items-center gap-2 p-3 border-b border-borderSubtle bg-background-muted">
+      <div className="flex items-center gap-2 p-3 border-b border-border-subtle bg-background-muted rounded-t-lg">
         {/* Navigation buttons */}
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -428,7 +428,7 @@ export function WebViewer({
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={allowAllSites ? "Enter URL or search term" : "http://localhost:3000"}
-              className="w-full pl-8 pr-3 py-1 text-sm border border-borderSubtle rounded-md bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent focus:border-transparent"
+              className="w-full pl-8 pr-3 py-1 text-sm border border-border-subtle rounded-md bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-border-prominent focus:border-transparent"
             />
           </div>
           
@@ -445,7 +445,7 @@ export function WebViewer({
         {/* Domain indicator and external link button */}
         <div className="flex items-center gap-2">
           {domain && (
-            <div className="text-xs text-textSubtle bg-background-default px-2 py-1 rounded border border-borderSubtle">
+            <div className="text-xs text-text-subtle bg-background-default px-2 py-1 rounded border border-border-subtle">
               {domain}
             </div>
           )}
@@ -471,13 +471,13 @@ export function WebViewer({
       {/* BrowserView Container */}
       <div 
         ref={containerRef}
-        className="flex-1 relative overflow-hidden bg-white"
+        className="flex-1 relative overflow-hidden bg-background-default rounded-b-lg"
       >
         {!browserViewCreated && (
           <div className="absolute inset-0 bg-background-default flex items-center justify-center">
             <div className="text-center">
               <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-              <p className="text-textSubtle text-sm">Initializing browser...</p>
+              <p className="text-text-subtle text-sm">Initializing browser...</p>
             </div>
           </div>
         )}
