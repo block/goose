@@ -21,11 +21,9 @@ use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 use std::time::Duration;
 use sysinfo::System;
 
-// Global registry of llama-server PIDs that must be killed on process exit
 static LLAMA_SERVER_PIDS: LazyLock<StdMutex<HashSet<u32>>> = LazyLock::new(|| {
     let registry = StdMutex::new(HashSet::new());
 
-    // Register cleanup handler to kill all llama-servers on exit
     let _ = std::panic::catch_unwind(|| {
         extern "C" fn cleanup_llama_servers() {
             if let Ok(pids) = LLAMA_SERVER_PIDS.lock() {
@@ -743,14 +741,6 @@ impl ServerProcess {
             self.loaded_model_path = None;
         }
     }
-
-    fn is_running(&mut self) -> bool {
-        if let Some(child) = &mut self.child {
-            matches!(child.try_wait(), Ok(None))
-        } else {
-            false
-        }
-    }
 }
 
 impl Drop for ServerProcess {
@@ -913,18 +903,6 @@ impl EmbeddedProvider {
         let model_name = &model.model_name;
         let clean_model_name = model_name.trim_end_matches(" (to-download)");
 
-        // Check if this is a downloadable model
-        if let Some(downloadable) = find_downloadable_model(clean_model_name) {
-            let model_path_candidate = models_dir.join(format!("{}.gguf", downloadable.name));
-            if !model_path_candidate.exists() {
-                tracing::info!(
-                    "Model {} is not downloaded, starting download...",
-                    downloadable.name
-                );
-                download_model(downloadable).await?;
-            }
-        }
-
         // Find the actual model file
         let model_path: String = if clean_model_name == "embedded" {
             // Pick first available .gguf file
@@ -957,43 +935,52 @@ impl EmbeddedProvider {
             };
 
             if !model_file.exists() {
-                // Get list of available models for error message
-                let available_models: Vec<String> = std::fs::read_dir(&models_dir)
-                    .ok()
-                    .map(|entries| {
-                        entries
-                            .flatten()
-                            .filter_map(|e| {
-                                let path = e.path();
-                                if path.is_file()
-                                    && path.extension().is_some_and(|ext| ext == "gguf")
-                                {
-                                    path.file_stem()
-                                        .and_then(|s| s.to_str())
-                                        .map(|s| s.to_string())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                if available_models.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "Model '{}' not found in ~/.models/\nNo GGUF models found. Please add GGUF files to ~/.models/",
+                // we have ability to download some models
+                if find_downloadable_model(clean_model_name).is_some() {
+                    tracing::info!(
+                        "Model '{}' will be downloaded on first use",
                         clean_model_name
-                    ));
+                    );
+                    model_file.to_string_lossy().to_string()
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "Model '{}' not found in ~/.models/\n\nAvailable models:\n  {}\n\nPlease use one of these or add your model to ~/.models/",
-                        clean_model_name,
-                        available_models.join("\n  ")
-                    ));
-                }
-            }
+                    // Not a downloadable model - show error
+                    let available_models: Vec<String> = std::fs::read_dir(&models_dir)
+                        .ok()
+                        .map(|entries| {
+                            entries
+                                .flatten()
+                                .filter_map(|e| {
+                                    let path = e.path();
+                                    if path.is_file()
+                                        && path.extension().is_some_and(|ext| ext == "gguf")
+                                    {
+                                        path.file_stem()
+                                            .and_then(|s| s.to_str())
+                                            .map(|s| s.to_string())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
 
-            model_file.to_string_lossy().to_string()
+                    if available_models.is_empty() {
+                        return Err(anyhow::anyhow!(
+                            "Model '{}' not found in ~/.models/\nNo GGUF models found. Please add GGUF files to ~/.models/",
+                            clean_model_name
+                        ));
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "Model '{}' not found in ~/.models/\n\nAvailable models:\n  {}\n\nPlease use one of these or add your model to ~/.models/",
+                            clean_model_name,
+                            available_models.join("\n  ")
+                        ));
+                    }
+                }
+            } else {
+                model_file.to_string_lossy().to_string()
+            }
         };
 
         // Detect platform-specific defaults
@@ -1066,22 +1053,54 @@ impl EmbeddedProvider {
     }
 
     async fn ensure_server_running(&self) -> Result<()> {
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let models_dir = home_dir.join(".models");
+
+        let model_name = &self.model.model_name;
+        let clean_model_name = model_name.trim_end_matches(" (to-download)");
+
+        if let Some(downloadable) = find_downloadable_model(clean_model_name) {
+            let model_path_candidate = models_dir.join(format!("{}.gguf", downloadable.name));
+
+            if !model_path_candidate.exists() {
+                tracing::info!(
+                    "Model {} is not downloaded, starting download...",
+                    downloadable.name
+                );
+                download_model(downloadable).await?;
+            }
+        }
+
+        let actual_model_path = if clean_model_name.ends_with(".gguf") {
+            models_dir.join(clean_model_name)
+        } else {
+            models_dir.join(format!("{}.gguf", clean_model_name))
+        };
+        let actual_model_path_str = actual_model_path.to_string_lossy().to_string();
+
         let mut process = self.server_process.lock().await;
 
-        if !process.is_running() {
-            process
-                .start(
-                    &self.model_path,
-                    &self.host,
-                    self.ctx_size,
-                    self.gpu_layers,
-                    self.batch_size,
-                    self.threads,
-                )
-                .await?;
+        let was_running_before = process.child.is_some();
+        let model_before = process.loaded_model_path.clone();
 
-            // Wait for server to be ready
-            drop(process); // Release lock while waiting
+        process
+            .start(
+                &actual_model_path_str,
+                &self.host,
+                self.ctx_size,
+                self.gpu_layers,
+                self.batch_size,
+                self.threads,
+            )
+            .await?;
+
+        // Determine if we need to wait: either wasn't running before, or model changed
+        let needs_wait =
+            !was_running_before || model_before.as_deref() != Some(&actual_model_path_str);
+        drop(process);
+
+        if needs_wait {
             self.wait_for_server_ready().await?;
         }
 
@@ -1262,30 +1281,23 @@ impl EmbeddedProvider {
 struct ToolExecutor;
 
 impl ToolExecutor {
-    /// Parse and execute JSON tool calls from the response text
-    /// Always converts JSON to human-readable format
     async fn execute_tool_calls(text: &str) -> String {
         let mut result = String::new();
         let mut remaining = text;
 
-        // Look for JSON objects starting with { - need to handle both compact and spaced JSON
         while let Some(start_idx) = remaining.find('{') {
-            // Preserve text before the JSON
             result.push_str(remaining.get(..start_idx).unwrap_or(""));
 
             let json_start = remaining.get(start_idx..).unwrap_or("");
             if let Some(end_idx) = Self::find_json_end(json_start) {
                 let json_str = json_start.get(..=end_idx).unwrap_or("");
 
-                // Try to parse as JSON and check if it has a "tool" field
                 match serde_json::from_str::<Value>(json_str) {
-                    Ok(json) if json.get("tool").is_some() => {
-                        // This is a tool call JSON - format it nicely
+                    Ok(json) if Self::is_valid_tool_call(&json) => {
                         let tool_name = json.get("tool").and_then(|t| t.as_str());
 
                         match tool_name {
                             Some("shell") => {
-                                // Execute shell command and show formatted result
                                 if let Some(tool_result) = Self::execute_tool_call(&json).await {
                                     if let Some(args) = json.get("args") {
                                         if let Some(command) =
@@ -1300,30 +1312,28 @@ impl ToolExecutor {
                                     result.push_str(&tool_result);
                                 }
                             }
-                            Some("final_output") | _ => {
-                                // For final_output or unknown tools, extract and display content nicely
+                            _ => {
                                 let formatted = Self::format_json_as_text(&json);
                                 if !formatted.is_empty() {
                                     result.push_str(&formatted);
+                                } else {
+                                    result.push_str(json_str);
                                 }
                             }
                         }
                         remaining = json_start.get(end_idx + 1..).unwrap_or("");
                     }
                     _ => {
-                        // Not a tool call JSON, just a regular brace - include it and continue
-                        result.push('{');
-                        remaining = json_start.get(1..).unwrap_or("");
+                        result.push_str(json_str);
+                        remaining = json_start.get(end_idx + 1..).unwrap_or("");
                     }
                 }
             } else {
-                // No matching end brace
                 result.push_str(remaining);
                 break;
             }
         }
 
-        // Add any remaining text
         result.push_str(remaining);
 
         if result.is_empty() {
@@ -1333,10 +1343,22 @@ impl ToolExecutor {
         }
     }
 
+    /// this is to help identify if we should show it as plain text
+    fn is_valid_tool_call(json: &Value) -> bool {
+        let has_valid_tool = json
+            .get("tool")
+            .and_then(|t| t.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+
+        let has_args = json.get("args").is_some();
+
+        has_valid_tool && has_args
+    }
+
     /// Format JSON tool call as human-readable text
     /// Extracts content from args, formats as clean text without JSON syntax
     fn format_json_as_text(json: &Value) -> String {
-        // Try to extract from common content fields
         if let Some(args) = json.get("args") {
             if let Some(content) = args
                 .get("summary")
@@ -1349,7 +1371,6 @@ impl ToolExecutor {
                 return content.to_string();
             }
 
-            // Format all args as clean key: value pairs (no JSON syntax)
             if let Some(obj) = args.as_object() {
                 if !obj.is_empty() {
                     let mut lines = Vec::new();
@@ -1359,15 +1380,14 @@ impl ToolExecutor {
                             Value::Number(n) => n.to_string(),
                             Value::Bool(b) => b.to_string(),
                             Value::Null => "null".to_string(),
-                            Value::Array(arr) => {
-                                arr.iter()
-                                    .map(|v| match v {
-                                        Value::String(s) => s.clone(),
-                                        other => other.to_string(),
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            }
+                            Value::Array(arr) => arr
+                                .iter()
+                                .map(|v| match v {
+                                    Value::String(s) => s.clone(),
+                                    other => other.to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", "),
                             Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
                         };
                         lines.push(format!("{}: {}", key, value_str));
@@ -1377,7 +1397,6 @@ impl ToolExecutor {
             }
         }
 
-        // If we get here with empty/no args, return empty string to avoid cluttering output
         String::new()
     }
 
