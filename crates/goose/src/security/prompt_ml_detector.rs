@@ -114,8 +114,6 @@ impl MlDetector {
         let confidence = (exp_malicious / sum) as f32;
 
         tracing::info!(
-            logit_safe = %logits[0],
-            logit_malicious = %logits[1],
             prob_safe = %(exp_safe / sum),
             prob_malicious = %(exp_malicious / sum),
             confidence = %confidence,
