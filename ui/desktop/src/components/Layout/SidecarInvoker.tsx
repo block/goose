@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Globe, FileText, Edit } from 'lucide-react';
+import { Plus, Globe, FileText, Edit, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useSidecar } from '../SidecarLayout';
 
 interface SidecarInvokerProps {
   onShowLocalhost: () => void;
   onShowFileViewer: (filePath: string) => void;
-  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor', filePath?: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => void;
   isVisible: boolean;
 }
 
@@ -109,6 +109,13 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
     setIsHovering(false);
   };
 
+  const handleWebViewerClick = () => {
+    console.log('🔍 SidecarInvoker: Web Viewer button clicked');
+    onAddContainer('web-viewer');
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
   const handleMouseEnter = () => {
     setIsHovering(true);
   };
@@ -175,6 +182,16 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                 >
                   <Edit className="w-4 h-4 mr-2" />
                   Edit File
+                </Button>
+                
+                <Button
+                  onClick={handleWebViewerClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Web Viewer
                 </Button>
                 
                 <Button

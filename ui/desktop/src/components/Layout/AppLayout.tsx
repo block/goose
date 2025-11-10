@@ -51,7 +51,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     }
   };
 
-  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor', filePath?: string) => {
+  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => {
     console.log('Add container requested:', type, filePath);
     // This will be handled by MainPanelLayout
     window.dispatchEvent(new CustomEvent('add-container', { detail: { type, filePath } }));

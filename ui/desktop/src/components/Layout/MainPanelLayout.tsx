@@ -1,19 +1,20 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Plus, X, Globe, FileText, Edit } from 'lucide-react';
+import { Plus, X, Globe, FileText, Edit, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import SidecarTabs from '../SidecarTabs';
 import { FileViewer } from '../FileViewer';
 import DocumentEditor from '../DocumentEditor';
+import WebViewer from '../WebViewer';
 
 interface SidecarContainer {
   id: string;
   content: React.ReactNode;
-  contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | null;
+  contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | null;
   title?: string;
 }
 
 interface ContainerPopoverProps {
-  onSelect: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor') => void;
+  onSelect: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer') => void;
   onClose: () => void;
   position: { x: number; y: number };
 }
@@ -144,7 +145,7 @@ const ResizeHandle: React.FC<{
 const BentoBox: React.FC<{
   containers: SidecarContainer[];
   onRemoveContainer: (containerId: string) => void;
-  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor', filePath?: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => void;
 }> = ({ containers, onRemoveContainer, onAddContainer }) => {
   const [containerWidths, setContainerWidths] = useState<{ [containerId: string]: number }>({});
   const [isHovering, setIsHovering] = useState(false);
@@ -411,7 +412,7 @@ export const MainPanelLayout: React.FC<{
   }, [hasBentoBox]);
 
   // Add content to bento box
-  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor', filePath?: string) => {
+  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string) => {
     const newContainer: SidecarContainer = {
       id: `bento-${Date.now()}`,
       content: null,
@@ -440,6 +441,10 @@ export const MainPanelLayout: React.FC<{
       newContainer.content = <DocumentEditor filePath={filePath} placeholder="Start writing your document..." />;
       newContainer.contentType = 'document-editor';
       newContainer.title = fileName;
+    } else if (contentType === 'web-viewer') {
+      newContainer.content = <WebViewer initialUrl="https://google.com" allowAllSites={true} />;
+      newContainer.contentType = 'web-viewer';
+      newContainer.title = 'Web Viewer';
     }
 
     // If no bento box exists, create it first
@@ -476,7 +481,7 @@ export const MainPanelLayout: React.FC<{
 
   // Listen for add-container events from SidecarInvoker
   useEffect(() => {
-    const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file' | 'document-editor'; filePath?: string }>) => {
+    const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer'; filePath?: string }>) => {
       console.log('🔍 MainPanelLayout: Received add-container event:', e.detail.type, e.detail.filePath);
       addToBentoBox(e.detail.type, e.detail.filePath);
     };
