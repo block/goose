@@ -1748,5 +1748,3 @@ impl Provider for EmbeddedProvider {
         }))
     }
 }
-
-// No Drop impl - rely on ServerProcess's Drop and kill_on_drop(true) for cleanup
