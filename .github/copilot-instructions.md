@@ -43,7 +43,7 @@
 - Suggestions to add comments for self-documenting code
 - Refactoring suggestions unless there's a clear bug or maintainability issue
 - Listing multiple potential issues in one comment (choose the single most critical issue)
-- Suggestions to add logging statements - unless for errors or security events (the codebase needs less logging, not more)
+- Suggestions to add logging statements, unless for errors or security events (the codebase needs less logging, not more)
 
 
 ## Response Format
