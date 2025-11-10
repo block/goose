@@ -76,9 +76,12 @@ fn test_configure_tetrate() {
         config.get_secret::<String>("TETRATE_API_KEY").unwrap(),
         test_key
     );
-    assert_eq!(config.get_goose_provider().unwrap(), "tetrate");
     assert_eq!(
-        config.get_goose_model().unwrap(),
+        config.get_param::<String>("GOOSE_PROVIDER").unwrap(),
+        "tetrate"
+    );
+    assert_eq!(
+        config.get_param::<String>("GOOSE_MODEL").unwrap(),
         TETRATE_DEFAULT_MODEL.to_string()
     );
 }

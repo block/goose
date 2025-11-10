@@ -1,6 +1,6 @@
 // Import the proper type from ConfigContext
 import { getApiUrl } from '../config';
-import { safeJsonParse } from './conversionUtils';
+import { safeJsonParse } from './jsonUtils';
 
 export interface ModelCostInfo {
   input_token_cost: number; // Cost per token for input (in USD)

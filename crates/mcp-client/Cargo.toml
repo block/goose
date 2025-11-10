@@ -1,0 +1,37 @@
+[package]
+name = "mcp-client"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+mcp-core = { path = "../mcp-core" }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+rmcp = { workspace = true, features = ["client", "transport-child-process"]}
+eventsource-client = "0.12.0"
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1.83"
+url = "2.5.4"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower = { version = "0.4", features = ["timeout", "util"] }
+rand = "0.8"
+nix = { version = "0.30.1", features = ["process", "signal"] }
+# OAuth dependencies
+axum = { version = "0.8", features = ["query"] }
+base64 = "0.22"
+sha2 = "0.10"
+nanoid = "0.4"
+webbrowser = "1.0"
+serde_urlencoded = "0.7"
+
+[dev-dependencies]
+mockito = "1.5"

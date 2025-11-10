@@ -36,7 +36,7 @@ I decided to create a digital resource that teaches foundational concepts like A
 
 ## Meet the Subagents
 
-[Subagents](/docs/guides/subagents) are individual AI instances that take on specific tasks. Each one runs in its own session, which helps preserve the main context window and keeps your primary Goose conversation uncluttered and focused on high-level orchestration. I think of subagents as temporary teammates. Goose assigns each subagent a job and deallocates it when the work is complete.
+[Subagents](/docs/experimental/subagents) are individual AI instances that take on specific tasks. Each one runs in its own session, which helps preserve the main context window and keeps your primary Goose conversation uncluttered and focused on high-level orchestration. I think of subagents as temporary teammates. Goose assigns each subagent a job and deallocates it when the work is complete.
 
 For this project, I turned my subagents into an on-demand dev squad, and I assigned them the following roles:
 
@@ -58,7 +58,7 @@ export GOOSE_ALPHA_FEATURES=true
 
 ## Instructing My Team
 
-There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](/docs/guides/recipes/), or even spin up [external subagents](/docs/guides/subagents/#external-subagents) like Codex or Claude Code.
+There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](/docs/guides/recipes/), or even spin up [external subagents](/docs/experimental/subagents/#external-subagents) like Codex or Claude Code.
 
 I took the natural language prompt approach because it felt convenient to directly configure a subagent through one prompt. Here’s the prompt I used:
   
@@ -173,7 +173,7 @@ What will you build with subagents?
 
 [Download Goose](/)
 
-[Learn about subagents](/docs/guides/subagents)
+[Learn about subagents](/docs/experimental/subagents)
 
 <head>
   <meta property="og:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids" />

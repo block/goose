@@ -12,7 +12,6 @@ use crate::session::task_execution_display::{
 };
 use goose::conversation::Conversation;
 use std::io::Write;
-use std::str::FromStr;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -26,22 +25,22 @@ use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
-use goose::config::{Config, GooseMode};
+use goose::agents::{Agent, SessionConfig};
+use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
-use goose::session::SessionManager;
+use goose::session;
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
-use goose::config::paths::Paths;
 use goose::conversation::message::{Message, MessageContent};
+use goose::session::SessionManager;
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -49,19 +48,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonOutput {
-    messages: Vec<Message>,
-    metadata: JsonMetadata,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonMetadata {
-    total_tokens: Option<i32>,
-    status: String,
-}
 
 pub enum RunMode {
     Normal,
@@ -71,7 +57,7 @@ pub enum RunMode {
 pub struct CliSession {
     agent: Agent,
     messages: Conversation,
-    session_id: String,
+    session_id: Option<String>,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool,
     run_mode: RunMode,
@@ -79,7 +65,6 @@ pub struct CliSession {
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
-    output_format: String,
 }
 
 // Cache structure for completion data
@@ -134,21 +119,27 @@ pub async fn classify_planner_response(
 }
 
 impl CliSession {
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
+    pub fn new(
         agent: Agent,
-        session_id: String,
+        session_id: Option<String>,
         debug: bool,
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
-        output_format: String,
     ) -> Self {
-        let messages = SessionManager::get_session(&session_id, true)
-            .await
-            .map(|session| session.conversation.unwrap_or_default())
-            .unwrap();
+        let messages = if let Some(session_id) = &session_id {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    SessionManager::get_session(session_id, true)
+                        .await
+                        .map(|session| session.conversation.unwrap_or_default())
+                        .unwrap()
+                })
+            })
+        } else {
+            Conversation::new_unvalidated(Vec::new())
+        };
 
         CliSession {
             agent,
@@ -161,12 +152,24 @@ impl CliSession {
             max_turns,
             edit_mode,
             retry_config,
-            output_format,
         }
     }
 
-    pub fn session_id(&self) -> &String {
-        &self.session_id
+    pub fn session_id(&self) -> Option<&String> {
+        self.session_id.as_ref()
+    }
+
+    async fn summarize_context_messages(
+        messages: &mut Conversation,
+        agent: &Agent,
+        message_suffix: &str,
+    ) -> Result<()> {
+        let (summarized_messages, _, _) = agent.summarize_context(messages.messages()).await?;
+        let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
+        output::render_text(&msg, Some(Color::Yellow), true);
+        *messages = summarized_messages;
+
+        Ok(())
     }
 
     /// Add a stdio extension to the session
@@ -204,7 +207,7 @@ impl CliSession {
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
             env_keys: Vec::new(),
-            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -238,7 +241,7 @@ impl CliSession {
             uri: extension_url,
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
-            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -273,7 +276,7 @@ impl CliSession {
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
-            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
@@ -297,14 +300,13 @@ impl CliSession {
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
-            let extension_name = name.trim().to_string();
             let config = ExtensionConfig::Builtin {
-                name: extension_name,
+                name: name.trim().to_string(),
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
-                description: name.trim().to_string(),
+                description: None,
                 available_tools: Vec::new(),
             };
             self.agent
@@ -372,6 +374,9 @@ impl CliSession {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
+
+        // TODO(Douwe): Make sure we generate the description here still:
+
         self.push_message(message);
         self.process_agent_response(false, cancel_token).await?;
         Ok(())
@@ -408,32 +413,33 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        let history_file = Paths::state_dir().join("history.txt");
-        let old_history_file = Paths::config_dir().join("history.txt");
+        // Create and use a global history file in ~/.config/goose directory
+        // This allows command history to persist across different chat sessions
+        // instead of being tied to each individual session's messages
+        let strategy =
+            choose_app_strategy(crate::APP_STRATEGY.clone()).expect("goose requires a home dir");
+        let config_dir = strategy.config_dir();
+        let history_file = config_dir.join("history.txt");
 
+        // Ensure config directory exists
         if let Some(parent) = history_file.parent() {
             if !parent.exists() {
                 std::fs::create_dir_all(parent)?;
             }
         }
 
-        let history_files = [&history_file, &old_history_file];
-        let load_from = history_files.iter().find(|f| f.exists());
-
-        if let Some(file) = load_from {
-            if let Err(err) = editor.load_history(file) {
+        // Load history from the global file
+        if history_file.exists() {
+            if let Err(err) = editor.load_history(&history_file) {
                 eprintln!("Warning: Failed to load command history: {}", err);
             }
         }
 
+        // Helper function to save history after commands
         let save_history =
             |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
                     eprintln!("Warning: Failed to save command history: {}", err);
-                } else if old_history_file.exists() {
-                    if let Err(err) = std::fs::remove_file(&old_history_file) {
-                        eprintln!("Warning: Failed to remove old history file: {}", err);
-                    }
                 }
             };
 
@@ -453,7 +459,7 @@ impl CliSession {
                             // Track the current directory and last instruction in projects.json
                             if let Err(e) = crate::project_tracker::update_project_tracker(
                                 Some(&content),
-                                Some(&self.session_id),
+                                self.session_id.as_deref(),
                             ) {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
@@ -477,7 +483,7 @@ impl CliSession {
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
                             plan_messages.push(Message::user().with_text(&content));
-                            let reasoner = get_reasoner().await?;
+                            let reasoner = get_reasoner()?;
                             self.plan_with_reasoner_model(plan_messages, reasoner)
                                 .await?;
                         }
@@ -505,10 +511,6 @@ impl CliSession {
 
                     let current = output::get_theme();
                     let new_theme = match current {
-                        output::Theme::Ansi => {
-                            println!("Switching to Light theme");
-                            output::Theme::Light
-                        }
                         output::Theme::Light => {
                             println!("Switching to Dark theme");
                             output::Theme::Dark
@@ -516,6 +518,10 @@ impl CliSession {
                         output::Theme::Dark => {
                             println!("Switching to Ansi theme");
                             output::Theme::Ansi
+                        }
+                        output::Theme::Ansi => {
+                            println!("Switching to Light theme");
+                            output::Theme::Light
                         }
                     };
                     output::set_theme(new_theme);
@@ -556,18 +562,21 @@ impl CliSession {
                     save_history(&mut editor);
 
                     let config = Config::global();
-                    let mode = match GooseMode::from_str(&mode.to_lowercase()) {
-                        Ok(mode) => mode,
-                        Err(_) => {
-                            output::render_error(&format!(
-                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                                mode
-                            ));
-                            continue;
-                        }
-                    };
-                    config.set_goose_mode(mode)?;
-                    output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+                    let mode = mode.to_lowercase();
+
+                    // Check if mode is valid
+                    if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
+                        output::render_error(&format!(
+                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
+                            mode
+                        ));
+                        continue;
+                    }
+
+                    config
+                        .set_param("GOOSE_MODE", Value::String(mode.to_string()))
+                        .unwrap();
+                    output::goose_mode_message(&format!("Goose mode set to '{}'", mode));
                     continue;
                 }
                 input::InputResult::Plan(options) => {
@@ -581,7 +590,7 @@ impl CliSession {
                     let mut plan_messages = self.messages.clone();
                     plan_messages.push(Message::user().with_text(&message_text));
 
-                    let reasoner = get_reasoner().await?;
+                    let reasoner = get_reasoner()?;
                     self.plan_with_reasoner_model(plan_messages, reasoner)
                         .await?;
                 }
@@ -593,14 +602,16 @@ impl CliSession {
                 input::InputResult::Clear => {
                     save_history(&mut editor);
 
-                    if let Err(e) = SessionManager::replace_conversation(
-                        &self.session_id,
-                        &Conversation::default(),
-                    )
-                    .await
-                    {
-                        output::render_error(&format!("Failed to clear session: {}", e));
-                        continue;
+                    if let Some(session_id) = &self.session_id {
+                        if let Err(e) = SessionManager::replace_conversation(
+                            session_id,
+                            &Conversation::default(),
+                        )
+                        .await
+                        {
+                            output::render_error(&format!("Failed to clear session: {}", e));
+                            continue;
+                        }
                     }
 
                     self.messages.clear();
@@ -649,16 +660,16 @@ impl CliSession {
 
                     continue;
                 }
-                InputResult::Compact => {
+                InputResult::Summarize => {
                     save_history(&mut editor);
 
-                    let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
+                    let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
                     let should_summarize =
                         match cliclack::confirm(prompt).initial_value(true).interact() {
                             Ok(choice) => choice,
                             Err(e) => {
                                 if e.kind() == std::io::ErrorKind::Interrupted {
-                                    false
+                                    false // If interrupted, set should_summarize to false
                                 } else {
                                     return Err(e.into());
                                 }
@@ -666,24 +677,87 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGER));
+                        println!("{}", console::style("Summarizing conversation...").yellow());
                         output::show_thinking();
-                        self.process_agent_response(true, CancellationToken::default())
+
+                        // Get the provider for summarization
+                        let _provider = self.agent.provider().await?;
+
+                        // Call the summarize_context method
+                        let (summarized_messages, _token_counts, summarization_usage) = self
+                            .agent
+                            .summarize_context(self.messages.messages())
                             .await?;
+
+                        // Update the session messages with the summarized ones
+                        self.messages = summarized_messages.clone();
+
+                        // Persist the summarized messages and update session metadata
+                        if let Some(session_id) = &self.session_id {
+                            // Replace all messages with the summarized version
+                            SessionManager::replace_conversation(session_id, &summarized_messages)
+                                .await?;
+
+                            // Update session metadata with the new token counts from summarization
+                            if let Some(usage) = summarization_usage {
+                                let session =
+                                    SessionManager::get_session(session_id, false).await?;
+
+                                // Update token counts with the summarization usage
+                                let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
+
+                                // Update accumulated tokens (add the summarization cost)
+                                let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
+                                    match (a, b) {
+                                        (Some(x), Some(y)) => Some(x + y),
+                                        _ => a.or(b),
+                                    }
+                                };
+
+                                let accumulated_total = accumulate(
+                                    session.accumulated_total_tokens,
+                                    usage.usage.total_tokens,
+                                );
+                                let accumulated_input = accumulate(
+                                    session.accumulated_input_tokens,
+                                    usage.usage.input_tokens,
+                                );
+                                let accumulated_output = accumulate(
+                                    session.accumulated_output_tokens,
+                                    usage.usage.output_tokens,
+                                );
+
+                                SessionManager::update_session(session_id)
+                                    .total_tokens(Some(summary_tokens))
+                                    .input_tokens(None)
+                                    .output_tokens(Some(summary_tokens))
+                                    .accumulated_total_tokens(accumulated_total)
+                                    .accumulated_input_tokens(accumulated_input)
+                                    .accumulated_output_tokens(accumulated_output)
+                                    .apply()
+                                    .await?;
+                            }
+                        }
+
                         output::hide_thinking();
+                        println!(
+                            "{}",
+                            console::style("Conversation has been summarized.").green()
+                        );
+                        println!(
+                            "{}",
+                            console::style(
+                                "Key information has been preserved while reducing context length."
+                            )
+                            .green()
+                        );
                     } else {
-                        println!("{}", console::style("Compaction cancelled.").yellow());
+                        println!("{}", console::style("Summarization cancelled.").yellow());
                     }
                     continue;
                 }
             }
         }
-
-        println!(
-            "Closing session. Session ID: {}",
-            console::style(&self.session_id).cyan()
-        );
-
         Ok(())
     }
 
@@ -726,9 +800,12 @@ impl CliSession {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-                    if curr_goose_mode != GooseMode::Auto {
-                        config.set_goose_mode(GooseMode::Auto).unwrap();
+                    let curr_goose_mode =
+                        config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+                    if curr_goose_mode != "auto" {
+                        config
+                            .set_param("GOOSE_MODE", Value::String("auto".to_string()))
+                            .unwrap();
                     }
 
                     // clear the messages before acting on the plan
@@ -743,8 +820,10 @@ impl CliSession {
                     output::hide_thinking();
 
                     // Reset run & goose mode
-                    if curr_goose_mode != GooseMode::Auto {
-                        config.set_goose_mode(curr_goose_mode)?;
+                    if curr_goose_mode != "auto" {
+                        config
+                            .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
+                            .unwrap();
                     }
                 } else {
                     // add the plan response (assistant message) & carry the conversation forward
@@ -777,23 +856,18 @@ impl CliSession {
     ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
-        // Cache the output format check to avoid repeated string comparisons in the hot loop
-        let is_json_mode = self.output_format == "json";
-
-        let session_config = SessionConfig {
-            id: self.session_id.clone(),
+        let session_config = self.session_id.as_ref().map(|session_id| SessionConfig {
+            id: session_id.clone(),
+            working_dir: std::env::current_dir().unwrap_or_default(),
             schedule_id: self.scheduled_job_id.clone(),
+            execution_mode: None,
             max_turns: self.max_turns,
             retry_config: self.retry_config.clone(),
-        };
-        let user_message = self
-            .messages
-            .last()
-            .ok_or_else(|| anyhow::anyhow!("No user message"))?;
+        });
         let mut stream = self
             .agent
             .reply(
-                user_message.clone(),
+                self.messages.clone(),
                 session_config.clone(),
                 Some(cancel_token.clone()),
             )
@@ -867,7 +941,84 @@ impl CliSession {
                                         permission,
                                     },).await;
                                 }
+                            } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
+                                output::hide_thinking();
+
+                                // Check for user-configured default context strategy
+                                let config = Config::global();
+                                let context_strategy = config.get_param::<String>("GOOSE_CONTEXT_STRATEGY")
+                                    .unwrap_or_else(|_| if interactive { "prompt".to_string() } else { "summarize".to_string() });
+
+                                let selected = match context_strategy.as_str() {
+                                    "clear" => "clear",
+                                    "truncate" => "truncate",
+                                    "summarize" => "summarize",
+                                    _ => {
+                                        if interactive {
+                                            // In interactive mode with no default, ask the user what to do
+                                            let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
+                                            cliclack::select(prompt)
+                                                .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                                .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
+                                                .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                                .interact()?
+                                        } else {
+                                            // In headless mode, default to summarize
+                                            "summarize"
+                                        }
+                                    }
+                                };
+
+                                match selected {
+                                    "clear" => {
+                                        self.messages.clear();
+                                        let msg = if context_strategy == "clear" {
+                                            format!("Context maxed out - automatically cleared session.\n{}", "-".repeat(50))
+                                        } else {
+                                            format!("Session cleared.\n{}", "-".repeat(50))
+                                        };
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        break;  // exit the loop to hand back control to the user
+                                    }
+                                    "truncate" => {
+                                        // Truncate messages to fit within context length
+                                        let (truncated_messages, _) = self.agent.truncate_context(self.messages.messages()).await?;
+                                        let msg = if context_strategy == "truncate" {
+                                            format!("Context maxed out - automatically truncated messages.\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
+                                        } else {
+                                            format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
+                                        };
+                                        output::render_text("", Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = truncated_messages;
+                                    }
+                                    "summarize" => {
+                                        // Use the helper function to summarize context
+                                        let message_suffix = if context_strategy == "summarize" {
+                                            "Goose automatically summarized messages for you."
+                                        } else if interactive {
+                                            "Goose summarized messages for you."
+                                        } else {
+                                            "Goose automatically summarized messages to continue processing."
+                                        };
+                                        Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await?;
+                                    }
+                                    _ => {
+                                        unreachable!()
+                                    }
+                                }
+
+                                // Restart the stream after handling ContextLengthExceeded
+                                stream = self
+                                    .agent
+                                    .reply(
+                                        self.messages.clone(),
+                                        session_config.clone(),
+                                        None
+                                    )
+                                    .await?;
                             }
+                            // otherwise we have a model/tool to render
                             else {
                                 for content in &message.content {
                                     if let MessageContent::ToolRequest(tool_request) = content {
@@ -899,10 +1050,11 @@ impl CliSession {
                                                     }
                                                 })
                                             })
-                                            .unwrap_or_else(|| "unknown".to_string().into());
+                                            .unwrap_or_else(|| "unknown".to_string());
 
                                         let success = tool_response.tool_result.is_ok();
                                         let result_status = if success { "success" } else { "error" };
+
                                         tracing::info!(
                                             counter.goose.tool_completions = 1,
                                             tool_name = %tool_name,
@@ -911,16 +1063,11 @@ impl CliSession {
                                         );
                                     }
                                 }
-
                                 self.messages.push(message.clone());
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
-
-                                // Don't render in JSON mode
-                                if !is_json_mode {
-                                    output::render_message(&message, self.debug);
-                                }
+                                output::render_message(&message, self.debug);
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
@@ -992,21 +1139,17 @@ impl CliSession {
                                         // TODO: proper display for subagent notifications
                                         if interactive {
                                             let _ = progress_bars.hide();
-                                            if !is_json_mode {
-                                                println!("{}", console::style(&formatted_message).green().dim());
-                                            }
-                                        } else if !is_json_mode {
+                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        } else {
                                             progress_bars.log(&formatted_message);
                                         }
                                     } else if let Some(ref notification_type) = message_notification_type {
                                         if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                if !is_json_mode {
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                }
-                                            } else if !is_json_mode {
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
+                                            } else {
                                                 print!("{}", formatted_message);
                                                 std::io::stdout().flush().unwrap();
                                             }
@@ -1033,10 +1176,10 @@ impl CliSession {
                                 _ => (),
                             }
                         }
-                        Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
-                            self.messages = updated_conversation;
-                        }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+            Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                self.messages = Conversation::new_unvalidated(new_messages.clone());
+            }
+            Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             // Log model change if in debug mode
                             if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
@@ -1044,24 +1187,94 @@ impl CliSession {
                         }
 
                         Some(Err(e)) => {
-                            // TODO(Douwe): Delete this
                             // Check if it's a ProviderError::ContextLengthExceeded
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
 
                                 output::render_text(
-                                    "Compaction requested. Should have happened in the agent!",
+                                    "Context limit reached. Performing auto-compaction...",
                                     Some(Color::Yellow),
                                     true
                                 );
-                                warn!("Compaction requested. Should have happened in the agent!");
+
+                                // Try auto-compaction first - keep the stream alive!
+                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
+                                    self.messages = compact_result.messages;
+                                    if let Some(session_id) = &self.session_id {
+                                        SessionManager::replace_conversation(session_id, &self.messages).await?;
+                                    }
+
+                                    output::render_text(
+                                        "Compaction complete. Conversation has been automatically compacted to continue.",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+
+                                    // Restart the stream after successful compaction - keep the stream alive!
+                                    stream = self
+                                        .agent
+                                        .reply(
+                                            self.messages.clone(),
+                                            session_config.clone(),
+                                            Some(cancel_token.clone())
+                                        )
+                                        .await?;
+                                    continue;
+                                }
+                                // Auto-compaction failed, fall through to common error handling below
                             }
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
+                            }
+
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+                                    output::render_error(&format!("Error: Context length exceeded: {}", e));
+
+                                    let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
+                                    let selected = match cliclack::select(prompt.to_string())
+                                        .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                        .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                        .interact()
+                                    {
+                                        Ok(choice) => Some(choice),
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                // If interrupted, do nothing and let user handle it manually
+                                                output::render_text("Operation cancelled. You can use /clear or /summarize to continue.", Some(Color::Yellow), true);
+                                                None
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
+
+                                    if let Some(choice) = selected {
+                                        match choice {
+                                            "clear" => {
+                                                self.messages.clear();
+                                                let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                                output::render_text(&msg, Some(Color::Yellow), true);
+                                            }
+                                            "summarize" => {
+                                                // Use the helper function to summarize context
+                                                let message_suffix = "Goose summarized messages for you.";
+                                                if let Err(e) = Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await {
+                                                    output::render_error(&format!("Failed to summarize: {}", e));
+                                                    output::render_text("Consider using /clear to start fresh.", Some(Color::Yellow), true);
+                                                }
+                                            }
+                                            _ => {
+                                                unreachable!()
+                                            }
+                                        }
+                                    }
                             } else {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
@@ -1085,29 +1298,7 @@ impl CliSession {
                 }
             }
         }
-
-        // Output JSON if requested
-        if is_json_mode {
-            let metadata = match SessionManager::get_session(&self.session_id, false).await {
-                Ok(session) => JsonMetadata {
-                    total_tokens: session.total_tokens,
-                    status: "completed".to_string(),
-                },
-                Err(_) => JsonMetadata {
-                    total_tokens: None,
-                    status: "completed".to_string(),
-                },
-            };
-
-            let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
-                metadata,
-            };
-
-            println!("{}", serde_json::to_string_pretty(&json_output)?);
-        } else {
-            println!();
-        }
+        println!();
 
         Ok(())
     }
@@ -1137,12 +1328,7 @@ impl CliSession {
             let mut response_message = Message::user();
             let last_tool_name = tool_requests
                 .last()
-                .and_then(|(_, tool_call)| {
-                    tool_call
-                        .as_ref()
-                        .ok()
-                        .map(|tool| tool.name.to_string().clone())
-                })
+                .and_then(|(_, tool_call)| tool_call.as_ref().ok().map(|tool| tool.name.clone()))
                 .unwrap_or_else(|| "tool".to_string());
 
             let notification = if interrupt {
@@ -1269,13 +1455,16 @@ impl CliSession {
         );
     }
 
-    pub async fn get_session(&self) -> Result<goose::session::Session> {
-        SessionManager::get_session(&self.session_id, false).await
+    pub async fn get_metadata(&self) -> Result<session::Session> {
+        match &self.session_id {
+            Some(id) => SessionManager::get_session(id, false).await,
+            None => Err(anyhow::anyhow!("No session available")),
+        }
     }
 
     // Get the session's total token usage
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
-        let metadata = self.get_session().await?;
+        let metadata = self.get_metadata().await?;
         Ok(metadata.total_tokens)
     }
 
@@ -1291,7 +1480,7 @@ impl CliSession {
             .unwrap_or(false);
 
         let provider_name = config
-            .get_goose_provider()
+            .get_param::<String>("GOOSE_PROVIDER")
             .unwrap_or_else(|_| "unknown".to_string());
 
         // Do not get costing information if show cost is disabled
@@ -1307,7 +1496,7 @@ impl CliSession {
             }
         }
 
-        match self.get_session().await {
+        match self.get_metadata().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
 
@@ -1443,7 +1632,7 @@ impl CliSession {
     }
 }
 
-async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
+fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
@@ -1455,7 +1644,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     } else {
         println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
         config
-            .get_goose_provider()
+            .get_param::<String>("GOOSE_PROVIDER")
             .expect("No provider configured. Run 'goose configure' first")
     };
 
@@ -1465,13 +1654,13 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     } else {
         println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");
         config
-            .get_goose_model()
+            .get_param::<String>("GOOSE_MODEL")
             .expect("No model configured. Run 'goose configure' first")
     };
 
     let model_config =
         ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
-    let reasoner = create(&provider, model_config).await?;
+    let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
 }

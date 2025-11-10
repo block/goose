@@ -1,0 +1,87 @@
+version: "1.0.0"
+title: "Word Counter"
+description: "A recipe that counts words in text using an inline Python extension"
+
+instructions: |
+  This recipe provides a simple word counting tool. You can:
+  1. Count words in a text string
+  2. Get statistics about the text (unique words, average word length)
+  3. Generate word clouds from the text
+
+parameters:
+  - key: text
+    input_type: string
+    requirement: required
+    description: "The text to analyze"
+
+extensions:
+  - type: inline_python
+    name: word_counter
+    code: |
+      from mcp.server.fastmcp import FastMCP
+      import json
+      from collections import Counter
+      import numpy as np
+      from wordcloud import WordCloud
+      import matplotlib.pyplot as plt
+      import base64
+      from io import BytesIO
+      
+      mcp = FastMCP("word_counter")
+      
+      @mcp.tool()
+      def count_words(text: str) -> str:
+          """Count the number of words in a text string and generate statistics"""
+          words = text.split()
+          word_count = len(words)
+          unique_words = len(set(words))
+          avg_length = sum(len(word) for word in words) / word_count if word_count > 0 else 0
+          
+          # Generate word cloud
+          wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+          
+          # Save word cloud to base64
+          plt.figure(figsize=(10, 5))
+          plt.imshow(wordcloud, interpolation='bilinear')
+          plt.axis('off')
+          
+          # Save to bytes
+          buf = BytesIO()
+          plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+          buf.seek(0)
+          img_base64 = base64.b64encode(buf.getvalue()).decode()
+          plt.close()
+          
+          result = {
+              "total_words": word_count,
+              "unique_words": unique_words,
+              "average_word_length": round(avg_length, 2),
+              "most_common": dict(Counter(words).most_common(5)),
+              "wordcloud_base64": img_base64
+          }
+          
+          return json.dumps(result, indent=2)
+          
+      if __name__ == "__main__":
+          mcp.run()
+    timeout: 300
+    description: "Count words and provide text statistics with visualization"
+    dependencies:
+      - "mcp"
+      - "numpy"
+      - "matplotlib"
+      - "wordcloud"
+      - "beautifulsoup4"
+      - "html2text"
+      - "requests"
+
+prompt: |
+  You are a helpful assistant that can analyze text using word counting tools.
+  The user has provided the following text to analyze: {{ text }}
+  
+  Use the word_counter__count_words tool to analyze this text and provide insights about:
+  - Total word count
+  - Number of unique words
+  - Average word length
+  - Most commonly used words
+  - A word cloud visualization of the text

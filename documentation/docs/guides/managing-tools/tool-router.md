@@ -58,7 +58,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click the `Settings` button on the sidebar
     3. Click the `Chat` tab
@@ -66,7 +66,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
        - `Disabled` - Use the default tool selection strategy
        - `Enabled` - Use LLM-based intelligence to select tools
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     1. Run the configuration command:
     ```sh
     goose configure
@@ -147,7 +147,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
 
 ## Environment Variable Configuration
 
-You can also configure tool selection using environment variables or in your [configuration file](/docs/guides/config-files):
+You can also configure tool selection using environment variables or in your [configuration file](/docs/guides/config-file):
 
 ```bash
 # Enable LLM-based tool selection

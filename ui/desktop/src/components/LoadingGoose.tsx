@@ -8,29 +8,18 @@ interface LoadingGooseProps {
   chatState?: ChatState;
 }
 
-const STATE_MESSAGES: Record<ChatState, string> = {
-  [ChatState.LoadingConversation]: 'loading conversation...',
-  [ChatState.Thinking]: 'goose is thinking…',
-  [ChatState.Streaming]: 'goose is working on it…',
-  [ChatState.WaitingForUserInput]: 'goose is waiting…',
-  [ChatState.Compacting]: 'goose is compacting the conversation...',
-  [ChatState.Idle]: 'goose is working on it…',
-};
-
-const STATE_ICONS: Record<ChatState, React.ReactNode> = {
-  [ChatState.LoadingConversation]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
-  [ChatState.Thinking]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
-  [ChatState.Streaming]: <FlyingBird className="flex-shrink-0" cycleInterval={150} />,
-  [ChatState.WaitingForUserInput]: (
-    <AnimatedIcons className="flex-shrink-0" cycleInterval={600} variant="waiting" />
-  ),
-  [ChatState.Compacting]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
-  [ChatState.Idle]: <GooseLogo size="small" hover={false} />,
-};
-
 const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps) => {
-  const displayMessage = message || STATE_MESSAGES[chatState];
-  const icon = STATE_ICONS[chatState];
+  // Determine the appropriate message based on state
+  const getLoadingMessage = () => {
+    if (message) return message; // Custom message takes priority
+
+    if (chatState === ChatState.Thinking) return 'goose is thinking…';
+    if (chatState === ChatState.Streaming) return 'goose is working on it…';
+    if (chatState === ChatState.WaitingForUserInput) return 'goose is waiting…';
+
+    // Default fallback
+    return 'goose is working on it…';
+  };
 
   return (
     <div className="w-full animate-fade-slide-up">
@@ -38,8 +27,16 @@ const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps
         data-testid="loading-indicator"
         className="flex items-center gap-2 text-xs text-textStandard py-2"
       >
-        {icon}
-        {displayMessage}
+        {chatState === ChatState.Thinking ? (
+          <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />
+        ) : chatState === ChatState.Streaming ? (
+          <FlyingBird className="flex-shrink-0" cycleInterval={150} />
+        ) : chatState === ChatState.WaitingForUserInput ? (
+          <AnimatedIcons className="flex-shrink-0" cycleInterval={600} variant="waiting" />
+        ) : (
+          <GooseLogo size="small" hover={false} />
+        )}
+        {getLoadingMessage()}
       </div>
     </div>
   );

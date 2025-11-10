@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use goose::execution::manager::AgentManager;
+use goose::execution::SessionExecutionMode;
 use goose::scheduler_trait::SchedulerTrait;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -17,7 +18,7 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
-        let agent_manager = AgentManager::instance().await?;
+        let agent_manager = Arc::new(AgentManager::new(None).await?);
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
@@ -45,17 +46,26 @@ impl AppState {
         }
     }
 
-    pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {
-        self.agent_manager.get_or_create_agent(session_id).await
+    pub async fn get_agent(
+        &self,
+        session_id: String,
+        mode: SessionExecutionMode,
+    ) -> anyhow::Result<Arc<goose::agents::Agent>> {
+        self.agent_manager
+            .get_or_create_agent(session_id, mode)
+            .await
     }
 
+    /// Get agent for route handlers - always uses Interactive mode and converts any error to 500
     pub async fn get_agent_for_route(
         &self,
         session_id: String,
     ) -> Result<Arc<goose::agents::Agent>, StatusCode> {
-        self.get_agent(session_id).await.map_err(|e| {
-            tracing::error!("Failed to get agent: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })
+        self.get_agent(session_id, SessionExecutionMode::Interactive)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get agent: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })
     }
 }

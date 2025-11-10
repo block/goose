@@ -4,13 +4,6 @@ import userEvent from '@testing-library/user-event';
 import { AlertBox } from '../AlertBox';
 import { Alert, AlertType } from '../types';
 
-// Mock the ConfigContext
-vi.mock('../../ConfigContext', () => ({
-  useConfig: () => ({
-    read: vi.fn().mockResolvedValue(0.8),
-  }),
-}));
-
 describe('AlertBox', () => {
   const mockOnCompact = vi.fn();
 

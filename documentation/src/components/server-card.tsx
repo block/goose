@@ -80,12 +80,12 @@ export function ServerCard({ server }: { server: MCPServer }) {
                     style={{ fontSize: "12px" }}
                     className="text-textSubtle leading-normal"
                   >
-                    Can be enabled on the Extensions page in goose
+                    Can be enabled on the Extensions page in Goose
                   </span>
                   </div>
                 )}
 
-                {!server.is_builtin && (server.show_install_command !== false) && (
+                {!server.is_builtin && (
                   <>
                   <button
                     onClick={() => setIsCommandVisible(!isCommandVisible)}
@@ -139,7 +139,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   >
                     Built-in
                   </div>
-                ) : server.show_install_link !== false ? (
+                ) : (
                   <a
                     href={getGooseInstallLink(server)}
                     target="_blank"
@@ -149,7 +149,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                     <span>Install</span>
                     <Download className="h-4 w-4" />
                   </a>
-                ) : null}
+                )}
               </div>
             </div>
           </div>

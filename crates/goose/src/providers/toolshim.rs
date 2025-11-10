@@ -38,8 +38,9 @@ use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
+use mcp_core::tool::ToolCall;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParam, RawContent, Tool};
+use rmcp::model::{RawContent, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
@@ -59,7 +60,7 @@ pub trait ToolInterpreter {
         &self,
         content: &str,
         tools: &[Tool],
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError>;
+    ) -> Result<Vec<ToolCall>, ProviderError>;
 }
 
 /// Ollama-specific implementation of the ToolInterpreter trait
@@ -197,9 +198,7 @@ impl OllamaInterpreter {
         Ok(response_json)
     }
 
-    fn process_interpreter_response(
-        response: &Value,
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError> {
+    fn process_interpreter_response(response: &Value) -> Result<Vec<ToolCall>, ProviderError> {
         let mut tool_calls = Vec::new();
         tracing::info!(
             "Tool interpreter response is {}",
@@ -220,14 +219,12 @@ impl OllamaInterpreter {
                                 && item.get("name").is_some()
                                 && item.get("arguments").is_some()
                             {
+                                // Create ToolCall directly from the JSON data
                                 let name = item["name"].as_str().unwrap_or_default().to_string();
                                 let arguments = item["arguments"].clone();
 
                                 // Add the tool call to our result vector
-                                tool_calls.push(CallToolRequestParam {
-                                    name: name.into(),
-                                    arguments: Some(object(arguments)),
-                                });
+                                tool_calls.push(ToolCall::new(name, arguments));
                             }
                         }
                     }
@@ -245,7 +242,7 @@ impl ToolInterpreter for OllamaInterpreter {
         &self,
         last_assistant_msg: &str,
         tools: &[Tool],
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError> {
+    ) -> Result<Vec<ToolCall>, ProviderError> {
         if tools.is_empty() {
             return Ok(vec![]);
         }

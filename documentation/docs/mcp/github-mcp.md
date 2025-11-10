@@ -15,10 +15,10 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/githu
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   </TabItem>
 </Tabs>
@@ -37,7 +37,7 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/githu
 These steps configure the Remote MCP Server. For other deployment options, see the [official GitHub MCP Server documentation](https://github.com/github/github-mcp-server).
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
     2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     3. Click `Extensions`
@@ -54,7 +54,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
     8. Navigate to the chat
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="github"
       type="http"

@@ -42,7 +42,7 @@
         defaultPackage = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = workspaceToml.workspace.package.version;
-          src = self;
+          src = ./.;
 
           cargoLock = {
             lockFile = ./Cargo.lock;

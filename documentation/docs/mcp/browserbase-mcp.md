@@ -12,10 +12,10 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
 :::tip TLDR
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=@browserbasehq/mcp&id=browserbase&name=Browserbase&description=Automate%20web%20browsing%20and%20data%20extraction&env=BROWSERBASE_PROJECT_ID%3DBrowserbase%20Project%20ID&env=BROWSERBASE_API_KEY%3DBrowserbase%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   npx @browserbasehq/mcp
@@ -32,7 +32,7 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="browserbase"
     extensionName="Browserbase"
@@ -47,7 +47,7 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
     apiKeyLinkText="Get your Browserbase credentials"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

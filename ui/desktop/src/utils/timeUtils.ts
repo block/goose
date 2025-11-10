@@ -1,5 +1,6 @@
-export function formatMessageTimestamp(timestamp?: number): string {
-  const date = timestamp ? new Date(timestamp * 1000) : new Date();
+export function formatMessageTimestamp(timestamp: number): string {
+  // Convert from Unix timestamp (seconds) to milliseconds
+  const date = new Date(timestamp * 1000);
   const now = new Date();
 
   // Format time as HH:MM AM/PM

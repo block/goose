@@ -45,7 +45,7 @@ When you reach the auto-compaction threshold:
 You can also trigger compaction manually before reaching context or token limits:
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
 
   1. Point to the token usage indicator dot next to the model name at the bottom of the app
   2. Click <ScrollText className="inline" size={16} /> `Compact now` in the context window that appears
@@ -57,7 +57,7 @@ You can also trigger compaction manually before reaching context or token limits
   :::
 
 </TabItem>
-<TabItem value="cli" label="goose CLI" default>
+<TabItem value="cli" label="Goose CLI" default>
 
 To proactively trigger summarization before reaching context limits, use the `/summarize` command:
 
@@ -86,12 +86,12 @@ When auto-compaction is disabled, or if a conversation still exceeds the context
 | **Prompt** | Asks user to choose from the above options | Control over each decision in interactive sessions | CLI only | Depends on choice made |
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
 
 Goose Desktop exclusively uses summarization by compacting the conversation to manage context, preserving key information while reducing size.
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
 The CLI supports all context limit strategies: `summarize`, `truncate`, `clear`, and `prompt`. 
 
@@ -159,10 +159,10 @@ This feature gives you control over agent autonomy and prevents infinite loops a
 - Enabling human supervision or interaction during autonomous operations
 - Controlling loops while testing and debugging agent behavior
 
-This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [config.yaml file](/docs/guides/config-files). You can configure it using the Desktop app or CLI.
+This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [config.yaml file](/docs/guides/config-file). You can configure it using the Desktop app or CLI.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
 
       1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
       2. Click the `Settings` button on the sidebar
@@ -170,7 +170,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       4. Scroll to `Conversation Limits` and enter a value for `Max Turns`
         
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
 
       1. Run the `configuration` command:
       ```sh
@@ -253,7 +253,7 @@ Remember that even simple-seeming tasks often require multiple turns. For exampl
 After sending your first message, Goose Desktop and Goose CLI display token usage.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     The Desktop displays a colored circle next to the model name at the bottom of the session window. The color provides a visual indicator of your token usage for the session. 
       - **Green**: Normal usage - Plenty of context space available
       - **Orange**: Warning state - Approaching limit (80% of capacity)
@@ -266,7 +266,7 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
       - A progress bar showing your current token usage
         
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
     The CLI displays a context label above each command prompt, showing:
       - A visual indicator using dots (●○) and colors to represent your token usage:
         - **Green**: Below 50% usage
@@ -287,7 +287,7 @@ Context limits are automatically detected based on your model name, but Goose pr
 | **Main** | Set context limit for the main model (also serves as fallback for other models) | LiteLLM proxies, custom models with non-standard names | `GOOSE_CONTEXT_LIMIT` |
 | **Lead** | Set larger context for planning in [lead/worker mode](/docs/tutorials/lead-worker) | Complex planning tasks requiring more context | `GOOSE_LEAD_CONTEXT_LIMIT` |
 | **Worker** | Set smaller context for execution in lead/worker mode | Cost optimization during execution phase | `GOOSE_WORKER_CONTEXT_LIMIT` |
-| **Planner** | Set context for [planner models](/docs/guides/multi-model/creating-plans) | Large planning tasks requiring extensive context | `GOOSE_PLANNER_CONTEXT_LIMIT` |
+| **Planner** | Set context for [planner models](/docs/guides/creating-plans) | Large planning tasks requiring extensive context | `GOOSE_PLANNER_CONTEXT_LIMIT` |
 
 :::info
 This setting only affects the displayed token usage and progress indicators. Actual context management is handled by your LLM, so you may experience more or less usage than the limit you set, regardless of what the display shows.
@@ -311,12 +311,12 @@ Goose resolves context limits with the following precedence (highest to lowest):
 **Configuration**
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
 
      Model context limit overrides are not yet available in the Goose Desktop app.
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
     Context limit overrides only work as [environment variables](/docs/guides/environment-variables#model-context-limit-overrides), not in the config file.
 
@@ -361,7 +361,7 @@ export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 Display real-time estimated costs of your session.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
 To manage live cost tracking:
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
   2. Click the `Settings` button on the sidebar
@@ -374,8 +374,8 @@ Pricing data is regularly fetched from the OpenRouter API and cached locally. Th
 
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
 </TabItem>
-    <TabItem value="cli" label="goose CLI">
-    Show estimated cost in the Goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-files.md).
+    <TabItem value="cli" label="Goose CLI">
+    Show estimated cost in the Goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-file.md).
 
   ```
   # Set environment variable

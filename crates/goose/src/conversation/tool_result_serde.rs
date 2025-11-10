@@ -1,4 +1,4 @@
-use crate::mcp_utils::ToolResult;
+use mcp_core::ToolResult;
 use rmcp::model::{ErrorCode, ErrorData};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

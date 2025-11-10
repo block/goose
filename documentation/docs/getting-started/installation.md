@@ -18,9 +18,9 @@ import { PanelLeft } from 'lucide-react';
     Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="goose Desktop" default>
+      <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser or with [Homebrew](https://brew.sh/).
-
+        
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
         <MacDesktopInstallButtons/>
 
@@ -33,7 +33,7 @@ import { PanelLeft } from 'lucide-react';
           :::
         </div>
         <h3>Option 2: Install via Homebrew</h3>
-        Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too.
+        Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too. 
         ```bash
           brew install --cask block-goose
         ```
@@ -44,11 +44,11 @@ import { PanelLeft } from 'lucide-react';
 
           Ensure the `~/.config` directory has read and write access.
 
-          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Known Issues Guide](/docs/troubleshooting/known-issues#macos-permission-issues)
+          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues)
           :::
         </div>
       </TabItem>
-      <TabItem value="cli" label="goose CLI">
+      <TabItem value="cli" label="Goose CLI">
         Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
 
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download script</h3>
@@ -85,9 +85,9 @@ import { PanelLeft } from 'lucide-react';
     Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="goose Desktop" default>
+      <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser.
-
+        
         <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
         <LinuxDesktopInstallButtons/>
 
@@ -97,13 +97,13 @@ import { PanelLeft } from 'lucide-react';
           2. Navigate to the directory where it is saved in a terminal
           3. Run `sudo dpkg -i (filename).deb`
           4. Launch Goose from the app menu
-
+          
           :::tip Updating Goose
           It's best to keep Goose updated by periodically running the installation steps again.
           :::
         </div>
       </TabItem>
-      <TabItem value="cli" label="goose CLI">
+      <TabItem value="cli" label="Goose CLI">
         Run the following command to install the Goose CLI on Linux:
 
         ```sh
@@ -131,9 +131,9 @@ import { PanelLeft } from 'lucide-react';
     Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
-      <TabItem value="ui" label="goose Desktop" default>
+      <TabItem value="ui" label="Goose Desktop" default>
         Install Goose Desktop directly from the browser.
-
+        
         <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
         <WindowsDesktopInstallButtons/>
 
@@ -146,7 +146,7 @@ import { PanelLeft } from 'lucide-react';
           :::
         </div>
       </TabItem>
-      <TabItem value="cli" label="goose CLI">
+      <TabItem value="cli" label="Goose CLI">
         To install Goose natively on Windows, you need one of the following environments:
         - **Git Bash** (recommended): Comes with [Git for Windows](https://git-scm.com/download/win)
         - **MSYS2**: Available from [msys2.org](https://www.msys2.org/)
@@ -162,17 +162,6 @@ import { PanelLeft } from 'lucide-react';
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-        ```
-
-        **PowerShell Installation:**
-        Download the PowerShell installation script to your current directory.
-
-        ```powershell
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/block/goose/main/download_cli.ps1" -OutFile "download_cli.ps1";
-        ```
-        Then run the script to install Goose:
-        ```powershell
-        .\download_cli.ps1
         ```
 
         :::info Windows PATH Setup
@@ -234,7 +223,7 @@ import { PanelLeft } from 'lucide-react';
 
           ```sh
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-          ```
+          ```  
 
           If needed, add Goose to your path:
 
@@ -254,11 +243,11 @@ import { PanelLeft } from 'lucide-react';
 Goose works with [supported LLM providers][providers] that give Goose the AI intelligence it needs to understand your requests. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     On the welcome screen, choose how to configure a provider:
     <OnboardingProviderSetup />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     The CLI automatically enters configuration mode where you can choose how to configure a provider:
 
     <OnboardingProviderSetup />
@@ -316,13 +305,13 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 You can change your LLM provider and/or model or update your API key at any time.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
     3. Click the `Models` tab.
     4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider).
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     1. Run the following command:
     ```sh
     goose configure
@@ -361,12 +350,12 @@ You can change your LLM provider and/or model or update your API key at any time
 ## Running Goose
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
         Starting a session in the Goose Desktop is straightforward. After choosing your provider, you'll see the session interface ready for use.
 
         Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately.
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
         From your terminal, navigate to the directory you'd like to start from and run:
         ```sh
         goose session
@@ -376,19 +365,19 @@ You can change your LLM provider and/or model or update your API key at any time
 
 ## Shared Configuration Settings
 
-The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings. For more information, visit the [Config Files][config-files] guide.
+The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `~/.config/goose/config.yaml`, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings.
 
 :::info
-While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config files while others implement their own storage methods.
-:::
+While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config file while others implement their own storage methods.
+::: 
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
         Navigate to shared configurations through:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
         2. Click the `Settings` button on the sidebar.
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
         Use the following command to manage shared configurations:
         ```sh
         goose configure
@@ -404,4 +393,3 @@ You can also configure Extensions to extend Goose's functionality, including add
 [providers]: /docs/getting-started/providers
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [mcp]: https://www.anthropic.com/news/model-context-protocol
-[config-files]: /docs/guides/config-files.md

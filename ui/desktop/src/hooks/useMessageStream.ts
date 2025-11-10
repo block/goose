@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import {
-  createUserMessage,
-  getThinkingMessage,
-  getCompactingMessage,
-  hasCompletedToolCalls,
-} from '../types/message';
-import { Conversation, Message, Role, TokenState } from '../api';
-
+import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
@@ -35,11 +28,10 @@ export interface NotificationEvent {
 
 // Event types for SSE stream
 type MessageEvent =
-  | { type: 'Message'; message: Message; token_state: TokenState }
+  | { type: 'Message'; message: Message }
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
-  | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -165,9 +157,6 @@ export interface UseMessageStreamHelpers {
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
-
-  /** Real-time token state from server */
-  tokenState: TokenState;
 }
 
 /**
@@ -200,14 +189,6 @@ export function useMessageStream({
     null
   );
   const [session, setSession] = useState<Session | null>(null);
-  const [tokenState, setTokenState] = useState<TokenState>({
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    accumulatedInputTokens: 0,
-    accumulatedOutputTokens: 0,
-    accumulatedTotalTokens: 0,
-  });
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -291,8 +272,6 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
-                    setTokenState(parsedEvent.token_state);
-
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage: Message = {
                       ...parsedEvent.message,
@@ -325,12 +304,6 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
-                    if (getCompactingMessage(newMessage)) {
-                      mutateChatState(ChatState.Compacting);
-                    } else if (getThinkingMessage(newMessage)) {
-                      mutateChatState(ChatState.Thinking);
-                    }
-
                     mutate(currentMessages, false);
                     break;
                   }
@@ -350,14 +323,6 @@ export function useMessageStream({
                       mode: parsedEvent.mode,
                     };
                     setCurrentModelInfo(modelInfo);
-                    break;
-                  }
-
-                  case 'UpdateConversation': {
-                    // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
-                    // Longterm fix is to only send the agent the new messages, not the entire conversation.
-                    currentMessages = parsedEvent.conversation;
-                    setMessages(parsedEvent.conversation);
                     break;
                   }
 
@@ -417,9 +382,72 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
+
+  // Function to expand custom command pills in text
+  const expandCustomCommandPills = useCallback((text: string): string => {
+    // Find all action pills in the format [Action Label]
+    const actionPillRegex = /\[([^\]]+)\]/g;
+    let expandedText = text;
+    
+    // Replace each action pill with its corresponding prompt
+    expandedText = expandedText.replace(actionPillRegex, (match, label) => {
+      // Check if it's a custom command by looking for a command with this label
+      try {
+        const stored = localStorage.getItem('goose-custom-commands');
+        if (stored) {
+          const commands = JSON.parse(stored);
+          const customCommand = commands.find((cmd: any) => cmd.label === label);
+          
+          if (customCommand) {
+            // Increment usage count for the custom command
+            try {
+              const updatedCommands = commands.map((cmd: any) => 
+                cmd.id === customCommand.id 
+                  ? { ...cmd, usageCount: (cmd.usageCount || 0) + 1 }
+                  : cmd
+              );
+              localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+            } catch (error) {
+              console.error('Error updating usage count:', error);
+            }
+            
+            // Return the expanded prompt
+            return customCommand.prompt || match;
+          }
+        }
+      } catch (error) {
+        console.error('Error expanding custom command:', error);
+      }
+      
+      // If not a custom command, return the original pill (built-in actions)
+      return match;
+    });
+    
+    return expandedText;
+  }, []);
+
+  // Function to expand action pills in messages before sending to API
+  const expandActionPillsInMessages = useCallback((messages: Message[]): Message[] => {
+    return messages.map(message => {
+      if (message.role === 'user') {
+        return {
+          ...message,
+          content: message.content.map(content => {
+            if (content.type === 'text') {
+              return {
+                ...content,
+                text: expandCustomCommandPills(content.text)
+              };
+            }
+            return content;
+          })
+        };
+      }
+      return message;
+    });
+  }, [expandCustomCommandPills]);
 
   // Send a request to the server
   const sendRequest = useCallback(
@@ -432,6 +460,9 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
+        // Expand action pills in messages before sending to API
+        const expandedMessages = expandActionPillsInMessages(requestMessages);
+
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -441,7 +472,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: requestMessages,
+            messages: expandedMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,
@@ -508,7 +539,7 @@ export function useMessageStream({
       }
     },
 
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages]
   );
 
   // Append a new message and send request
@@ -614,7 +645,6 @@ export function useMessageStream({
         id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
-        metadata: { userVisible: true, agentVisible: true },
         content: [
           {
             type: 'toolResponse' as const,
@@ -663,8 +693,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    session,
+    session: session,
     setError,
-    tokenState,
   };
 }

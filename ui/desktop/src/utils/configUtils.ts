@@ -14,10 +14,6 @@ export const configLabels: Record<string, string> = {
   GOOSE_ALLOWLIST: 'Allow List',
   GOOSE_RECIPE_GITHUB_REPO: 'Recipe GitHub Repo',
 
-  // security settings
-  security_prompt_enabled: 'Prompt Injection Detection Enabled',
-  security_prompt_threshold: 'Prompt Injection Detection Threshold',
-
   // openai
   OPENAI_API_KEY: 'OpenAI API Key',
   OPENAI_HOST: 'OpenAI Host',

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { snakeToTitleCase } from '../utils';
 import PermissionModal from './settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
-import { confirmPermission, ToolConfirmationRequest } from '../api';
+import { confirmPermission } from '../api';
 import { Button } from './ui/button';
 
 const ALLOW_ONCE = 'allow_once';
@@ -20,11 +20,13 @@ const toolConfirmationState = new Map<
   }
 >();
 
+import { ToolConfirmationRequestMessageContent } from '../types/message';
+
 interface ToolConfirmationProps {
   sessionId: string;
   isCancelledMessage: boolean;
   isClicked: boolean;
-  toolConfirmationContent: ToolConfirmationRequest & { type: 'toolConfirmationRequest' };
+  toolConfirmationContent: ToolConfirmationRequestMessageContent;
 }
 
 export default function ToolConfirmation({

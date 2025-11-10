@@ -25,11 +25,6 @@ export function getGooseInstallLink(server: MCPServer): string {
         .map(
           (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
         ),
-      ...(server.headers || [])
-        .filter((header) => header.required)
-        .map(
-          (header) => `header=${encodeURIComponent(`${header.name}=${header.description}`)}`
-        ),
     ].join("&");
   
     return `goose://extension?${queryParams}`;

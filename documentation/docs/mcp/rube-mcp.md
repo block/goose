@@ -13,10 +13,10 @@ This tutorial covers how to add [Rube](https://rube.app) as a Goose extension to
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Frube.app%2Fmcp&id=rube&name=Rube&description=Seamlessly%20connect%20across%20500%2B%20applications%20including%20Slack%2C%20Gmail%2C%20Notion%2C%20Google%20Workspace%2C%20Microsoft%20Office%2C%20GitHub%2C%20and%20many%20more)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
     
     **Endpoint URL**
@@ -37,7 +37,7 @@ Rube is a platform powered by Composio that provides unified access to 500+ apps
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="rube"
       extensionName="Rube"
@@ -46,7 +46,7 @@ Rube is a platform powered by Composio that provides unified access to 500+ apps
       url="https://rube.app/mcp"
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="rube"
       type="http"

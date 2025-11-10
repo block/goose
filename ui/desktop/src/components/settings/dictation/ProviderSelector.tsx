@@ -4,7 +4,6 @@ import { DictationProvider, DictationSettings } from '../../../hooks/useDictatio
 import { useConfig } from '../../ConfigContext';
 import { ElevenLabsKeyInput } from './ElevenLabsKeyInput';
 import { ProviderInfo } from './ProviderInfo';
-import { VOICE_DICTATION_ELEVENLABS_ENABLED } from '../../../updates';
 
 interface ProviderSelectorProps {
   settings: DictationSettings;
@@ -86,30 +85,26 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
             <div className="absolute right-0 mt-1 w-48 bg-background-default border border-border-default rounded-md shadow-lg z-10">
               <button
                 onClick={() => handleProviderChange('openai')}
-                className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
+                className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-background-subtle text-text-default"
               >
                 OpenAI Whisper
                 {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}
                 {settings.provider === 'openai' && <span className="float-right">✓</span>}
               </button>
 
-              {VOICE_DICTATION_ELEVENLABS_ENABLED && (
-                <button
-                  onClick={() => handleProviderChange('elevenlabs')}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
-                >
-                  ElevenLabs
-                  {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
-                </button>
-              )}
+              <button
+                onClick={() => handleProviderChange('elevenlabs')}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
+              >
+                ElevenLabs
+                {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {VOICE_DICTATION_ELEVENLABS_ENABLED && settings.provider === 'elevenlabs' && (
-        <ElevenLabsKeyInput />
-      )}
+      {settings.provider === 'elevenlabs' && <ElevenLabsKeyInput />}
 
       <ProviderInfo provider={settings.provider} />
     </div>

@@ -6,7 +6,7 @@ use crate::recipe::Recipe;
 
 #[derive(Error, Debug)]
 pub enum DecodeError {
-    #[error("Failed to decode recipe deeplink")]
+    #[error("All decoding methods failed")]
     AllMethodsFailed,
 }
 

@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [Cognee MCP Server](https://github.com/topoteretes/cognee/tree/main/cognee-mcp) as a Goose extension to enable knowledge graph memory capabilities, connecting to over 30 data sources for enhanced context and retrieval.
+This tutorial covers how to add the [Cognee MCP Server](https://github.com/topoteretes/cognee) as a Goose extension to enable knowledge graph memory capabilities, connecting to over 30 data sources for enhanced context and retrieval.
 
 :::tip TLDR
 **Command**
@@ -17,6 +17,7 @@ uv --directory /path/to/cognee-mcp run python src/server.py
 **Environment Variables**
 ```
 LLM_API_KEY: <YOUR_OPENAI_API_KEY>
+EMBEDDING_API_KEY: <YOUR_OPENAI_API_KEY>
 ```
 :::
 
@@ -27,13 +28,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="goose CLI" default>
+  <TabItem value="cli" label="Goose CLI" default>
 
 1. First, install Cognee:
 ```bash
 # Clone and install Cognee
 git clone https://github.com/topoteretes/cognee
-cd cognee/cognee-mcp
+cd cognee-mcp
 uv sync --dev --all-extras --reinstall
 
 # On Linux, install additional dependencies
@@ -152,7 +153,7 @@ goose configure
 
 8. Add the required environment variables:
 :::info
-You'll need an API key for your LLM provider. By default, this is an [OpenAI API key](https://platform.openai.com/api-keys).
+You'll need OpenAI API keys for both LLM and embedding models. [Get your API keys here](https://platform.openai.com/api-keys).
 :::
 
  ```sh
@@ -187,6 +188,15 @@ You'll need an API key for your LLM provider. By default, this is an [OpenAI API
   │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
   │
   ◇  Add another environment variable?
+  │  Yes
+  │
+  ◇  Environment variable name:
+  │  EMBEDDING_API_KEY
+  │
+  ◇  Environment variable value:
+  │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+  │
+  ◇  Add another environment variable?
   │  No 
   // highlight-end
   └  Added Cognee extension
@@ -194,10 +204,6 @@ You'll need an API key for your LLM provider. By default, this is an [OpenAI API
 
   </TabItem>
 </Tabs>
-
-:::info
-See the [Cognee MCP documentation](https://docs.cognee.ai/how-to-guides/deployment/mcp) for supported configuration options. 
-:::
 
 ## Example Usage
 

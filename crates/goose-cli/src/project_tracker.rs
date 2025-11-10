@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use goose::config::paths::Paths;
+use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -41,7 +41,11 @@ pub struct ProjectInfoDisplay {
 impl ProjectTracker {
     /// Get the path to the projects.json file
     fn get_projects_file() -> Result<PathBuf> {
-        let projects_file = Paths::in_data_dir("projects.json");
+        let projects_file = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .context("goose requires a home dir")?
+            .in_data_dir("projects.json");
+
+        // Ensure data directory exists
         if let Some(parent) = projects_file.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)?;

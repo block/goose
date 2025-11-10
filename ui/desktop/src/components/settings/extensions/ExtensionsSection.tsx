@@ -9,6 +9,7 @@ import {
   createExtensionConfig,
   ExtensionFormData,
   extensionToFormData,
+  extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
 
@@ -23,8 +24,6 @@ interface ExtensionSectionProps {
   disableConfiguration?: boolean;
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
-  onModalClose?: (extensionName: string) => void;
-  searchTerm?: string;
 }
 
 export default function ExtensionsSection({
@@ -35,8 +34,6 @@ export default function ExtensionsSection({
   disableConfiguration,
   customToggle,
   selectedExtensions = [],
-  onModalClose,
-  searchTerm = '',
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -85,25 +82,33 @@ export default function ExtensionsSection({
     await getExtensions(true); // Force refresh - this will update the context
   }, [getExtensions]);
 
-  const handleExtensionToggle = async (extensionConfig: FixedExtensionEntry) => {
+  const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     if (customToggle) {
-      await customToggle(extensionConfig);
+      await customToggle(extension);
       return true;
     }
 
     // If extension is enabled, we are trying to toggle if off, otherwise on
-    const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
+    const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
+    const extensionConfig = extractExtensionConfig(extension);
 
-    await toggleExtension({
-      toggle: toggleDirection,
-      extensionConfig: extensionConfig,
-      addToConfig: addExtension,
-      toastOptions: { silent: false },
-      sessionId: sessionId,
-    });
+    // eslint-disable-next-line no-useless-catch
+    try {
+      await toggleExtension({
+        toggle: toggleDirection,
+        extensionConfig: extensionConfig,
+        addToConfig: addExtension,
+        toastOptions: { silent: false },
+        sessionId: sessionId,
+      });
 
-    await fetchExtensions();
-    return true;
+      await fetchExtensions(); // Refresh the list after successful toggle
+      return true; // Indicate success
+    } catch (error) {
+      // Don't refresh the extension list on failure - this allows our visual state rollback to work
+      // The actual state in the config hasn't changed anyway
+      throw error; // Re-throw to let the ExtensionItem component know it failed
+    }
   };
 
   const handleConfigureClick = (extension: FixedExtensionEntry) => {
@@ -122,15 +127,11 @@ export default function ExtensionsSection({
         extensionConfig: extensionConfig,
         sessionId: sessionId,
       });
+      // Immediately refresh the extensions list after successful activation
+      await fetchExtensions();
     } catch (error) {
       console.error('Failed to activate extension:', error);
-    } finally {
       await fetchExtensions();
-      if (onModalClose) {
-        setTimeout(() => {
-          onModalClose(formData.name);
-        }, 200);
-      }
     }
   };
 
@@ -201,7 +202,6 @@ export default function ExtensionsSection({
           onToggle={handleExtensionToggle}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
-          searchTerm={searchTerm}
         />
 
         {!hideButtons && (

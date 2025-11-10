@@ -6,6 +6,7 @@ import { initializeCostDatabase } from '../utils/costDatabase';
 import {
   backupConfig,
   initConfig,
+  Message as ApiMessage,
   readAllConfig,
   Recipe,
   recoverConfig,
@@ -14,6 +15,7 @@ import {
   validateConfig,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
+import { convertApiMessageToFrontendMessage } from '../components/context_management';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -24,7 +26,7 @@ export enum AgentState {
 }
 
 export interface InitializationContext {
-  recipe?: Recipe;
+  recipeConfig?: Recipe;
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
   setIsExtensionsLoading?: (isLoading: boolean) => void;
@@ -47,23 +49,16 @@ export function useAgent(): UseAgentReturn {
   const [agentState, setAgentState] = useState<AgentState>(AgentState.UNINITIALIZED);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const initPromiseRef = useRef<Promise<ChatType> | null>(null);
-  const recipeIdFromConfig = useRef<string | null>(
-    (window.appConfig.get('recipeId') as string | null | undefined) ?? null
+  const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
+    (window.appConfig.get('recipe') as Recipe) || null
   );
-  const recipeDeeplinkFromConfig = useRef<string | null>(
-    (window.appConfig.get('recipeDeeplink') as string | null | undefined) ?? null
-  );
-  const scheduledJobIdFromConfig = useRef<string | null>(
-    (window.appConfig.get('scheduledJobId') as string | null | undefined) ?? null
-  );
+
   const { getExtensions, addExtension, read } = useConfig();
 
   const resetChat = useCallback(() => {
     setSessionId(null);
     setAgentState(AgentState.UNINITIALIZED);
-    recipeIdFromConfig.current = null;
-    recipeDeeplinkFromConfig.current = null;
-    scheduledJobIdFromConfig.current = null;
+    setRecipeFromAppConfig(null);
   }, []);
 
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
@@ -73,7 +68,6 @@ export function useAgent(): UseAgentReturn {
         const agentResponse = await resumeAgent({
           body: {
             session_id: sessionId,
-            load_model_and_extensions: false,
           },
           throwOnError: true,
         });
@@ -82,11 +76,12 @@ export function useAgent(): UseAgentReturn {
         const messages = agentSession.conversation || [];
         return {
           sessionId: agentSession.id,
-          name: agentSession.recipe?.title || agentSession.name,
+          title: agentSession.recipe?.title || agentSession.description,
           messageHistoryIndex: 0,
-          messages,
-          recipe: agentSession.recipe,
-          recipeParameterValues: agentSession.user_recipe_values || null,
+          messages: messages?.map((message: ApiMessage) =>
+            convertApiMessageToFrontendMessage(message)
+          ),
+          recipeConfig: agentSession.recipe,
         };
       }
 
@@ -113,18 +108,13 @@ export function useAgent(): UseAgentReturn {
             ? await resumeAgent({
                 body: {
                   session_id: initContext.resumeSessionId,
-                  load_model_and_extensions: false,
                 },
                 throwOnError: true,
               })
             : await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-                  ...buildRecipeInput(
-                    initContext.recipe,
-                    recipeIdFromConfig.current,
-                    recipeDeeplinkFromConfig.current
-                  ),
+                  recipe: recipeFromAppConfig ?? initContext.recipeConfig,
                 },
                 throwOnError: true,
               });
@@ -134,18 +124,6 @@ export function useAgent(): UseAgentReturn {
             throw Error('Failed to get session info');
           }
           setSessionId(agentSession.id);
-
-          if (!initContext.recipe && agentSession.recipe && scheduledJobIdFromConfig.current) {
-            agentSession.recipe = {
-              ...agentSession.recipe,
-              scheduledJobId: scheduledJobIdFromConfig.current,
-              isScheduledExecution: true,
-            } as Recipe;
-            scheduledJobIdFromConfig.current = null;
-          }
-
-          recipeIdFromConfig.current = null;
-          recipeDeeplinkFromConfig.current = null;
 
           agentWaitingMessage('Agent is loading config');
 
@@ -159,14 +137,10 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
-
-          const recipeForInit = initContext.recipe || agentSession.recipe || undefined;
           await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
-            recipeParameters: agentSession.user_recipe_values,
-            recipe: recipeForInit,
           });
 
           if (COST_TRACKING_ENABLED) {
@@ -177,35 +151,25 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const recipe = initContext.recipe || agentSession.recipe;
-          const conversation = agentSession.conversation || [];
-          // If we're loading a recipe from initContext (new recipe load), start with empty messages
-          // Otherwise, use the messages from the session
-          const messages = initContext.recipe && !initContext.resumeSessionId ? [] : conversation;
+          const messages = agentSession.conversation || [];
           let initChat: ChatType = {
             sessionId: agentSession.id,
-            name: agentSession.recipe?.title || agentSession.name,
+            title: agentSession.recipe?.title || agentSession.description,
             messageHistoryIndex: 0,
-            messages: messages,
-            recipe: recipe,
-            recipeParameterValues: agentSession.user_recipe_values || null,
+            messages: messages.map((message: ApiMessage) =>
+              convertApiMessageToFrontendMessage(message)
+            ),
+            recipeConfig: agentSession.recipe,
           };
 
           setAgentState(AgentState.INITIALIZED);
 
           return initChat;
         } catch (error) {
-          if (
-            (error + '').includes('Failed to create provider') ||
-            error instanceof NoProviderOrModelError
-          ) {
+          if ((error + '').includes('Failed to create provider')) {
             setAgentState(AgentState.NO_PROVIDER);
-            throw error;
-          }
-          setAgentState(AgentState.ERROR);
-          if (typeof error === 'object' && error !== null && 'message' in error) {
-            let error_message = error.message as string;
-            throw new Error(error_message);
+          } else {
+            setAgentState(AgentState.ERROR);
           }
           throw error;
         } finally {
@@ -217,7 +181,7 @@ export function useAgent(): UseAgentReturn {
       initPromiseRef.current = initPromise;
       return initPromise;
     },
-    [agentIsInitialized, sessionId, read, getExtensions, addExtension]
+    [agentIsInitialized, sessionId, read, recipeFromAppConfig, getExtensions, addExtension]
   );
 
   return {
@@ -252,24 +216,4 @@ const handleConfigRecovery = async () => {
       await initConfig();
     }
   }
-};
-
-const buildRecipeInput = (
-  recipeOverride?: Recipe,
-  recipeId?: string | null,
-  recipeDeeplink?: string | null
-) => {
-  if (recipeId) {
-    return { recipe_id: recipeId };
-  }
-
-  if (recipeDeeplink) {
-    return { recipe_deeplink: recipeDeeplink };
-  }
-
-  if (recipeOverride) {
-    return { recipe: recipeOverride };
-  }
-
-  return {};
 };

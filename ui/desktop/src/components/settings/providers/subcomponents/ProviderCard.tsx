@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
 import CardBody from './CardBody';
@@ -9,10 +9,11 @@ type ProviderCardProps = {
   provider: ProviderDetails;
   onConfigure: () => void;
   onLaunch: () => void;
+  onDelete: () => void;
   isOnboarding: boolean;
 };
 
-export const ProviderCard = function ProviderCard({
+export const ProviderCard = memo(function ProviderCard({
   provider,
   onConfigure,
   onLaunch,
@@ -58,4 +59,4 @@ export const ProviderCard = function ProviderCard({
       }
     />
   );
-};
+});

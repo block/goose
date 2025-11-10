@@ -1,8 +1,8 @@
-use crate::config::paths::Paths;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use etcetera::{choose_app_strategy, AppStrategy};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -38,7 +38,12 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    Paths::in_config_dir("databricks/oauth")
+    // choose_app_strategy().config_dir()
+    // - macOS/Linux: ~/.config/goose/databricks/oauth
+    // - Windows:     ~\AppData\Roaming\Block\goose\config\databricks\oauth\
+    choose_app_strategy(crate::config::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .in_config_dir("databricks/oauth")
 }
 
 impl TokenCache {
@@ -205,7 +210,7 @@ impl OAuthFlow {
         })
     }
 
-    fn get_authorization_url_with_redirect(&self, redirect_url: &str) -> String {
+    fn get_authorization_url(&self) -> String {
         let challenge = {
             let digest = sha2::Sha256::digest(self.verifier.as_bytes());
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(digest)
@@ -214,7 +219,7 @@ impl OAuthFlow {
         let params = [
             ("response_type", "code"),
             ("client_id", &self.client_id),
-            ("redirect_uri", redirect_url),
+            ("redirect_uri", &self.redirect_url),
             ("scope", &self.scopes.join(" ")),
             ("state", &self.state),
             ("code_challenge", &challenge),
@@ -228,15 +233,11 @@ impl OAuthFlow {
         )
     }
 
-    async fn exchange_code_for_token_with_redirect(
-        &self,
-        code: &str,
-        redirect_url: &str,
-    ) -> Result<TokenData> {
+    async fn exchange_code_for_token(&self, code: &str) -> Result<TokenData> {
         let params = [
             ("grant_type", "authorization_code"),
             ("code", code),
-            ("redirect_uri", redirect_url),
+            ("redirect_uri", &self.redirect_url),
             ("code_verifier", &self.verifier),
             ("client_id", &self.client_id),
         ];
@@ -327,26 +328,19 @@ impl OAuthFlow {
         );
 
         // Start the server to accept the oauth code
-        let redirect_url_parsed = Url::parse(&self.redirect_url)?;
-        let requested_port = redirect_url_parsed.port();
+        let redirect_url = Url::parse(&self.redirect_url)?;
+        let port = redirect_url.port().unwrap_or(80);
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-        // If no port is specified (or port is explicitly 0), let the OS assign one
-        // Otherwise, use the requested port
-        let bind_port = requested_port.unwrap_or(0);
-        let addr = SocketAddr::from(([127, 0, 0, 1], bind_port));
         let listener = tokio::net::TcpListener::bind(addr).await?;
-
-        let actual_port = listener.local_addr()?.port();
 
         let server_handle = tokio::spawn(async move {
             let server = axum::serve(listener, app);
             server.await.unwrap();
         });
 
-        let actual_redirect_url = format!("http://localhost:{}", actual_port);
-
         // Open the browser which will redirect with the code to the server
-        let authorization_url = self.get_authorization_url_with_redirect(&actual_redirect_url);
+        let authorization_url = self.get_authorization_url();
         if webbrowser::open(&authorization_url).is_err() {
             println!(
                 "Please open this URL in your browser:\n{}",
@@ -365,9 +359,8 @@ impl OAuthFlow {
         // Stop the server
         server_handle.abort();
 
-        // Exchange the code for a token using the actual redirect URL
-        self.exchange_code_for_token_with_redirect(&code, &actual_redirect_url)
-            .await
+        // Exchange the code for a token
+        self.exchange_code_for_token(&code).await
     }
 }
 
@@ -543,7 +536,7 @@ mod tests {
         let flow = OAuthFlow::new(
             endpoints,
             "test-client".to_string(),
-            "http://localhost".to_string(),
+            "http://localhost:8020".to_string(),
             vec!["all-apis".to_string()],
         );
 

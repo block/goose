@@ -345,6 +345,7 @@ impl ScheduleToolTestBuilder {
             paused: false,
             current_session_id: None,
             process_start_time: None,
+            execution_mode: Some("background".to_string()),
         };
         {
             let mut jobs = self.scheduler.jobs.lock().await;
@@ -380,9 +381,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
     Session {
         id: "".to_string(),
         working_dir: PathBuf::from(working_dir),
-        name: "Test session".to_string(),
-        user_set_name: false,
-        created_at: Default::default(),
+        description: "Test session".to_string(),
+        created_at: "".to_string(),
         schedule_id: Some("test_job".to_string()),
         recipe: None,
         total_tokens: Some(100),
@@ -392,10 +392,8 @@ pub fn create_test_session_metadata(message_count: usize, working_dir: &str) -> 
         accumulated_input_tokens: Some(50),
         accumulated_output_tokens: Some(50),
         extension_data: Default::default(),
-        updated_at: Default::default(),
+        updated_at: "".to_string(),
         conversation: None,
         message_count,
-        user_recipe_values: None,
-        session_type: Default::default(),
     }
 }

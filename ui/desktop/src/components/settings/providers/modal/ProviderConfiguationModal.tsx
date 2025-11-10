@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,123 +7,198 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/dialog';
-import DefaultProviderSetupForm, {
-  ConfigInput,
-} from './subcomponents/forms/DefaultProviderSetupForm';
+import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
+import { useProviderModal } from './ProviderModalProvider';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
-import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
+import { DefaultSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
+import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
+import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
-import { ProviderDetails, removeCustomProvider } from '../../../../api';
+import { ConfigKey, removeCustomProvider } from '../../../../api';
 
-interface ProviderConfigurationModalProps {
-  provider: ProviderDetails;
-  onClose: () => void;
+interface FormValues {
+  [key: string]: string | number | boolean | null;
 }
 
-export default function ProviderConfigurationModal({
-  provider,
-  onClose,
-}: ProviderConfigurationModalProps) {
+const customSubmitHandlerMap: Record<string, unknown> = {
+  provider_name: OllamaSubmitHandler, // example
+};
+
+const customFormsMap: Record<string, unknown> = {
+  provider_name: OllamaForm, // example
+};
+
+export default function ProviderConfigurationModal() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
-  const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
+  const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [isActiveProvider, setIsActiveProvider] = useState(false);
+  const [isActiveProvider, setIsActiveProvider] = useState(false); // New state for tracking active provider
+  const [requiredParameters, setRequiredParameters] = useState<ConfigKey[]>([]); // New state for tracking active provider
 
-  const requiredParameters = provider.metadata.config_keys.filter(
-    (param) => param.required === true
-  );
+  useEffect(() => {
+    if (isOpen && currentProvider) {
+      // Reset form state when the modal opens with a new provider
+      const requiredParameters = currentProvider.metadata.config_keys.filter(
+        (param) => param.required === true
+      );
+      setRequiredParameters(requiredParameters);
+      setConfigValues({});
+      setValidationErrors({});
+      setShowDeleteConfirmation(false);
+      setIsActiveProvider(false); // Reset active provider state
+    }
+  }, [isOpen, currentProvider]);
 
-  const isConfigured = provider.is_configured;
+  if (!isOpen || !currentProvider) return null;
+
+  const isConfigured = currentProvider.is_configured;
   const headerText = showDeleteConfirmation
-    ? `Delete configuration for ${provider.metadata.display_name}`
-    : `Configure ${provider.metadata.display_name}`;
+    ? `Delete configuration for ${currentProvider.metadata.display_name}`
+    : `Configure ${currentProvider.metadata.display_name}`;
 
+  // Modify description text to show warning if it's the active provider
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
       ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
       : 'This will permanently delete the current provider configuration.'
     : `Add your API key(s) for this provider to integrate into Goose`;
 
+  const SubmitHandler =
+    (customSubmitHandlerMap[currentProvider.name] as typeof DefaultSubmitHandler) ||
+    DefaultSubmitHandler;
+  const FormComponent =
+    (customFormsMap[currentProvider.name] as typeof DefaultProviderSetupForm) ||
+    DefaultProviderSetupForm;
+
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted for:', currentProvider.name);
 
+    // Reset previous validation errors
     setValidationErrors({});
 
-    const parameters = provider.metadata.config_keys || [];
+    // Validation logic
+    const parameters = currentProvider.metadata.config_keys || [];
     const errors: Record<string, string> = {};
 
+    // Check required fields
     parameters.forEach((parameter) => {
       if (
         parameter.required &&
-        !configValues[parameter.name]?.value &&
-        !configValues[parameter.name]?.serverValue
+        (configValues[parameter.name] === undefined ||
+          configValues[parameter.name] === null ||
+          configValues[parameter.name] === '')
       ) {
         errors[parameter.name] = `${parameter.name} is required`;
       }
     });
 
+    // If there are validation errors, stop the submission
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
-      return;
+      return; // Stop the submission process
     }
 
-    const toSubmit = Object.fromEntries(
-      Object.entries(configValues)
-        .filter(([_k, entry]) => !!entry.value)
-        .map(([k, entry]) => [k, entry.value || ''])
-    );
+    try {
+      // Wait for the submission to complete
+      await SubmitHandler(upsert, currentProvider, configValues);
 
-    await providerConfigSubmitHandler(upsert, provider, toSubmit);
-    onClose();
+      // Close the modal before triggering refreshes to avoid UI issues
+      closeModal();
+
+      // Call onSubmit callback if provided (from modal props)
+      if (modalProps.onSubmit) {
+        modalProps.onSubmit(configValues as FormValues);
+      }
+    } catch (error) {
+      console.error('Failed to save configuration:', error);
+      // Keep modal open if there's an error
+    }
   };
 
   const handleCancel = () => {
-    onClose();
+    // Reset delete confirmation state
+    setShowDeleteConfirmation(false);
+    setIsActiveProvider(false);
+
+    // Use custom cancel handler if provided
+    if (modalProps.onCancel) {
+      modalProps.onCancel();
+    }
+
+    closeModal();
   };
 
   const handleDelete = async () => {
+    // Check if this is the currently active provider
     try {
       const providerModel = await getCurrentModelAndProvider();
-      if (provider.name === providerModel.provider) {
+      if (currentProvider.name === providerModel.provider) {
+        // It's the active provider - set state and show warning
         setIsActiveProvider(true);
         setShowDeleteConfirmation(true);
-        return;
+        return; // Exit early - don't allow actual deletion
       }
     } catch (error) {
       console.error('Failed to check current provider:', error);
     }
 
+    // If we get here, it's not the active provider
     setIsActiveProvider(false);
     setShowDeleteConfirmation(true);
   };
 
   const handleConfirmDelete = async () => {
+    // Don't proceed if this is the active provider
     if (isActiveProvider) {
       return;
     }
 
-    const isCustomProvider = provider.provider_type === 'Custom';
+    try {
+      const isCustomProvider = currentProvider.name.startsWith('custom_');
 
-    if (isCustomProvider) {
-      await removeCustomProvider({
-        path: { id: provider.name },
-      });
-    } else {
-      const params = provider.metadata.config_keys;
-      for (const param of params) {
-        await remove(param.name, param.secret);
+      if (isCustomProvider) {
+        await removeCustomProvider({
+          path: { id: currentProvider.name },
+        });
+      } else {
+        // Remove the provider configuration
+        // get the keys
+        const params = currentProvider.metadata.config_keys;
+
+        // go through the keys are remove them
+        for (const param of params) {
+          await remove(param.name, param.secret);
+        }
       }
-    }
 
-    onClose();
+      // Call onDelete callback if provided
+      // This should trigger the refreshProviders function
+      if (modalProps.onDelete) {
+        modalProps.onDelete(currentProvider.name as unknown as FormValues);
+      }
+
+      // Reset the delete confirmation state before closing
+      setShowDeleteConfirmation(false);
+      setIsActiveProvider(false);
+
+      // Close the modal
+      // Close the modal after deletion and callback
+      closeModal();
+    } catch (error) {
+      console.error('Failed to delete provider:', error);
+      // Keep modal open if there's an error
+    }
   };
 
+  // Function to determine which icon to display
   const getModalIcon = () => {
     if (showDeleteConfirmation) {
       return (
@@ -133,11 +208,11 @@ export default function ProviderConfigurationModal({
         />
       );
     }
-    return <ProviderLogo providerName={provider.name} />;
+    return <ProviderLogo providerName={currentProvider.name} />;
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -153,16 +228,17 @@ export default function ProviderConfigurationModal({
           {!showDeleteConfirmation ? (
             <>
               {/* Contains information used to set up each provider */}
-              <DefaultProviderSetupForm
+              <FormComponent
                 configValues={configValues}
                 setConfigValues={setConfigValues}
-                provider={provider}
+                provider={currentProvider}
                 validationErrors={validationErrors}
+                {...(modalProps.formProps || {})} // Spread any custom form props
               />
 
               {requiredParameters.length > 0 &&
-                provider.metadata.config_keys &&
-                provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
+                currentProvider.metadata.config_keys &&
+                currentProvider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
             </>
           ) : null}
         </div>
@@ -176,11 +252,11 @@ export default function ProviderConfigurationModal({
             showDeleteConfirmation={showDeleteConfirmation}
             onConfirmDelete={handleConfirmDelete}
             onCancelDelete={() => {
-              setIsActiveProvider(false);
               setShowDeleteConfirmation(false);
+              setIsActiveProvider(false);
             }}
             canDelete={isConfigured && !isActiveProvider}
-            providerName={provider.metadata.display_name}
+            providerName={currentProvider.metadata.display_name}
             isActiveProvider={isActiveProvider}
           />
         </DialogFooter>

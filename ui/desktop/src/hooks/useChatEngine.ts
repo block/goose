@@ -2,10 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../config';
 import { useMessageStream } from './useMessageStream';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { createUserMessage, getTextContent, ToolResponseMessageContent } from '../types/message';
-import { getSession, Message } from '../api';
+import {
+  Message,
+  createUserMessage,
+  ToolCall,
+  ToolCallResult,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ToolConfirmationRequestMessageContent,
+  getTextContent,
+  TextContent,
+} from '../types/message';
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
+import { getSession } from '../api';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -77,7 +87,6 @@ export const useChatEngine = ({
     notifications,
     session,
     setError,
-    tokenState,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.sessionId,
@@ -85,10 +94,10 @@ export const useChatEngine = ({
     body: {
       session_id: chat.sessionId,
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
-      ...(chat.recipe?.title
+      ...(chat.recipeConfig?.title
         ? {
-            recipe_name: chat.recipe.title,
-            recipe_version: chat.recipe?.version ?? 'unknown',
+            recipe_name: chat.recipeConfig.title,
+            recipe_version: chat.recipeConfig?.version ?? 'unknown',
           }
         : {}),
     },
@@ -211,9 +220,9 @@ export const useChatEngine = ({
     }
   }, [chat.sessionId, messages, chatState]);
 
-  // Update token counts when session changes from the message stream
+  // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
-    console.log('Session received:', session);
+    console.log('Session metadata received:', session);
     if (session) {
       setSessionTokenCount(session.total_tokens || 0);
       setSessionInputTokens(session.accumulated_input_tokens || 0);
@@ -299,7 +308,11 @@ export const useChatEngine = ({
     // isUserMessage also checks if the message is a toolConfirmationRequest
     // check if the last message is a real user's message
     if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
-      const textValue = getTextContent(lastMessage);
+      // Get the text content from the last message before removing it
+      const textContent = lastMessage.content.find((c): c is TextContent => c.type === 'text');
+      const textValue = textContent?.text || '';
+
+      // Set the text back to the input field
       _setInput(textValue);
 
       // Also add to local storage history as a backup so cmd+up can retrieve it
@@ -314,15 +327,19 @@ export const useChatEngine = ({
         setMessages([]);
       }
     } else if (!isUserMessage(lastMessage)) {
-      const toolRequests: [string, Record<string, unknown>][] = lastMessage.content
+      // the last message was an assistant message
+      // check if we have any tool requests or tool confirmation requests
+      const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
         .filter(
-          (content) => content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
+            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
         )
         .map((content) => {
           if (content.type === 'toolRequest') {
             return [content.id, content.toolCall];
           } else {
-            const toolCall = {
+            // extract tool call from confirmation
+            const toolCall: ToolCallResult<ToolCall> = {
               status: 'success',
               value: {
                 name: content.toolName,
@@ -341,7 +358,6 @@ export const useChatEngine = ({
           role: 'user',
           created: Date.now(),
           content: [],
-          metadata: { userVisible: true, agentVisible: true },
         };
 
         const notification = 'Interrupted by the user to make a correction';
@@ -375,7 +391,8 @@ export const useChatEngine = ({
     return filteredMessages
       .reduce<string[]>((history, message) => {
         if (isUserMessage(message)) {
-          const text = getTextContent(message).trim();
+          const textContent = message.content.find((c): c is TextContent => c.type === 'text');
+          const text = textContent?.text?.trim();
           if (text) {
             history.push(text);
           }
@@ -452,7 +469,6 @@ export const useChatEngine = ({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
-    tokenState,
 
     // UI helpers
     commandHistory,

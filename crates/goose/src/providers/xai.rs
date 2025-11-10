@@ -1,9 +1,9 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, RequestLog};
+use super::utils::{get_model, handle_response_openai_compat};
 use crate::conversation::message::Message;
-
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -13,9 +13,8 @@ use rmcp::model::Tool;
 use serde_json::Value;
 
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
-pub const XAI_DEFAULT_MODEL: &str = "grok-code-fast-1";
+pub const XAI_DEFAULT_MODEL: &str = "grok-3";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
-    "grok-code-fast-1",
     "grok-4-0709",
     "grok-3",
     "grok-3-fast",
@@ -42,12 +41,12 @@ pub struct XaiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
-    #[serde(skip)]
-    name: String,
 }
 
+impl_provider_default!(XaiProvider);
+
 impl XaiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("XAI_API_KEY")?;
         let host: String = config
@@ -57,11 +56,7 @@ impl XaiProvider {
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 
-        Ok(Self {
-            api_client,
-            model,
-            name: Self::metadata().name,
-        })
+        Ok(Self { api_client, model })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
@@ -93,10 +88,6 @@ impl Provider for XaiProvider {
         )
     }
 
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -120,7 +111,6 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
@@ -129,7 +119,7 @@ impl Provider for XaiProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

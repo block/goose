@@ -23,8 +23,6 @@ interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement>;
   /** Initial search term */
   initialSearchTerm?: string;
-  /** Placeholder text for the search input */
-  placeholder?: string;
 }
 
 /**
@@ -37,7 +35,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   searchResults,
   inputRef: externalInputRef,
   initialSearchTerm = '',
-  placeholder = 'Search conversation...',
 }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -161,7 +158,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               value={searchTerm}
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
-              placeholder={placeholder}
+              placeholder="Search conversation..."
               className="no-drag w-full text-sm pl-9 pr-24 py-3 bg-background-inverse text-text-inverse
                       placeholder:text-text-inverse/50 focus:outline-none 
                        active:border-border-strong"

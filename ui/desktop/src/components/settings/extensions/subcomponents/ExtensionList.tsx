@@ -1,8 +1,8 @@
+import { FixedExtensionEntry } from '../../../ConfigContext';
+import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs } from '../utils';
-import { ExtensionConfig } from '../../../../api';
-import { FixedExtensionEntry } from '../../../ConfigContext';
+import { combineCmdAndArgs, removeShims } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -10,7 +10,6 @@ interface ExtensionListProps {
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
   disableConfiguration?: boolean;
-  searchTerm?: string;
 }
 
 export default function ExtensionList({
@@ -19,26 +18,10 @@ export default function ExtensionList({
   onConfigure,
   isStatic,
   disableConfiguration: _disableConfiguration,
-  searchTerm = '',
 }: ExtensionListProps) {
-  const matchesSearch = (extension: FixedExtensionEntry): boolean => {
-    if (!searchTerm) return true;
-
-    const searchLower = searchTerm.toLowerCase();
-    const title = getFriendlyTitle(extension).toLowerCase();
-    const name = extension.name.toLowerCase();
-    const subtitle = getSubtitle(extension);
-    const description = subtitle.description?.toLowerCase() || '';
-
-    return (
-      title.includes(searchLower) || name.includes(searchLower) || description.includes(searchLower)
-    );
-  };
-
-  // Separate enabled and disabled extensions, then filter by search term
-  const enabledExtensions = extensions.filter((ext) => ext.enabled && matchesSearch(ext));
-  const disabledExtensions = extensions.filter((ext) => !ext.enabled && matchesSearch(ext));
-
+  // Separate enabled and disabled extensions
+  const enabledExtensions = extensions.filter((ext) => ext.enabled);
+  const disabledExtensions = extensions.filter((ext) => !ext.enabled);
   // Sort each group alphabetically by their friendly title
   const sortedEnabledExtensions = [...enabledExtensions].sort((a, b) =>
     getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))
@@ -97,42 +80,79 @@ export default function ExtensionList({
 }
 
 // Helper functions
+// Helper function to get a friendly title from extension name
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+  let name = '';
+
+  // if it's a builtin, check if there's a display_name (old configs didn't have this field)
+  if (
+    'bundled' in extension &&
+    extension.bundled === true &&
+    'display_name' in extension &&
+    extension.display_name
+  ) {
+    // If we have a display_name for a builtin, use it directly
+    return extension.display_name;
+  } else {
+    // For non-builtins or builtins without display_name
+    name = extension.name;
+  }
+
+  // Format the name to be more readable
   return name
     .split(/[-_]/) // Split on hyphens and underscores
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
-function normalizeExtensionName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '');
+export interface SubtitleParts {
+  description: string | null;
+  command: string | null;
 }
 
-export function getSubtitle(config: ExtensionConfig) {
-  switch (config.type) {
-    case 'builtin': {
-      const extensionData = builtInExtensionsData.find(
-        (ext) => normalizeExtensionName(ext.name) === normalizeExtensionName(config.name)
-      );
-      return {
-        description: extensionData?.description || config.description || 'Built-in extension',
-        command: null,
-      };
-    }
-    case 'sse':
-    case 'streamable_http': {
-      const prefix = `${config.type.toUpperCase().replace('_', ' ')} extension`;
-      return {
-        description: `${prefix}${config.description ? ': ' + config.description : ''}`,
-        command: config.uri || null,
-      };
-    }
-
-    default:
-      return {
-        description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
-      };
+// Helper function to get a subtitle based on extension type and configuration
+export function getSubtitle(config: ExtensionConfig): SubtitleParts {
+  if (config.type === 'builtin') {
+    // Find matching extension in the data
+    const extensionData = builtInExtensionsData.find(
+      (ext) =>
+        ext.name.toLowerCase().replace(/\s+/g, '') === config.name.toLowerCase().replace(/\s+/g, '')
+    );
+    return {
+      description: extensionData?.description || 'Built-in extension',
+      command: null,
+    };
   }
+
+  if (config.type === 'stdio') {
+    // Only include command if it exists
+    const full_command = config.cmd
+      ? combineCmdAndArgs(removeShims(config.cmd), config.args)
+      : null;
+    return {
+      description: config.description || null,
+      command: full_command,
+    };
+  }
+
+  if (config.type === 'sse') {
+    const description = config.description
+      ? `SSE extension: ${config.description}`
+      : 'SSE extension';
+    const command = config.uri || null;
+    return { description, command };
+  }
+
+  if (config.type === 'streamable_http') {
+    const description = config.description
+      ? `Streamable HTTP extension: ${config.description}`
+      : 'Streamable HTTP extension';
+    const command = config.uri || null;
+    return { description, command };
+  }
+
+  return {
+    description: 'Unknown type of extension',
+    command: null,
+  };
 }

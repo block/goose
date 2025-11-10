@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { View, ViewOptions } from '../../utils/navigationUtils';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
-import { useNavigation } from '../../hooks/useNavigation';
 
-const SessionsView: React.FC = () => {
+interface SessionsViewProps {
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+}
+
+const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialSessionId, setInitialSessionId] = useState<string | null>(null);
   const location = useLocation();
-  const setView = useNavigation();
 
   const loadSessionDetails = async (sessionId: string) => {
     setIsLoadingSession(true);
@@ -36,19 +39,9 @@ const SessionsView: React.FC = () => {
     }
   };
 
-  const handleSelectSession = useCallback(
-    async (sessionId: string) => {
-      if (process.env.ALPHA) {
-        setView('pair', {
-          disableAnimation: true,
-          resumeSessionId: sessionId,
-        });
-      } else {
-        await loadSessionDetails(sessionId);
-      }
-    },
-    [setView]
-  );
+  const handleSelectSession = useCallback(async (sessionId: string) => {
+    await loadSessionDetails(sessionId);
+  }, []);
 
   // Check if a session ID was passed in the location state (from SessionsInsights)
   useEffect(() => {
@@ -82,14 +75,13 @@ const SessionsView: React.FC = () => {
         selectedSession || {
           id: initialSessionId || '',
           conversation: [],
-          name: 'Loading...',
+          description: 'Loading...',
           working_dir: '',
           message_count: 0,
           total_tokens: 0,
           created_at: '',
           updated_at: '',
           extension_data: {},
-          user_set_name: false,
         }
       }
       isLoading={isLoadingSession}
@@ -99,6 +91,7 @@ const SessionsView: React.FC = () => {
     />
   ) : (
     <SessionListView
+      setView={setView}
       onSelectSession={handleSelectSession}
       selectedSessionId={selectedSession?.id ?? null}
     />

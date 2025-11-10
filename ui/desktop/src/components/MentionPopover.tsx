@@ -105,52 +105,40 @@ const MentionPopover = forwardRef<
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
-
-  const compareByType = (a: FileItemWithMatch, b: FileItemWithMatch) =>
-    a.isDirectory !== b.isDirectory ? (a.isDirectory ? 1 : -1) : 0;
-
   // Filter and sort files based on query
   const displayFiles = useMemo((): FileItemWithMatch[] => {
     if (!query.trim()) {
-      return files
-        .map((file) => ({
-          ...file,
-          matchScore: 0,
-          matches: [],
-          matchedText: file.name,
-          depth: currentWorkingDir
-            ? file.path.replace(currentWorkingDir, '').split('/').length - 1
-            : 0,
-        }))
-        .sort((a, b) => {
-          if (a.depth !== b.depth) return a.depth - b.depth;
-          const typeComparison = compareByType(a, b);
-          return typeComparison || a.name.localeCompare(b.name);
-        });
+      return files.slice(0, 15).map((file) => ({
+        ...file,
+        matchScore: 0,
+        matches: [],
+        matchedText: file.name,
+      })); // Show first 15 files when no query
     }
 
     const results = files
       .map((file) => {
-        const matches = [
-          { match: fuzzyMatch(query, file.name), text: file.name },
-          { match: fuzzyMatch(query, file.relativePath), text: file.relativePath },
-          { match: fuzzyMatch(query, file.path), text: file.path },
-        ];
+        const nameMatch = fuzzyMatch(query, file.name);
+        const pathMatch = fuzzyMatch(query, file.relativePath);
+        const fullPathMatch = fuzzyMatch(query, file.path);
 
-        const { match: bestMatch, text: matchedText } = matches.reduce((best, current) =>
-          current.match.score > best.match.score ? current : best
-        );
+        // Use the best match among name, relative path, and full path
+        let bestMatch = nameMatch;
+        let matchedText = file.name;
 
-        let finalScore = bestMatch.score;
-        if (finalScore > 0 && currentWorkingDir) {
-          const depth = file.path.replace(currentWorkingDir, '').split('/').length - 1;
-          finalScore += depth <= 1 ? 50 : depth <= 2 ? 30 : depth <= 3 ? 15 : 0;
+        if (pathMatch.score > bestMatch.score) {
+          bestMatch = pathMatch;
+          matchedText = file.relativePath;
+        }
+
+        if (fullPathMatch.score > bestMatch.score) {
+          bestMatch = fullPathMatch;
+          matchedText = file.path;
         }
 
         return {
           ...file,
-          matchScore: finalScore,
+          matchScore: bestMatch.score,
           matches: bestMatch.matches,
           matchedText,
         };
@@ -158,14 +146,18 @@ const MentionPopover = forwardRef<
       .filter((file) => file.matchScore > 0)
       .sort((a, b) => {
         // Sort by score first, then prefer files over directories, then alphabetically
-        const scoreDiff = b.matchScore - a.matchScore;
-        if (Math.abs(scoreDiff) >= 1) return scoreDiff;
-        const typeComparison = compareByType(a, b);
-        return typeComparison || a.name.localeCompare(b.name);
-      });
+        if (Math.abs(a.matchScore - b.matchScore) < 1) {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? 1 : -1; // Files first
+          }
+          return a.name.localeCompare(b.name);
+        }
+        return b.matchScore - a.matchScore;
+      })
+      .slice(0, 20); // Increase to 20 results
 
     return results;
-  }, [files, query, currentWorkingDir]);
+  }, [files, query]);
 
   // Expose methods to parent component
   useImperativeHandle(
@@ -420,16 +412,12 @@ const MentionPopover = forwardRef<
   const scanFilesFromRoot = useCallback(async () => {
     setIsLoading(true);
     try {
-      let startPath = currentWorkingDir;
-
-      if (!startPath) {
-        if (window.electron.platform === 'win32') {
-          startPath = 'C:\\Users';
-        } else if (window.electron.platform === 'linux') {
-          startPath = '/home';
-        } else {
-          startPath = '/Users'; // Default to macOS
-        }
+      // Start from common user directories for better performance
+      let startPath = '/Users'; // Default to macOS
+      if (window.electron.platform === 'win32') {
+        startPath = 'C:\\Users';
+      } else if (window.electron.platform === 'linux') {
+        startPath = '/home';
       }
 
       const scannedFiles = await scanDirectoryFromRoot(startPath);
@@ -440,42 +428,40 @@ const MentionPopover = forwardRef<
     } finally {
       setIsLoading(false);
     }
-  }, [scanDirectoryFromRoot, currentWorkingDir]);
+  }, [scanDirectoryFromRoot]);
 
   // Scroll selected item into view
   useEffect(() => {
-    if (listRef.current && selectedIndex >= 0 && selectedIndex < displayFiles.length) {
+    if (listRef.current) {
       const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
       if (selectedElement) {
-        selectedElement.scrollIntoView({
-          block: 'nearest',
-          behavior: 'smooth',
-        });
+        selectedElement.scrollIntoView({ block: 'nearest' });
       }
     }
-  }, [selectedIndex, displayFiles.length]);
+  }, [selectedIndex]);
 
   const handleItemClick = (index: number) => {
-    if (index >= 0 && index < displayFiles.length) {
-      onSelectedIndexChange(index);
-      onSelect(displayFiles[index].path);
-      onClose();
-    }
+    onSelectedIndexChange(index);
+    onSelect(displayFiles[index].path);
+    onClose();
   };
 
   if (!isOpen) return null;
 
+  const displayedFiles = displayFiles.slice(0, 8); // Show up to 8 files
+  const remainingCount = displayFiles.length - displayedFiles.length;
+
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
+      className="fixed z-50 bg-background-default border border-borderStandard rounded-lg shadow-lg min-w-96 max-w-lg"
       style={{
         left: position.x,
         top: position.y - 10, // Position above the chat input
         transform: 'translateY(-100%)', // Move it fully above
       }}
     >
-      <div className="p-3 flex flex-col max-h-80">
+      <div className="p-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-textSubtle"></div>
@@ -483,48 +469,51 @@ const MentionPopover = forwardRef<
           </div>
         ) : (
           <>
-            {displayFiles.length > 0 && (
-              <div className="text-xs text-textSubtle mb-2 px-1">
-                {displayFiles.length} file{displayFiles.length !== 1 ? 's' : ''} found
-              </div>
-            )}
-            <div
-              ref={listRef}
-              className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
-              style={{ maxHeight: '280px' }}
-            >
-              {displayFiles.map((file, index) => (
+            <div ref={listRef} className="space-y-1">
+              {displayedFiles.map((file, index) => (
                 <div
                   key={file.path}
                   onClick={() => handleItemClick(index)}
-                  className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
                     index === selectedIndex
-                      ? 'bg-bgProminent text-textProminentInverse'
-                      : 'hover:bg-bgSubtle'
+                      ? 'bg-gray-100 dark:bg-gray-700'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="flex-shrink-0 text-textSubtle">
                     <FileIcon fileName={file.name} isDirectory={file.isDirectory} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate text-textStandard">{file.name}</div>
-                    <div className="text-xs text-textSubtle truncate">{file.path}</div>
+                    <div className="text-sm truncate text-textStandard">
+                      {file.name}
+                    </div>
+                    <div className="text-xs truncate text-textSubtle">
+                      {file.path}
+                    </div>
                   </div>
                 </div>
               ))}
 
-              {!isLoading && displayFiles.length === 0 && query && (
+              {!isLoading && displayedFiles.length === 0 && query && (
                 <div className="p-4 text-center text-textSubtle text-sm">
                   No files found matching "{query}"
                 </div>
               )}
 
-              {!isLoading && displayFiles.length === 0 && !query && (
+              {!isLoading && displayedFiles.length === 0 && !query && (
                 <div className="p-4 text-center text-textSubtle text-sm">
                   Start typing to search for files
                 </div>
               )}
             </div>
+
+            {remainingCount > 0 && (
+              <div className="mt-2 pt-2 border-t border-borderSubtle">
+                <div className="text-xs text-textSubtle text-center">
+                  Show {remainingCount} more...
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

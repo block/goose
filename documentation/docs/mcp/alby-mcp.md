@@ -21,10 +21,10 @@ You'll need a lightning wallet that supports [NWC](https://nwc.dev). If you don'
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20Goose%20to%20your%20Bitcoin%20Lightning%20Wallet&env=NWC_CONNECTION_STRING%3DNWC%20Connection%20Secret)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   npx -y @getalby/mcp
@@ -46,7 +46,7 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     <Tabs>
       <TabItem value="local" label="Local" default>
         <GooseDesktopInstaller
@@ -78,7 +78,7 @@ Bearer nostr+walletconnect://...
       </TabItem>
     </Tabs>
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     <Tabs>
       <TabItem value="local" label="Local" default>
         1. Run the `configure` command:

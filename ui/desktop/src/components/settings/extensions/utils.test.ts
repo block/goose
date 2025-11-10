@@ -6,6 +6,9 @@ import {
   createExtensionConfig,
   splitCmdAndArgs,
   combineCmdAndArgs,
+  extractExtensionConfig,
+  replaceWithShims,
+  removeShims,
   extractCommand,
   extractExtensionName,
   DEFAULT_EXTENSION_TIMEOUT,
@@ -150,7 +153,6 @@ describe('Extension Utils', () => {
       const extension: FixedExtensionEntry = {
         type: 'stdio',
         name: 'legacy-extension',
-        description: 'legacy',
         cmd: 'node',
         args: ['app.js'],
         enabled: true,
@@ -174,7 +176,6 @@ describe('Extension Utils', () => {
       const extension: FixedExtensionEntry = {
         type: 'builtin',
         name: 'developer',
-        description: 'developer',
         enabled: true,
       };
 
@@ -182,7 +183,7 @@ describe('Extension Utils', () => {
 
       expect(formData).toEqual({
         name: 'developer',
-        description: 'developer',
+        description: '',
         type: 'builtin',
         cmd: undefined,
         endpoint: undefined,
@@ -283,7 +284,7 @@ describe('Extension Utils', () => {
     it('should create builtin extension config', () => {
       const formData = {
         name: 'developer',
-        description: 'developer',
+        description: '',
         type: 'builtin' as const,
         cmd: '',
         endpoint: '',
@@ -298,7 +299,6 @@ describe('Extension Utils', () => {
       expect(config).toEqual({
         type: 'builtin',
         name: 'developer',
-        description: 'developer',
         timeout: 300,
       });
     });
@@ -337,6 +337,78 @@ describe('Extension Utils', () => {
       expect(combineCmdAndArgs('node', [])).toBe('node');
 
       expect(combineCmdAndArgs('', ['arg1', 'arg2'])).toBe(' arg1 arg2');
+    });
+  });
+
+  describe('extractExtensionConfig', () => {
+    it('should extract extension config from fixed entry', () => {
+      const fixedEntry: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'test-extension',
+        cmd: 'python',
+        args: ['script.py'],
+        enabled: true,
+        timeout: 300,
+      };
+
+      const config = extractExtensionConfig(fixedEntry);
+
+      expect(config).toEqual({
+        type: 'stdio',
+        name: 'test-extension',
+        cmd: 'python',
+        args: ['script.py'],
+        enabled: true,
+        timeout: 300,
+      });
+    });
+  });
+
+  describe('replaceWithShims', () => {
+    beforeEach(() => {
+      mockElectron.getBinaryPath.mockImplementation((binary: string) => {
+        const paths: Record<string, string> = {
+          goosed: '/path/to/goosed',
+          jbang: '/path/to/jbang',
+          npx: '/path/to/npx',
+          uvx: '/path/to/uvx',
+        };
+        return Promise.resolve(paths[binary] || binary);
+      });
+    });
+
+    it('should replace known commands with shim paths', async () => {
+      expect(await replaceWithShims('goosed')).toBe('/path/to/goosed');
+      expect(await replaceWithShims('jbang')).toBe('/path/to/jbang');
+      expect(await replaceWithShims('npx')).toBe('/path/to/npx');
+      expect(await replaceWithShims('uvx')).toBe('/path/to/uvx');
+    });
+
+    it('should leave unknown commands unchanged', async () => {
+      expect(await replaceWithShims('python')).toBe('python');
+      expect(await replaceWithShims('node')).toBe('node');
+    });
+  });
+
+  describe('removeShims', () => {
+    it('should remove shim paths and return command name', () => {
+      expect(removeShims('/path/to/goosed')).toBe('goosed');
+      expect(removeShims('/usr/local/bin/jbang')).toBe('jbang');
+      expect(removeShims('/Applications/Docker.app/Contents/Resources/bin/docker')).toBe('docker');
+      expect(removeShims('/path/to/npx.cmd')).toBe('npx.cmd');
+    });
+
+    it('should handle paths with trailing slashes', () => {
+      // The removeShims function only works if the path ends with the shim pattern
+      // Trailing slashes prevent the pattern from matching
+      expect(removeShims('/path/to/goosed/')).toBe('/path/to/goosed/');
+      expect(removeShims('/path/to/uvx//')).toBe('/path/to/uvx//');
+    });
+
+    it('should leave non-shim commands unchanged', () => {
+      expect(removeShims('python')).toBe('python');
+      expect(removeShims('node')).toBe('node');
+      expect(removeShims('/usr/bin/python3')).toBe('/usr/bin/python3');
     });
   });
 

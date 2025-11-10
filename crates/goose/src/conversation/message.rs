@@ -1,23 +1,17 @@
-use crate::mcp_utils::ToolResult;
 use chrono::Utc;
+use mcp_core::{ToolCall, ToolResult};
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
-    PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
-    ResourceContents, Role, TextContent,
+    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
+    RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
 
 use crate::conversation::tool_result_serde;
 use crate::utils::sanitize_unicode_tags;
-
-#[derive(ToSchema)]
-pub enum ToolCallResult<T> {
-    Success { value: T },
-    Error { error: String },
-}
 
 /// Custom deserializer for MessageContent that sanitizes Unicode Tags in text content
 fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageContent>, D::Error>
@@ -52,7 +46,7 @@ pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<ToolCall>,
 }
 
 impl ToolRequest {
@@ -87,7 +81,7 @@ pub struct ToolResponse {
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
-    pub arguments: JsonObject,
+    pub arguments: Value,
     pub prompt: Option<String>,
 }
 
@@ -108,20 +102,16 @@ pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<ToolCall>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum SystemNotificationType {
-    ThinkingMessage,
-    InlineMessage,
+pub struct ContextLengthExceeded {
+    pub msg: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SystemNotificationContent {
-    pub notification_type: SystemNotificationType,
+pub struct SummarizationRequested {
     pub msg: String,
 }
 
@@ -137,7 +127,8 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
-    SystemNotification(SystemNotificationContent),
+    ContextLengthExceeded(ContextLengthExceeded),
+    SummarizationRequested(SummarizationRequested),
 }
 
 impl fmt::Display for MessageContent {
@@ -165,8 +156,11 @@ impl fmt::Display for MessageContent {
             },
             MessageContent::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
             MessageContent::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
-            MessageContent::SystemNotification(r) => {
-                write!(f, "[SystemNotification: {}]", r.msg)
+            MessageContent::ContextLengthExceeded(r) => {
+                write!(f, "[ContextLengthExceeded: {}]", r.msg)
+            }
+            MessageContent::SummarizationRequested(r) => {
+                write!(f, "[SummarizationRequested: {}]", r.msg)
             }
         }
     }
@@ -194,10 +188,7 @@ impl MessageContent {
         )
     }
 
-    pub fn tool_request<S: Into<String>>(
-        id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
-    ) -> Self {
+    pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
@@ -214,7 +205,7 @@ impl MessageContent {
     pub fn tool_confirmation_request<S: Into<String>>(
         id: S,
         tool_name: String,
-        arguments: JsonObject,
+        arguments: Value,
         prompt: Option<String>,
     ) -> Self {
         MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
@@ -236,29 +227,25 @@ impl MessageContent {
         MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
     }
 
-    pub fn frontend_tool_request<S: Into<String>>(
-        id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
-    ) -> Self {
+    pub fn frontend_tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
         MessageContent::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
             tool_call,
         })
     }
 
-    pub fn system_notification<S: Into<String>>(
-        notification_type: SystemNotificationType,
-        msg: S,
-    ) -> Self {
-        MessageContent::SystemNotification(SystemNotificationContent {
-            notification_type,
-            msg: msg.into(),
-        })
+    pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
+        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
     }
 
-    pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
-        if let MessageContent::SystemNotification(ref notification) = self {
-            Some(notification)
+    pub fn summarization_requested<S: Into<String>>(msg: S) -> Self {
+        MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
+    }
+
+    // Add this new method to check for summarization requested content
+    pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
+        if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
+            Some(summarization_requested)
         } else {
             None
         }
@@ -386,13 +373,15 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Metadata for message visibility
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
     /// Whether the message should be visible to the user in the UI
+    #[serde(default = "default_true")]
     pub user_visible: bool,
     /// Whether the message should be included in the agent's context window
+    #[serde(default = "default_true")]
     pub agent_visible: bool,
 }
 
@@ -463,16 +452,39 @@ impl MessageMetadata {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
     pub role: Role,
+    #[serde(default = "default_created")]
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
+    #[serde(default)]
     pub metadata: MessageMetadata,
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let joined_content: String = self
+            .content
+            .iter()
+            .map(|c| format!("{c}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        write!(f, "{:?}: {}", self.role, joined_content)
+    }
+}
+
+fn default_created() -> i64 {
+    0 // old messages do not have timestamps.
 }
 
 impl Message {
@@ -545,7 +557,7 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<ToolCall>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
@@ -564,7 +576,7 @@ impl Message {
         self,
         id: S,
         tool_name: String,
-        arguments: JsonObject,
+        arguments: Value,
         prompt: Option<String>,
     ) -> Self {
         self.with_content(MessageContent::tool_confirmation_request(
@@ -575,7 +587,7 @@ impl Message {
     pub fn with_frontend_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<ToolCall>,
     ) -> Self {
         self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
@@ -592,6 +604,11 @@ impl Message {
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
         self.with_content(MessageContent::redacted_thinking(data))
+    }
+
+    /// Add context length exceeded content to the message
+    pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
+        self.with_content(MessageContent::context_length_exceeded(msg))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
@@ -664,13 +681,9 @@ impl Message {
             .all(|c| matches!(c, MessageContent::Text(_)))
     }
 
-    pub fn with_system_notification<S: Into<String>>(
-        self,
-        notification_type: SystemNotificationType,
-        msg: S,
-    ) -> Self {
-        self.with_content(MessageContent::system_notification(notification_type, msg))
-            .with_metadata(MessageMetadata::user_only())
+    /// Add summarization requested to the message
+    pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
+        self.with_content(MessageContent::summarization_requested(msg))
     }
 
     /// Set the visibility metadata for the message
@@ -711,28 +724,17 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenState {
-    pub input_tokens: i32,
-    pub output_tokens: i32,
-    pub total_tokens: i32,
-    pub accumulated_input_tokens: i32,
-    pub accumulated_output_tokens: i32,
-    pub accumulated_total_tokens: i32,
-}
-
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
+    use mcp_core::ToolCall;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
-        RawEmbeddedResource, RawImageContent, ResourceContents,
+        AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
+        RawImageContent, ResourceContents,
     };
     use rmcp::model::{ErrorCode, ErrorData};
-    use rmcp::object;
-    use serde_json::Value;
+    use serde_json::{json, Value};
 
     #[test]
     fn test_sanitize_with_text() {
@@ -754,10 +756,7 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(CallToolRequestParam {
-                    name: "test_tool".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -836,8 +835,7 @@ mod tests {
                         }
                     }
                 }
-            ],
-            "metadata": { "agentVisible": true, "userVisible": true }
+            ]
         }"#;
 
         let message: Message = serde_json::from_str(json_str).unwrap();
@@ -858,7 +856,7 @@ mod tests {
             assert_eq!(req.id, "tool123");
             if let Ok(tool_call) = &req.tool_call {
                 assert_eq!(tool_call.name, "test_tool");
-                assert_eq!(tool_call.arguments, Some(object!({"param": "value"})))
+                assert_eq!(tool_call.arguments, json!({"param": "value"}));
             } else {
                 panic!("Expected successful tool call");
             }
@@ -1012,9 +1010,9 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(CallToolRequestParam {
-            name: "test_tool".into(),
-            arguments: Some(object!({})),
+        let tool_call = Ok(ToolCall {
+            name: "test_tool".to_string(),
+            arguments: serde_json::json!({}),
         });
 
         let message = Message::assistant().with_tool_request("req1", tool_call);
@@ -1045,8 +1043,7 @@ mod tests {
                     "data": "base64data",
                     "mimeType": "image/png"
                 }}
-            ],
-            "metadata": {{ "agentVisible": true, "userVisible": true }}
+            ]
         }}"#,
             malicious_text
         );
@@ -1074,8 +1071,7 @@ mod tests {
             "content": [{
                 "type": "text",
                 "text": "Hello world 世界 🌍"
-            }],
-            "metadata": { "agentVisible": true, "userVisible": true }
+            }]
         }"#;
 
         let message: Message = serde_json::from_str(clean_json).unwrap();
@@ -1143,6 +1139,20 @@ mod tests {
 
         let message: Message = serde_json::from_str(json_with_metadata).unwrap();
         assert!(!message.is_user_visible());
+        assert!(message.is_agent_visible());
+
+        // Test without metadata (should use defaults)
+        let json_without_metadata = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "text",
+                "text": "Test"
+            }]
+        }"#;
+
+        let message: Message = serde_json::from_str(json_without_metadata).unwrap();
+        assert!(message.is_user_visible());
         assert!(message.is_agent_visible());
     }
 

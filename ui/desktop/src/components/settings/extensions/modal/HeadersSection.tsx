@@ -10,10 +10,7 @@ interface HeadersSectionProps {
   onRemove: (index: number) => void;
   onChange: (index: number, field: 'key' | 'value', value: string) => void;
   submitAttempted: boolean;
-  onPendingInputChange: (
-    hasPendingInput: boolean,
-    pendingHeader: { key: string; value: string } | null
-  ) => void;
+  onPendingInputChange?: (hasPending: boolean) => void;
 }
 
 export default function HeadersSection({
@@ -32,12 +29,10 @@ export default function HeadersSection({
     value: false,
   });
 
-  // Notify parent when pending input changes
+  // Track pending input changes
   React.useEffect(() => {
     const hasPendingInput = newKey.trim() !== '' || newValue.trim() !== '';
-    const pendingHeader =
-      newKey.trim() && newValue.trim() ? { key: newKey, value: newValue } : null;
-    onPendingInputChange(hasPendingInput, pendingHeader);
+    onPendingInputChange?.(hasPendingInput);
   }, [newKey, newValue, onPendingInputChange]);
 
   const handleAdd = () => {

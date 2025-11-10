@@ -38,15 +38,15 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       }
 
       return (
-        <div className={`font-sans text-sm mb-2 ${isExpanded ? '' : 'truncate min-w-0'}`}>
-          <div className={`flex flex-row items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
+        <div className="font-sans text-sm mb-2">
+          <div className="flex flex-row items-stretch">
             <button
               onClick={() => toggleKey(key)}
               className="flex text-left text-textSubtle min-w-[140px]"
             >
               <span>{key}</span>
             </button>
-            <div className={`w-full flex items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
+            <div className="w-full flex items-stretch">
               {isExpanded ? (
                 <div>
                   <MarkdownContent
@@ -55,11 +55,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                   />
                 </div>
               ) : (
-                <button
-                  onClick={() => toggleKey(key)}
-                  className={`text-left text-textPlaceholder ${isExpanded ? '' : 'truncate min-w-0'}`}
-                >
-                  {value}
+                <button onClick={() => toggleKey(key)} className="text-left text-textPlaceholder">
+                  {value.slice(0, 60)}...
                 </button>
               )}
               <button

@@ -8,8 +8,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
-use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
+use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
@@ -31,8 +31,6 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
 use crate::conversation::message::{Message, ToolRequest};
-use crate::session::Session;
-use crate::tool_inspection::get_security_finding_id_from_results;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \
@@ -54,7 +52,6 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
-        session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
@@ -73,8 +70,8 @@ impl Agent {
 
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),
-                        tool_call.name.to_string().clone(),
-                        tool_call.arguments.clone().unwrap_or_default(),
+                        tool_call.name.clone(),
+                        tool_call.arguments.clone(),
                         security_message,
                     );
                     yield confirmation;
@@ -82,19 +79,8 @@ impl Agent {
                     let mut rx = self.confirmation_rx.lock().await;
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
-                            // Log user decision if this was a security alert
-                            if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
-                                tracing::info!(
-                                    counter.goose.prompt_injection_user_decisions = 1,
-                                    decision = ?confirmation.permission,
-                                    "🔒 User security decision: {:?} for finding ID: {}",
-                                    confirmation.permission,
-                                    finding_id
-                                );
-                            }
-
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), &None).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {

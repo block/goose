@@ -1,10 +1,7 @@
 ---
 title: Speech Extension
 description: Add Speech MCP Server as a Goose Extension
-unlisted: true
 ---
-
-Unlist per https://github.com/block/goose/issues/5431
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -22,10 +19,10 @@ This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadr
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   uvx -p 3.10.14 speech-mcp@latest
@@ -43,7 +40,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="speech_mcp"
     extensionName="Speech Interface"
@@ -52,7 +49,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     args={["-p", "3.10.14", "speech-mcp@latest"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -201,10 +198,10 @@ In this example, you'll see how to use Goose with the Speech MCP Server Extensio
 This allows you to build with Goose hands-free, making development more accessible and interactive.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
    1. Open a new session in Goose Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   1. Open a terminal and start a new Goose session:
 
   ```sh

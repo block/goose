@@ -99,6 +99,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build temporal-service
+        run: |
+          echo "Building temporal-service using build.sh script..."
+          cd temporal-service
+          ./build.sh
+          echo "temporal-service built successfully"
+
       - name: Build goosed binary
         env:
           CROSS_NO_WARNINGS: 0
@@ -118,7 +130,9 @@ jobs:
           export TARGET="x86_64-unknown-linux-gnu"
           mkdir -p ui/desktop/src/bin
           cp target/$TARGET/release/goosed ui/desktop/src/bin/
+          cp temporal-service/temporal-service ui/desktop/src/bin/
           chmod +x ui/desktop/src/bin/goosed
+          chmod +x ui/desktop/src/bin/temporal-service
           ls -la ui/desktop/src/bin/
 
       - name: Cache npm dependencies
@@ -166,21 +180,21 @@ jobs:
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-deb
+          name: goose-linux-x64-deb
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-rpm
+          name: goose-linux-x64-rpm
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64
+          name: goose-linux-x64
           path: |
             ui/desktop/out/make/deb/x64/*.deb
             ui/desktop/out/make/rpm/x64/*.rpm

@@ -29,7 +29,6 @@ impl SquirrelCensus {
 
 #[async_trait]
 impl Evaluation for SquirrelCensus {
-    #[allow(clippy::too_many_lines)]
     async fn run(
         &self,
         agent: &mut BenchAgent,
@@ -82,9 +81,7 @@ After writing the script, run it using python3 and show the results. Do not ask 
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(serde_json::Value::Object(
-                                    tool_call.arguments.clone().unwrap_or_default(),
-                                ))
+                                serde_json::from_value::<Value>(tool_call.arguments.clone())
                             {
                                 args.get("command").and_then(Value::as_str) == Some("write")
                                     && args
@@ -114,9 +111,7 @@ After writing the script, run it using python3 and show the results. Do not ask 
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(serde_json::Value::Object(
-                                    tool_call.arguments.clone().unwrap_or_default(),
-                                ))
+                                serde_json::from_value::<Value>(tool_call.arguments.clone())
                             {
                                 args.get("command")
                                     .and_then(Value::as_str)

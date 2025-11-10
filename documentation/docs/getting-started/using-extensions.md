@@ -12,7 +12,7 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
-Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting/known-issues#malicious-package-detected) with a clear error message.
+Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
 
 :::tip Tutorials
 Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
@@ -33,13 +33,13 @@ Here are the built-in extensions:
 #### Toggling Built-in Extensions
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, you can toggle the built-in extensions on or off.
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     
     If you know the exact name of the extension you'd like to add, run:
 
@@ -108,7 +108,7 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
 :::warning Airgapped Environments
-If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting/known-issues#airgappedoffline-environment-issues) for workarounds.
+If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting#airgappedoffline-environment-issues) for workarounds.
 :::
 
 ### MCP Servers
@@ -120,7 +120,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
  
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
@@ -138,7 +138,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
     * **Command**: `npx -y @modelcontextprotocol/server-memory`
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   
   1. Run the following command: 
 
@@ -349,14 +349,14 @@ extensions:
 You can enable or disable installed extensions based on your workflow needs.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
 
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     1. Run the following command to open up Goose's configurations:
     ```sh
     goose configure
@@ -397,7 +397,7 @@ Any extensions enabled dynamically are only enabled for the current session. To 
 Goose automatically detects when an extension is needed based on your task requirements. Here's an example of how Goose identifies and enables a needed extension during a conversation:
 
 <Tabs groupId="interface">
-<TabItem value="ui" label="goose Desktop" default>
+<TabItem value="ui" label="Goose Desktop" default>
 
 #### Goose Prompt
 ```plaintext
@@ -424,7 +424,7 @@ Great! Now I can help you query the database...
 ```
 
 </TabItem>
-<TabItem value="cli" label="goose CLI">
+<TabItem value="cli" label="Goose CLI">
 
 #### Goose Prompt
 ```plaintext
@@ -457,7 +457,7 @@ extension_name: postgresql
 Goose responds to explicit requests for extensions, allowing users to manually enable specific tools they need. Here's an example of how Goose handles a direct request to enable an extension:
 
 <Tabs groupId="interface">
-<TabItem value="ui" label="goose Desktop" default>
+<TabItem value="ui" label="Goose Desktop" default>
 
 #### Goose Prompt
 
@@ -480,7 +480,7 @@ The PostgreSQL extension is now ready to use. What would you like to do with it?
 ```
 
 </TabItem>
-<TabItem value="cli" label="goose CLI">
+<TabItem value="cli" label="Goose CLI">
 
 #### Goose Prompt
 
@@ -511,7 +511,7 @@ extension_name: postgresql
 Goose relies on extension properties to determine how to handle an extension. You can edit these properties if you want to change the extension's display settings and behavior, such as the name, timeout, or environment variables.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
@@ -523,7 +523,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 
   <TabItem value="cli" label="Config file">
   
-  1. Navigate to the Goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  1. Navigate to the Goose [configuration file](/docs/guides/config-file). For example, navigate to `~/.config/goose/config.yaml` on macOS.
   2. Edit the extension properties as needed and save your changes.
 
   </TabItem>
@@ -534,7 +534,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 You can remove installed extensions. 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
@@ -623,7 +623,7 @@ Some extensions require environment variables. You can include these in your com
 goose session --with-extension "VAR=value command arg1 arg2"
 ```
 
-For example, to start a session with the [GitHub extension](https://github.com/github/github-mcp-server), you'd run:
+For example, to start a session with the [GitHub extension](https://github.com/modelcontextprotocol/servers/tree/main/src/github), you'd run:
 
 ```bash
 goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"

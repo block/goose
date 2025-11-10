@@ -3,13 +3,11 @@ use agent_client_protocol::{
     ToolCallContent,
 };
 use anyhow::Result;
-use goose::agents::{Agent, SessionConfig};
-use goose::config::{get_all_extensions, Config};
+use goose::agents::Agent;
+use goose::config::{Config, ExtensionConfigManager};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::providers::create;
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use rmcp::model::{RawContent, ResourceContents};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -21,15 +19,17 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use url::Url;
 
-struct GooseAcpSession {
+/// Represents a single goose session for ACP
+struct GooseSession {
     messages: Conversation,
     tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
     cancel_token: Option<CancellationToken>, // Active cancellation token for prompt processing
 }
 
+/// goose ACP Agent implementation that connects to real goose agents
 struct GooseAcpAgent {
-    session_update_tx: mpsc::UnboundedSender<(SessionNotification, oneshot::Sender<()>)>,
-    sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
+    session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
+    sessions: Arc<Mutex<HashMap<String, GooseSession>>>,
     agent: Agent, // Shared agent instance
 }
 
@@ -97,14 +97,15 @@ impl GooseAcpAgent {
     async fn new(
         session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     ) -> Result<Self> {
+        // Load config and create provider
         let config = Config::global();
 
         let provider_name: String = config
-            .get_goose_provider()
+            .get_param("GOOSE_PROVIDER")
             .map_err(|e| anyhow::anyhow!("No provider configured: {}", e))?;
 
         let model_name: String = config
-            .get_goose_model()
+            .get_param("GOOSE_MODEL")
             .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
 
         let model_config = goose::model::ModelConfig {
@@ -116,14 +117,15 @@ impl GooseAcpAgent {
             toolshim_model: None,
             fast_model: None,
         };
-        let provider = create(&provider_name, model_config).await?;
+        let provider = create(&provider_name, model_config)?;
 
         // Create a shared agent instance
         let agent = Agent::new();
         agent.update_provider(provider.clone()).await?;
 
         // Load and add extensions just like the normal CLI
-        let extensions_to_run: Vec<_> = get_all_extensions()
+        let extensions_to_run: Vec<_> = ExtensionConfigManager::get_all()
+            .map_err(|e| anyhow::anyhow!("Failed to load extensions: {}", e))?
             .into_iter()
             .filter(|ext| ext.enabled)
             .map(|ext| ext.config)
@@ -216,7 +218,7 @@ impl GooseAcpAgent {
         &self,
         content_item: &MessageContent,
         session_id: &acp::SessionId,
-        session: &mut GooseAcpSession,
+        session: &mut GooseSession,
     ) -> Result<(), acp::Error> {
         match content_item {
             MessageContent::Text(text) => {
@@ -272,7 +274,7 @@ impl GooseAcpAgent {
         &self,
         tool_request: &goose::conversation::message::ToolRequest,
         session_id: &acp::SessionId,
-        session: &mut GooseAcpSession,
+        session: &mut GooseSession,
     ) -> Result<(), acp::Error> {
         // Generate ACP tool call ID and track mapping
         let acp_tool_id = format!("tool_{}", uuid::Uuid::new_v4());
@@ -283,30 +285,24 @@ impl GooseAcpAgent {
         // Extract tool name and parameters from the ToolCall if successful
         let (tool_name, locations) = match &tool_request.tool_call {
             Ok(tool_call) => {
+                let name = tool_call.name.clone();
+
                 // Extract file locations from certain tools for client tracking
                 let mut locs = Vec::new();
-                if tool_call.name == "developer__text_editor" {
+                if name == "developer__text_editor" {
                     // Try to extract the path from the arguments
-                    if let Some(path_str) = tool_call
-                        .arguments
-                        .as_ref()
-                        .and_then(|args_map| args_map.get("path"))
-                        .and_then(|p| p.as_str())
-                    {
-                        let path = std::path::PathBuf::from(path_str);
-                        if path.exists() && path.is_file() {
-                            locs.push(acp::ToolCallLocation {
-                                path: path_str.into(),
-                                line: Some(1),
-                                meta: None,
-                            });
-                        }
+                    let args = &tool_call.arguments;
+                    if let Some(path_str) = args.get("path").and_then(|p| p.as_str()) {
+                        locs.push(acp::ToolCallLocation {
+                            path: path_str.into(),
+                            line: Some(1),
+                            meta: None,
+                        });
                     }
                 }
-
-                (tool_call.name.to_string(), locs)
+                (name, locs)
             }
-            Err(_) => ("error".to_string(), vec![]),
+            Err(_) => ("unknown".to_string(), Vec::new()),
         };
 
         // Send tool call notification
@@ -340,7 +336,7 @@ impl GooseAcpAgent {
         &self,
         tool_response: &goose::conversation::message::ToolResponse,
         session_id: &acp::SessionId,
-        session: &mut GooseAcpSession,
+        session: &mut GooseSession,
     ) -> Result<(), acp::Error> {
         // Look up the ACP tool call ID
         if let Some(acp_tool_id) = session.tool_call_ids.get(&tool_response.id) {
@@ -495,7 +491,7 @@ impl acp::Agent for GooseAcpAgent {
         // Generate a unique session ID
         let session_id = uuid::Uuid::new_v4().to_string();
 
-        let session = GooseAcpSession {
+        let session = GooseSession {
             messages: Conversation::new_unvalidated(Vec::new()),
             tool_call_ids: HashMap::new(),
             cancel_token: None,
@@ -543,26 +539,30 @@ impl acp::Agent for GooseAcpAgent {
         // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
 
+        // Convert ACP prompt to Goose message
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
+        // Prepare for agent reply
+        let messages = {
+            let mut sessions = self.sessions.lock().await;
+            let session = sessions
+                .get_mut(&session_id)
+                .ok_or_else(acp::Error::invalid_params)?;
 
-        let session_config = SessionConfig {
-            id: session.id.clone(),
-            schedule_id: None,
-            max_turns: None,
-            retry_config: None,
+            // Add message to conversation
+            session.messages.push(user_message);
+
+            // Store cancellation token
+            session.cancel_token = Some(cancel_token.clone());
+
+            // Clone what we need for the reply call
+            session.messages.clone()
         };
 
         // Get agent's reply through the Goose agent
         let mut stream = self
             .agent
-            .reply(user_message, session_config, Some(cancel_token.clone()))
+            .reply(messages, None, Some(cancel_token.clone()))
             .await
             .map_err(|e| {
                 error!("Error getting agent reply: {}", e);

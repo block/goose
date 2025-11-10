@@ -20,9 +20,10 @@ interface CostTrackerProps {
       totalCost: number;
     };
   };
+  shouldShowIconOnly?: boolean;
 }
 
-export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
+export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts, shouldShowIconOnly = false }: CostTrackerProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
   const { getProviders } = useConfig();
   const [costInfo, setCostInfo] = useState<{
@@ -185,8 +186,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   if (isLoading) {
     return (
       <>
-        <div className="flex items-center justify-center h-full text-textSubtle translate-y-[1px]">
-          <span className="text-xs font-mono">...</span>
+        <div className="flex items-center justify-center h-full text-textSubtle translate-y-[1px] px-1">
+          <span className={`text-xs font-mono ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>...</span>
         </div>
         <div className="w-px h-4 bg-border-default mx-2" />
       </>
@@ -205,9 +206,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         <>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
+              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px] px-1">
                 <CoinIcon className="mr-1" size={16} />
-                <span className="text-xs font-mono">0.0000</span>
+                <span className={`text-xs font-mono ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>0.0000</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
@@ -234,7 +235,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
           <TooltipTrigger asChild>
             <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
               <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
+              <span className={`text-xs font-mono ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>0.0000</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
@@ -291,7 +292,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         <TooltipTrigger asChild>
           <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
             <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+            <span className={`text-xs font-mono ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>{formatCost(totalCost)}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>

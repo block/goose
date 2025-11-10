@@ -2,16 +2,13 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::mcp_utils::ToolResult;
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
-use rmcp::model::{
-    object, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
-    Role, Tool,
-};
+use mcp_core::{ToolCall, ToolResult};
+use rmcp::model::{Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool};
 use serde_json::Value;
 
 use super::super::base::Usage;
@@ -48,8 +45,11 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::SystemNotification(_) => {
-            bail!("SystemNotification should not get passed to the provider")
+        MessageContent::ContextLengthExceeded(_) => {
+            bail!("ContextLengthExceeded should not get passed to the provider")
+        }
+        MessageContent::SummarizationRequested(_) => {
+            bail!("SummarizationRequested should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
@@ -57,7 +57,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
+                    .input(to_bedrock_json(&call.arguments))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -72,7 +72,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
+                    .input(to_bedrock_json(&call.arguments))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -94,18 +94,12 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
-                }
+                Err(_) => None,
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
                     .tool_use_id(tool_res.id.to_string())
-                    .status(if tool_res.tool_result.is_ok() {
+                    .status(if content.is_some() {
                         bedrock::ToolResultStatus::Success
                     } else {
                         bedrock::ToolResultStatus::Error
@@ -191,14 +185,6 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 }
 
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
-    let mut input_schema = tool.input_schema.as_ref().clone();
-
-    // If the schema doesn't have a "type" field, add it
-    // This is required by Bedrock
-    if !input_schema.contains_key("type") {
-        input_schema.insert("type".to_string(), Value::String("object".to_string()));
-    }
-
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
             .name(tool.name.to_string())
@@ -209,7 +195,7 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
                     .unwrap_or_default(),
             )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &Value::Object(input_schema),
+                &Value::Object(tool.input_schema.as_ref().clone()),
             )))
             .build()?,
     ))
@@ -296,10 +282,10 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
         bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
             tool_use.tool_use_id.to_string(),
-            Ok(CallToolRequestParam {
-                name: tool_use.name.clone().into(),
-                arguments: Some(object(from_bedrock_json(&tool_use.input.clone())?)),
-            }),
+            Ok(ToolCall::new(
+                tool_use.name.to_string(),
+                from_bedrock_json(&tool_use.input)?,
+            )),
         ),
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
@@ -345,11 +331,11 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage::new(
-        Some(usage.input_tokens),
-        Some(usage.output_tokens),
-        Some(usage.total_tokens),
-    )
+    Usage {
+        input_tokens: Some(usage.input_tokens),
+        output_tokens: Some(usage.output_tokens),
+        total_tokens: Some(usage.total_tokens),
+    }
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {

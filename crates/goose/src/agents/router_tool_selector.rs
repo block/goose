@@ -1,9 +1,10 @@
+use rmcp::model::Tool;
 use rmcp::model::{Content, ErrorCode, ErrorData};
-use rmcp::model::{JsonObject, Tool};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
+use serde_json::Value;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -22,7 +23,7 @@ struct ToolSelectorContext {
 
 #[async_trait]
 pub trait RouterToolSelector: Send + Sync {
-    async fn select_tools(&self, params: JsonObject) -> Result<Vec<Content>, ErrorData>;
+    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ErrorData>;
     async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ErrorData>;
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ErrorData>;
     async fn record_tool_call(&self, tool_name: &str) -> Result<(), ErrorData>;
@@ -47,7 +48,7 @@ impl LLMToolSelector {
 
 #[async_trait]
 impl RouterToolSelector for LLMToolSelector {
-    async fn select_tools(&self, params: JsonObject) -> Result<Vec<Content>, ErrorData> {
+    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let query = params
             .get("query")
             .and_then(|v| v.as_str())

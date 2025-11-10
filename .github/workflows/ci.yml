@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
-
+      
       - name: Check for file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
         id: filter
@@ -101,7 +101,7 @@ jobs:
           just check-openapi-schema
 
   desktop-lint:
-    name: Test and Lint Electron Desktop App
+    name: Lint Electron Desktop App
     runs-on: macos-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
@@ -131,4 +131,13 @@ jobs:
         run: source ../../bin/activate-hermit && npm run test:run
         working-directory: ui/desktop
 
-
+  # Faster Desktop App build for PRs only
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
+    needs: changes
+    if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
+    with:
+      signing: false

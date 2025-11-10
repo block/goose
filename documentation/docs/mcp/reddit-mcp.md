@@ -17,10 +17,10 @@ This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhik
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit
@@ -36,7 +36,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="reddit"
       extensionName="Reddit"
@@ -46,7 +46,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="Reddit MCP"
       command="uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit"

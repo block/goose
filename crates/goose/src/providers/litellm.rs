@@ -8,9 +8,9 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
-
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -23,12 +23,12 @@ pub struct LiteLLMProvider {
     api_client: ApiClient,
     base_path: String,
     model: ModelConfig,
-    #[serde(skip)]
-    name: String,
 }
 
+impl_provider_default!(LiteLLMProvider);
+
 impl LiteLLMProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config
             .get_secret("LITELLM_API_KEY")
@@ -69,7 +69,6 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
-            name: Self::metadata().name,
         })
     }
 
@@ -143,7 +142,7 @@ impl Provider for LiteLLMProvider {
             vec![],
             LITELLM_DOC_URL,
             vec![
-                ConfigKey::new("LITELLM_API_KEY", true, true, None),
+                ConfigKey::new("LITELLM_API_KEY", false, true, None),
                 ConfigKey::new("LITELLM_HOST", true, false, Some("http://localhost:4000")),
                 ConfigKey::new(
                     "LITELLM_BASE_PATH",
@@ -155,10 +154,6 @@ impl Provider for LiteLLMProvider {
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
             ],
         )
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -181,7 +176,7 @@ impl Provider for LiteLLMProvider {
             &ImageFormat::OpenAi,
         )?;
 
-        if self.supports_cache_control().await {
+        if self.supports_cache_control() {
             payload = update_request_for_cache_control(&payload);
         }
 
@@ -195,8 +190,7 @@ impl Provider for LiteLLMProvider {
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        let mut log = RequestLog::start(model_config, &payload)?;
-        log.write(&response, Some(&usage))?;
+        emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -204,8 +198,10 @@ impl Provider for LiteLLMProvider {
         true
     }
 
-    async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.fetch_models().await {
+    fn supports_cache_control(&self) -> bool {
+        if let Ok(models) = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.fetch_models())
+        }) {
             if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
                 return model_info.supports_cache_control.unwrap_or(false);
             }

@@ -9,7 +9,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add the [Neon MCP Server](https://github.com/neondatabase/mcp-server-neon) as a Goose extension to interact with your Neon Postgres databases and manage your projects, branches, and more.
+This tutorial covers how to add the [Neon MCP Server](https://github.com/neondatabase-labs/mcp-server-neon) as a Goose extension to interact with your Neon Postgres databases and manage your projects, branches, and more.
 
 Neon offers two versions of the MCP server:
 
@@ -26,10 +26,10 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   <TabItem value="remote" label="Neon Remote MCP" default>
   :::tip TLDR
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.neon.tech%2Fmcp&id=neon&name=Neon&description=Manage%20Neon%20Postgres%20databases%2C%20projects%2C%20and%20branches)
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
     Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
 
     **Endpoint URL**
@@ -45,7 +45,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   :::
 
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
       <GooseDesktopInstaller
         extensionId="neon"
         extensionName="Neon"
@@ -54,7 +54,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
         url="https://mcp.neon.tech/mcp"
       />
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
       <CLIExtensionInstructions
         name="neon-mcp-remote"
         type="http"
@@ -69,10 +69,10 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   <TabItem value="local" label="Neon Local MCP">
   :::tip TLDR
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
       [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40neondatabase%2Fmcp-server-neon&arg=start&arg=%3CYOUR_NEON_API_KEY%3E&id=neon&name=Neon&description=Manage%20your%20Neon%20Postgres%20databases%2C%20projects%2C%20and%20branches)
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
       **Command**
       ```sh
       npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>
@@ -90,7 +90,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   :::
 
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="neon"
       extensionName="Neon"
@@ -100,7 +100,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
     />
     </TabItem>
 
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
       <CLIExtensionInstructions
         name="Neon MCP"
         command="npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>"

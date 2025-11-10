@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
@@ -12,7 +12,6 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -23,34 +22,16 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
-  if ('value' in toolResult && Array.isArray(toolResult.value)) {
-    return toolResult.value as Content[];
-  }
-  return null;
-}
-
-function isEmbeddedResource(content: Content): content is EmbeddedResource {
-  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
-}
-
 export default function ToolCallWithResponse({
   isCancelledMessage,
   toolRequest,
   toolResponse,
   notifications,
-  isStreamingMessage,
+  isStreamingMessage = false,
   append,
 }: ToolCallWithResponseProps) {
-  // Handle both the wrapped ToolResult format and the unwrapped format
-  // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
-  const toolCallData = toolRequest.toolCall as Record<string, unknown>;
-  const toolCall =
-    toolCallData?.status === 'success'
-      ? (toolCallData.value as { name: string; arguments: Record<string, unknown> })
-      : (toolCallData as { name: string; arguments: Record<string, unknown> });
-
-  if (!toolCall || !toolCall.name) {
+  const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
+  if (!toolCall) {
     return null;
   }
 
@@ -72,15 +53,12 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
-          const resourceContent = isEmbeddedResource(content)
-            ? { ...content, type: 'resource' as const }
-            : null;
-          if (resourceContent && isUIResource(resourceContent)) {
+      {toolResponse?.toolResult?.value &&
+        toolResponse.toolResult.value.map((content, index) => {
+          if (isUIResource(content)) {
             return (
-              <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
+              <div key={`${content.type}-${index}`} className="mt-3">
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
@@ -126,7 +104,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-sans text-sm truncate flex-1 min-w-0">{label}</span>
+        <span className="flex items-center font-sans text-sm">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
@@ -222,7 +200,7 @@ function ToolCallView({
     }
   })();
 
-  const isToolDetails = toolCall?.arguments && Object.entries(toolCall.arguments).length > 0;
+  const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
   // Check if streaming has finished but no tool response was received
   // This is a workaround for cases where the backend doesn't send tool responses
@@ -233,9 +211,7 @@ function ToolCallView({
     ? shouldShowAsComplete
       ? 'success'
       : 'loading'
-    : (toolResponse.toolResult as Record<string, unknown>).status === 'error'
-      ? 'error'
-      : 'success';
+    : toolResponse.toolResult.status;
 
   // Tool call timing tracking
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -310,32 +286,36 @@ function ToolCallView({
       return typeof value === 'string' ? value : JSON.stringify(value);
     };
 
+    const truncate = (str: string, maxLength: number = 50): string => {
+      return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
+    };
+
     // Generate descriptive text based on tool type
     switch (toolName) {
       case 'text_editor':
         if (args.command === 'write' && args.path) {
-          return `writing ${getStringValue(args.path)}`;
+          return `writing ${truncate(getStringValue(args.path))}`;
         }
         if (args.command === 'view' && args.path) {
-          return `reading ${getStringValue(args.path)}`;
+          return `reading ${truncate(getStringValue(args.path))}`;
         }
         if (args.command === 'str_replace' && args.path) {
-          return `editing ${getStringValue(args.path)}`;
+          return `editing ${truncate(getStringValue(args.path))}`;
         }
         if (args.command && args.path) {
-          return `${getStringValue(args.command)} ${getStringValue(args.path)}`;
+          return `${getStringValue(args.command)} ${truncate(getStringValue(args.path))}`;
         }
         break;
 
       case 'shell':
         if (args.command) {
-          return `running ${getStringValue(args.command)}`;
+          return `running ${truncate(getStringValue(args.command))}`;
         }
         break;
 
       case 'search':
         if (args.name) {
-          return `searching for "${getStringValue(args.name)}"`;
+          return `searching for "${truncate(getStringValue(args.name))}"`;
         }
         if (args.mimeType) {
           return `searching for ${getStringValue(args.mimeType)} files`;
@@ -346,30 +326,30 @@ function ToolCallView({
         if (args.uri) {
           const uri = getStringValue(args.uri);
           const fileId = uri.replace('gdrive:///', '');
-          return `reading file ${fileId}`;
+          return `reading file ${truncate(fileId)}`;
         }
         if (args.url) {
-          return `reading ${getStringValue(args.url)}`;
+          return `reading ${truncate(getStringValue(args.url))}`;
         }
         break;
       }
 
       case 'create_file':
         if (args.name) {
-          return `creating ${getStringValue(args.name)}`;
+          return `creating ${truncate(getStringValue(args.name))}`;
         }
         break;
 
       case 'update_file':
         if (args.fileId) {
-          return `updating file ${getStringValue(args.fileId)}`;
+          return `updating file ${truncate(getStringValue(args.fileId))}`;
         }
         break;
 
       case 'sheets_tool': {
         if (args.operation && args.spreadsheetId) {
           const operation = getStringValue(args.operation);
-          const sheetId = getStringValue(args.spreadsheetId);
+          const sheetId = truncate(getStringValue(args.spreadsheetId));
           return `${operation} in sheet ${sheetId}`;
         }
         break;
@@ -378,7 +358,7 @@ function ToolCallView({
       case 'docs_tool': {
         if (args.operation && args.documentId) {
           const operation = getStringValue(args.operation);
-          const docId = getStringValue(args.documentId);
+          const docId = truncate(getStringValue(args.documentId));
           return `${operation} in document ${docId}`;
         }
         break;
@@ -386,13 +366,13 @@ function ToolCallView({
 
       case 'web_scrape':
         if (args.url) {
-          return `scraping ${getStringValue(args.url)}`;
+          return `scraping ${truncate(getStringValue(args.url))}`;
         }
         break;
 
       case 'remember_memory':
         if (args.category && args.data) {
-          return `storing ${getStringValue(args.category)}: ${getStringValue(args.data)}`;
+          return `storing ${getStringValue(args.category)}: ${truncate(getStringValue(args.data))}`;
         }
         break;
 
@@ -404,7 +384,7 @@ function ToolCallView({
 
       case 'screen_capture':
         if (args.window_title) {
-          return `capturing window "${getStringValue(args.window_title)}"`;
+          return `capturing window "${truncate(getStringValue(args.window_title))}"`;
         }
         return `capturing screen`;
 
@@ -434,7 +414,8 @@ function ToolCallView({
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
-          return `${toolDisplayName} ${key}: ${stringValue}`;
+          const truncatedValue = truncate(stringValue, 30);
+          return `${toolDisplayName} ${key}: ${truncatedValue}`;
         }
 
         // For multiple parameters, show tool name and keys
@@ -477,12 +458,12 @@ function ToolCallView({
   const toolLabel = (
     <span
       className={cn(
-        'flex items-center gap-2 min-w-0',
+        'flex items-center gap-2',
         extensionTooltip && 'cursor-pointer hover:opacity-80'
       )}
     >
       <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
-      <span className="truncate flex-1 min-w-0">{getToolLabelContent()}</span>
+      <span>{getToolLabelContent()}</span>
     </span>
   );
   return (
@@ -571,30 +552,19 @@ interface ToolResultViewProps {
 }
 
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
-  const hasText = (c: Content): c is Content & { text: string } =>
-    'text' in c && typeof (c as Record<string, unknown>).text === 'string';
-
-  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
-    if (!('data' in c && 'mimeType' in c)) return false;
-    const mimeType = (c as Record<string, unknown>).mimeType;
-    return typeof mimeType === 'string' && mimeType.startsWith('image');
-  };
-
-  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
-
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
-        {hasText(result) && (
+        {result.type === 'text' && result.text && (
           <MarkdownContent
             content={result.text}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}
-        {hasImage(result) && (
+        {result.type === 'image' && (
           <img
             src={`data:${result.mimeType};base64,${result.data}`}
             alt="Tool result"
@@ -605,7 +575,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
-        {hasResource(result) && (
+        {result.type === 'resource' && (
           <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
         )}
       </div>

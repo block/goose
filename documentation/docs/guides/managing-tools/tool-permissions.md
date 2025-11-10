@@ -41,7 +41,7 @@ Each tool can be set to one of three permission levels:
 ## Configuring Tool Permissions
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     You can configure fine-grained tool permissions for enabled extensions when using `Manual` or `Smart` approval mode. These rules can be accessed from the mode toggle or `Settings` page.
 
     <Tabs>
@@ -64,7 +64,7 @@ Each tool can be set to one of three permission levels:
     </Tabs>
   
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
     1. Run the configure command:
     ```sh

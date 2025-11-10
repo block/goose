@@ -16,9 +16,8 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
+import Model, { getProviderMetadata } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import { ProviderType } from '../../../../api';
 
 type SwitchModelModalProps = {
   sessionId: string | null;
@@ -146,12 +145,28 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
         setLoadingModels(true);
 
         // Fetching models for all providers
-        const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+        const modelPromises = activeProviders.map(async (p) => {
+          const providerName = p.name;
+          try {
+            let models = await getProviderModels(providerName);
+            // Fallback to known_models if server returned none
+            if ((!models || models.length === 0) && p.metadata.known_models?.length) {
+              models = p.metadata.known_models.map((m) => m.name);
+            }
+            return { provider: p, models, error: null };
+          } catch (e: unknown) {
+            return {
+              provider: p,
+              models: null,
+              error: `Failed to fetch models for ${providerName}${e instanceof Error ? `: ${e.message}` : ''}`,
+            };
+          }
+        });
+        const results = await Promise.all(modelPromises);
 
         // Process results and build grouped options
-        const groupedOptions: {
-          options: { value: string; label: string; provider: string; providerType: ProviderType }[];
-        }[] = [];
+        const groupedOptions: { options: { value: string; label: string; provider: string }[] }[] =
+          [];
         const errors: string[] = [];
 
         results.forEach(({ provider: p, models, error }) => {
@@ -163,19 +178,13 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
                 options: p.metadata.known_models.map(({ name }) => ({
                   value: name,
                   label: name,
-                  providerType: p.provider_type,
                   provider: p.name,
                 })),
               });
             }
           } else if (models && models.length > 0) {
             groupedOptions.push({
-              options: models.map((m) => ({
-                value: m,
-                label: m,
-                provider: p.name,
-                providerType: p.provider_type,
-              })),
+              options: models.map((m) => ({ value: m, label: m, provider: p.name })),
             });
           }
         });
@@ -187,14 +196,12 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
 
         // Add the "Custom model" option to each provider group
         groupedOptions.forEach((group) => {
-          const option = group.options[0];
-          const providerName = option?.provider;
-          if (providerName && option?.providerType !== 'Custom') {
+          const providerName = group.options[0]?.provider;
+          if (providerName && !providerName.startsWith('custom_')) {
             group.options.push({
               value: 'custom',
               label: 'Use custom model',
               provider: providerName,
-              providerType: option?.providerType,
             });
           }
         });

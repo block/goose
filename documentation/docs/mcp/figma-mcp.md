@@ -18,10 +18,10 @@ The MCP Server requires a Dev or Full seat on Professional, Organization, or Ent
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     [Launch the installer](goose://extension?type=streamable_http&url=http%3A%2F%2F127.0.0.1%3A3845%2Fmcp&id=figma&name=Figma&description=Convert%20Figma%20designs%20into%20code%20and%20extract%20design%20context)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
     
     **Endpoint URL**
@@ -51,7 +51,7 @@ The Dev Mode MCP Server must be enabled in the [Figma desktop app](https://www.f
 
 2. Add the Figma extension to Goose:
    <Tabs groupId="interface">
-     <TabItem value="ui" label="goose Desktop" default>
+     <TabItem value="ui" label="Goose Desktop" default>
        <GooseDesktopInstaller
          extensionId="figma"
          extensionName="Figma"
@@ -60,7 +60,7 @@ The Dev Mode MCP Server must be enabled in the [Figma desktop app](https://www.f
          url="http://127.0.0.1:3845/mcp"
        />
      </TabItem>
-     <TabItem value="cli" label="goose CLI">
+     <TabItem value="cli" label="Goose CLI">
        <CLIExtensionInstructions            
          name="figma"
          type="http"

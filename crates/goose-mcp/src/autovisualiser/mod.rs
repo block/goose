@@ -387,13 +387,6 @@ pub struct ShowChartParams {
     pub data: ChartData,
 }
 
-/// Parameters for render_mermaid tool
-#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
-pub struct RenderMermaidParams {
-    /// The Mermaid diagram code to render
-    pub mermaid_code: String,
-}
-
 /// An extension for automatic data visualization and UI generation
 #[derive(Clone)]
 pub struct AutoVisualiserRouter {
@@ -416,9 +409,6 @@ impl ServerHandler for AutoVisualiserRouter {
             server_info: Implementation {
                 name: "goose-autovisualiser".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
-                title: None,
-                icons: None,
-                website_url: None,
             },
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(self.instructions.clone()),
@@ -455,7 +445,6 @@ impl AutoVisualiserRouter {
             - **render_treemap**: Creates interactive treemap visualizations for hierarchical data
             - **render_chord**: Creates interactive chord diagrams for relationship/flow visualization
             - **render_map**: Creates interactive map visualizations with location markers
-            - **render_mermaid**: Creates interactive Mermaid diagrams from Mermaid syntax
             - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
         "#};
 
@@ -469,7 +458,7 @@ impl AutoVisualiserRouter {
     /// show a Sankey diagram from flow data
     #[tool(
         name = "render_sankey",
-        description = r#"show a Sankey diagram from flow data
+        description = r#"show a Sankey diagram from flow data               
 The data must contain:
 - nodes: Array of objects with 'name' and optional 'category' properties
 - links: Array of objects with 'source', 'target', and 'value' properties
@@ -548,7 +537,7 @@ Example:
     /// show a radar chart (spider chart) for multi-dimensional data comparison
     #[tool(
         name = "render_radar",
-        description = r#"show a radar chart (spider chart) for multi-dimensional data comparison
+        description = r#"show a radar chart (spider chart) for multi-dimensional data comparison             
 
 The data must contain:
 - labels: Array of strings representing the dimensions/axes
@@ -563,7 +552,7 @@ Example:
       "data": [85, 70, 90, 75, 80]
     },
     {
-      "label": "Player 2",
+      "label": "Player 2", 
       "data": [75, 85, 80, 90, 70]
     }
   ]
@@ -974,61 +963,6 @@ Example:
 
         let resource_contents = ResourceContents::BlobResourceContents {
             uri: "ui://map/visualization".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
-    }
-
-    /// show a Mermaid diagram from Mermaid syntax
-    #[tool(
-        name = "render_mermaid",
-        description = r#"show a Mermaid diagram from Mermaid syntax
-
-Provide the Mermaid code as a string. Supports flowcharts, sequence diagrams, Gantt charts, etc.
-
-Example:
-graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;
-"#
-    )]
-    pub async fn render_mermaid(
-        &self,
-        params: Parameters<RenderMermaidParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mermaid_code = params.0.mermaid_code;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/mermaid_template.html");
-        const MERMAID_MIN: &str = include_str!("templates/assets/mermaid.min.js");
-
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{MERMAID_MIN}}", MERMAID_MIN)
-            .replace("{{MERMAID_CODE}}", &mermaid_code);
-
-        // Save to /tmp/mermaid.html for debugging
-        let debug_path = std::path::Path::new("/tmp/mermaid.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/mermaid.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/mermaid.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://mermaid/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
             meta: None,
@@ -1523,34 +1457,6 @@ mod tests {
         let result = router.show_chart(params).await;
         if let Err(e) = &result {
             eprintln!("Error in test_show_chart: {:?}", e);
-        }
-        assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
-    }
-
-    #[tokio::test]
-    async fn test_render_mermaid() {
-        let router = AutoVisualiserRouter::new();
-        let params = Parameters(RenderMermaidParams {
-            mermaid_code: r#"graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;"#
-                .to_string(),
-        });
-
-        let result = router.render_mermaid(params).await;
-        if let Err(e) = &result {
-            eprintln!("Error in test_render_mermaid: {:?}", e);
         }
         assert!(result.is_ok());
         let tool_result = result.unwrap();

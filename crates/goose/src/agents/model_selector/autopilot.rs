@@ -755,7 +755,7 @@ impl AutoPilot {
             self.current_role = Some(best_model.role.clone());
 
             let model = crate::model::ModelConfig::new_or_fail(&best_model.model);
-            let new_provider = providers::create(&best_model.provider, model).await?;
+            let new_provider = providers::create(&best_model.provider, model)?;
 
             return Ok(Some((
                 new_provider,

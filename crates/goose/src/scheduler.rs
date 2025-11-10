@@ -7,21 +7,20 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
-use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
 // Track running tasks with their abort handles
@@ -64,13 +63,18 @@ pub fn normalize_cron_expression(src: &str) -> String {
 }
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
-    let data_dir = Paths::data_dir();
+    let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
+        .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e.to_string()))?;
+    let data_dir = strategy.data_dir();
     fs::create_dir_all(&data_dir)?;
     Ok(data_dir.join("schedules.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
-    let data_dir = Paths::data_dir();
+    let strategy = choose_app_strategy(config::APP_STRATEGY.clone()).map_err(|e| {
+        SchedulerError::StorageError(io::Error::new(io::ErrorKind::NotFound, e.to_string()))
+    })?;
+    let data_dir = strategy.data_dir();
     let recipes_dir = data_dir.join("scheduled_recipes");
     fs::create_dir_all(&recipes_dir).map_err(SchedulerError::StorageError)?;
     tracing::debug!(
@@ -153,6 +157,8 @@ pub struct ScheduledJob {
     pub current_session_id: Option<String>,
     #[serde(default)]
     pub process_start_time: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub execution_mode: Option<String>, // "foreground" or "background"
 }
 
 async fn persist_jobs_from_arc(
@@ -654,9 +660,7 @@ impl Scheduler {
                 schedule_sessions.push((session.id.clone(), session));
             }
         }
-
-        // Sort by created_at timestamp, newest first
-        schedule_sessions.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
+        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
 
         let result_sessions: Vec<(String, Session)> =
             schedule_sessions.into_iter().take(limit).collect();
@@ -1103,7 +1107,7 @@ async fn run_scheduled_job_internal(
         agent_provider = provider;
     } else {
         let global_config = Config::global();
-        let provider_name: String = match global_config.get_goose_provider() {
+        let provider_name: String = match global_config.get_param("GOOSE_PROVIDER") {
             Ok(name) => name,
             Err(_) => return Err(JobExecutionError {
                 job_id: job.id.clone(),
@@ -1113,7 +1117,7 @@ async fn run_scheduled_job_internal(
             }),
         };
         let model_name: String =
-            match global_config.get_goose_model() {
+            match global_config.get_param("GOOSE_MODEL") {
                 Ok(name) => name,
                 Err(_) => return Err(JobExecutionError {
                     job_id: job.id.clone(),
@@ -1128,16 +1132,13 @@ async fn run_scheduled_job_internal(
                 error: format!("Model config error: {}", e),
             })?;
 
-        agent_provider =
-            create(&provider_name, model_config)
-                .await
-                .map_err(|e| JobExecutionError {
-                    job_id: job.id.clone(),
-                    error: format!(
-                        "Failed to create provider instance '{}': {}",
-                        provider_name, e
-                    ),
-                })?;
+        agent_provider = create(&provider_name, model_config).map_err(|e| JobExecutionError {
+            job_id: job.id.clone(),
+            error: format!(
+                "Failed to create provider instance '{}': {}",
+                provider_name, e
+            ),
+        })?;
     }
 
     if let Some(ref recipe_extensions) = recipe.extensions {
@@ -1159,6 +1160,8 @@ async fn run_scheduled_job_internal(
         });
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
+    let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
+    tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
 
     let current_dir = match std::env::current_dir() {
         Ok(cd) => cd,
@@ -1170,10 +1173,14 @@ async fn run_scheduled_job_internal(
         }
     };
 
+    // Create session upfront for both cases
     let session = match SessionManager::create_session(
         current_dir.clone(),
-        format!("Scheduled job: {}", job.id),
-        SessionType::Scheduled,
+        if recipe.prompt.is_some() {
+            format!("Scheduled job: {}", job.id)
+        } else {
+            "Empty job - no prompt".to_string()
+        },
     )
     .await
     {
@@ -1194,64 +1201,67 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    // Use prompt if available, otherwise fall back to instructions
-    let prompt_text = recipe
-        .prompt
-        .as_ref()
-        .or(recipe.instructions.as_ref())
-        .unwrap();
+    if let Some(ref prompt_text) = recipe.prompt {
+        let mut all_session_messages =
+            Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
-    let user_message = Message::user().with_text(prompt_text);
-    let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+        let session_config = SessionConfig {
+            id: session.id.clone(),
+            working_dir: current_dir.clone(),
+            schedule_id: Some(job.id.clone()),
+            execution_mode: job.execution_mode.clone(),
+            max_turns: None,
+            retry_config: None,
+        };
 
-    let session_config = SessionConfig {
-        id: session.id.clone(),
-        schedule_id: Some(job.id.clone()),
-        max_turns: None,
-        retry_config: None,
-    };
+        match agent
+            .reply(
+                all_session_messages.clone(),
+                Some(session_config.clone()),
+                None,
+            )
+            .await
+        {
+            Ok(mut stream) => {
+                use futures::StreamExt;
 
-    let session_id = Some(session_config.id.clone());
-    match crate::session_context::with_session_id(session_id, async {
-        agent.reply(user_message, session_config, None).await
-    })
-    .await
-    {
-        Ok(mut stream) => {
-            use futures::StreamExt;
+                while let Some(message_result) = stream.next().await {
+                    tokio::task::yield_now().await;
 
-            while let Some(message_result) = stream.next().await {
-                tokio::task::yield_now().await;
-
-                match message_result {
-                    Ok(AgentEvent::Message(msg)) => {
-                        if msg.role == rmcp::model::Role::Assistant {
-                            tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
+                    match message_result {
+                        Ok(AgentEvent::Message(msg)) => {
+                            if msg.role == rmcp::model::Role::Assistant {
+                                tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
+                            }
+                            all_session_messages.push(msg);
                         }
-                        conversation.push(msg);
-                    }
-                    Ok(AgentEvent::McpNotification(_)) => {}
-                    Ok(AgentEvent::ModelChange { .. }) => {}
-                    Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                        conversation = updated_conversation;
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "[Job {}] Error receiving message from agent: {}",
-                            job.id,
-                            e
-                        );
-                        break;
+                        Ok(AgentEvent::McpNotification(_)) => {}
+                        Ok(AgentEvent::ModelChange { .. }) => {}
+                        Ok(AgentEvent::HistoryReplaced(_)) => {}
+                        Err(e) => {
+                            tracing::error!(
+                                "[Job {}] Error receiving message from agent: {}",
+                                job.id,
+                                e
+                            );
+                            break;
+                        }
                     }
                 }
             }
+            Err(e) => {
+                return Err(JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
+                });
+            }
         }
-        Err(e) => {
-            return Err(JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
-            });
-        }
+    } else {
+        tracing::warn!(
+            "[Job {}] Recipe '{}' has no prompt to execute.",
+            job.id,
+            job.source
+        );
     }
 
     if let Err(e) = SessionManager::update_session(&session.id)
@@ -1358,10 +1368,6 @@ mod tests {
             )
         }
 
-        fn get_name(&self) -> &str {
-            "mock-scheduler"
-        }
-
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
         }
@@ -1448,6 +1454,7 @@ mod tests {
             paused: false,
             current_session_id: None,
             process_start_time: None,
+            execution_mode: Some("background".to_string()), // Default for test
         };
 
         let mock_model_config = ModelConfig::new_or_fail("test_model");

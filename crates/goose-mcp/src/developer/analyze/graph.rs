@@ -3,10 +3,6 @@ use std::path::PathBuf;
 
 use crate::developer::analyze::types::{AnalysisResult, CallChain};
 
-/// Sentinel value used to represent type references (instantiation, field types, etc.)
-/// as callers in the call graph, since they don't have an actual caller function.
-const REFERENCE_CALLER: &str = "<reference>";
-
 #[derive(Debug, Clone, Default)]
 pub struct CallGraph {
     callers: HashMap<String, Vec<(PathBuf, usize, String)>>,
@@ -62,44 +58,6 @@ impl CallGraph {
                         call.line,
                         call.callee_name.clone(),
                     ));
-                }
-            }
-
-            for reference in &result.references {
-                use crate::developer::analyze::types::ReferenceType;
-
-                match &reference.ref_type {
-                    ReferenceType::MethodDefinition => {
-                        if let Some(type_name) = &reference.associated_type {
-                            tracing::trace!(
-                                "Linking method {} to type {}",
-                                reference.symbol,
-                                type_name
-                            );
-                            graph.callees.entry(type_name.clone()).or_default().push((
-                                file_path.clone(),
-                                reference.line,
-                                reference.symbol.clone(),
-                            ));
-                        }
-                    }
-                    ReferenceType::TypeInstantiation
-                    | ReferenceType::FieldType
-                    | ReferenceType::VariableType
-                    | ReferenceType::ParameterType => {
-                        graph
-                            .callers
-                            .entry(reference.symbol.clone())
-                            .or_default()
-                            .push((
-                                file_path.clone(),
-                                reference.line,
-                                REFERENCE_CALLER.to_string(),
-                            ));
-                    }
-                    ReferenceType::Definition | ReferenceType::Call | ReferenceType::Import => {
-                        // These are handled elsewhere or not relevant for type tracking
-                    }
                 }
             }
         }

@@ -5,8 +5,8 @@
 
 use std::sync::Arc;
 
-use crate::mcp_utils::ToolResult;
 use chrono::Utc;
+use mcp_core::ToolResult;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use crate::recipe::Recipe;
@@ -186,6 +186,7 @@ impl Agent {
             paused: false,
             current_session_id: None,
             process_start_time: None,
+            execution_mode: Some(execution_mode.to_string()),
         };
 
         match scheduler.add_scheduled_job(job).await {

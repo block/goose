@@ -19,7 +19,7 @@ sudo pacman -S --needed dpkg fakeroot base-devel
 
 **Fedora/RHEL/CentOS:**
 ```bash
-sudo dnf install dpkg-dev fakeroot gcc gcc-c++ make libxcb-devel
+sudo dnf install dpkg-dev fakeroot gcc gcc-c++ make
 ```
 
 **openSUSE:**

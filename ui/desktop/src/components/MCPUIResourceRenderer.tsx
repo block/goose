@@ -7,14 +7,13 @@ import {
   UIActionResultToolCall,
 } from '@mcp-ui/client';
 import { useState, useEffect } from 'react';
+import { ResourceContent } from '../types/message';
 import { toast } from 'react-toastify';
-import { EmbeddedResource } from '../api';
 
 interface MCPUIResourceRendererProps {
-  content: EmbeddedResource & { type: 'resource' };
+  content: ResourceContent;
   appendPromptToChat?: (value: string) => void;
 }
-
 type UISizeChange = {
   type: 'ui-size-change';
   payload: {

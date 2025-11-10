@@ -2,7 +2,7 @@
  * Standalone function to submit provider configuration
  * Useful for components that don't want to use the hook
  */
-export const providerConfigSubmitHandler = async (
+export const DefaultSubmitHandler = async (
   upsertFn: (key: string, value: unknown, isSecret: boolean) => Promise<void>,
   provider: {
     name: string;
@@ -15,7 +15,7 @@ export const providerConfigSubmitHandler = async (
       }>;
     };
   },
-  configValues: Record<string, string>
+  configValues: Record<string, unknown>
 ) => {
   const parameters = provider.metadata.config_keys || [];
 

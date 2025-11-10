@@ -6,7 +6,7 @@ import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
 import { Recipe, decodeRecipe } from '../../recipe';
-import { getStorageDirectory } from '../../recipe/recipe_management';
+import { getStorageDirectory } from '../../recipe/recipeStorage';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
@@ -31,7 +31,6 @@ interface CreateScheduleModalProps {
   onSubmit: (payload: NewSchedulePayload) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
-  initialDeepLink?: string | null;
 }
 
 // Interface for clean extension in YAML
@@ -238,8 +237,16 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
     });
   }
 
+  if (recipe.goosehints) {
+    cleanRecipe.goosehints = recipe.goosehints;
+  }
+
   if (recipe.context && recipe.context.length > 0) {
     cleanRecipe.context = recipe.context;
+  }
+
+  if (recipe.profile) {
+    cleanRecipe.profile = recipe.profile;
   }
 
   if (recipe.author) {
@@ -265,7 +272,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   onSubmit,
   isLoadingExternally,
   apiErrorExternally,
-  initialDeepLink,
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('file');
@@ -325,12 +331,16 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   );
 
   useEffect(() => {
-    // Check for initial deep link from props when modal opens
-    if (isOpen && initialDeepLink) {
-      setSourceType('deeplink');
-      handleDeepLinkChange(initialDeepLink);
+    // Check for pending deep link when modal opens
+    if (isOpen) {
+      const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
+      if (pendingDeepLink) {
+        localStorage.removeItem('pendingScheduleDeepLink');
+        setSourceType('deeplink');
+        handleDeepLinkChange(pendingDeepLink);
+      }
     }
-  }, [isOpen, initialDeepLink, handleDeepLinkChange]);
+  }, [isOpen, handleDeepLinkChange]);
 
   const resetForm = () => {
     setScheduleId('');

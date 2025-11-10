@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
+import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
+import { useSidebar } from './ui/sidebar';
 import { AgentState, InitializationContext } from '../hooks/useAgent';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
 import { useSearchParams } from 'react-router-dom';
-import type { setViewType } from '../hooks/useNavigation';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -18,7 +19,7 @@ export interface PairRouteState {
 interface PairProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView: setViewType;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
   setAgentWaitingMessage: (msg: string | null) => void;
@@ -39,6 +40,7 @@ export default function Pair({
   initialMessage,
 }: PairProps & PairRouteState) {
   const isMobile = useIsMobile();
+  const { state: sidebarState } = useSidebar();
   const [hasProcessedInitialInput, setHasProcessedInitialInput] = useState(false);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export default function Pair({
     }
   }, [agentState, setView]);
 
-  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipe || null);
+  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
   const handleMessageSubmit = (message: string) => {
     // Clean up any auto submit state:
@@ -126,7 +128,7 @@ export default function Pair({
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       onMessageSubmit={handleMessageSubmit}
       customChatInputProps={customChatInputProps}
-      contentClassName={cn('pr-1 pb-10', isMobile && 'pt-11')} // Use dynamic content class with mobile margin
+      contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
       showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
     />

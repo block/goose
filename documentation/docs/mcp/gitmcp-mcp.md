@@ -16,10 +16,10 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fgitmcp.io%2Fdocs&id=gitmcp&name=GitMCP&description=Remote%20MCP%20server%20from%20gitmcp.io)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   npx -y mcp-remote https://gitmcp.io/docs
@@ -32,7 +32,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
     <GooseDesktopInstaller
         extensionId="Git-mcp"
         extensionName="Git mcp"
@@ -44,7 +44,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
         note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
     />
  </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
       <CLIExtensionInstructions
         name="Git MCP"
         command="npx -y mcp-remote https://gitmcp.io/docs"
@@ -58,10 +58,10 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 In this example, Goose uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
    1. Open a new session in Goose Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open a terminal and start a new Goose session:
 

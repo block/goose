@@ -39,10 +39,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <TabItem value="remote" label="Square Remote MCP" default>
   :::tip TLDR
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     [Launch the installer](https://mcp.squareup.com/goose)
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
     **Command**
     ```sh
     npx mcp-remote https://mcp.squareup.com/sse
@@ -52,7 +52,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   :::
 
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
      1. [Launch the installer](https://mcp.squareup.com/goose)
      2. Click `OK` to confirm the installation
      3. Goose should open a browser tab to an OAuth permissions page. Double-check which permissions you want to allow, and click `Grant Access`.
@@ -60,7 +60,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
      5. In Goose, navigate to the chat
 
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
       <CLIExtensionInstructions
         name="square-mcp-remote"
         type="stdio"
@@ -77,11 +77,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <TabItem value="local" label="Square Local MCP">
   :::tip TLDR
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server&arg=start&id=mcp_square_api&name=Square%20MCP%20Server&description=Square%20API%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
 
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
     **Command**
     ```sh
     npx square-mcp-server start
@@ -99,7 +99,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   :::
 
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="mcp_square_api"
       extensionName="Square MCP Server"
@@ -115,7 +115,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       apiKeyLinkText="Square Access Token"
     />
     </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="square-mcp"
       type="stdio"

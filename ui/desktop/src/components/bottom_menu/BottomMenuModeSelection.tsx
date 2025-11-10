@@ -9,7 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
-export const BottomMenuModeSelection = () => {
+interface BottomMenuModeSelectionProps {
+  shouldShowIconOnly?: boolean;
+}
+
+export const BottomMenuModeSelection = ({ shouldShowIconOnly = false }: BottomMenuModeSelectionProps) => {
   const [gooseMode, setGooseMode] = useState('auto');
   const { read, upsert } = useConfig();
 
@@ -56,10 +60,10 @@ export const BottomMenuModeSelection = () => {
     <div title={`Current mode: ${getValueByKey(gooseMode)} - ${getModeDescription(gooseMode)}`}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <span className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs">
-            <Tornado className="mr-1 h-4 w-4" />
-            {getValueByKey(gooseMode).toLowerCase()}
-          </span>
+          <button className="flex items-center cursor-pointer text-text-default/70 hover:text-text-default transition-colors text-xs px-1">
+            <Tornado className={`${shouldShowIconOnly ? '' : 'mr-1'} h-4 w-4`} />
+            <span className={`text-xs ${shouldShowIconOnly ? 'hidden' : 'inline'}`}>{getValueByKey(gooseMode)}</span>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" side="top" align="center">
           {all_goose_modes.map((mode) => (

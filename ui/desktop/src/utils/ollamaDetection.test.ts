@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* global AbortSignal, TextEncoder, EventListener */
+/* global AbortSignal, TextEncoder, Event, EventListener */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {

@@ -4,9 +4,9 @@ use reqwest::{Client, Url};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-        ListResourcesResult, PaginatedRequestParam, RawResource, ReadResourceRequestParam,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, ListResourcesResult,
+        PaginatedRequestParam, RawResource, ReadResourceRequestParam, ReadResourceResult, Resource,
+        ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -1293,9 +1293,6 @@ impl ServerHandler for ComputerControllerServer {
             server_info: Implementation {
                 name: "goose-computercontroller".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
-                title: None,
-                icons: None,
-                website_url: None,
             },
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -1314,12 +1311,15 @@ impl ServerHandler for ComputerControllerServer {
         let active_resources = self.active_resources.lock().unwrap();
         let resources: Vec<Resource> = active_resources
             .keys()
-            .map(|uri| {
-                RawResource::new(
-                    uri.clone(),
-                    uri.split('/').next_back().unwrap_or("").to_string(),
-                )
-                .no_annotation()
+            .map(|uri| Resource {
+                raw: RawResource {
+                    name: uri.split('/').next_back().unwrap_or("").to_string(),
+                    uri: uri.clone(),
+                    description: None,
+                    mime_type: None,
+                    size: None,
+                },
+                annotations: None,
             })
             .collect();
         Ok(ListResourcesResult {

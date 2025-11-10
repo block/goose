@@ -74,7 +74,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         console_layer.with_filter(LevelFilter::INFO).boxed(),
     ];
 
-    if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) = otlp_layer::init_otlp() {
+    if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
         layers.push(
             otlp_tracing_layer
                 .with_filter(otlp_layer::create_otlp_tracing_filter())
@@ -83,11 +83,6 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         layers.push(
             otlp_metrics_layer
                 .with_filter(otlp_layer::create_otlp_metrics_filter())
-                .boxed(),
-        );
-        layers.push(
-            otlp_logs_layer
-                .with_filter(otlp_layer::create_otlp_logs_filter())
                 .boxed(),
         );
     }

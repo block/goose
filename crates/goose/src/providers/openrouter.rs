@@ -7,28 +7,27 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat, is_google_model,
-    RequestLog,
+    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
+    is_google_model,
 };
 use crate::conversation::message::Message;
-
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
-pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-2.5";
+pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-1.5";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
-    "anthropic/claude-sonnet-4.5",
     "anthropic/claude-sonnet-4",
     "anthropic/claude-opus-4.1",
     "anthropic/claude-opus-4",
     "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
-    "google/gemini-2.5-flash",
+    "google/gemini-flash-1.5",
     "deepseek/deepseek-r1-0528",
     "qwen/qwen3-coder",
     "moonshotai/kimi-k2",
@@ -40,12 +39,12 @@ pub struct OpenRouterProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
-    #[serde(skip)]
-    name: String,
 }
 
+impl_provider_default!(OpenRouterProvider);
+
 impl OpenRouterProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -59,11 +58,7 @@ impl OpenRouterProvider {
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
             .with_header("X-Title", "goose")?;
 
-        Ok(Self {
-            api_client,
-            model,
-            name: Self::metadata().name,
-        })
+        Ok(Self { api_client, model })
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
@@ -199,7 +194,7 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
     payload
 }
 
-async fn create_request_based_on_model(
+fn create_request_based_on_model(
     provider: &OpenRouterProvider,
     system: &str,
     messages: &[Message],
@@ -213,7 +208,7 @@ async fn create_request_based_on_model(
         &super::utils::ImageFormat::OpenAi,
     )?;
 
-    if provider.supports_cache_control().await {
+    if provider.supports_cache_control() {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -248,10 +243,6 @@ impl Provider for OpenRouterProvider {
         )
     }
 
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -267,8 +258,8 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request_based_on_model(self, system, messages, tools).await?;
-        let mut log = RequestLog::start(model_config, &payload)?;
+        // Create the base payload
+        let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
         let response = self
@@ -285,7 +276,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -366,7 +357,7 @@ impl Provider for OpenRouterProvider {
         Ok(Some(models))
     }
 
-    async fn supports_cache_control(&self) -> bool {
+    fn supports_cache_control(&self) -> bool {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)

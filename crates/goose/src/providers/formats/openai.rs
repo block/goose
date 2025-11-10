@@ -7,11 +7,10 @@ use crate::providers::utils::{
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
-use chrono;
 use futures::Stream;
+use mcp_core::ToolCall;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -60,7 +59,7 @@ struct StreamingChunk {
 ///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let mut converted = json!({
             "role": message.role
         });
@@ -96,19 +95,15 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
-                MessageContent::SystemNotification(_) => {
+                MessageContent::ContextLengthExceeded(_) => {
+                    continue;
+                }
+                MessageContent::SummarizationRequested(_) => {
                     continue;
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let arguments_str = match &tool_call.arguments {
-                            Some(args) => {
-                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
-                            }
-                            None => "{}".to_string(),
-                        };
-
                         let tool_calls = converted
                             .as_object_mut()
                             .unwrap()
@@ -120,7 +115,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": arguments_str,
+                                "arguments": tool_call.arguments.to_string(),
                             }
                         }));
                     }
@@ -214,13 +209,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let arguments_str = match &tool_call.arguments {
-                            Some(args) => {
-                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
-                            }
-                            None => "{}".to_string(),
-                        };
-
                         let tool_calls = converted
                             .as_object_mut()
                             .unwrap()
@@ -232,7 +220,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": arguments_str,
+                                "arguments": tool_call.arguments.to_string(),
                             }
                         }));
                     }
@@ -282,18 +270,7 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
-    let Some(original) = response
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|m| m.get("message"))
-    else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
-        ));
-    };
-
+    let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
 
     if let Some(text) = original.get("content") {
@@ -339,10 +316,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
+                                Ok(ToolCall::new(&function_name, params)),
                             ));
                         }
                         Err(e) => {
@@ -477,14 +451,12 @@ where
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
-            } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
+            } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                 let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
-                if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                    for tool_call in tool_calls {
-                        if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
-                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
-                        }
+                for tool_call in tool_calls {
+                    if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                        tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
                     }
                 }
 
@@ -503,25 +475,21 @@ where
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-                                if !tool_chunk.choices.is_empty() {
-                                    if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
-                                        for delta_call in delta_tool_calls {
-                                            if let Some(index) = delta_call.index {
-                                                if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
-                                                    args.push_str(&delta_call.function.arguments);
-                                                } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
-                                                }
+                                if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                    for delta_call in delta_tool_calls {
+                                        if let Some(index) = delta_call.index {
+                                            if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                args.push_str(&delta_call.function.arguments);
+                                            } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                                tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
                                             }
                                         }
-                                    } else {
-                                        done = true;
-                                    }
-
-                                    if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
-                                        done = true;
                                     }
                                 } else {
+                                    done = true;
+                                }
+
+                                if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
                                     done = true;
                                 }
                             }
@@ -547,7 +515,7 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request(
                                     id.clone(),
-                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
+                                    Ok(ToolCall::new(function_name.clone(), params)),
                                 )
                             },
                             Err(e) => {
@@ -581,8 +549,7 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if chunk.choices[0].delta.content.is_some() {
-                let text = chunk.choices[0].delta.content.as_ref().unwrap();
+            } else if let Some(text) = &chunk.choices[0].delta.content {
                 let mut msg = Message::new(
                     Role::Assistant,
                     chrono::Utc::now().timestamp(),
@@ -622,13 +589,10 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o1")
-        || model_config.model_name.starts_with("o2")
-        || model_config.model_name.starts_with("o3")
-        || model_config.model_name.starts_with("o4")
-        || model_config.model_name.starts_with("gpt-5");
+    let is_ox_model =
+        model_config.model_name.starts_with("o") || model_config.model_name.starts_with("gpt-5");
 
-    // Only extract reasoning effort for O-series models
+    // Only extract reasoning effort for O1/O3 models
     let (model_name, reasoning_effort) = if is_ox_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
@@ -857,10 +821,7 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
-                    name: "example".into(),
-                    arguments: Some(object!({"param1": "value1"})),
-                }),
+                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
             ),
         ];
 
@@ -894,10 +855,7 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
-                name: "example".into(),
-                arguments: Some(object!({"param1": "value1"})),
-            }),
+            Ok(ToolCall::new("example", json!({"param1": "value1"}))),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -1042,7 +1000,7 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
+            assert_eq!(tool_call.arguments, json!({"param": "value"}));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -1113,124 +1071,10 @@ mod tests {
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
-            assert_eq!(tool_call.arguments, Some(object!({})));
+            assert_eq!(tool_call.arguments, json!({}));
         } else {
             panic!("Expected ToolRequest content");
         }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
-        // Test that tool calls with None arguments are formatted as "{}" string
-        let message = Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
-        );
-
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "assistant");
-        assert!(spec[0]["tool_calls"].is_array());
-
-        let tool_call = &spec[0]["tool_calls"][0];
-        assert_eq!(tool_call["id"], "tool1");
-        assert_eq!(tool_call["type"], "function");
-        assert_eq!(tool_call["function"]["name"], "test_tool");
-        // This should be the string "{}", not null
-        assert_eq!(tool_call["function"]["arguments"], "{}");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_tool_request_with_some_arguments() -> anyhow::Result<()> {
-        // Test that tool calls with Some arguments are properly JSON-serialized
-        let message = Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value", "number": 42})),
-            }),
-        );
-
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "assistant");
-        assert!(spec[0]["tool_calls"].is_array());
-
-        let tool_call = &spec[0]["tool_calls"][0];
-        assert_eq!(tool_call["id"], "tool1");
-        assert_eq!(tool_call["type"], "function");
-        assert_eq!(tool_call["function"]["name"], "test_tool");
-        // This should be a JSON string representation
-        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
-        let parsed_args: Value = serde_json::from_str(args_str)?;
-        assert_eq!(parsed_args["param"], "value");
-        assert_eq!(parsed_args["number"], 42);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_frontend_tool_request_with_none_arguments() -> anyhow::Result<()> {
-        // Test that FrontendToolRequest with None arguments are formatted as "{}" string
-        let message = Message::assistant().with_frontend_tool_request(
-            "frontend_tool1",
-            Ok(CallToolRequestParam {
-                name: "frontend_test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
-        );
-
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "assistant");
-        assert!(spec[0]["tool_calls"].is_array());
-
-        let tool_call = &spec[0]["tool_calls"][0];
-        assert_eq!(tool_call["id"], "frontend_tool1");
-        assert_eq!(tool_call["type"], "function");
-        assert_eq!(tool_call["function"]["name"], "frontend_test_tool");
-        // This should be the string "{}", not null
-        assert_eq!(tool_call["function"]["arguments"], "{}");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_frontend_tool_request_with_some_arguments() -> anyhow::Result<()> {
-        // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
-        let message = Message::assistant().with_frontend_tool_request(
-            "frontend_tool1",
-            Ok(CallToolRequestParam {
-                name: "frontend_test_tool".into(),
-                arguments: Some(object!({"action": "click", "element": "button"})),
-            }),
-        );
-
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "assistant");
-        assert!(spec[0]["tool_calls"].is_array());
-
-        let tool_call = &spec[0]["tool_calls"][0];
-        assert_eq!(tool_call["id"], "frontend_tool1");
-        assert_eq!(tool_call["type"], "function");
-        assert_eq!(tool_call["function"]["name"], "frontend_test_tool");
-        // This should be a JSON string representation
-        let args_str = tool_call["function"]["arguments"].as_str().unwrap();
-        let parsed_args: Value = serde_json::from_str(args_str)?;
-        assert_eq!(parsed_args["action"], "click");
-        assert_eq!(parsed_args["element"], "button");
 
         Ok(())
     }

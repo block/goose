@@ -1,5 +1,5 @@
-import { safeJsonParse } from './utils/conversionUtils';
-import { Message } from './api';
+import { Message } from './types/message';
+import { safeJsonParse } from './utils/jsonUtils';
 
 export interface SharedSessionDetails {
   share_token: string;

@@ -7,7 +7,7 @@ authors:
 
 ![Subagents vs Subrecipes](subrecipes-vs-subagents.png)
 
-When you're working on complex projects with goose, you'll often need to break work into multiple tasks and run them with AI agents. Goose gives you two powerful ways to do this: [subagents](/docs/guides/subagents/) and [subrecipes](/docs/tutorials/subrecipes-in-parallel/). Both can run multiple AI instances in parallel, but they work  differently. Picking which one to use can be confusing, so we're going to guide you to a decision.
+When you're working on complex projects with goose, you'll often need to break work into multiple tasks and run them with AI agents. Goose gives you two powerful ways to do this: [subagents](/docs/experimental/subagents/) and [subrecipes](/docs/tutorials/sub-recipes-in-parallel/). Both can run multiple AI instances in parallel, but they work  differently. Picking which one to use can be confusing, so we're going to guide you to a decision.
 
 I've been using both approaches, and the choice between them depends on what you're trying to accomplish. Let me break down when to use each method and show you real examples.
 
@@ -112,7 +112,7 @@ The choice depends on your specific needs and workflow requirements. Quick tasks
 
 Your workflow requirements should drive the decision.
 
-Share your subagent prompts or subrecipe ideas with us on our [Discord community](https://discord.gg/goose-oss) or [GitHub discussions](https://github.com/block/goose/discussions).
+Share your subagent prompts or subrecipe ideas with us on our [Discord community](https://discord.gg/block-opensource) or [GitHub discussions](https://github.com/block/goose/discussions).
 
 
 

@@ -10,10 +10,10 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
-
-use crate::mcp_utils::ToolResult;
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
-use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use mcp_core::{ToolCall, ToolResult};
+use rmcp::model::{Role, Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -78,12 +78,12 @@ pub struct VeniceProvider {
     base_path: String,
     models_path: String,
     model: ModelConfig,
-    #[serde(skip)]
-    name: String,
 }
 
+impl_provider_default!(VeniceProvider);
+
 impl VeniceProvider {
-    pub async fn from_env(mut model: ModelConfig) -> Result<Self> {
+    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("VENICE_API_KEY")?;
         let host: String = config
@@ -107,7 +107,6 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
-            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -211,10 +210,6 @@ impl Provider for VeniceProvider {
                 ),
             ],
         )
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -344,19 +339,12 @@ impl Provider for VeniceProvider {
                         .iter()
                         .filter_map(|tr| {
                             if let ToolResult::Ok(tool_call) = &tr.tool_call {
-                                // Safely convert arguments to a JSON string
-                                let args_str = tool_call
-                                    .arguments
-                                    .as_ref() // borrow the Option contents
-                                    .map(|map| serde_json::to_string(map).unwrap_or_default())
-                                    .unwrap_or_default();
-
                                 // Log tool call details for debugging
                                 tracing::debug!(
                                     "Tool call conversion: id={}, name={}, args_len={}",
                                     tr.id,
                                     tool_call.name,
-                                    args_str.len()
+                                    tool_call.arguments.to_string().len()
                                 );
 
                                 // Convert to Venice format
@@ -365,7 +353,7 @@ impl Provider for VeniceProvider {
                                     "type": "function",
                                     "function": {
                                         "name": tool_call.name,
-                                        "arguments": args_str
+                                        "arguments": tool_call.arguments.to_string()
                                     }
                                 }))
                             } else {
@@ -465,10 +453,8 @@ impl Provider for VeniceProvider {
                         function["arguments"].clone()
                     };
 
-                    let tool_call = CallToolRequestParam {
-                        name: name.into(),
-                        arguments: Some(object(arguments)),
-                    };
+                    // Create a ToolCall using the function name and arguments
+                    let tool_call = ToolCall { name, arguments };
 
                     // Create a ToolRequest MessageContent
                     let tool_request = MessageContent::tool_request(id, ToolResult::Ok(tool_call));
@@ -508,11 +494,11 @@ impl Provider for VeniceProvider {
 
         // Extract usage
         let usage_data = &response_json["usage"];
-        let usage = Usage::new(
-            usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
-            usage_data["completion_tokens"].as_i64().map(|v| v as i32),
-            usage_data["total_tokens"].as_i64().map(|v| v as i32),
-        );
+        let usage = Usage {
+            input_tokens: usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
+            output_tokens: usage_data["completion_tokens"].as_i64().map(|v| v as i32),
+            total_tokens: usage_data["total_tokens"].as_i64().map(|v| v as i32),
+        };
 
         Ok((
             Message::new(Role::Assistant, Utc::now().timestamp(), content),

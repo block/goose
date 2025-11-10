@@ -25,7 +25,7 @@ fn get_log_directory() -> Result<PathBuf> {
 /// Sets up the logging infrastructure for the application.
 /// This includes:
 /// - File-based logging with JSON formatting (DEBUG level)
-/// - No console output (all logs go to files only)
+/// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
 /// - Optional error capture layer for benchmarking
 pub fn setup_logging(
@@ -76,6 +76,16 @@ fn setup_logging_internal(
                 .with_ansi(false)
                 .json();
 
+            // Create console logging layer for development - INFO and above only
+            let console_layer = fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_target(true)
+                .with_level(true)
+                .with_ansi(true)
+                .with_file(true)
+                .with_line_number(true)
+                .pretty();
+
             // Base filter
             let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 // Set default levels for different modules
@@ -93,7 +103,7 @@ fn setup_logging_internal(
             // Start building the subscriber
             let mut layers = vec![
                 file_layer.with_filter(env_filter).boxed(),
-                // Console logging disabled for CLI - all logs go to files only
+                console_layer.with_filter(LevelFilter::WARN).boxed(),
             ];
 
             // Only add ErrorCaptureLayer if not in test mode
@@ -102,9 +112,7 @@ fn setup_logging_internal(
             }
 
             if !force {
-                if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) =
-                    otlp_layer::init_otlp()
-                {
+                if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
                     layers.push(
                         otlp_tracing_layer
                             .with_filter(otlp_layer::create_otlp_tracing_filter())
@@ -113,11 +121,6 @@ fn setup_logging_internal(
                     layers.push(
                         otlp_metrics_layer
                             .with_filter(otlp_layer::create_otlp_metrics_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_logs_layer
-                            .with_filter(otlp_layer::create_otlp_logs_filter())
                             .boxed(),
                     );
                 }

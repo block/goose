@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 
-use crate::config::GooseMode;
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -117,7 +116,7 @@ impl ToolInspectionManager {
     }
 
     /// Update the permission inspector's mode
-    pub async fn update_permission_inspector_mode(&self, mode: GooseMode) {
+    pub async fn update_permission_inspector_mode(&self, mode: String) {
         for inspector in &self.inspectors {
             if inspector.name() == "permission" {
                 // Downcast to PermissionInspector to access update_mode method
@@ -268,32 +267,20 @@ pub fn apply_inspection_results_to_permissions(
     permission_result
 }
 
-pub fn get_security_finding_id_from_results(
-    tool_request_id: &str,
-    inspection_results: &[InspectionResult],
-) -> Option<String> {
-    inspection_results
-        .iter()
-        .find(|result| {
-            result.tool_request_id == tool_request_id && result.inspector_name == "security"
-        })
-        .and_then(|result| result.finding_id.clone())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use rmcp::model::CallToolRequestParam;
-    use rmcp::object;
+    use mcp_core::ToolCall;
+    use serde_json::json;
 
     #[test]
     fn test_apply_inspection_results() {
         let tool_request = ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "test_tool".into(),
-                arguments: Some(object!({})),
+            tool_call: Ok(ToolCall {
+                name: "test_tool".to_string(),
+                arguments: json!({}),
             }),
         };
 

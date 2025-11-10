@@ -1,5 +1,4 @@
 import { DictationProvider } from '../../../hooks/useDictationSettings';
-import { VOICE_DICTATION_ELEVENLABS_ENABLED } from '../../../updates';
 
 interface ProviderInfoProps {
   provider: DictationProvider;
@@ -16,7 +15,7 @@ export const ProviderInfo = ({ provider }: ProviderInfoProps) => {
           configured in the Models section.
         </p>
       )}
-      {VOICE_DICTATION_ELEVENLABS_ENABLED && provider === 'elevenlabs' && (
+      {provider === 'elevenlabs' && (
         <div>
           <p className="text-xs text-text-muted">
             Uses ElevenLabs speech-to-text API for high-quality transcription.

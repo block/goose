@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Button } from '../../../ui/button';
 import {
   Dialog,
@@ -12,7 +12,7 @@ import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
-import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api';
@@ -43,7 +43,6 @@ export default function ExtensionModal({
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
   const [hasPendingEnvVars, setHasPendingEnvVars] = useState(false);
   const [hasPendingHeaders, setHasPendingHeaders] = useState(false);
-  const [pendingHeader, setPendingHeader] = useState<{ key: string; value: string } | null>(null);
 
   // Function to check if form has been modified
   const hasFormChanges = (): boolean => {
@@ -73,7 +72,7 @@ export default function ExtensionModal({
         envVar.value !== '••••••••'
     );
 
-    // Check if there are pending environment variables or headers being typed
+    // Check if there are pending environment variables being typed
     const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
 
     return (
@@ -169,14 +168,6 @@ export default function ExtensionModal({
     });
   };
 
-  const handlePendingHeaderChange = useCallback(
-    (hasPending: boolean, header: { key: string; value: string } | null) => {
-      setHasPendingHeaders(hasPending);
-      setPendingHeader(header);
-    },
-    []
-  );
-
   // Function to store a secret value
   const storeSecret = async (key: string, value: string) => {
     try {
@@ -226,16 +217,8 @@ export default function ExtensionModal({
     );
   };
 
-  const getFinalHeaders = () => {
-    const finalHeaders = [...formData.headers];
-    if (pendingHeader && pendingHeader.key.trim() !== '' && pendingHeader.value.trim() !== '') {
-      finalHeaders.push({ ...pendingHeader, isEdited: true });
-    }
-    return finalHeaders;
-  };
-
   const isHeadersValid = () => {
-    return getFinalHeaders().every(
+    return formData.headers.every(
       ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
     );
   };
@@ -266,13 +249,8 @@ export default function ExtensionModal({
     setSubmitAttempted(true);
 
     if (isFormValid()) {
-      const finalFormData = {
-        ...formData,
-        headers: getFinalHeaders(),
-      };
-
       // Only store env vars that have been edited (which includes new)
-      const secretPromises = finalFormData.envVars
+      const secretPromises = formData.envVars
         .filter((envVar) => envVar.isEdited)
         .map(({ key, value }) => storeSecret(key, value));
 
@@ -283,11 +261,9 @@ export default function ExtensionModal({
         if (results.every((success) => success)) {
           // Convert timeout to number if needed
           const dataToSubmit = {
-            ...finalFormData,
+            ...formData,
             timeout:
-              typeof finalFormData.timeout === 'string'
-                ? Number(finalFormData.timeout)
-                : finalFormData.timeout,
+              typeof formData.timeout === 'string' ? Number(formData.timeout) : formData.timeout,
           };
           onSubmit(dataToSubmit);
           onClose();
@@ -329,20 +305,6 @@ export default function ExtensionModal({
             </div>
           ) : (
             <div className="py-4 space-y-6">
-              {formData.installation_notes && (
-                <div className="bg-bgSubtle border border-borderSubtle rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-sm font-medium text-textStandard mb-1">
-                        Installation Notes
-                      </h4>
-                      <p className="text-sm text-textSubtle">{formData.installation_notes}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Form Fields */}
               {/* Name and Type */}
               <ExtensionInfoFields
@@ -353,6 +315,7 @@ export default function ExtensionModal({
                 submitAttempted={submitAttempted}
               />
 
+              {/* Divider */}
               <hr className="border-t border-borderSubtle" />
 
               {/* Command */}
@@ -373,41 +336,40 @@ export default function ExtensionModal({
                 />
               </div>
 
-              {formData.type === 'stdio' && (
-                <>
-                  <hr className="border-t border-borderSubtle" />
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle" />
 
-                  <div>
-                    <EnvVarsSection
-                      envVars={formData.envVars}
-                      onAdd={handleAddEnvVar}
-                      onRemove={handleRemoveEnvVar}
-                      onChange={handleEnvVarChange}
-                      submitAttempted={submitAttempted}
-                      onPendingInputChange={setHasPendingEnvVars}
-                    />
-                  </div>
-                </>
-              )}
-
-              {formData.type === 'streamable_http' && (
-                <>
-                  {/* Divider */}
-                  <hr className="border-t border-borderSubtle" />
-
-                  <div>
-                    <HeadersSection
-                      headers={formData.headers}
-                      onAdd={handleAddHeader}
-                      onRemove={handleRemoveHeader}
-                      onChange={handleHeaderChange}
-                      submitAttempted={submitAttempted}
-                      onPendingInputChange={handlePendingHeaderChange}
-                    />
-                  </div>
-                </>
-              )}
+              {/* Environment Variables */}
+              <div>
+                <EnvVarsSection
+                  envVars={formData.envVars}
+                  onAdd={handleAddEnvVar}
+                  onRemove={handleRemoveEnvVar}
+                  onChange={handleEnvVarChange}
+                  submitAttempted={submitAttempted}
+                  onPendingInputChange={setHasPendingEnvVars}
+                />
+              </div>
             </div>
+          )}
+
+          {/* Request Headers - Only for streamable_http */}
+          {formData.type === 'streamable_http' && (
+            <>
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle mb-4" />
+
+              <div className="mb-6">
+                <HeadersSection
+                  headers={formData.headers}
+                  onAdd={handleAddHeader}
+                  onRemove={handleRemoveHeader}
+                  onChange={handleHeaderChange}
+                  submitAttempted={submitAttempted}
+                  onPendingInputChange={setHasPendingHeaders}
+                />
+              </div>
+            </>
           )}
 
           <DialogFooter className="pt-2">

@@ -21,13 +21,13 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Computer Controller"
     description="Automate everyday computer tasks and web interactions"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -102,10 +102,10 @@ Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
    1. Open a new session in Goose Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open a terminal and start a new Goose session:
 

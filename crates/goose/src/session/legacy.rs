@@ -1,8 +1,7 @@
-use crate::conversation::message::MessageMetadata;
 use crate::conversation::Conversation;
 use crate::session::Session;
 use anyhow::Result;
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
+use chrono::NaiveDateTime;
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -66,12 +65,11 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
         if let Some(obj) = metadata_json.as_object_mut() {
             obj.entry("id").or_insert(serde_json::json!(session_name));
             obj.entry("created_at")
-                .or_insert(serde_json::json!(DateTime::<Utc>::from(created_time)));
+                .or_insert(serde_json::json!(format_timestamp(created_time)?));
             obj.entry("updated_at")
-                .or_insert(serde_json::json!(DateTime::<Utc>::from(modified_time)));
+                .or_insert(serde_json::json!(format_timestamp(modified_time)?));
             obj.entry("extension_data").or_insert(serde_json::json!({}));
             obj.entry("message_count").or_insert(serde_json::json!(0));
-            obj.entry("working_dir").or_insert(serde_json::json!(""));
 
             if let Some(desc) = obj.get_mut("description") {
                 if let Some(desc_str) = desc.as_str() {
@@ -87,14 +85,8 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
     }
 
     for line in lines.map_while(Result::ok) {
-        if let Ok(mut message_json) = serde_json::from_str::<serde_json::Value>(&line) {
-            if let Some(obj) = message_json.as_object_mut() {
-                obj.entry("metadata")
-                    .or_insert(serde_json::to_value(MessageMetadata::default())?);
-            }
-            if let Ok(message) = serde_json::from_value(message_json) {
-                messages.push(message);
-            }
+        if let Ok(message) = serde_json::from_str(&line) {
+            messages.push(message);
         }
     }
 
@@ -105,37 +97,17 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
     Ok(session)
 }
 
+fn format_timestamp(time: SystemTime) -> Result<String> {
+    let duration = time.duration_since(std::time::UNIX_EPOCH)?;
+    let timestamp = chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+        .unwrap_or_default()
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    Ok(timestamp)
+}
+
 fn parse_session_timestamp(session_name: &str) -> Option<SystemTime> {
     NaiveDateTime::parse_from_str(session_name, "%Y%m%d_%H%M%S")
         .ok()
-        .and_then(|dt| Local.from_local_datetime(&dt).single())
-        .map(SystemTime::from)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rmcp::model::Role;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_load_legacy_session_without_metadata() {
-        let temp_dir = TempDir::new().unwrap();
-        let session_path = temp_dir.path().join("20240101_120000.jsonl");
-
-        let legacy_content = r#"{"description":"test","id":"20240101_120000","created_at":"2024-01-01T12:00:00Z","updated_at":"2024-01-01T12:00:00Z","extension_data":{},"message_count":0}
-{"id":"msg1","role":"user","created":1704110400,"content":[{"type":"text","text":"Hello"}]}
-{"id":"msg2","role":"assistant","created":1704110401,"content":[{"type":"text","text":"Hi there"}]}"#;
-
-        fs::write(&session_path, legacy_content).unwrap();
-
-        let session = load_session("20240101_120000", &session_path).unwrap();
-
-        assert_eq!(session.id, "20240101_120000");
-        let conversation = session.conversation.as_ref().unwrap();
-        let messages = conversation.messages();
-        assert_eq!(messages.len(), 2);
-        assert_eq!(messages[0].role, Role::User);
-        assert_eq!(messages[1].role, Role::Assistant);
-    }
+        .map(|dt| SystemTime::from(dt.and_utc()))
 }

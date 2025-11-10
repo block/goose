@@ -32,7 +32,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 1. Add the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) to your VS Code. No additional settings required in VS Code.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="goose CLI" default>
+  <TabItem value="cli" label="Goose CLI" default>
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -118,7 +118,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   6. No additional environment variables are required for basic setup
   
   </TabItem>
-  <TabItem value="ui" label="goose Desktop">
+  <TabItem value="ui" label="Goose Desktop">
   1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
   2. Press `Yes` to confirm the installation
   3. Click `Save Configuration`

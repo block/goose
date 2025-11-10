@@ -17,7 +17,7 @@ pub enum ConfigError {
 static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
     vec![
         // openai
-        ("gpt-5", 272_000),
+        ("gpt-5", 400_000),
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
@@ -58,12 +58,10 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("qwen2-70b", 262_144),
         ("qwen2", 128_000),
         ("qwen3-32b", 131_072),
-        // xai
-        ("grok-4", 256_000),
-        ("grok-code-fast-1", 256_000),
-        ("grok", 131_072),
         // other
         ("kimi-k2", 131_072),
+        ("grok-4", 256_000),
+        ("grok", 131_072),
     ]
 });
 
@@ -293,5 +291,127 @@ impl ModelConfig {
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
         ModelConfig::new(model_name)
             .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use temp_env::with_var;
+
+    #[test]
+    #[serial]
+    fn test_model_config_context_limits() {
+        // Clear all GOOSE environment variables to ensure clean test environment
+        with_var("GOOSE_TEMPERATURE", None::<&str>, || {
+            with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
+                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
+                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
+                        let config = ModelConfig::new("claude-3-opus")
+                            .unwrap()
+                            .with_context_limit(Some(150_000));
+                        assert_eq!(config.context_limit(), 150_000);
+
+                        let config = ModelConfig::new("claude-3-opus").unwrap();
+                        assert_eq!(config.context_limit(), 200_000);
+
+                        let config = ModelConfig::new("gpt-4-turbo").unwrap();
+                        assert_eq!(config.context_limit(), 128_000);
+
+                        let config = ModelConfig::new("unknown-model").unwrap();
+                        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
+                    });
+                });
+            });
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_context_limit() {
+        with_var("GOOSE_CONTEXT_LIMIT", Some("abc"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            if let Err(ConfigError::InvalidValue(var, val, msg)) = result {
+                assert_eq!(var, "GOOSE_CONTEXT_LIMIT");
+                assert_eq!(val, "abc");
+                assert!(msg.contains("positive integer"));
+            }
+        });
+
+        with_var("GOOSE_CONTEXT_LIMIT", Some("0"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            assert!(matches!(
+                result.unwrap_err(),
+                ConfigError::InvalidRange(_, _)
+            ));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_temperature() {
+        with_var("GOOSE_TEMPERATURE", Some("hot"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+        });
+
+        with_var("GOOSE_TEMPERATURE", Some("-1.0"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalid_toolshim() {
+        with_var("GOOSE_TOOLSHIM", Some("maybe"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            if let Err(ConfigError::InvalidValue(var, val, msg)) = result {
+                assert_eq!(var, "GOOSE_TOOLSHIM");
+                assert_eq!(val, "maybe");
+                assert!(msg.contains("must be one of"));
+            }
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_empty_toolshim_model() {
+        with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some(""), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            assert!(matches!(
+                result.unwrap_err(),
+                ConfigError::InvalidValue(_, _, _)
+            ));
+        });
+
+        with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some("   "), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_valid_configurations() {
+        // Test with environment variables set
+        with_var("GOOSE_CONTEXT_LIMIT", Some("50000"), || {
+            with_var("GOOSE_TEMPERATURE", Some("0.7"), || {
+                with_var("GOOSE_TOOLSHIM", Some("true"), || {
+                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some("llama3"), || {
+                        let config = ModelConfig::new("test-model").unwrap();
+                        assert_eq!(config.context_limit(), 50_000);
+                        assert_eq!(config.temperature, Some(0.7));
+                        assert!(config.toolshim);
+                        assert_eq!(config.toolshim_model, Some("llama3".to_string()));
+                    });
+                });
+            });
+        });
     }
 }

@@ -1,6 +1,6 @@
 ---
 title: Quick Goose Tips
-sidebar_position: 30
+sidebar_position: 6
 sidebar_label: Quick Tips
 description: Best practices for working with Goose
 ---
@@ -46,12 +46,3 @@ You don’t need to get it right the first time. Iterating on prompts and tools 
 
 ### Keep Goose updated
 Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
-
-### Pair Two Models to Save Money 
-Use [lead/worker model](/docs/tutorials/lead-worker/) to have goose use a "lead" model for early planning before handing the task to a lower-cost "worker" model for execution.  
-
-### Make Recipes Safe to Re-run
-Write [recipes](/docs/guides/recipes/session-recipes) that check your current state before acting, so they can be run multiple times without causing any errors or duplication. 
-
-### Add Logging to Recipes
-Include informative log messages in your recipes for each major step to make debugging and troubleshooting easier should something fail.

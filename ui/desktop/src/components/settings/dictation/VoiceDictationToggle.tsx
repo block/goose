@@ -7,7 +7,6 @@ import {
 } from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
 import { ProviderSelector } from './ProviderSelector';
-import { VOICE_DICTATION_ELEVENLABS_ENABLED } from '../../../updates';
 
 export const VoiceDictationToggle = () => {
   const [settings, setSettings] = useState<DictationSettings>({
@@ -25,15 +24,6 @@ export const VoiceDictationToggle = () => {
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         loadedSettings = parsed;
-
-        // If ElevenLabs is disabled and user has it selected, reset to OpenAI
-        if (!VOICE_DICTATION_ELEVENLABS_ENABLED && loadedSettings.provider === 'elevenlabs') {
-          loadedSettings = {
-            ...loadedSettings,
-            provider: 'openai',
-          };
-          localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(loadedSettings));
-        }
       } else {
         loadedSettings = await getDefaultDictationSettings(getProviders);
       }

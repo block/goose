@@ -11,13 +11,13 @@ import {
   getChainForMessage,
 } from '../utils/toolCallChaining';
 import {
+  Message,
   getTextContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
   createToolErrorResponseMessage,
 } from '../types/message';
-import { Message } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';

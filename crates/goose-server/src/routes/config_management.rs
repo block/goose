@@ -1,17 +1,16 @@
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
-use axum::routing::put;
 use axum::{
     extract::Path,
     routing::{delete, get, post},
     Json, Router,
 };
-use goose::config::declarative_providers::LoadedProvider;
-use goose::config::paths::Paths;
-use goose::config::ExtensionEntry;
+use etcetera::{choose_app_strategy, AppStrategy};
+use goose::config::APP_STRATEGY;
 use goose::config::{Config, ConfigError};
+use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
-use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::base::ProviderMetadata;
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
@@ -59,7 +58,6 @@ pub struct ProviderDetails {
     pub name: String,
     pub metadata: ProviderMetadata,
     pub is_configured: bool,
-    pub provider_type: ProviderType,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -79,26 +77,13 @@ pub struct UpsertPermissionsQuery {
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct UpdateCustomProviderRequest {
-    pub engine: String,
+pub struct CreateCustomProviderRequest {
+    pub provider_type: String,
     pub display_name: String,
     pub api_url: String,
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct MaskedSecret {
-    pub masked_value: String,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(untagged)]
-pub enum ConfigValueResponse {
-    Value(Value),
-    MaskedValue(MaskedSecret),
 }
 
 #[utoipa::path(
@@ -114,7 +99,7 @@ pub async fn upsert_config(
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     let config = Config::global();
-    let result = config.set(&query.key, &query.value, query.is_secret);
+    let result = config.set(&query.key, query.value, query.is_secret);
 
     match result {
         Ok(_) => Ok(Json(Value::String(format!("Upserted key {}", query.key)))),
@@ -147,22 +132,6 @@ pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Str
     }
 }
 
-const SECRET_MASK_SHOW_LEN: usize = 8;
-
-fn mask_secret(secret: Value) -> String {
-    let as_string = match secret {
-        Value::String(s) => s,
-        _ => serde_json::to_string(&secret).unwrap_or_else(|_| secret.to_string()),
-    };
-
-    let chars: Vec<_> = as_string.chars().collect();
-    let show_len = std::cmp::min(chars.len() / 2, SECRET_MASK_SHOW_LEN);
-    let visible: String = chars.iter().take(show_len).collect();
-    let mask = "*".repeat(chars.len() - show_len);
-
-    format!("{}{}", visible, mask)
-}
-
 #[utoipa::path(
     post,
     path = "/config/read",
@@ -172,14 +141,12 @@ fn mask_secret(secret: Value) -> String {
         (status = 500, description = "Unable to get the configuration value"),
     )
 )]
-pub async fn read_config(
-    Json(query): Json<ConfigKeyQuery>,
-) -> Result<Json<ConfigValueResponse>, StatusCode> {
+pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value>, StatusCode> {
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(ConfigValueResponse::Value(
+        return Ok(Json(
             serde_json::to_value(limits).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-        )));
+        ));
     }
 
     let config = Config::global();
@@ -187,14 +154,18 @@ pub async fn read_config(
     let response_value = match config.get(&query.key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
-                ConfigValueResponse::MaskedValue(MaskedSecret {
-                    masked_value: mask_secret(value),
-                })
+                Value::Bool(true)
             } else {
-                ConfigValueResponse::Value(value)
+                value
             }
         }
-        Err(ConfigError::NotFound(_)) => ConfigValueResponse::Value(Value::Null),
+        Err(ConfigError::NotFound(_)) => {
+            if query.is_secret {
+                Value::Bool(false)
+            } else {
+                Value::Null
+            }
+        }
         Err(_) => {
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -211,8 +182,19 @@ pub async fn read_config(
     )
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
-    let extensions = goose::config::get_all_extensions();
-    Ok(Json(ExtensionResponse { extensions }))
+    match ExtensionConfigManager::get_all() {
+        Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
+        Err(err) => {
+            if err
+                .downcast_ref::<goose::config::base::ConfigError>()
+                .is_some_and(|e| matches!(e, goose::config::base::ConfigError::DeserializeError(_)))
+            {
+                Err(StatusCode::UNPROCESSABLE_ENTITY)
+            } else {
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
 }
 
 #[utoipa::path(
@@ -229,20 +211,24 @@ pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
 pub async fn add_extension(
     Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    let extensions = goose::config::get_all_extensions();
+    let extensions =
+        ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = goose::config::extensions::name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
-    goose::config::set_extension(ExtensionEntry {
+    match ExtensionConfigManager::set(ExtensionEntry {
         enabled: extension_query.enabled,
         config: extension_query.config,
-    });
-
-    if is_update {
-        Ok(Json(format!("Updated extension {}", extension_query.name)))
-    } else {
-        Ok(Json(format!("Added extension {}", extension_query.name)))
+    }) {
+        Ok(_) => {
+            if is_update {
+                Ok(Json(format!("Updated extension {}", extension_query.name)))
+            } else {
+                Ok(Json(format!("Added extension {}", extension_query.name)))
+            }
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -255,10 +241,14 @@ pub async fn add_extension(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, StatusCode> {
+pub async fn remove_extension(
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<Json<String>, StatusCode> {
     let key = goose::config::extensions::name_to_key(&name);
-    goose::config::remove_extension(&key);
-    Ok(Json(format!("Removed extension {}", name)))
+    match ExtensionConfigManager::remove(&key) {
+        Ok(_) => Ok(Json(format!("Removed extension {}", name))),
+        Err(_) => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 #[utoipa::path(
@@ -272,7 +262,7 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     let config = Config::global();
 
     let values = config
-        .all_values()
+        .load_values()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
 
     Ok(Json(ConfigResponse { config: values }))
@@ -286,17 +276,72 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     )
 )]
 pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
-    let providers = get_providers().await;
-    let providers_response: Vec<ProviderDetails> = providers
+    let mut providers_metadata = get_providers();
+
+    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
+
+    if custom_providers_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&custom_providers_dir) {
+            for entry in entries.flatten() {
+                if let Some(extension) = entry.path().extension() {
+                    if extension == "json" {
+                        if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                            if let Ok(custom_provider) = serde_json::from_str::<
+                                goose::config::custom_providers::CustomProviderConfig,
+                            >(&content)
+                            {
+                                // CustomProviderConfig => ProviderMetadata
+                                let default_model = custom_provider
+                                    .models
+                                    .first()
+                                    .map(|m| m.name.clone())
+                                    .unwrap_or_default();
+
+                                let metadata = goose::providers::base::ProviderMetadata {
+                                    name: custom_provider.name.clone(),
+                                    display_name: custom_provider.display_name.clone(),
+                                    description: custom_provider
+                                        .description
+                                        .clone()
+                                        .unwrap_or_else(|| {
+                                            format!("{} (custom)", custom_provider.display_name)
+                                        }),
+                                    default_model,
+                                    known_models: custom_provider.models.clone(),
+                                    model_doc_link: "Custom provider".to_string(),
+                                    config_keys: vec![
+                                        goose::providers::base::ConfigKey::new(
+                                            &custom_provider.api_key_env,
+                                            true,
+                                            true,
+                                            None,
+                                        ),
+                                        goose::providers::base::ConfigKey::new(
+                                            "CUSTOM_PROVIDER_BASE_URL",
+                                            true,
+                                            false,
+                                            Some(&custom_provider.base_url),
+                                        ),
+                                    ],
+                                };
+                                providers_metadata.push(metadata);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let providers_response: Vec<ProviderDetails> = providers_metadata
         .into_iter()
-        .map(|(metadata, provider_type)| {
-            let is_configured = check_provider_configured(&metadata, provider_type);
+        .map(|metadata| {
+            let is_configured = check_provider_configured(&metadata);
 
             ProviderDetails {
                 name: metadata.name.clone(),
                 metadata,
                 is_configured,
-                provider_type,
             }
         })
         .collect();
@@ -320,35 +365,17 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let loaded_provider = goose::config::declarative_providers::load_provider(name.as_str()).ok();
-    // TODO(Douwe): support a get models url for custom providers
-    if let Some(loaded_provider) = loaded_provider {
-        return Ok(Json(
-            loaded_provider
-                .config
-                .models
-                .into_iter()
-                .map(|m| m.name)
-                .collect::<Vec<_>>(),
-        ));
-    }
-
-    let all = get_providers()
-        .await
-        .into_iter()
-        //.map(|(m, p)| m)
-        .collect::<Vec<_>>();
-    let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
+    let all = get_providers();
+    let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
         return Err(StatusCode::BAD_REQUEST);
     };
-    if !check_provider_configured(&metadata, provider_type) {
+    if !check_provider_configured(&metadata) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     let model_config =
         ModelConfig::new(&metadata.default_model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let provider = goose::providers::create(&name, model_config)
-        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match provider.fetch_supported_models().await {
@@ -439,9 +466,12 @@ pub async fn get_pricing(
             }
         }
     } else {
-        for (metadata, provider_type) in get_providers().await {
+        // Get only configured providers' pricing
+        let providers_metadata = get_providers();
+
+        for metadata in providers_metadata {
             // Skip unconfigured providers if filtering
-            if !check_provider_configured(&metadata, provider_type) {
+            if !check_provider_configured(&metadata) {
                 continue;
             }
 
@@ -509,7 +539,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 
     // Use the shared function to load init-config.yaml
     match goose::config::base::load_init_config_from_workspace() {
-        Ok(init_values) => match config.initialize_if_empty(init_values) {
+        Ok(init_values) => match config.save_values(init_values) {
             Ok(_) => Ok(Json("Config initialized successfully".to_string())),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         },
@@ -552,7 +582,11 @@ pub async fn upsert_permissions(
     )
 )]
 pub async fn backup_config() -> Result<Json<String>, StatusCode> {
-    let config_path = Paths::config_dir().join("config.yaml");
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    let config_path = config_dir.join("config.yaml");
 
     if config_path.exists() {
         let file_name = config_path
@@ -584,7 +618,7 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     // Force a reload which will trigger recovery if needed
-    match config.all_values() {
+    match config.load_values() {
         Ok(values) => {
             let recovered_keys: Vec<String> = values.keys().cloned().collect();
             if recovered_keys.is_empty() {
@@ -613,7 +647,11 @@ pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     )
 )]
 pub async fn validate_config() -> Result<Json<String>, StatusCode> {
-    let config_path = Paths::config_dir().join("config.yaml");
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    let config_path = config_dir.join("config.yaml");
 
     if !config_path.exists() {
         return Ok(Json("Config file does not exist".to_string()));
@@ -635,9 +673,24 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
 }
 
 #[utoipa::path(
+    get,
+    path = "/config/current-model",
+    responses(
+        (status = 200, description = "Current model retrieved successfully", body = String),
+    )
+)]
+pub async fn get_current_model() -> Result<Json<Value>, StatusCode> {
+    let current_model = goose::providers::base::get_current_model();
+
+    Ok(Json(serde_json::json!({
+        "model": current_model
+    })))
+}
+
+#[utoipa::path(
     post,
     path = "/config/custom-providers",
-    request_body = UpdateCustomProviderRequest,
+    request_body = CreateCustomProviderRequest,
     responses(
         (status = 200, description = "Custom provider created successfully", body = String),
         (status = 400, description = "Invalid request"),
@@ -645,10 +698,10 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
     )
 )]
 pub async fn create_custom_provider(
-    Json(request): Json<UpdateCustomProviderRequest>,
+    Json(request): Json<CreateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    let config = goose::config::declarative_providers::create_custom_provider(
-        &request.engine,
+    let config = goose::config::custom_providers::CustomProviderConfig::create_and_save(
+        &request.provider_type,
         request.display_name,
         request.api_url,
         request.api_key,
@@ -657,29 +710,11 @@ pub async fn create_custom_provider(
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers().await {
+    if let Err(e) = goose::providers::refresh_custom_providers() {
         tracing::warn!("Failed to refresh custom providers after creation: {}", e);
     }
 
     Ok(Json(format!("Custom provider added - ID: {}", config.id())))
-}
-
-#[utoipa::path(
-    get,
-    path = "/config/custom-providers/{id}",
-    responses(
-        (status = 200, description = "Custom provider retrieved successfully", body = LoadedProvider),
-        (status = 404, description = "Provider not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn get_custom_provider(
-    Path(id): Path<String>,
-) -> Result<Json<LoadedProvider>, StatusCode> {
-    let loaded_provider = goose::config::declarative_providers::load_provider(id.as_str())
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    Ok(Json(loaded_provider))
 }
 
 #[utoipa::path(
@@ -691,47 +726,17 @@ pub async fn get_custom_provider(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<String>, StatusCode> {
-    goose::config::declarative_providers::remove_custom_provider(&id)
+pub async fn remove_custom_provider(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<String>, StatusCode> {
+    goose::config::custom_providers::CustomProviderConfig::remove(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Err(e) = goose::providers::refresh_custom_providers().await {
+    if let Err(e) = goose::providers::refresh_custom_providers() {
         tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
     }
 
     Ok(Json(format!("Removed custom provider: {}", id)))
-}
-
-#[utoipa::path(
-    put,
-    path = "/config/custom-providers/{id}",
-    request_body = UpdateCustomProviderRequest,
-    responses(
-        (status = 200, description = "Custom provider updated successfully", body = String),
-        (status = 404, description = "Provider not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn update_custom_provider(
-    Path(id): Path<String>,
-    Json(request): Json<UpdateCustomProviderRequest>,
-) -> Result<Json<String>, StatusCode> {
-    goose::config::declarative_providers::update_custom_provider(
-        &id,
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
-    )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if let Err(e) = goose::providers::refresh_custom_providers().await {
-        tracing::warn!("Failed to refresh custom providers after update: {}", e);
-    }
-
-    Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -751,13 +756,12 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/recover", post(recover_config))
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
+        .route("/config/current-model", get(get_current_model))
         .route("/config/custom-providers", post(create_custom_provider))
         .route(
             "/config/custom-providers/{id}",
             delete(remove_custom_provider),
         )
-        .route("/config/custom-providers/{id}", put(update_custom_provider))
-        .route("/config/custom-providers/{id}", get(get_custom_provider))
         .with_state(state)
 }
 
@@ -779,16 +783,49 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        let response = match result.unwrap().0 {
-            ConfigValueResponse::Value(value) => value,
-            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
-        };
+        let response = result.unwrap();
 
-        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
+        let limits: Vec<goose::model::ModelLimitConfig> =
+            serde_json::from_value(response.0).unwrap();
         assert!(!limits.is_empty());
 
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
+    }
+
+    #[tokio::test]
+    async fn test_get_provider_models_unknown_provider() {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        let result = get_provider_models(Path("unknown_provider".to_string())).await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_provider_models_openai_configured() {
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        let result = get_provider_models(Path("openai".to_string())).await;
+
+        // The response should be BAD_REQUEST since the API key is invalid (authentication error)
+        assert!(
+            result.is_err(),
+            "Expected error response from OpenAI provider with invalid key"
+        );
+        let status_code = result.unwrap_err();
+
+        assert!(status_code == StatusCode::BAD_REQUEST,
+                "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
+                status_code
+        );
+
+        std::env::remove_var("OPENAI_API_KEY");
     }
 }

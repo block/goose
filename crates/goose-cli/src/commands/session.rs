@@ -2,11 +2,10 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
-use goose::session::{generate_diagnostics, Session, SessionManager};
+use goose::session::{Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
@@ -14,7 +13,7 @@ const TRUNCATED_DESC_LENGTH: usize = 60;
 pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
-        println!("- {} {}", session.id, session.name);
+        println!("- {} {}", session.id, session.description);
     }
 
     let should_delete = confirm("Are you sure you want to delete these sessions?")
@@ -46,10 +45,10 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.name.is_empty() {
-                "(no name)"
+            let desc = if s.description.is_empty() {
+                "(no description)"
             } else {
-                &s.name
+                &s.description
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
             let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
@@ -115,32 +114,12 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
     remove_sessions(matched_sessions).await
 }
 
-pub async fn handle_session_list(
-    format: String,
-    ascending: bool,
-    working_dir: Option<PathBuf>,
-    limit: Option<usize>,
-) -> Result<()> {
+pub async fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
     let mut sessions = SessionManager::list_sessions().await?;
-
-    if let Some(ref pat) = working_dir {
-        let pat_lower = pat.to_string_lossy().to_lowercase();
-        sessions.retain(|s| {
-            s.working_dir
-                .to_string_lossy()
-                .to_lowercase()
-                .contains(&pat_lower)
-        });
-    }
-
     if ascending {
         sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
     } else {
         sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    }
-
-    if let Some(n) = limit {
-        sessions.truncate(n);
     }
 
     match format.as_str() {
@@ -155,8 +134,15 @@ pub async fn handle_session_list(
 
             println!("Available sessions:");
             for session in sessions {
-                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
-                println!("{}", output);
+                let output = format!(
+                    "{} - {} - {}",
+                    session.id, session.description, session.updated_at
+                );
+                if verbose {
+                    println!("  {}", output);
+                } else {
+                    println!("{}", output);
+                }
             }
         }
     }
@@ -186,7 +172,7 @@ pub async fn handle_session_export(
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
+            export_session_to_markdown(conversation.messages().to_vec(), &session.description)
         }
         _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
@@ -202,39 +188,10 @@ pub async fn handle_session_export(
 
     Ok(())
 }
-
-pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
-    println!(
-        "Generating diagnostics bundle for session '{}'...",
-        session_id
-    );
-
-    let diagnostics_data = generate_diagnostics(session_id).await.with_context(|| {
-        format!(
-            "Failed to write to generate diagnostics bundle for session '{}'",
-            session_id
-        )
-    })?;
-
-    let output_file = if let Some(path) = output_path {
-        path.clone()
-    } else {
-        PathBuf::from(format!("diagnostics_{}.zip", session_id))
-    };
-
-    let mut file = fs::File::create(&output_file).context(format!(
-        "Failed to create output file: {}",
-        output_file.display()
-    ))?;
-
-    file.write_all(&diagnostics_data)
-        .context("Failed to write diagnostics data")?;
-
-    println!("Diagnostics bundle saved to: {}", output_file.display());
-
-    Ok(())
-}
-
+/// Convert a list of messages to markdown format for session export
+///
+/// This function handles the formatting of a complete session including headers,
+/// message organization, and proper tool request/response pairing.
 fn export_session_to_markdown(
     messages: Vec<goose::conversation::message::Message>,
     session_name: &String,
@@ -320,10 +277,10 @@ pub async fn prompt_interactive_session_selection() -> Result<String> {
     let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.name.is_empty() {
-                "(no name)"
+            let desc = if s.description.is_empty() {
+                "(no description)"
             } else {
-                &s.name
+                &s.description
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 

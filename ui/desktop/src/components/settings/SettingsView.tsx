@@ -1,5 +1,5 @@
 import { ScrollArea } from '../ui/scroll-area';
-import { Tabs, TabsContent } from '../ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
@@ -65,83 +65,50 @@ export default function SettingsView({
     };
   }, [onClose]);
 
-  const settingsSections = [
-    {
-      id: 'models',
-      label: 'Models',
-      icon: Bot,
-      description: 'Configure AI models',
-    },
-    {
-      id: 'chat',
-      label: 'Chat',
-      icon: MessageSquare,
-      description: 'Chat preferences',
-    },
-    {
-      id: 'sharing',
-      label: 'Session',
-      icon: Share2,
-      description: 'Session sharing',
-    },
-    {
-      id: 'app',
-      label: 'App',
-      icon: Monitor,
-      description: 'Application settings',
-    },
-  ];
-
   return (
     <>
-      <MainPanelLayout removeTopPadding={true} backgroundColor="bg-background-muted">
+      <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            {/* Settings Tiles Navigation */}
-            <div className="bg-background-muted px-0.5 pt-0.5 pb-0.5">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-0.5">
-                {settingsSections.map((section, index) => {
-                  const IconComponent = section.icon;
-                  const isActive = activeTab === section.id;
-                  
-                  return (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveTab(section.id)}
-                      className={`
-                        relative flex flex-col items-start justify-between
-                        rounded-2xl
-                        px-4 py-4 min-h-[140px]
-                        transition-all duration-200
-                        no-drag
-                        animate-in slide-in-from-top-4 fade-in
-                        ${isActive 
-                          ? 'bg-background-accent text-text-on-accent' 
-                          : 'bg-background-default hover:bg-background-medium'
-                        }
-                      `}
-                      style={{
-                        animationDelay: `${index * 50}ms`,
-                        animationDuration: '400ms',
-                        animationFillMode: 'backwards',
-                      }}
-                      data-testid={`settings-${section.id}-tab`}
-                    >
-                      {/* Icon and Label at bottom */}
-                      <div className="mt-auto w-full">
-                        <IconComponent className={`w-5 h-5 mb-2 ${isActive ? '' : 'text-text-default'}`} />
-                        <h2 className={`text-xl font-light text-left ${isActive ? '' : 'text-text-default'}`}>{section.label}</h2>
-                        <p className={`text-xs mt-1 text-left ${isActive ? 'text-text-on-accent/70' : 'text-text-muted'}`}>{section.description}</p>
-                      </div>
-                    </button>
-                  );
-                })}
+          <div className="bg-background-default px-8 pb-8 pt-16">
+            <div className="flex flex-col page-transition">
+              <div className="flex justify-between items-center mb-1">
+                <h1 className="text-4xl font-light">Settings</h1>
               </div>
             </div>
+          </div>
 
-            {/* Content Area */}
-            <div className="flex-1 min-h-0 px-0.5 pb-0.5">
-              <ScrollArea className="h-full bg-background-default rounded-2xl px-6 py-6">
+          <div className="flex-1 min-h-0 relative px-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              <div className="px-1">
+                <TabsList className="w-full mb-2 justify-start">
+                  <TabsTrigger
+                    value="models"
+                    className="flex gap-2"
+                    data-testid="settings-models-tab"
+                  >
+                    <Bot className="h-4 w-4" />
+                    Models
+                  </TabsTrigger>
+                  <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
+                    <MessageSquare className="h-4 w-4" />
+                    Chat
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="sharing"
+                    className="flex gap-2"
+                    data-testid="settings-sharing-tab"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Session
+                  </TabsTrigger>
+                  <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
+                    <Monitor className="h-4 w-4" />
+                    App
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <ScrollArea className="flex-1 px-2">
                 <TabsContent
                   value="models"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
@@ -173,8 +140,8 @@ export default function SettingsView({
                   </div>
                 </TabsContent>
               </ScrollArea>
-            </div>
-          </Tabs>
+            </Tabs>
+          </div>
         </div>
       </MainPanelLayout>
     </>

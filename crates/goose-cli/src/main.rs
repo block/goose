@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Then shutdown the providers
         goose::tracing::shutdown_otlp();
     }
 

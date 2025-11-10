@@ -14,10 +14,10 @@ This tutorial covers how to add the [Blender MCP Server](https://github.com/ahuj
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=blender-mcp&id=blender&name=Blender&description=Blender%203D%20scene%20creation%20integration)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   uvx blender-mcp
@@ -51,7 +51,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 ### Add Blender MCP Server
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="blender"
     extensionName="Blender"
@@ -60,7 +60,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["blender-mcp"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure

@@ -10,9 +10,6 @@ pub async fn check_token(
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    if request.uri().path() == "/status" {
-        return Ok(next.run(request).await);
-    }
     let secret_key = request
         .headers()
         .get("X-Secret-Key")

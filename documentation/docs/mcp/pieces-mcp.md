@@ -33,7 +33,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
 ### Add Pieces MCP Server
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="Goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="pieces"
     extensionName="Pieces for Developers"
@@ -41,7 +41,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
     url="http://localhost:39300/model_context_protocol/2024-11-05/sse"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
 
       ```sh

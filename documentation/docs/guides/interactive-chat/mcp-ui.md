@@ -40,7 +40,7 @@ See how interactive responses work in Goose.
 For this exercise, we'll add an MCP-UI-enabled extension that connects to [MCP-UI Demos](https://mcp-aharvard.netlify.app/) provided by Andrew Harvard.
 
   <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="Goose Desktop" default>
       <GooseDesktopInstaller
         extensionId="richdemo"
         extensionName="Rich Demo"
@@ -49,7 +49,7 @@ For this exercise, we'll add an MCP-UI-enabled extension that connects to [MCP-U
         url="https://mcp-aharvard.netlify.app/mcp"
       />
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="Goose CLI">
         <CLIExtensionInstructions
           name="rich_demo"
           type="http"

@@ -81,14 +81,6 @@ impl ModelInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub enum ProviderType {
-    Preferred,
-    Builtin,
-    Declarative,
-    Custom,
-}
-
 /// Metadata about a provider's configuration requirements and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {
@@ -101,6 +93,7 @@ pub struct ProviderMetadata {
     /// The default/recommended model for this provider
     pub default_model: String,
     /// A list of currently known models with their capabilities
+    /// TODO: eventually query the apis directly
     pub known_models: Vec<ModelInfo>,
     /// Link to the docs where models can be found
     pub model_doc_link: String,
@@ -139,6 +132,7 @@ impl ProviderMetadata {
         }
     }
 
+    /// Create a new ProviderMetadata with ModelInfo objects that include cost data
     pub fn with_models(
         name: &str,
         display_name: &str,
@@ -278,11 +272,11 @@ impl Add for Usage {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self::new(
-            sum_optionals(self.input_tokens, other.input_tokens),
-            sum_optionals(self.output_tokens, other.output_tokens),
-            sum_optionals(self.total_tokens, other.total_tokens),
-        )
+        Self {
+            input_tokens: sum_optionals(self.input_tokens, other.input_tokens),
+            output_tokens: sum_optionals(self.output_tokens, other.output_tokens),
+            total_tokens: sum_optionals(self.total_tokens, other.total_tokens),
+        }
     }
 }
 
@@ -298,21 +292,10 @@ impl Usage {
         output_tokens: Option<i32>,
         total_tokens: Option<i32>,
     ) -> Self {
-        let calculated_total = if total_tokens.is_none() {
-            match (input_tokens, output_tokens) {
-                (Some(input), Some(output)) => Some(input + output),
-                (Some(input), None) => Some(input),
-                (None, Some(output)) => Some(output),
-                (None, None) => None,
-            }
-        } else {
-            total_tokens
-        };
-
         Self {
             input_tokens,
             output_tokens,
-            total_tokens: calculated_total,
+            total_tokens,
         }
     }
 }
@@ -336,9 +319,6 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
-    /// Get the name of this provider instance
-    fn get_name(&self) -> &str;
-
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
@@ -350,6 +330,7 @@ pub trait Provider: Send + Sync {
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
     // Default implementation: use the provider's configured model
+    // This method filters messages to only include agent_visible ones
     async fn complete(
         &self,
         system: &str,
@@ -357,11 +338,20 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config, system, messages, tools)
+
+        // Filter messages to only include agent_visible ones
+        let agent_visible_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .cloned()
+            .collect();
+
+        self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
+    // This method filters messages to only include agent_visible ones
     async fn complete_fast(
         &self,
         system: &str,
@@ -371,8 +361,15 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
+        // Filter messages to only include agent_visible ones
+        let agent_visible_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .cloned()
+            .collect();
+
         match self
-            .complete_with_model(&fast_config, system, messages, tools)
+            .complete_with_model(&fast_config, system, &agent_visible_messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -384,7 +381,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, messages, tools)
+                    self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
                         .await
                 } else {
                     Err(e)
@@ -400,15 +397,18 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
+    /// Optional hook to fetch supported models.
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
+    /// Check if this provider supports embeddings
     fn supports_embeddings(&self) -> bool {
         false
     }
 
-    async fn supports_cache_control(&self) -> bool {
+    /// Check if this provider supports cache control
+    fn supports_cache_control(&self) -> bool {
         false
     }
 

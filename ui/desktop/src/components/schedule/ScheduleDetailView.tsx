@@ -631,7 +631,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     </h3>
                     <p className="text-xs text-text-subtle mt-1">
                       Created:{' '}
-                      {session.createdAt ? formatToLocalDateWithTimezone(session.createdAt) : 'N/A'}
+                      {session.createdAt ? new Date(session.createdAt).toLocaleString() : 'N/A'}
                     </p>
                     {session.messageCount !== undefined && (
                       <p className="text-xs text-text-subtle mt-1">

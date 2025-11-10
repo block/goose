@@ -7,16 +7,14 @@ import { Button } from '../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../ui/icons';
 import { useState, useEffect } from 'react';
-import kebabCase from 'lodash/kebabCase';
 import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
 import {
   getDefaultFormData,
   ExtensionFormData,
   createExtensionConfig,
 } from '../settings/extensions/utils';
-import { activateExtension } from '../settings/extensions';
+import { activateExtension } from '../settings/extensions/index';
 import { useConfig } from '../ConfigContext';
-import { SearchView } from '../conversation/SearchView';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -32,7 +30,6 @@ export default function ExtensionsView({
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId || '';
@@ -41,36 +38,12 @@ export default function ExtensionsView({
     console.error('ExtensionsView: No session ID available');
   }
 
-  // Only trigger refresh when deep link config changes AND we don't need to show env vars
+  // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
   useEffect(() => {
-    if (viewOptions.deepLinkConfig && !viewOptions.showEnvVars) {
+    if (viewOptions.deepLinkConfig) {
       setRefreshKey((prevKey) => prevKey + 1);
     }
   }, [viewOptions.deepLinkConfig, viewOptions.showEnvVars]);
-
-  const scrollToExtension = (extensionName: string) => {
-    setTimeout(() => {
-      const element = document.getElementById(`extension-${kebabCase(extensionName)}`);
-      if (element) {
-        element.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-        // Add a subtle highlight effect
-        element.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
-        setTimeout(() => {
-          element.style.boxShadow = '';
-        }, 2000);
-      }
-    }, 200);
-  };
-
-  // Scroll to extension whenever extensionId is provided (after refresh)
-  useEffect(() => {
-    if (viewOptions.deepLinkConfig?.name && refreshKey > 0) {
-      scrollToExtension(viewOptions.deepLinkConfig?.name);
-    }
-  }, [viewOptions.deepLinkConfig?.name, refreshKey]);
 
   const handleModalClose = () => {
     setIsAddModalOpen(false);
@@ -104,10 +77,7 @@ export default function ExtensionsView({
 
   return (
     <MainPanelLayout>
-      <div
-        className="flex flex-col min-w-0 flex-1 overflow-y-auto relative"
-        data-search-scroll-area
-      >
+      <div className="flex flex-col min-w-0 flex-1 overflow-y-auto relative">
         <div className="bg-background-default px-8 pb-4 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
@@ -115,8 +85,7 @@ export default function ExtensionsView({
             </div>
             <p className="text-sm text-text-muted mb-6">
               These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools. ⌘F/Ctrl+F to
-              search.
+              capabilities using three main components: Prompts, Resources, and Tools.
             </p>
 
             {/* Action Buttons */}
@@ -144,19 +113,13 @@ export default function ExtensionsView({
         </div>
 
         <div className="px-8 pb-16">
-          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search extensions...">
-            <ExtensionsSection
-              key={refreshKey}
-              sessionId={sessionId}
-              deepLinkConfig={viewOptions.deepLinkConfig}
-              showEnvVars={viewOptions.showEnvVars}
-              hideButtons={true}
-              searchTerm={searchTerm}
-              onModalClose={(extensionName: string) => {
-                scrollToExtension(extensionName);
-              }}
-            />
-          </SearchView>
+          <ExtensionsSection
+            key={refreshKey}
+            sessionId={sessionId}
+            deepLinkConfig={viewOptions.deepLinkConfig}
+            showEnvVars={viewOptions.showEnvVars}
+            hideButtons={true}
+          />
         </div>
 
         {/* Bottom padding space - same as in hub.tsx */}

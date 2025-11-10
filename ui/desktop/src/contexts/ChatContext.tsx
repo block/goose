@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ChatType } from '../types/chat';
 import { Recipe } from '../recipe';
+import { useDraftContext } from './DraftContext';
 
 // TODO(Douwe): We should not need this anymore
 export const DEFAULT_CHAT_TITLE = 'New Chat';
@@ -10,8 +11,12 @@ interface ChatContextType {
   setChat: (chat: ChatType) => void;
   resetChat: () => void;
   hasActiveSession: boolean;
-  setRecipe: (recipe: Recipe | null) => void;
-  clearRecipe: () => void;
+  setRecipeConfig: (recipe: Recipe | null) => void;
+  clearRecipeConfig: () => void;
+  // Draft functionality
+  draft: string;
+  setDraft: (draft: string) => void;
+  clearDraft: () => void;
   // Context identification
   contextKey: string; // 'hub' or 'pair-{sessionId}'
   agentWaitingMessage: string | null;
@@ -34,29 +39,42 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   agentWaitingMessage,
   contextKey = 'hub',
 }) => {
+  const draftContext = useDraftContext();
+
+  // Draft functionality using the app-level DraftContext
+  const draft = draftContext.getDraft(contextKey);
+
+  const setDraft = (newDraft: string) => {
+    draftContext.setDraft(contextKey, newDraft);
+  };
+
+  const clearDraft = () => {
+    draftContext.clearDraft(contextKey);
+  };
+
   const resetChat = () => {
     setChat({
       sessionId: '',
-      name: DEFAULT_CHAT_TITLE,
+      title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
-      recipe: null,
-      recipeParameterValues: null,
+      recipeConfig: null,
+      recipeParameters: null,
+    });
+    clearDraft();
+  };
+
+  const setRecipeConfig = (recipe: Recipe | null) => {
+    setChat({
+      ...chat,
+      recipeConfig: recipe,
     });
   };
 
-  const setRecipe = (recipe: Recipe | null) => {
+  const clearRecipeConfig = () => {
     setChat({
       ...chat,
-      recipe: recipe,
-      recipeParameterValues: null,
-    });
-  };
-
-  const clearRecipe = () => {
-    setChat({
-      ...chat,
-      recipe: null,
+      recipeConfig: null,
     });
   };
 
@@ -67,8 +85,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setChat,
     resetChat,
     hasActiveSession,
-    setRecipe,
-    clearRecipe,
+    setRecipeConfig,
+    clearRecipeConfig,
+    draft,
+    setDraft,
+    clearDraft,
     contextKey,
     agentWaitingMessage,
   };

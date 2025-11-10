@@ -4,8 +4,9 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+use crate::providers::utils::emit_debug_trace;
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
@@ -42,12 +43,10 @@ pub struct BedrockProvider {
     model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
-    #[serde(skip)]
-    name: String,
 }
 
 impl BedrockProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Attempt to load config and secrets to get AWS_ prefixed keys
@@ -61,17 +60,18 @@ impl BedrockProvider {
             }
         };
 
-        set_aws_env_vars(config.all_values());
-        set_aws_env_vars(config.all_secrets());
+        set_aws_env_vars(config.load_values());
+        set_aws_env_vars(config.load_secrets());
 
-        let sdk_config = aws_config::load_from_env().await;
+        let sdk_config = futures::executor::block_on(aws_config::load_from_env());
 
         // validate credentials or return error back up
-        sdk_config
-            .credentials_provider()
-            .unwrap()
-            .provide_credentials()
-            .await?;
+        futures::executor::block_on(
+            sdk_config
+                .credentials_provider()
+                .unwrap()
+                .provide_credentials(),
+        )?;
         let client = Client::new(&sdk_config);
 
         let retry_config = Self::load_retry_config(config);
@@ -80,7 +80,6 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
-            name: Self::metadata().name,
         })
     }
 
@@ -125,7 +124,6 @@ impl BedrockProvider {
             .set_messages(Some(
                 messages
                     .iter()
-                    .filter(|m| m.is_agent_visible())
                     .map(to_bedrock_message)
                     .collect::<Result<_>>()?,
             ));
@@ -173,6 +171,8 @@ impl BedrockProvider {
     }
 }
 
+impl_provider_default!(BedrockProvider);
+
 #[async_trait]
 impl Provider for BedrockProvider {
     fn metadata() -> ProviderMetadata {
@@ -185,10 +185,6 @@ impl Provider for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
         )
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
     }
 
     fn retry_config(&self) -> RetryConfig {
@@ -229,11 +225,12 @@ impl Provider for BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
-        log.write(
+        emit_debug_trace(
+            &self.model,
+            &debug_payload,
             &serde_json::to_value(&message).unwrap_or_default(),
-            Some(&usage),
-        )?;
+            &usage,
+        );
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

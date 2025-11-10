@@ -85,7 +85,6 @@ module.exports = [
         HeadersInit: 'readonly',
         KeyboardEvent: 'readonly',
         MouseEvent: 'readonly', // Add MouseEvent
-        Event: 'readonly', // Add Event
         Node: 'readonly', // Add Node
         React: 'readonly',
         handleAction: 'readonly',

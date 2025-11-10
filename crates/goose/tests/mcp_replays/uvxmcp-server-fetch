@@ -1,5 +1,29 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"sampling":{}},"clientInfo":{"name":"goose","version":"0.0.0"}}}
-STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"prompts":{"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"mcp-fetch","version":"1.19.0"}}}
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.1.0"}}}
+STDERR: 2025-09-26 23:13:04 - Starting uvx setup script.
+STDERR: 2025-09-26 23:13:04 - Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist.
+STDERR: 2025-09-26 23:13:04 - Changing to directory ~/.config/goose/mcp-hermit.
+STDERR: 2025-09-26 23:13:04 - Hermit binary already exists. Skipping download.
+STDERR: 2025-09-26 23:13:04 - setting hermit cache to be local for MCP servers
+STDERR: 2025-09-26 23:13:04 - Updated PATH to include ~/.config/goose/mcp-hermit/bin.
+STDERR: 2025-09-26 23:13:04 - Checking for hermit in PATH.
+STDERR: 2025-09-26 23:13:04 - Initializing hermit.
+STDERR: 2025-09-26 23:13:04 - hermit install python 3.10
+STDERR: 2025-09-26 23:13:04 - Installing UV with hermit.
+STDERR: 2025-09-26 23:13:04 - Verifying installation locations:
+STDERR: 2025-09-26 23:13:04 - hermit: /Users/angiej/.config/goose/mcp-hermit/bin/hermit
+STDERR: 2025-09-26 23:13:04 - uv: /Users/angiej/.config/goose/mcp-hermit/bin/uv
+STDERR: 2025-09-26 23:13:04 - uvx: /Users/angiej/.config/goose/mcp-hermit/bin/uvx
+STDERR: 2025-09-26 23:13:04 - Checking for GOOSE_UV_REGISTRY environment variable for custom python/pip/UV registry setup...
+STDERR: 2025-09-26 23:13:05 - Checking custom goose registry availability: https://global.block-artifacts.com/artifactory/api/pypi/block-pypi/simple
+STDERR: 2025-09-26 23:13:05 - https://global.block-artifacts.com/artifactory/api/pypi/block-pypi/simple is accessible, setting it as UV_DEFAULT_INDEX. Setting UV_NATIVE_TLS to true.
+STDERR: 2025-09-26 23:13:05 - Executing 'uvx' command with arguments: mcp-server-fetch
+STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"prompts":{"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"mcp-fetch","version":"1.15.0"}}}
 STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
 STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{"progressToken":0},"name":"fetch","arguments":{"url":"https://example.com"}}}
-STDOUT: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue"}],"isError":true}}
+STDERR: npm error code FETCH_ERROR
+STDERR: npm error errno FETCH_ERROR
+STDERR: npm error invalid json response body at https://blocked.teams.cloudflare.com/?account_id=1e25787f854fa4b713d08a859d3e16ed&background_color=%23000000&block_reason=This+has+been+blocked+as+part+of+the+Dependency+Confusion+threat.+Please+see+go%2Fdependencyconfusionpypi+and+go%2Fdependencyconfusionnpm+for+more+info.&device_id=***&footer_text=The+website+you+are+trying+to+access+has+been+blocked+because+it+presents+a+risk+to+the+safety+and+security+of+Block%E2%80%99s+IT+systems.&header_text=This+page+presents+a+risk+to+Block&location=cf1ebd1203624140846ced63a200519e&logo_path=https%3A%2F%2Fmedia.block.xyz%2Flogos%2Fblock-jewel_white.png&mailto_address=&mailto_subject=&name=Block%2C+Inc.&params_sign=yrMcT5HYDMHvixy%2BdLHApce3BcNYIdlI8qh3wTcIrLA%3D&query_id=***&rule_id=***&source_ip=2a09%3Abac0%3A1000%3A2df%3A%3A281%3Ac0&suppress_footer=false&url=registry.npmjs.org&user_id=*** reason: Unexpected token '<', "
+STDERR: npm error <!DOCTYPE "... is not valid JSON
+STDERR: npm error A complete log of this run can be found in: /Users/angiej/.config/goose/mcp-hermit/.hermit/node/cache/_logs/2025-09-27T04_13_13_364Z-debug-0.log
+STDOUT: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Command '['npm', 'install']' returned non-zero exit status 1."}],"isError":true}}
+STDERR: 2025-09-26 23:13:14 - uvx setup script completed successfully.

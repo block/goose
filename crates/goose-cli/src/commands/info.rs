@@ -1,6 +1,6 @@
 use anyhow::Result;
 use console::style;
-use goose::config::paths::Paths;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::config::Config;
 use serde_yaml;
 
@@ -9,18 +9,20 @@ fn print_aligned(label: &str, value: &str, width: usize) {
 }
 
 pub fn handle_info(verbose: bool) -> Result<()> {
-    let logs_dir = Paths::in_state_dir("logs");
-    let sessions_dir = Paths::in_data_dir("sessions");
-    let sessions_db = sessions_dir.join("sessions.db");
+    let data_dir = choose_app_strategy(crate::APP_STRATEGY.clone())?;
+    let logs_dir = data_dir
+        .in_state_dir("logs")
+        .unwrap_or_else(|| data_dir.in_data_dir("logs"));
+    let sessions_dir = data_dir.in_data_dir("sessions");
 
     // Get paths using a stored reference to the global config
     let config = Config::global();
-    let config_dir = Paths::config_dir().display().to_string();
+    let config_file = config.path();
 
     // Define the labels and their corresponding path values once.
     let paths = [
-        ("Config dir:", config_dir),
-        ("Sessions DB (sqlite):", sessions_db.display().to_string()),
+        ("Config file:", config_file.to_string()),
+        ("Sessions dir:", sessions_dir.display().to_string()),
         ("Logs dir:", logs_dir.display().to_string()),
     ];
 
@@ -41,22 +43,26 @@ pub fn handle_info(verbose: bool) -> Result<()> {
     // Print verbose info if requested
     if verbose {
         println!("\n{}", style("goose Configuration:").cyan().bold());
-        let values = config.all_values()?;
-        if values.is_empty() {
-            println!("  No configuration values set");
-            println!(
-                "  Run '{}' to configure goose",
-                style("goose configure").cyan()
-            );
-        } else {
-            let sorted_values: std::collections::BTreeMap<_, _> =
-                values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        match config.load_values() {
+            Ok(values) => {
+                if values.is_empty() {
+                    println!("  No configuration values set");
+                    println!(
+                        "  Run '{}' to configure goose",
+                        style("goose configure").cyan()
+                    );
+                } else {
+                    let sorted_values: std::collections::BTreeMap<_, _> =
+                        values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-            if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
-                for line in yaml.lines() {
-                    println!("  {}", line);
+                    if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
+                        for line in yaml.lines() {
+                            println!("  {}", line);
+                        }
+                    }
                 }
             }
+            Err(e) => println!("  Error loading configuration: {}", e),
         }
     }
 
