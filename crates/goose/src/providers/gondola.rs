@@ -100,12 +100,8 @@ impl GondolaProvider {
                 .collect(),
         };
 
-        tracing::debug!(
-            model = %model,
-            version = %version,
-            num_texts = texts.len(),
-            "Sending batch inference request to Gondola"
-        );
+        tracing::debug!(model = %model, version = %version, num_texts = texts.len(),
+                   "Sending batch inference request to Gondola");
 
         let response = self
             .client
@@ -115,26 +111,19 @@ impl GondolaProvider {
             .await
             .context("Failed to send request to Gondola")?;
 
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Gondola request failed with status {}: {}", status, body);
-        }
-
-        let response_body = response
-            .text()
+        let json_response: BatchInferResponse = response
+            .error_for_status()
+            .context("Gondola request failed")?
+            .json()
             .await
-            .context("Failed to read response body from Gondola")?;
+            .context("Failed to parse Gondola response")?;
 
         tracing::debug!(
-            response_length = response_body.len(),
+            response_length = json_response.response_items.len(),
             "Received response from Gondola"
         );
 
-        let parsed: BatchInferResponse =
-            serde_json::from_str(&response_body).context("Failed to parse Gondola response")?;
-
-        Ok(parsed)
+        Ok(json_response)
     }
 }
 

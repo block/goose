@@ -90,12 +90,8 @@ impl PromptInjectionScanner {
                 )
             };
 
-        let explanation = self.build_explanation(
-            max_confidence,
-            threshold,
-            pattern_matches,
-            ml_confidence,
-        );
+        let explanation =
+            self.build_explanation(max_confidence, threshold, pattern_matches, ml_confidence);
 
         tracing::info!(
             "✅ Security analysis complete: max_confidence={:.3}, malicious={}",
