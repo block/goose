@@ -234,7 +234,7 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
       });
 
       // Serve only the specific file we need, not the entire directory
-      expressApp.get(PROXY_HTML_PATH, (req, res) => {
+      expressApp.get(PROXY_HTML_PATH, (_req, res) => {
         const filePath = path.join(staticPath, 'mcp-ui-proxy.html');
         res.sendFile(filePath, (err) => {
           if (err) {
@@ -245,8 +245,8 @@ export async function initMcpUIProxy(devUrl: string | undefined): Promise<void> 
       });
 
       // Return 404 for any other paths
-      expressApp.use((req, res) => {
-        log.warn(`MCP-UI Proxy: 404 for path: ${req.path}`);
+      expressApp.use((_req, res) => {
+        log.warn(`MCP-UI Proxy: 404 for path: ${_req.path}`);
         res.status(404).send('Not Found');
       });
 
