@@ -6,7 +6,6 @@ use anyhow::Result;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{Message, MessageContent};
-use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
 use goose::providers::create;
 use goose::session::session_manager::SessionType;
@@ -23,7 +22,7 @@ use tracing::{error, info, warn};
 use url::Url;
 
 struct GooseAcpSession {
-    messages: Conversation,
+    session_id: String, // SessionManager session ID for persistence
     tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
     tool_requests: HashMap<String, goose::conversation::message::ToolRequest>, // Store tool requests by ID for location extraction
     cancel_token: Option<CancellationToken>, // Active cancellation token for prompt processing
@@ -605,11 +604,19 @@ impl acp::Agent for GooseAcpAgent {
     ) -> Result<acp::NewSessionResponse, acp::Error> {
         info!("ACP: Received new session request {:?}", args);
 
-        // Generate a unique session ID
-        let session_id = uuid::Uuid::new_v4().to_string();
+        // Create SessionManager session with a placeholder name (will be updated after first message)
+        let manager_session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_default(),
+            "ACP Session".to_string(),
+            SessionType::User,
+        )
+        .await?;
+
+        // Use the ACP session ID as the key for our internal tracking
+        let acp_session_id = uuid::Uuid::new_v4().to_string();
 
         let session = GooseAcpSession {
-            messages: Conversation::new_unvalidated(Vec::new()),
+            session_id: manager_session.id.clone(),
             tool_call_ids: HashMap::new(),
             tool_requests: HashMap::new(),
             cancel_token: None,
@@ -617,13 +624,16 @@ impl acp::Agent for GooseAcpAgent {
 
         // Store the session
         let mut sessions = self.sessions.lock().await;
-        sessions.insert(session_id.clone(), session);
+        sessions.insert(acp_session_id.clone(), session);
 
-        info!("Created new session with ID: {}", session_id);
+        info!(
+            "Created new ACP session {} with SessionManager ID {}",
+            acp_session_id, manager_session.id
+        );
 
         Ok(acp::NewSessionResponse {
-            session_id: acp::SessionId(session_id.into()),
-            modes: None, // TODO: Implement session modes if needed
+            session_id: acp::SessionId(acp_session_id.into()),
+            modes: None,
             meta: None,
         })
     }
@@ -651,8 +661,17 @@ impl acp::Agent for GooseAcpAgent {
     async fn prompt(&self, args: acp::PromptRequest) -> Result<acp::PromptResponse, acp::Error> {
         info!("ACP: Received prompt request {:?}", args);
 
-        // Get the session
-        let session_id = args.session_id.0.to_string();
+        // Get the ACP session ID
+        let acp_session_id = args.session_id.0.to_string();
+
+        // Get the SessionManager session ID from our tracking
+        let manager_session_id = {
+            let sessions = self.sessions.lock().await;
+            let session = sessions
+                .get(&acp_session_id)
+                .ok_or_else(acp::Error::invalid_params)?;
+            session.session_id.clone()
+        };
 
         // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
@@ -661,26 +680,36 @@ impl acp::Agent for GooseAcpAgent {
         {
             let mut sessions = self.sessions.lock().await;
             let session = sessions
-                .get_mut(&session_id)
+                .get_mut(&acp_session_id)
                 .ok_or_else(acp::Error::invalid_params)?;
             session.cancel_token = Some(cancel_token.clone());
         }
 
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
+        // Add user message to SessionManager
+        SessionManager::add_message(&manager_session_id, &user_message).await?;
 
         let session_config = SessionConfig {
-            id: session.id.clone(),
+            id: manager_session_id.clone(),
             schedule_id: None,
             max_turns: None,
             retry_config: None,
         };
+
+        // Spawn a task to update the session name based on the first message (like agent.rs does)
+        let provider = self.agent.provider().await.map_err(|e| {
+            error!("Failed to get provider: {}", e);
+            acp::Error::internal_error()
+        })?;
+        let session_id_for_naming = manager_session_id.clone();
+        tokio::spawn(async move {
+            if let Err(e) =
+                SessionManager::maybe_update_name(&session_id_for_naming, provider).await
+            {
+                warn!("Failed to generate session description: {}", e);
+            }
+        });
 
         // Get agent's reply through the Goose agent
         let mut stream = self
@@ -707,14 +736,14 @@ impl acp::Agent for GooseAcpAgent {
 
             match event {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
-                    // Re-acquire the lock to add message to conversation
+                    // Note: agent.reply() already adds messages to SessionManager via SessionManager::add_message
+                    // We just need to handle the ACP-specific streaming here
+
+                    // Re-acquire the lock to get session for ACP tracking
                     let mut sessions = self.sessions.lock().await;
                     let session = sessions
-                        .get_mut(&session_id)
+                        .get_mut(&acp_session_id)
                         .ok_or_else(acp::Error::invalid_params)?;
-
-                    // Add to conversation
-                    session.messages.push(message.clone());
 
                     // Process message content, including tool calls
                     for content_item in &message.content {
@@ -734,7 +763,7 @@ impl acp::Agent for GooseAcpAgent {
 
         // Clear the cancel token since we're done
         let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&session_id) {
+        if let Some(session) = sessions.get_mut(&acp_session_id) {
             session.cancel_token = None;
         }
 
