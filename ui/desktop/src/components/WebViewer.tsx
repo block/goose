@@ -116,7 +116,12 @@ export function WebViewer({
       if (!containerRef.current) return;
 
       try {
+        console.log('Attempting to create BrowserView with URL:', url);
+        console.log('Available electron APIs:', Object.keys(window.electron || {}));
+        
         const rect = containerRef.current.getBoundingClientRect();
+        console.log('Container bounds:', rect);
+        
         const result = await window.electron.createBrowserView(url, {
           x: Math.round(rect.x),
           y: Math.round(rect.y),
@@ -124,26 +129,32 @@ export function WebViewer({
           height: Math.round(rect.height),
         });
         
+        console.log('BrowserView creation result:', result);
+        
         if (result.success && result.viewId) {
           browserViewId.current = result.viewId;
           setBrowserViewCreated(true);
-          console.log('BrowserView created:', result.viewId);
+          console.log('BrowserView created successfully:', result.viewId);
         } else {
-          setError('Failed to create browser view');
+          console.error('BrowserView creation failed:', result);
+          setError(`Failed to create browser view: ${result.error || 'Unknown error'}`);
         }
       } catch (err) {
         console.error('Error creating BrowserView:', err);
-        setError('Failed to initialize browser view');
+        setError(`Failed to initialize browser view: ${err.message || 'Unknown error'}`);
       }
     };
 
-    // Wait for container to be available
-    if (containerRef.current) {
-      createBrowserView();
-    }
+    // Add a small delay to ensure the container is properly rendered
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        createBrowserView();
+      }
+    }, 100);
 
     // Cleanup on unmount
     return () => {
+      clearTimeout(timer);
       if (browserViewCreated && browserViewId.current) {
         window.electron.destroyBrowserView(browserViewId.current).catch(console.error);
       }
