@@ -6,7 +6,7 @@ import { useSidecar } from '../SidecarLayout';
 interface SidecarInvokerProps {
   onShowLocalhost: () => void;
   onShowFileViewer: (filePath: string) => void;
-  onAddContainer: (type: 'sidecar' | 'localhost' | 'file', filePath?: string) => void;
+  onAddContainer: (type: 'sidecar' | 'localhost' | 'file' | 'document-editor', filePath?: string) => void;
   isVisible: boolean;
 }
 
@@ -82,9 +82,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
 
   const handleDocumentEditorClick = () => {
     console.log('🔍 SidecarInvoker: Document Editor button clicked');
-    if (sidecar) {
-      sidecar.showDocumentEditor();
-    }
+    onAddContainer('document-editor');
     setShowMenu(false);
     setIsHovering(false);
   };
@@ -98,8 +96,8 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       
       console.log('Selected file path for editing:', filePath);
       
-      if (filePath && sidecar) {
-        sidecar.showDocumentEditor(filePath);
+      if (filePath) {
+        onAddContainer('document-editor', filePath);
       } else {
         console.log('No file selected for editing');
       }
