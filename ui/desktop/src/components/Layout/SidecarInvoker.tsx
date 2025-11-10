@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Globe, FileText } from 'lucide-react';
+import { Plus, Globe, FileText, Edit } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useSidecar } from '../SidecarLayout';
 
@@ -80,6 +80,37 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
     setIsHovering(false);
   };
 
+  const handleDocumentEditorClick = () => {
+    console.log('🔍 SidecarInvoker: Document Editor button clicked');
+    if (sidecar) {
+      sidecar.showDocumentEditor();
+    }
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
+  const handleEditFileClick = async () => {
+    try {
+      console.log('Edit file button clicked');
+      
+      // Use Electron's selectFileOrDirectory API
+      const filePath = await window.electron.selectFileOrDirectory();
+      
+      console.log('Selected file path for editing:', filePath);
+      
+      if (filePath && sidecar) {
+        sidecar.showDocumentEditor(filePath);
+      } else {
+        console.log('No file selected for editing');
+      }
+    } catch (error) {
+      console.error('Error opening file dialog for editing:', error);
+    }
+
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
   const handleMouseEnter = () => {
     setIsHovering(true);
   };
@@ -129,13 +160,23 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
             >
               <div className="space-y-1">
                 <Button
-                  onClick={handleSidecarClick}
+                  onClick={handleDocumentEditorClick}
                   className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
                   variant="ghost"
                   size="sm"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Sidecar View
+                  <Edit className="w-4 h-4 mr-2" />
+                  New Document
+                </Button>
+                
+                <Button
+                  onClick={handleEditFileClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit File
                 </Button>
                 
                 <Button
@@ -155,7 +196,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                   size="sm"
                 >
                   <FileText className="w-4 h-4 mr-2" />
-                  Open File
+                  View File
                 </Button>
               </div>
             </div>

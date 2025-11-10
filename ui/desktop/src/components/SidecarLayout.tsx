@@ -1,9 +1,10 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Globe, FileText } from 'lucide-react';
+import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Globe, FileText, Edit } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import SidecarTabs from './SidecarTabs';
 import { FileViewer } from './FileViewer';
+import DocumentEditor from './DocumentEditor';
 
 interface SidecarView {
   id: string;
@@ -26,6 +27,8 @@ interface SidecarContextType {
   hideLocalhostViewer: (instanceId?: string) => void;
   showFileViewer: (filePath: string, instanceId?: string) => void;
   hideFileViewer: (instanceId?: string) => void;
+  showDocumentEditor: (filePath?: string, initialContent?: string, instanceId?: string) => void;
+  hideDocumentEditor: (instanceId?: string) => void;
 }
 
 const SidecarContext = createContext<SidecarContextType | null>(null);
@@ -400,6 +403,32 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideView(id);
   };
 
+  const showDocumentEditor = (filePath?: string, initialContent?: string, instanceId?: string) => {
+    const fileName = filePath ? filePath.split('/').pop() || filePath : 'Untitled Document';
+    const id = instanceId ? `editor-${instanceId}` : 'editor';
+    const editorView: SidecarView = {
+      id,
+      title: 'Document Editor',
+      icon: <Edit size={16} />,
+      content: (
+        <DocumentEditor
+          filePath={filePath}
+          initialContent={initialContent}
+          placeholder="Start writing your document..."
+        />
+      ),
+      fileName: fileName,
+      instanceId,
+    };
+    showView(editorView);
+  };
+
+  const hideDocumentEditor = (instanceId?: string) => {
+    const id = instanceId ? `editor-${instanceId}` : 'editor';
+    setViews((prev) => prev.filter((v) => v.id !== id));
+    hideView(id);
+  };
+
   const contextValue: SidecarContextType = {
     activeViews,
     views,
@@ -412,6 +441,8 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideLocalhostViewer,
     showFileViewer,
     hideFileViewer,
+    showDocumentEditor,
+    hideDocumentEditor,
   };
 
   // Don't render sidecar if showSidecar is false

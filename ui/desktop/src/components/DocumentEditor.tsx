@@ -1,0 +1,436 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Quote,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  Table as TableIcon,
+  Save,
+  FileText,
+  AlertCircle,
+  Loader2,
+  Undo,
+  Redo,
+} from 'lucide-react';
+import { Button } from './ui/button';
+
+interface DocumentEditorProps {
+  filePath?: string;
+  initialContent?: string;
+  placeholder?: string;
+  onSave?: (content: string, filePath?: string) => Promise<void>;
+  readOnly?: boolean;
+}
+
+interface FileReadResult {
+  file: string;
+  filePath: string;
+  error: string | null;
+  found: boolean;
+}
+
+export const DocumentEditor: React.FC<DocumentEditorProps> = ({
+  filePath,
+  initialContent = '',
+  placeholder = 'Start writing...',
+  onSave,
+  readOnly = false,
+}) => {
+  const [content, setContent] = useState(initialContent);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder,
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-blue-500 underline cursor-pointer',
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-lg',
+        },
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+    ],
+    content: content,
+    editable: !readOnly,
+    onUpdate: ({ editor }) => {
+      const newContent = editor.getHTML();
+      setContent(newContent);
+      setHasUnsavedChanges(true);
+    },
+  });
+
+  // Load file content if filePath is provided
+  useEffect(() => {
+    const loadFile = async () => {
+      if (!filePath) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        console.log('Loading document:', filePath);
+        
+        // Use Electron's readFile API
+        const result = await window.electron.readFile(filePath) as FileReadResult;
+        
+        if (result.found && result.error === null) {
+          const fileContent = result.file;
+          
+          // Detect file type and convert to HTML if needed
+          let htmlContent = fileContent;
+          
+          if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+            // Convert Markdown to HTML (basic conversion)
+            htmlContent = markdownToHtml(fileContent);
+          } else if (filePath.endsWith('.txt')) {
+            // Convert plain text to HTML
+            htmlContent = `<p>${fileContent.replace(/\n/g, '</p><p>')}</p>`;
+          } else if (!filePath.endsWith('.html')) {
+            // For other file types, treat as plain text
+            htmlContent = `<pre><code>${fileContent}</code></pre>`;
+          }
+          
+          setContent(htmlContent);
+          editor?.commands.setContent(htmlContent);
+          setHasUnsavedChanges(false);
+        } else {
+          const errorMessage = result.error || 'File not found';
+          setError(errorMessage);
+        }
+      } catch (err) {
+        console.error('Error loading document:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load document');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFile();
+  }, [filePath, editor]);
+
+  // Basic Markdown to HTML converter
+  const markdownToHtml = (markdown: string): string => {
+    return markdown
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  };
+
+  // Convert HTML back to appropriate format for saving
+  const htmlToFileFormat = (html: string, targetPath: string): string => {
+    if (targetPath.endsWith('.md') || targetPath.endsWith('.markdown')) {
+      // Convert HTML back to Markdown (basic conversion)
+      return html
+        .replace(/<h1>(.*?)<\/h1>/g, '# $1')
+        .replace(/<h2>(.*?)<\/h2>/g, '## $1')
+        .replace(/<h3>(.*?)<\/h3>/g, '### $1')
+        .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+        .replace(/<em>(.*?)<\/em>/g, '*$1*')
+        .replace(/<code>(.*?)<\/code>/g, '`$1`')
+        .replace(/<br>/g, '\n')
+        .replace(/<p>(.*?)<\/p>/g, '$1\n\n');
+    } else if (targetPath.endsWith('.txt')) {
+      // Strip HTML tags for plain text
+      return html.replace(/<[^>]*>/g, '').replace(/\n\n+/g, '\n\n');
+    }
+    
+    // Return HTML for .html files or unknown formats
+    return html;
+  };
+
+  const handleSave = async () => {
+    if (!editor || !hasUnsavedChanges) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const htmlContent = editor.getHTML();
+      
+      if (onSave) {
+        await onSave(htmlContent, filePath);
+      } else if (filePath && window.electron?.writeFile) {
+        // Convert HTML to appropriate file format
+        const fileContent = htmlToFileFormat(htmlContent, filePath);
+        
+        // Save using Electron API
+        await window.electron.writeFile(filePath, fileContent);
+      }
+      
+      setHasUnsavedChanges(false);
+      console.log('Document saved successfully');
+    } catch (err) {
+      console.error('Error saving document:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save document');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      handleSave();
+    }
+  }, [handleSave]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-background-default">
+        <div className="flex items-center space-x-2 text-text-muted">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Loading document...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center bg-background-default">
+        <div className="flex flex-col items-center space-y-2 text-text-muted">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+          <span className="text-sm">Error loading document</span>
+          <span className="text-xs text-text-subtle">{error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-background-default">
+      {/* Toolbar */}
+      {!readOnly && (
+        <div className="flex-shrink-0 border-b border-border-subtle bg-background-muted p-2">
+          <div className="flex items-center space-x-1 flex-wrap gap-1">
+            {/* Save button */}
+            <Button
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges || isSaving}
+              variant="ghost"
+              size="sm"
+              className="flex items-center space-x-1"
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span className="text-xs">Save</span>
+            </Button>
+
+            <div className="w-px h-6 bg-border-subtle mx-1" />
+
+            {/* Undo/Redo */}
+            <Button
+              onClick={() => editor?.chain().focus().undo().run()}
+              disabled={!editor?.can().undo()}
+              variant="ghost"
+              size="sm"
+            >
+              <Undo className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().redo().run()}
+              disabled={!editor?.can().redo()}
+              variant="ghost"
+              size="sm"
+            >
+              <Redo className="w-4 h-4" />
+            </Button>
+
+            <div className="w-px h-6 bg-border-subtle mx-1" />
+
+            {/* Text formatting */}
+            <Button
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+              variant={editor?.isActive('bold') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Bold className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+              variant={editor?.isActive('italic') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Italic className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleUnderline().run()}
+              variant={editor?.isActive('underline') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <UnderlineIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleStrike().run()}
+              variant={editor?.isActive('strike') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Strikethrough className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleCode().run()}
+              variant={editor?.isActive('code') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Code className="w-4 h-4" />
+            </Button>
+
+            <div className="w-px h-6 bg-border-subtle mx-1" />
+
+            {/* Headings */}
+            <Button
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+              variant={editor?.isActive('heading', { level: 1 }) ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Heading1 className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+              variant={editor?.isActive('heading', { level: 2 }) ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Heading2 className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+              variant={editor?.isActive('heading', { level: 3 }) ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Heading3 className="w-4 h-4" />
+            </Button>
+
+            <div className="w-px h-6 bg-border-subtle mx-1" />
+
+            {/* Lists */}
+            <Button
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              variant={editor?.isActive('bulletList') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              variant={editor?.isActive('orderedList') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <ListOrdered className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+              variant={editor?.isActive('blockquote') ? 'default' : 'ghost'}
+              size="sm"
+            >
+              <Quote className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Document header */}
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle bg-background-muted">
+        <div className="flex items-center space-x-2">
+          <FileText className="w-4 h-4 text-text-muted" />
+          <span className="text-sm font-mono text-text-standard truncate">
+            {filePath ? filePath.split('/').pop() || filePath : 'Untitled Document'}
+          </span>
+          {hasUnsavedChanges && (
+            <span className="text-xs text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">
+              Unsaved
+            </span>
+          )}
+          {readOnly && (
+            <span className="text-xs text-text-subtle bg-background-default px-2 py-1 rounded">
+              Read Only
+            </span>
+          )}
+        </div>
+        {filePath && (
+          <div className="text-xs text-text-subtle mt-1 font-mono truncate">
+            {filePath}
+          </div>
+        )}
+      </div>
+
+      {/* Editor content */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-4">
+          <EditorContent
+            editor={editor}
+            className="prose prose-sm max-w-none focus:outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Status bar */}
+      <div className="flex-shrink-0 px-4 py-2 border-t border-border-subtle bg-background-muted text-xs text-text-subtle">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <span>
+              {editor?.storage.characterCount?.characters() || 0} characters
+            </span>
+            <span>
+              {editor?.storage.characterCount?.words() || 0} words
+            </span>
+          </div>
+          {hasUnsavedChanges && (
+            <span className="text-orange-500">
+              Press Ctrl+S to save
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DocumentEditor;
