@@ -30,7 +30,7 @@ import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig } from './components/ConfigContext';
+import { useConfig, ConfigProvider } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
@@ -613,13 +613,15 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-      </ModelAndProviderProvider>
-    </DraftProvider>
+    <ConfigProvider>
+      <DraftProvider>
+        <ModelAndProviderProvider>
+          <HashRouter>
+            <AppInner />
+          </HashRouter>
+          <AnnouncementModal />
+        </ModelAndProviderProvider>
+      </DraftProvider>
+    </ConfigProvider>
   );
 }
