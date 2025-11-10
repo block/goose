@@ -1,6 +1,14 @@
+use crate::config::Config;
 use crate::providers::gondola::GondolaProvider;
 use anyhow::{Context, Result};
 use std::collections::HashMap;
+
+// TODO: Not sure if this is the right approach or if there's a better way
+pub const GONDOLA_KNOWN_MODELS: &[(&str, &str, &str)] = &[(
+    "deberta-prompt-injection-v2",
+    "gmv-zve9abhxe9s7fq1zep5dxd807",
+    "text_input",
+)];
 
 pub struct MlDetector {
     provider: GondolaProvider,
@@ -14,14 +22,11 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    // TODO: check if this is the best way to keep this registry (maybe there's a better solution that doesn't hardcode)
     fn model_registry() -> HashMap<&'static str, (&'static str, &'static str)> {
-        let mut registry = HashMap::new();
-        registry.insert(
-            "deberta-prompt-injection-v2",
-            ("gmv-zve9abhxe9s7fq1zep5dxd807", "text_input"),
-        );
-        registry
+        GONDOLA_KNOWN_MODELS
+            .iter()
+            .map(|(name, version, input)| (*name, (*version, *input)))
+            .collect()
     }
 
     pub fn from_model_name(model_name: &str) -> Result<Self> {
@@ -43,7 +48,7 @@ impl ModelConfig {
     }
 
     pub fn from_config() -> Result<Self> {
-        let config = crate::config::Config::global();
+        let config = Config::global();
 
         let model_name = config
             .get_param::<String>("SECURITY_PROMPT_ML_MODEL")

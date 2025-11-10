@@ -7,6 +7,7 @@
 //!
 //! TODO: figure out if this is the right place for this.
 
+use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -57,7 +58,7 @@ pub struct DoubleListValue {
 
 impl GondolaProvider {
     pub fn new() -> Result<Self> {
-        let config = crate::config::Config::global();
+        let config = Config::global();
 
         let endpoint = config
             .get_param::<String>("gondola_endpoint")
