@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+#[derive(Debug)]
 pub struct GondolaProvider {
     endpoint: String,
     client: reqwest::Client,
@@ -109,7 +110,6 @@ impl GondolaProvider {
         let response = self
             .client
             .post(&self.endpoint)
-            .header("Content-Type", "application/json")
             .json(&request)
             .send()
             .await

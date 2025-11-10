@@ -6,21 +6,6 @@ use rmcp::model::CallToolRequestParam;
 
 const USER_SCAN_LIMIT: usize = 10;
 
-#[derive(Debug, Clone, Copy)]
-enum Source {
-    ToolCall,
-    Conversation,
-}
-
-impl std::fmt::Display for Source {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Source::ToolCall => write!(f, "tool call"),
-            Source::Conversation => write!(f, "conversation"),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ScanResult {
     pub is_malicious: bool,
@@ -90,18 +75,16 @@ impl PromptInjectionScanner {
         let tool_result = tool_result?;
         let context_result = context_result?;
 
-        let (max_confidence, source, pattern_matches, ml_confidence) =
+        let (max_confidence, pattern_matches, ml_confidence) =
             if tool_result.confidence >= context_result.confidence {
                 (
                     tool_result.confidence,
-                    Source::ToolCall,
                     Some(&tool_result.pattern_matches[..]),
                     tool_result.ml_confidence,
                 )
             } else {
                 (
                     context_result.confidence,
-                    Source::Conversation,
                     None,
                     context_result.ml_confidence,
                 )
@@ -110,16 +93,14 @@ impl PromptInjectionScanner {
         let explanation = self.build_explanation(
             max_confidence,
             threshold,
-            source,
             pattern_matches,
             ml_confidence,
         );
 
         tracing::info!(
-            "✅ Security analysis complete: max_confidence={:.3}, malicious={}, source={}",
+            "✅ Security analysis complete: max_confidence={:.3}, malicious={}",
             max_confidence,
-            max_confidence >= threshold,
-            source
+            max_confidence >= threshold
         );
 
         Ok(ScanResult {
@@ -224,7 +205,6 @@ impl PromptInjectionScanner {
         &self,
         confidence: f32,
         threshold: f32,
-        source: Source,
         pattern_matches: Option<&[PatternMatch]>,
         ml_confidence: Option<f32>,
     ) -> String {
@@ -235,18 +215,15 @@ impl PromptInjectionScanner {
         if let Some(top_match) = pattern_matches.and_then(|m| m.first()) {
             let preview = top_match.matched_text.chars().take(50).collect::<String>();
             return format!(
-                "Security threat in {}: {} (Risk: {:?}) - Found: '{}'",
-                source, top_match.threat.description, top_match.threat.risk_level, preview
+                "Security threat detected: {} (Risk: {:?}) - Found: '{}'",
+                top_match.threat.description, top_match.threat.risk_level, preview
             );
         }
 
         if let Some(ml_conf) = ml_confidence {
-            format!(
-                "Security threat detected in {} (ML confidence: {:.2})",
-                source, ml_conf
-            )
+            format!("Security threat detected (ML confidence: {:.2})", ml_conf)
         } else {
-            format!("Security threat detected in {}", source)
+            "Security threat detected".to_string()
         }
     }
 
@@ -325,6 +302,6 @@ mod tests {
             .unwrap();
 
         assert!(result.is_malicious);
-        assert!(result.explanation.contains("tool call"));
+        assert!(result.explanation.contains("Security threat"));
     }
 }
