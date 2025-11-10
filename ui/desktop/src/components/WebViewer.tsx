@@ -152,14 +152,22 @@ export function WebViewer({
       }
     }, 100);
 
-    // Cleanup on unmount
     return () => {
       clearTimeout(timer);
-      if (browserViewCreated && browserViewId.current) {
-        window.electron.destroyBrowserView(browserViewId.current).catch(console.error);
-      }
     };
   }, [url]);
+
+  // Cleanup BrowserView on component unmount
+  useEffect(() => {
+    return () => {
+      console.log('WebViewer component unmounting, cleaning up BrowserView:', browserViewId.current);
+      if (browserViewId.current) {
+        window.electron.destroyBrowserView(browserViewId.current).catch((err) => {
+          console.error('Error destroying BrowserView on unmount:', err);
+        });
+      }
+    };
+  }, []);
 
   // Update BrowserView bounds when container resizes
   useEffect(() => {
