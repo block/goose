@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
 import { View, ViewOptions } from '../../utils/navigationUtils';
-import { AppWindowMac, AppWindow } from 'lucide-react';
+import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
 import { SidecarInvoker } from './SidecarInvoker';
+import { TopNavigation } from './TopNavigation';
 
 interface AppLayoutProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -19,6 +20,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const { isMobile, openMobile } = useSidebar();
   const sidecar = useSidecar();
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
 
   // Calculate padding based on sidebar state and macOS
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
@@ -131,50 +133,81 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair');
 
   return (
-    <div className="flex flex-1 w-full relative animate-fade-in">
-      {!shouldHideButtons && (
-        <>
-          {/* Left side buttons */}
-          <div className={`${headerPadding} absolute top-3 z-100 flex items-center gap-1`}>
-            <SidebarTrigger
-              className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
-            />
-            <Button
-              onClick={handleNewWindow}
-              className="no-drag hover:!bg-background-medium"
-              variant="ghost"
-              size="xs"
-              title="Start a new session in a new window"
-            >
-              {safeIsMacOS ? (
-                <AppWindowMac className="w-4 h-4" />
-              ) : (
-                <AppWindow className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </>
-      )}
+    <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
+      {/* Top Navigation Bar */}
+      <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
+      
+      {/* Main Content Area with Sidebar and Sidecar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {!shouldHideButtons && (
+          <>
+            {/* Left side buttons */}
+            <div className={`${headerPadding} absolute top-3 z-100 flex items-center gap-1`}>
+              <SidebarTrigger
+                className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
+              />
+              <Button
+                onClick={handleNewWindow}
+                className="no-drag hover:!bg-background-medium"
+                variant="ghost"
+                size="xs"
+                title="Start a new session in a new window"
+              >
+                {safeIsMacOS ? (
+                  <AppWindowMac className="w-4 h-4" />
+                ) : (
+                  <AppWindow className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </>
+        )}
 
-      {/* New hover-triggered sidecar invoker */}
-      <SidecarInvoker 
-        onShowLocalhost={handleShowLocalhost}
-        onShowFileViewer={handleShowFileViewer}
-        onAddContainer={handleAddContainer}
-        isVisible={shouldShowSidecarInvoker}
-      />
-
-      <Sidebar variant="inset" collapsible="offcanvas">
-        <AppSidebar
-          onSelectSession={handleSelectSession}
-          setView={setView}
-          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-          currentPath={location.pathname}
+        {/* New hover-triggered sidecar invoker */}
+        <SidecarInvoker 
+          onShowLocalhost={handleShowLocalhost}
+          onShowFileViewer={handleShowFileViewer}
+          onAddContainer={handleAddContainer}
+          isVisible={shouldShowSidecarInvoker}
         />
-      </Sidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
+
+        <Sidebar variant="inset" collapsible="offcanvas">
+          <AppSidebar
+            onSelectSession={handleSelectSession}
+            setView={setView}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+            currentPath={location.pathname}
+          />
+        </Sidebar>
+        <SidebarInset>
+          <Outlet />
+        </SidebarInset>
+      </div>
+      
+      {/* Control Buttons - floating in top right */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        <Button
+          onClick={() => setIsNavExpanded(!isNavExpanded)}
+          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
+          variant="ghost"
+          size="xs"
+          title="Toggle navigation"
+        >
+          {isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span className="ml-2 text-xs text-text-muted font-mono">
+            {isNavExpanded ? 'Hide menu' : 'Show menu'}
+          </span>
+        </Button>
+        <Button
+          onClick={handleNewWindow}
+          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
+          variant="ghost"
+          size="xs"
+          title="Start a new session in a new window"
+        >
+          {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
+        </Button>
+      </div>
     </div>
   );
 };
