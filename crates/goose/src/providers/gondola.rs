@@ -113,8 +113,7 @@ impl GondolaProvider {
             .context("Failed to send request to Gondola")?;
 
         let json_response: BatchInferResponse = response
-            .error_for_status()
-            .context("Gondola request failed")?
+            .error_for_status()?
             .json()
             .await
             .context("Failed to parse Gondola response")?;
@@ -247,7 +246,8 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("500"));
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("500"));
     }
 
     #[tokio::test]
