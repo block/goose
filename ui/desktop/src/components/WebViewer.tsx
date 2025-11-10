@@ -91,6 +91,7 @@ export function WebViewer({
   const [retryCount, setRetryCount] = useState(0);
   const [iframeReady, setIframeReady] = useState(false);
   const [isSecure, setIsSecure] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
   // eslint-disable-next-line no-undef
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -206,6 +207,7 @@ export function WebViewer({
     setIsLoading(true);
     setRetryCount(0);
     setIframeReady(false);
+    setIsBlocked(false);
 
     // Save to localStorage
     if (typeof window !== 'undefined') {
@@ -261,6 +263,7 @@ export function WebViewer({
     setIsLoading(false);
     setError(null);
     setRetryCount(0);
+    setIsBlocked(false);
 
     if (retryTimeoutRef.current) {
       window.clearTimeout(retryTimeoutRef.current);
@@ -279,34 +282,40 @@ export function WebViewer({
   };
 
   const handleIframeError = () => {
-    const maxRetries = 3;
-
-    if (retryCount < maxRetries) {
-      const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-
-      console.log(
-        `Retrying to load ${url} (attempt ${retryCount + 1}/${maxRetries}) in ${retryDelay}ms...`
-      );
-
-      if (retryTimeoutRef.current) {
-        window.clearTimeout(retryTimeoutRef.current);
-      }
-
-      retryTimeoutRef.current = setTimeout(() => {
-        setRetryCount((prev) => prev + 1);
-        if (iframeRef.current) {
-          const currentSrc = iframeRef.current.src;
-          iframeRef.current.src = '';
-          iframeRef.current.src = currentSrc;
-        }
-      }, retryDelay);
-    } else {
-      setIsLoading(false);
+    console.log('Iframe error occurred for URL:', url);
+    setIsLoading(false);
+    setIsBlocked(true);
+    
+    // Check if this might be a blocking issue
+    if (!isLocalhostUrl(url)) {
       setError(
-        `Failed to load ${url} after ${maxRetries} attempts. ${
-          isLocalhostUrl(url) ? 'Make sure the server is running.' : 'Please check the URL and try again.'
-        }`
+        `This website (${domain}) cannot be displayed in an embedded viewer due to security restrictions. This is common for many websites to prevent clickjacking attacks.`
       );
+    } else {
+      const maxRetries = 3;
+
+      if (retryCount < maxRetries) {
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+
+        console.log(
+          `Retrying to load ${url} (attempt ${retryCount + 1}/${maxRetries}) in ${retryDelay}ms...`
+        );
+
+        if (retryTimeoutRef.current) {
+          window.clearTimeout(retryTimeoutRef.current);
+        }
+
+        retryTimeoutRef.current = setTimeout(() => {
+          setRetryCount((prev) => prev + 1);
+          if (iframeRef.current) {
+            const currentSrc = iframeRef.current.src;
+            iframeRef.current.src = '';
+            iframeRef.current.src = currentSrc;
+          }
+        }, retryDelay);
+      } else {
+        setError('Failed to load localhost server. Make sure the server is running and accessible.');
+      }
     }
   };
 
@@ -454,12 +463,44 @@ export function WebViewer({
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
           <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+          {isBlocked && !isLocalhost && (
+            <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800">
+              <p className="text-red-700 dark:text-red-300 text-xs mb-2">Try these alternatives:</p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={handleOpenInBrowser}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                >
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                  Open in Browser
+                </Button>
+                <Button
+                  onClick={() => handleUrlSubmit('https://google.com')}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                >
+                  Try Google
+                </Button>
+                <Button
+                  onClick={() => handleUrlSubmit('https://wikipedia.org')}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                >
+                  Try Wikipedia
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Iframe Content */}
       <div className="flex-1 relative overflow-hidden">
-        {iframeReady && (
+        {iframeReady && !isBlocked && (
           <iframe
             ref={iframeRef}
             src={url}
@@ -471,8 +512,36 @@ export function WebViewer({
           />
         )}
 
+        {/* Blocked content fallback */}
+        {isBlocked && !isLocalhost && (
+          <div className="absolute inset-0 bg-background-default flex items-center justify-center">
+            <div className="text-center max-w-md p-6">
+              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <ShieldOff className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-textStandard mb-2">Website Blocked</h3>
+              <p className="text-textSubtle text-sm mb-4">
+                {domain} prevents embedding for security reasons. This is normal for many websites.
+              </p>
+              <div className="space-y-2">
+                <Button
+                  onClick={handleOpenInBrowser}
+                  className="w-full"
+                  variant="default"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open {domain} in Browser
+                </Button>
+                <div className="text-xs text-textSubtle">
+                  Or try a different website that allows embedding
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loading overlay */}
-        {(!iframeReady || isLoading) && (
+        {(!iframeReady || isLoading) && !isBlocked && (
           <div className="absolute inset-0 bg-background-default/80 flex items-center justify-center">
             <div className="text-center">
               <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
