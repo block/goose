@@ -1063,6 +1063,8 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
       throw new Error('No main window found');
     }
 
+    console.log('[Main] Creating BrowserView with bounds:', bounds);
+
     // Create a new BrowserView
     const view = new BrowserView({
       webPreferences: {
@@ -1076,7 +1078,26 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
 
     // Set the view on the window
     mainWindow.setBrowserView(view);
-    view.setBounds(bounds);
+    
+    // Convert viewport coordinates to window coordinates
+    // The bounds from the renderer are relative to the viewport, but BrowserView needs window coordinates
+    const windowBounds = mainWindow.getBounds();
+    const contentBounds = mainWindow.getContentBounds();
+    
+    // Calculate the title bar height and window frame offsets
+    const titleBarHeight = windowBounds.height - contentBounds.height;
+    const frameOffsetX = windowBounds.x - contentBounds.x;
+    
+    // Adjust bounds to be relative to the window content area
+    const adjustedBounds = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+    
+    console.log('[Main] Adjusted bounds for BrowserView:', adjustedBounds);
+    view.setBounds(adjustedBounds);
     
     // Load the URL
     await view.webContents.loadURL(url);
@@ -1088,6 +1109,7 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
     }
     (mainWindow as any).browserViews.set(viewId, view);
     
+    console.log('[Main] BrowserView created successfully with ID:', viewId);
     return { viewId, success: true };
   } catch (error) {
     console.error('Error creating browser view:', error);
@@ -1105,7 +1127,17 @@ ipcMain.handle('update-browser-view-bounds', async (event, viewId: string, bound
 
     const view = (mainWindow as any).browserViews.get(viewId);
     if (view) {
-      view.setBounds(bounds);
+      console.log('[Main] Updating BrowserView bounds:', bounds);
+      
+      // Use the same coordinate conversion as in create-browser-view
+      const adjustedBounds = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      };
+      
+      view.setBounds(adjustedBounds);
       return true;
     }
     return false;
