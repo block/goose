@@ -118,14 +118,14 @@ type ElectronAPI = {
   spellCheck: (word: string) => Promise<boolean>;
   spellSuggestions: (word: string) => Promise<string[]>;
   // BrowserView functions
-  createBrowserView: (id: string) => Promise<boolean>;
-  destroyBrowserView: (id: string) => Promise<boolean>;
-  updateBrowserViewBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
-  browserViewNavigate: (id: string, url: string) => Promise<boolean>;
-  browserViewGoBack: (id: string) => Promise<boolean>;
-  browserViewGoForward: (id: string) => Promise<boolean>;
-  browserViewRefresh: (id: string) => Promise<boolean>;
-  getBrowserViewNavigationState: (id: string) => Promise<{ canGoBack: boolean; canGoForward: boolean; url: string; title: string } | null>;
+  createBrowserView: (url: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<{ viewId: string | null; success: boolean; error?: string }>;
+  destroyBrowserView: (viewId: string) => Promise<boolean>;
+  updateBrowserViewBounds: (viewId: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
+  browserViewNavigate: (viewId: string, url: string) => Promise<boolean>;
+  browserViewGoBack: (viewId: string) => Promise<boolean>;
+  browserViewGoForward: (viewId: string) => Promise<boolean>;
+  browserViewRefresh: (viewId: string) => Promise<boolean>;
+  getBrowserViewNavigationState: (viewId: string) => Promise<{ canGoBack: boolean; canGoForward: boolean; url: string; title: string } | null>;
 };
 
 type AppConfigAPI = {
@@ -254,15 +254,16 @@ const electronAPI: ElectronAPI = {
   spellCheck: (word: string) => ipcRenderer.invoke('spell-check', word),
   spellSuggestions: (word: string) => ipcRenderer.invoke('spell-suggestions', word),
   // BrowserView functions
-  createBrowserView: (id: string) => ipcRenderer.invoke('create-browser-view', id),
-  destroyBrowserView: (id: string) => ipcRenderer.invoke('destroy-browser-view', id),
-  updateBrowserViewBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => 
-    ipcRenderer.invoke('update-browser-view-bounds', id, bounds),
-  browserViewNavigate: (id: string, url: string) => ipcRenderer.invoke('browser-view-navigate', id, url),
-  browserViewGoBack: (id: string) => ipcRenderer.invoke('browser-view-go-back', id),
-  browserViewGoForward: (id: string) => ipcRenderer.invoke('browser-view-go-forward', id),
-  browserViewRefresh: (id: string) => ipcRenderer.invoke('browser-view-refresh', id),
-  getBrowserViewNavigationState: (id: string) => ipcRenderer.invoke('browser-view-navigation-state', id),
+  createBrowserView: (url: string, bounds: { x: number; y: number; width: number; height: number }) => 
+    ipcRenderer.invoke('create-browser-view', url, bounds),
+  destroyBrowserView: (viewId: string) => ipcRenderer.invoke('destroy-browser-view', viewId),
+  updateBrowserViewBounds: (viewId: string, bounds: { x: number; y: number; width: number; height: number }) => 
+    ipcRenderer.invoke('update-browser-view-bounds', viewId, bounds),
+  browserViewNavigate: (viewId: string, url: string) => ipcRenderer.invoke('browser-view-navigate', viewId, url),
+  browserViewGoBack: (viewId: string) => ipcRenderer.invoke('browser-view-go-back', viewId),
+  browserViewGoForward: (viewId: string) => ipcRenderer.invoke('browser-view-go-forward', viewId),
+  browserViewRefresh: (viewId: string) => ipcRenderer.invoke('browser-view-refresh', viewId),
+  getBrowserViewNavigationState: (viewId: string) => ipcRenderer.invoke('browser-view-navigation-state', viewId),
 };
 
 const appConfigAPI: AppConfigAPI = {

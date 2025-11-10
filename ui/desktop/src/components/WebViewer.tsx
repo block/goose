@@ -113,11 +113,21 @@ export function WebViewer({
   // Create BrowserView on mount
   useEffect(() => {
     const createBrowserView = async () => {
+      if (!containerRef.current) return;
+
       try {
-        const success = await window.electron.createBrowserView(browserViewId.current);
-        if (success) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const result = await window.electron.createBrowserView(url, {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        });
+        
+        if (result.success && result.viewId) {
+          browserViewId.current = result.viewId;
           setBrowserViewCreated(true);
-          console.log('BrowserView created:', browserViewId.current);
+          console.log('BrowserView created:', result.viewId);
         } else {
           setError('Failed to create browser view');
         }
@@ -127,15 +137,18 @@ export function WebViewer({
       }
     };
 
-    createBrowserView();
+    // Wait for container to be available
+    if (containerRef.current) {
+      createBrowserView();
+    }
 
     // Cleanup on unmount
     return () => {
-      if (browserViewCreated) {
+      if (browserViewCreated && browserViewId.current) {
         window.electron.destroyBrowserView(browserViewId.current).catch(console.error);
       }
     };
-  }, []);
+  }, [url]);
 
   // Update BrowserView bounds when container resizes
   useEffect(() => {

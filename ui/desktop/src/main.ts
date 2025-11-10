@@ -3,6 +3,7 @@ import {
   app,
   App,
   BrowserWindow,
+  BrowserView,
   dialog,
   globalShortcut,
   ipcMain,
