@@ -70,7 +70,8 @@ const PROXY_SERVER_HOST = 'localhost';
 const PROXY_SERVER_PORT = 0; // 0 = OS assigns available port
 
 // Allowed hostnames for proxy requests
-const ALLOWED_HOSTNAMES = ['localhost', '127.0.0.1'] as const;
+// Includes both IPv4 and IPv6 loopback addresses
+const ALLOWED_HOSTNAMES = ['localhost', '127.0.0.1', '::1'] as const;
 
 // State management
 let mcpUIProxyServerPort: number | null = null;
