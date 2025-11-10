@@ -628,6 +628,18 @@ impl CliSession {
                         continue;
                     }
 
+                    // Reset token counts in session metadata
+                    if let Err(e) = SessionManager::update_session(&self.session_id)
+                        .total_tokens(Some(0))
+                        .input_tokens(Some(0))
+                        .output_tokens(Some(0))
+                        .apply()
+                        .await
+                    {
+                        output::render_error(&format!("Failed to reset token counts: {}", e));
+                        continue;
+                    }
+
                     self.messages.clear();
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
