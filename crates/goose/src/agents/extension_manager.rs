@@ -34,10 +34,11 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::config::search_path::search_path_var;
+use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
+use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
     CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
     ServerInfo, Tool,
@@ -129,9 +130,6 @@ impl ResourceItem {
     }
 }
 
-#[cfg(windows)]
-const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
-
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
 fn normalize(input: String) -> String {
@@ -185,13 +183,11 @@ async fn child_process_client(
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW_FLAG);
+    configure_command_no_window(&mut command);
 
-    command.env(
-        "PATH",
-        search_path_var().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
-    );
+    if let Ok(path) = SearchPaths::builder().path() {
+        command.env("PATH", path);
+    }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())

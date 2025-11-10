@@ -19,8 +19,8 @@ JUDGE_MODEL=${GOOSE_JUDGE_MODEL:-google/gemini-2.5-flash}
 
 PROVIDERS=(
   "anthropic:claude-haiku-4-5-20251001"
-  "google:gemini-2.5-flash"
-  "openrouter:google/gemini-2.5-flash"
+  "google:gemini-2.5-pro"
+  "openrouter:google/gemini-2.5-pro"
   "openai:gpt-5-mini"
 )
 

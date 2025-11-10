@@ -437,7 +437,7 @@
     "name": "OpenMetadata",
     "description": "Bring OpenMetadata's single source of truth across your data systems to agents",
     "command": "npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}",
-    "link": "https://open-metadata.org/mcp",
+    "link": "https://github.com/open-metadata/OpenMetadata",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,

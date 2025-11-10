@@ -12,6 +12,7 @@ use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
@@ -86,6 +87,17 @@ pub struct UpdateCustomProviderRequest {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct CheckProviderRequest {
+    pub provider: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct SetProviderRequest {
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -734,6 +746,41 @@ pub async fn update_custom_provider(
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/check_provider",
+    request_body = CheckProviderRequest,
+)]
+pub async fn check_provider(
+    Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
+) -> Result<(), (StatusCode, String)> {
+    create_with_default_model(&provider)
+        .await
+        .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/set_provider",
+    request_body = SetProviderRequest,
+)]
+pub async fn set_config_provider(
+    Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
+) -> Result<(), (StatusCode, String)> {
+    create_with_default_model(&provider)
+        .await
+        .and_then(|_| {
+            let config = Config::global();
+            config
+                .set_goose_provider(provider)
+                .and_then(|_| config.set_goose_model(model))
+                .map_err(|e| anyhow::anyhow!(e))
+        })
+        .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
+    Ok(())
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -758,6 +805,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/config/custom-providers/{id}", put(update_custom_provider))
         .route("/config/custom-providers/{id}", get(get_custom_provider))
+        .route("/config/check_provider", post(check_provider))
+        .route("/config/set_provider", post(set_config_provider))
         .with_state(state)
 }
 
