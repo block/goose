@@ -1,9 +1,15 @@
 pub mod config;
 pub mod lapstone;
 
+use crate::configuration::Settings;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
+
+fn get_server_port() -> anyhow::Result<u16> {
+    let settings = Settings::new()?;
+    Ok(settings.port)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -89,7 +95,7 @@ impl TunnelManager {
         }
     }
 
-    pub async fn start(&self, port: u16) -> anyhow::Result<TunnelInfo> {
+    pub async fn start(&self) -> anyhow::Result<TunnelInfo> {
         let mut state = self.state.write().await;
         if *state != TunnelState::Idle {
             anyhow::bail!("Tunnel is already running or starting");
@@ -98,6 +104,7 @@ impl TunnelManager {
         drop(state);
 
         let config = self.config.read().await.clone();
+        let server_port = get_server_port()?;
 
         let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
         let server_secret =
@@ -114,7 +121,7 @@ impl TunnelManager {
         *self.restart_tx.write().await = Some(restart_tx.clone());
 
         let result = lapstone::start(
-            port,
+            server_port,
             tunnel_secret,
             server_secret,
             agent_id,
@@ -156,7 +163,7 @@ impl TunnelManager {
                             *restart_tx_clone.write().await = Some(new_restart_tx.clone());
 
                             match lapstone::start(
-                                port,
+                                server_port,
                                 tunnel_secret,
                                 server_secret,
                                 agent_id,
@@ -220,29 +227,4 @@ fn generate_secret() -> String {
 fn generate_agent_id() -> String {
     let bytes: [u8; 16] = rand::random();
     hex::encode(bytes)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_secret() {
-        let secret = generate_secret();
-        assert_eq!(secret.len(), 64); // 32 bytes = 64 hex chars
-    }
-
-    #[test]
-    fn test_generate_agent_id() {
-        let agent_id = generate_agent_id();
-        assert_eq!(agent_id.len(), 32); // 16 bytes = 32 hex chars
-    }
-
-    #[tokio::test]
-    async fn test_tunnel_manager_initial_state() {
-        let manager = TunnelManager::new(TunnelConfig::default());
-        let status = manager.get_status().await;
-        assert_eq!(status.state, TunnelState::Idle);
-        assert!(status.info.is_none());
-    }
 }

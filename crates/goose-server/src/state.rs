@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 use crate::tunnel::TunnelManager;
 
@@ -17,15 +17,13 @@ pub struct AppState {
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
-    pub server_port: Arc<RwLock<Option<u16>>>,
 }
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = AgentManager::instance().await?;
-
         let tunnel_config = crate::tunnel::config::load_config().await;
-        let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config.clone()));
+        let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config));
 
         Ok(Arc::new(Self {
             agent_manager,
@@ -33,16 +31,15 @@ impl AppState {
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
-            server_port: Arc::new(RwLock::new(None)),
         }))
     }
 
-    pub async fn auto_start_tunnel(&self, port: u16) {
+    pub async fn auto_start_tunnel(&self) {
         let status = self.tunnel_manager.get_status().await;
 
         if status.auto_start && status.state == crate::tunnel::TunnelState::Idle {
-            tracing::info!("Auto-starting tunnel on port {}", port);
-            match self.tunnel_manager.start(port).await {
+            tracing::info!("Auto-starting tunnel");
+            match self.tunnel_manager.start().await {
                 Ok(info) => {
                     tracing::info!("Tunnel auto-started successfully: {}", info.url);
                 }

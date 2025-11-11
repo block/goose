@@ -27,21 +27,7 @@ pub struct ErrorResponse {
 )]
 #[axum::debug_handler]
 pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
-    let port = match *state.server_port.read().await {
-        Some(p) => p,
-        None => {
-            tracing::error!("Server port not set");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Server port not initialized".to_string(),
-                }),
-            )
-                .into_response();
-        }
-    };
-
-    match state.tunnel_manager.start(port).await {
+    match state.tunnel_manager.start().await {
         Ok(_info) => {
             let status = state.tunnel_manager.get_status().await;
             (StatusCode::OK, Json(status)).into_response()
