@@ -1,5 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
@@ -838,15 +840,14 @@ pub struct EmbeddedProvider {
     batch_size: u32,
     threads: u32,
     supports_streaming: bool,
-    /// Whether the model supports native tool calling (None = not yet detected)
     #[serde(skip)]
     tool_calling_support: Arc<Mutex<Option<bool>>>,
+    #[serde(skip)]
+    runtime_ctx_size: Arc<Mutex<u32>>,
 }
 
 impl EmbeddedProvider {
-    /// Enumerate available GGUF models in ~/.models directory
-    /// This is a static method that doesn't require a provider instance
-    /// Includes both downloaded models and downloadable models (marked with suffix)
+    /// ~/.models directory is where models are stored (downloaded or placed manually)
     pub fn enumerate_models() -> Result<Vec<String>> {
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
@@ -854,7 +855,6 @@ impl EmbeddedProvider {
 
         let mut models = Vec::new();
 
-        // Scan for existing .gguf files in ~/.models
         if models_dir.exists() {
             let entries = std::fs::read_dir(&models_dir)
                 .map_err(|e| anyhow::anyhow!("Failed to read models directory: {}", e))?;
@@ -875,14 +875,10 @@ impl EmbeddedProvider {
             }
         }
 
-        // Add downloadable models to the list
         for downloadable in DOWNLOADABLE_MODELS {
-            // Check if model is already downloaded
             if !model_file_exists(downloadable.name) {
-                // Mark as downloadable
                 models.push(format!("{} (to-download)", downloadable.name));
             } else if !models.contains(&downloadable.name.to_string()) {
-                // Already downloaded but not in list
                 models.push(downloadable.name.to_string());
             }
         }
@@ -902,9 +898,7 @@ impl EmbeddedProvider {
         let model_name = &model.model_name;
         let clean_model_name = model_name.trim_end_matches(" (to-download)");
 
-        // Find the actual model file
         let model_path: String = if clean_model_name == "embedded" {
-            // Pick first available .gguf file
             if let Ok(entries) = std::fs::read_dir(&models_dir) {
                 let first_gguf = entries
                     .flatten()
@@ -926,7 +920,6 @@ impl EmbeddedProvider {
                 ));
             }
         } else {
-            // Try to find the specific model
             let model_file = if clean_model_name.ends_with(".gguf") {
                 models_dir.join(clean_model_name)
             } else {
@@ -934,7 +927,6 @@ impl EmbeddedProvider {
             };
 
             if !model_file.exists() {
-                // we have ability to download some models
                 if find_downloadable_model(clean_model_name).is_some() {
                     tracing::info!(
                         "Model '{}' will be downloaded on first use",
@@ -942,7 +934,6 @@ impl EmbeddedProvider {
                     );
                     model_file.to_string_lossy().to_string()
                 } else {
-                    // Not a downloadable model - show error
                     let available_models: Vec<String> = std::fs::read_dir(&models_dir)
                         .ok()
                         .map(|entries| {
@@ -982,20 +973,57 @@ impl EmbeddedProvider {
             }
         };
 
-        // Detect platform-specific defaults
         let platform_defaults = detect_platform_defaults();
 
         let host: String = config
             .get_param("EMBEDDED_HOST")
             .unwrap_or_else(|_| EMBEDDED_HOST.to_string());
 
-        // Find an available port by letting the OS choose (port 0)
         let port = ServerProcess::find_available_port()?;
         tracing::debug!("Allocated port {} for llama-server", port);
 
+        let detected_ctx_size = if std::path::Path::new(&model_path).exists() {
+            match super::formats::gguf::read_context_length(&model_path) {
+                Ok(Some(ctx_len)) => {
+                    tracing::info!(
+                        "Auto-detected context length from GGUF metadata: {}",
+                        ctx_len
+                    );
+                    Some(ctx_len as u32)
+                }
+                Ok(None) => {
+                    tracing::debug!(
+                        "No context_length found in GGUF metadata, will use default or configured value"
+                    );
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to read GGUF metadata for context length: {}. Will use default or configured value.",
+                        e
+                    );
+                    None
+                }
+            }
+        } else {
+            // Model doesn't exist yet (will be downloaded later)
+            None
+        };
+
+        let default_ctx_size = detected_ctx_size.unwrap_or(EMBEDDED_DEFAULT_CTX_SIZE);
         let ctx_size: u32 = config
             .get_param("EMBEDDED_CTX_SIZE")
-            .unwrap_or(EMBEDDED_DEFAULT_CTX_SIZE);
+            .unwrap_or(default_ctx_size);
+
+        if let Some(detected) = detected_ctx_size {
+            if ctx_size != detected {
+                tracing::info!(
+                    "Context size overridden by EMBEDDED_CTX_SIZE: {} (model native: {})",
+                    ctx_size,
+                    detected
+                );
+            }
+        }
         let gpu_layers: u32 = config
             .get_param("EMBEDDED_GPU_LAYERS")
             .unwrap_or(platform_defaults.gpu_layers);
@@ -1011,29 +1039,47 @@ impl EmbeddedProvider {
                 .unwrap_or(EMBEDDED_TIMEOUT),
         );
 
+        let ctx_source = if let Some(detected) = detected_ctx_size {
+            if ctx_size == detected {
+                "auto-detected from GGUF"
+            } else {
+                "overridden by config"
+            }
+        } else {
+            "default (not found in GGUF)"
+        };
+
         tracing::info!(
-            "Local provider configuration: port={}, gpu_layers={}, batch_size={}, threads={}, ctx_size={}",
+            "Local provider configuration: port={}, gpu_layers={}, batch_size={}, threads={}, ctx_size={} ({})",
             port,
             gpu_layers,
             batch_size,
             threads,
-            ctx_size
+            ctx_size,
+            ctx_source
         );
 
         let base_url = format!("http://{}:{}", host, port);
         let url = Url::parse(&base_url).map_err(|e| anyhow::anyhow!("Invalid base URL: {}", e))?;
 
-        // No authentication needed for local server
         let auth = AuthMethod::Custom(Box::new(NoAuth));
         let api_client = ApiClient::with_timeout(url.to_string(), auth, timeout)?;
 
         let server_process = Arc::new(Mutex::new(ServerProcess::new(port)));
 
+        let mut updated_model = model.clone();
+        updated_model.context_limit = Some(ctx_size as usize);
+        tracing::info!(
+            "Setting model context_limit in from_env: {} (detected: {:?})",
+            ctx_size,
+            detected_ctx_size
+        );
+
         let provider = Self {
             name: "embedded".to_string(),
             api_client,
             server_process,
-            model,
+            model: updated_model,
             model_path,
             host,
             port,
@@ -1043,6 +1089,7 @@ impl EmbeddedProvider {
             threads,
             supports_streaming: true,
             tool_calling_support: Arc::new(Mutex::new(None)),
+            runtime_ctx_size: Arc::new(Mutex::new(ctx_size)),
         };
 
         // Don't start the server here - it will be started lazily on first use
@@ -1078,6 +1125,41 @@ impl EmbeddedProvider {
         };
         let actual_model_path_str = actual_model_path.to_string_lossy().to_string();
 
+        let ctx_size = if actual_model_path.exists() {
+            match super::formats::gguf::read_context_length(&actual_model_path_str) {
+                Ok(Some(ctx_len)) => {
+                    let config = crate::config::Config::global();
+                    let configured_ctx: Option<u32> = config.get_param("EMBEDDED_CTX_SIZE").ok();
+
+                    if let Some(configured) = configured_ctx {
+                        tracing::debug!(
+                            "Using configured context size {} (model native: {})",
+                            configured,
+                            ctx_len
+                        );
+                        configured
+                    } else {
+                        tracing::debug!("Using auto-detected context size {} from model", ctx_len);
+                        ctx_len as u32
+                    }
+                }
+                _ => {
+                    tracing::debug!(
+                        "Could not detect context size, using provider default: {}",
+                        self.ctx_size
+                    );
+                    self.ctx_size
+                }
+            }
+        } else {
+            self.ctx_size
+        };
+
+        {
+            let mut runtime_ctx = self.runtime_ctx_size.lock().await;
+            *runtime_ctx = ctx_size;
+        }
+
         let mut process = self.server_process.lock().await;
 
         let was_running_before = process.child.is_some();
@@ -1087,14 +1169,13 @@ impl EmbeddedProvider {
             .start(
                 &actual_model_path_str,
                 &self.host,
-                self.ctx_size,
+                ctx_size,
                 self.gpu_layers,
                 self.batch_size,
                 self.threads,
             )
             .await?;
 
-        // Determine if we need to wait: either wasn't running before, or model changed
         let needs_wait =
             !was_running_before || model_before.as_deref() != Some(&actual_model_path_str);
         drop(process);
@@ -1122,8 +1203,6 @@ impl EmbeddedProvider {
                 ));
             }
 
-            // Try to make a small test request to verify the model is loaded
-            // The health endpoint might return OK before the model is ready
             let test_payload = json!({
                 "model": "embedded",
                 "messages": [{"role": "user", "content": "test"}],
@@ -1136,34 +1215,29 @@ impl EmbeddedProvider {
                 .response_post("v1/chat/completions", &test_payload)
                 .await
             {
-                Ok(response) => {
-                    // Check if we got a valid response (not a 503 loading error)
-                    match handle_response_openai_compat(response).await {
-                        Ok(_) => {
-                            tracing::info!(
-                                "llama-server is ready and model loaded on port {}",
-                                self.port
+                Ok(response) => match handle_response_openai_compat(response).await {
+                    Ok(_) => {
+                        tracing::info!(
+                            "llama-server is ready and model loaded on port {}",
+                            self.port
+                        );
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        let error_msg = format!("{:?}", e);
+                        if error_msg.contains("503") || error_msg.contains("Loading model") {
+                            tracing::debug!("Model still loading, waiting...");
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                        } else {
+                            tracing::debug!(
+                                "Server error during readiness check: {}, retrying...",
+                                e
                             );
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            let error_msg = format!("{:?}", e);
-                            if error_msg.contains("503") || error_msg.contains("Loading model") {
-                                tracing::debug!("Model still loading, waiting...");
-                                tokio::time::sleep(Duration::from_secs(2)).await;
-                            } else {
-                                // Some other error - might indicate server issues
-                                tracing::debug!(
-                                    "Server error during readiness check: {}, retrying...",
-                                    e
-                                );
-                                tokio::time::sleep(Duration::from_millis(500)).await;
-                            }
+                            tokio::time::sleep(Duration::from_millis(500)).await;
                         }
                     }
-                }
+                },
                 Err(_) => {
-                    // Server not responding yet
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 }
             }
@@ -1182,9 +1256,7 @@ impl EmbeddedProvider {
         handle_response_openai_compat(response).await
     }
 
-    /// Detect if the model supports native tool calling
     async fn detect_tool_support(&self) -> bool {
-        // Create a simple test tool
         let test_tool = Tool::new(
             "test".to_string(),
             "test tool".to_string(),
@@ -1205,22 +1277,17 @@ impl EmbeddedProvider {
         };
 
         match self.post(&test_payload).await {
-            Ok(response) => {
-                // Check if response has tool_calls in the expected OpenAI format
-                response
-                    .get("choices")
-                    .and_then(|c| c.get(0))
-                    .and_then(|c| c.get("message"))
-                    .and_then(|m| m.get("tool_calls"))
-                    .is_some()
-            }
+            Ok(response) => response
+                .get("choices")
+                .and_then(|c| c.get(0))
+                .and_then(|c| c.get("message"))
+                .and_then(|m| m.get("tool_calls"))
+                .is_some(),
             Err(_) => false,
         }
     }
 
-    /// Get or detect tool calling support
     async fn get_tool_support(&self) -> bool {
-        // Check if forced emulation is enabled FIRST (before cache)
         let config = crate::config::Config::global();
         let force_emulation = config
             .get_param::<bool>("EMBEDDED_FORCE_TOOL_EMULATION")
@@ -1231,7 +1298,7 @@ impl EmbeddedProvider {
             return false;
         }
 
-        // Check model file size - models < 10GB automatically use emulation
+        // models < 10GB automatically use emulation
         match std::fs::metadata(&self.model_path) {
             Ok(metadata) => {
                 let size_gb = metadata.len() as f64 / (1024.0 * 1024.0 * 1024.0);
@@ -1261,7 +1328,6 @@ impl EmbeddedProvider {
             return cached;
         }
 
-        // Detect support for larger models
         tracing::debug!("Detecting tool calling support...");
         let detected = self.detect_tool_support().await;
 
@@ -1276,7 +1342,6 @@ impl EmbeddedProvider {
     }
 }
 
-/// Tool executor for emulation mode (when model doesn't support native tool calling)
 struct ToolExecutor;
 
 impl ToolExecutor {
@@ -1342,7 +1407,6 @@ impl ToolExecutor {
         }
     }
 
-    /// this is to help identify if we should show it as plain text
     fn is_valid_tool_call(json: &Value) -> bool {
         let has_valid_tool = json
             .get("tool")
@@ -1355,8 +1419,6 @@ impl ToolExecutor {
         has_valid_tool && has_args
     }
 
-    /// Format JSON tool call as human-readable text
-    /// Extracts content from args, formats as clean text without JSON syntax
     fn format_json_as_text(json: &Value) -> String {
         if let Some(args) = json.get("args") {
             if let Some(content) = args
@@ -1507,7 +1569,6 @@ impl ToolExecutor {
     }
 }
 
-// No authentication provider
 struct NoAuth;
 
 #[async_trait]
@@ -1520,12 +1581,61 @@ impl super::api_client::AuthProvider for NoAuth {
 #[async_trait]
 impl Provider for EmbeddedProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        let known_models = if let Some(home_dir) = dirs::home_dir() {
+            let models_dir = home_dir.join(".models");
+            if models_dir.exists() {
+                std::fs::read_dir(&models_dir)
+                    .ok()
+                    .map(|entries| {
+                        entries
+                            .flatten()
+                            .filter_map(|entry| {
+                                let path = entry.path();
+                                if path.is_file()
+                                    && path.extension().is_some_and(|ext| ext == "gguf")
+                                {
+                                    let model_name = path.file_stem()?.to_str()?.to_string();
+                                    let path_str = path.to_string_lossy().to_string();
+
+                                    let context_limit =
+                                        super::formats::gguf::read_context_length(&path_str)
+                                            .ok()
+                                            .flatten()
+                                            .map(|ctx| ctx as usize)
+                                            .unwrap_or(EMBEDDED_DEFAULT_CTX_SIZE as usize);
+
+                                    Some(ModelInfo::new(model_name, context_limit))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_else(|| {
+                        vec![ModelInfo::new(
+                            "embedded",
+                            EMBEDDED_DEFAULT_CTX_SIZE as usize,
+                        )]
+                    })
+            } else {
+                vec![ModelInfo::new(
+                    "embedded",
+                    EMBEDDED_DEFAULT_CTX_SIZE as usize,
+                )]
+            }
+        } else {
+            vec![ModelInfo::new(
+                "embedded",
+                EMBEDDED_DEFAULT_CTX_SIZE as usize,
+            )]
+        };
+
+        ProviderMetadata::with_models(
             "embedded",
             "Local",
             "Local GGUF models via llama-server (auto-detects platform, looks in ~/.models)",
             "embedded",
-            vec!["embedded"],
+            known_models,
             EMBEDDED_DOC_URL,
             vec![
                 ConfigKey::new("EMBEDDED_MODEL_PATH", false, false, None),
@@ -1561,12 +1671,16 @@ impl Provider for EmbeddedProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+        let mut config = self.model.clone();
+        if let Ok(runtime_ctx) = self.runtime_ctx_size.try_lock() {
+            config.context_limit = Some(*runtime_ctx as usize);
+        } else {
+            config.context_limit = Some(self.ctx_size as usize);
+        }
+        config
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Use the static enumerate_models method which includes downloadable models
-        // This avoids needing to start the server just to list models
         match Self::enumerate_models() {
             Ok(models) => {
                 if models.is_empty() {
@@ -1597,18 +1711,16 @@ impl Provider for EmbeddedProvider {
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
 
-        // Check if we should use emulation mode
         let use_emulation = !filtered_tools.is_empty() && !self.get_tool_support().await;
 
         if use_emulation {
             tracing::info!("Using tool emulation mode");
 
-            // Use emulation prompt as system parameter (not user message) to avoid Jinja issues
             let emulation_payload = create_request(
                 &self.model,
-                EMULATION_SYSTEM_PROMPT, // Emulation prompt as system
+                EMULATION_SYSTEM_PROMPT,
                 messages,
-                &[], // No tools parameter
+                &[], // no tools as we will fake it
                 &super::utils::ImageFormat::OpenAi,
             )?;
 
@@ -1625,7 +1737,6 @@ impl Provider for EmbeddedProvider {
             let text = message.as_concat_text();
             let augmented_text = ToolExecutor::execute_tool_calls(&text).await;
 
-            // Create new message with augmented text
             let augmented_message = Message::new(
                 Role::Assistant,
                 chrono::Utc::now().timestamp(),
@@ -1640,7 +1751,6 @@ impl Provider for EmbeddedProvider {
             let response_model = get_model(&response);
             Ok((augmented_message, ProviderUsage::new(response_model, usage)))
         } else {
-            // Use native tool calling (current path)
             let payload = create_request(
                 &self.model,
                 system,
@@ -1686,13 +1796,10 @@ impl Provider for EmbeddedProvider {
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
 
-        // Check if we should use emulation mode
         let use_emulation = !filtered_tools.is_empty() && !self.get_tool_support().await;
 
-        // Determine what to send based on emulation mode
         let (final_system, final_messages, final_tools) = if use_emulation {
             tracing::info!("Using tool emulation mode in streaming");
-            // Use emulation prompt as system parameter to avoid Jinja template issues
             (EMULATION_SYSTEM_PROMPT, messages.to_vec(), vec![])
         } else {
             (system, messages.to_vec(), filtered_tools.to_vec())
@@ -1741,7 +1848,6 @@ impl Provider for EmbeddedProvider {
                 }
             }
 
-            // If in emulation mode, execute tools and yield augmented message
             if use_emulation && !collected_text.is_empty() {
                 let augmented_text = ToolExecutor::execute_tool_calls(&collected_text).await;
                 let augmented_message = Message::new(
