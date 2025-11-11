@@ -205,11 +205,18 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
       // Step 3: Install dependencies if needed
       if (finalAnalysis.requiresInstall) {
         setInstallProgress('Installing dependencies...');
-        const installResult = await window.electron.installProjectDependencies(cloneResult.localPath, finalAnalysis.packageManager);
+        const installResult = await window.electron.installProjectDependencies(
+          cloneResult.localPath, 
+          finalAnalysis.packageManager,
+          finalAnalysis.packageManagerPath
+        );
         
         if (!installResult.success) {
           console.warn('Dependency installation failed:', installResult.error);
+          setError(`Warning: Dependency installation failed - ${installResult.error}. You may need to install manually.`);
           // Continue anyway, some projects might work without full dependency installation
+        } else {
+          console.log('Dependencies installed successfully');
         }
       }
 

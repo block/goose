@@ -1976,12 +1976,12 @@ async function appMain() {
           "script-src 'self' 'unsafe-inline';" +
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
-          // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
+          // Connect to our local API, localhost apps, and specific external services
+          "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://localhost:* wss://localhost:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Allow all frames (iframes)
-          "frame-src 'self' https: http:;" +
+          // Allow all frames (iframes) including localhost
+          "frame-src 'self' https: http: http://localhost:* ws://localhost:*;" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
           // Media sources - allow microphone
@@ -1994,8 +1994,10 @@ async function appMain() {
           "manifest-src 'self';" +
           // Worker sources
           "worker-src 'self';" +
-          // Upgrade insecure requests
-          'upgrade-insecure-requests;',
+          // Child sources for web workers and frames
+          "child-src 'self' http://localhost:*;" +
+          // Upgrade insecure requests (but allow localhost HTTP)
+          '',
       },
     });
   });
@@ -2764,6 +2766,46 @@ async function appMain() {
     }
   });
 
+  // Helper function to find package manager executable
+  const findPackageManagerPath = async (packageManager: string): Promise<string> => {
+    const commonPaths = [
+      `/opt/homebrew/bin/${packageManager}`,  // Homebrew on Apple Silicon
+      `/usr/local/bin/${packageManager}`,     // Homebrew on Intel Mac
+      `/usr/bin/${packageManager}`,           // System install
+      packageManager                          // Fallback to PATH
+    ];
+    
+    for (const pmPath of commonPaths) {
+      try {
+        const result = spawn('which', [pmPath], { stdio: 'pipe' });
+        const output = await new Promise<string>((resolve, reject) => {
+          let stdout = '';
+          result.stdout?.on('data', (data) => stdout += data.toString());
+          result.on('close', (code) => {
+            if (code === 0 && stdout.trim()) {
+              resolve(stdout.trim());
+            } else {
+              reject(new Error(`${pmPath} not found`));
+            }
+          });
+          result.on('error', reject);
+        });
+        
+        if (output) {
+          console.log(`[Main] Found ${packageManager} at:`, output);
+          return output;
+        }
+      } catch (error) {
+        // Try next path
+        continue;
+      }
+    }
+    
+    // Fallback to package manager name (will use PATH)
+    console.warn(`[Main] Could not find full path for ${packageManager}, using PATH lookup`);
+    return packageManager;
+  };
+
   // Handle project analysis
   ipcMain.handle('analyze-project', async (_event, projectPath: string) => {
     try {
@@ -2777,7 +2819,8 @@ async function appMain() {
         startCommand: undefined as string | undefined,
         port: undefined as number | undefined,
         requiresInstall: false,
-        packageManager: 'npm' as string
+        packageManager: 'npm' as string,
+        packageManagerPath: undefined as string | undefined
       };
       
       // Check for package.json (Node.js project)
@@ -2803,6 +2846,9 @@ async function appMain() {
           }
         }
         
+        // Find the full path to the package manager
+        analysis.packageManagerPath = await findPackageManagerPath(analysis.packageManager);
+        
         // Analyze scripts and dependencies
         const scripts = packageJson.scripts || {};
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
@@ -2810,10 +2856,10 @@ async function appMain() {
         // Detect project type and set appropriate commands
         if (dependencies['electron']) {
           analysis.projectType = 'electron';
-          analysis.startCommand = scripts.start || scripts.electron || 'npm start';
+          analysis.startCommand = scripts.start || scripts.electron || `${analysis.packageManagerPath} start`;
         } else if (dependencies['react'] || dependencies['vue'] || dependencies['angular'] || dependencies['svelte'] || dependencies['next'] || dependencies['nuxt'] || dependencies['vite'] || dependencies['webpack']) {
           analysis.projectType = 'web';
-          analysis.startCommand = scripts.start || scripts.dev || scripts.serve || 'npm run dev';
+          analysis.startCommand = scripts.start || scripts.dev || scripts.serve || `${analysis.packageManagerPath} run dev`;
           analysis.buildCommand = scripts.build;
           
           // Try to detect port from common patterns
@@ -2923,37 +2969,42 @@ async function appMain() {
   });
 
   // Handle dependency installation
-  ipcMain.handle('install-project-dependencies', async (_event, projectPath: string, packageManager: string) => {
+  ipcMain.handle('install-project-dependencies', async (_event, projectPath: string, packageManager: string, packageManagerPath?: string) => {
     try {
       console.log('[Main] Installing dependencies for project at:', projectPath, 'using:', packageManager);
+      
+      // Use provided path or find the package manager path
+      const pmPath = packageManagerPath || await findPackageManagerPath(packageManager);
       
       let command: string;
       let args: string[];
       
       switch (packageManager) {
         case 'npm':
-          command = 'npm';
+          command = pmPath;
           args = ['install'];
           break;
         case 'yarn':
-          command = 'yarn';
+          command = pmPath;
           args = ['install'];
           break;
         case 'pnpm':
-          command = 'pnpm';
+          command = pmPath;
           args = ['install'];
           break;
         case 'pip':
-          command = 'pip';
+          command = pmPath;
           args = ['install', '-r', 'requirements.txt'];
           break;
         case 'cargo':
-          command = 'cargo';
+          command = pmPath;
           args = ['build'];
           break;
         default:
           return { success: false, error: `Unsupported package manager: ${packageManager}` };
       }
+      
+      console.log('[Main] Using package manager command:', command, args.join(' '));
       
       return new Promise((resolve) => {
         const installProcess = spawn(command, args, {
