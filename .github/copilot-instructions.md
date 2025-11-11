@@ -5,6 +5,7 @@
 - Be concise: one sentence per comment when possible
 - Focus on actionable feedback, not observations
 - Skip comments on style that clippy/rustfmt will catch
+- When reviewing text, only comment on clarity issues if the text is genuinely confusing or could lead to errors. "Could be clearer" is not the same as "is confusing" - stay silent unless HIGH confidence it will cause problems
 
 ## Priority Areas (Review These)
 
