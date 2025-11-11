@@ -2,7 +2,7 @@ mod model;
 mod name_builder;
 mod registry;
 
-pub use model::{CanonicalModel, ModelType};
+pub use model::{Architecture, CanonicalModel, Pricing, TopProvider};
 pub use name_builder::{canonical_name, strip_version_suffix};
 pub use registry::CanonicalModelRegistry;
 
