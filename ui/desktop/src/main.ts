@@ -496,6 +496,9 @@ const goosedClients = new Map<number, Client>();
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 
+// Track running app processes globally so we can clean them up on quit
+const runningApps = new Map<string, { process: any; port?: number }>();
+
 // Helper function to clean up all BrowserViews for a window
 const cleanupBrowserViews = (window: BrowserWindow) => {
   try {
@@ -3071,9 +3074,6 @@ async function appMain() {
     }
   });
 
-  // Track running app processes
-  const runningApps = new Map<string, { process: any; port?: number }>();
-
   // Handle app launching
   ipcMain.handle('launch-app', async (_event, appConfig: any) => {
     try {
@@ -3540,6 +3540,58 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  // Clean up all running apps before quitting
+  console.log('[Main] Cleaning up running apps before quit...');
+  for (const [appId, appInfo] of runningApps.entries()) {
+    try {
+      console.log(`[Main] Stopping app ${appId} before quit`);
+      
+      // Kill the process
+      if (appInfo.process && !appInfo.process.killed) {
+        appInfo.process.kill('SIGTERM');
+        
+        // Force kill after 2 seconds if still running
+        setTimeout(() => {
+          if (!appInfo.process.killed) {
+            console.log(`[Main] Force killing app ${appId} during quit`);
+            appInfo.process.kill('SIGKILL');
+          }
+        }, 2000);
+      }
+      
+      // Also kill any processes on the port
+      if (appInfo.port) {
+        try {
+          const killPort = spawn('lsof', ['-ti', `:${appInfo.port}`]);
+          
+          let pids = '';
+          killPort.stdout.on('data', (data) => {
+            pids += data.toString();
+          });
+          
+          killPort.on('close', (code) => {
+            if (code === 0 && pids.trim()) {
+              const pidList = pids.trim().split('\n');
+              pidList.forEach(pid => {
+                try {
+                  process.kill(parseInt(pid), 'SIGTERM');
+                  console.log(`[Main] Killed process ${pid} on port ${appInfo.port} during quit`);
+                } catch (error) {
+                  console.log(`[Main] Could not kill process ${pid} during quit:`, error.message);
+                }
+              });
+            }
+          });
+        } catch (error) {
+          console.warn(`[Main] Could not kill processes on port ${appInfo.port} during quit:`, error);
+        }
+      }
+    } catch (error) {
+      console.error(`[Main] Error stopping app ${appId} during quit:`, error);
+    }
+  }
+  runningApps.clear();
+
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);
