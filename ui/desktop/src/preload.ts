@@ -134,6 +134,8 @@ type ElectronAPI = {
   installProjectDependencies: (projectPath: string, packageManager: string) => Promise<{ success: boolean; error?: string }>;
   saveAppConfiguration: (appConfig: any) => Promise<{ success: boolean; error?: string }>;
   launchApp: (appConfig: any) => Promise<{ success: boolean; error?: string }>;
+  stopApp: (appId: string) => Promise<{ success: boolean; error?: string }>;
+  isAppRunning: (appId: string) => Promise<boolean>;
   removeApp: (appId: string) => Promise<{ success: boolean; error?: string }>;
   showItemInFolder: (path: string) => Promise<void>;
   loadSavedApps: () => Promise<{ success: boolean; apps: any[]; error?: string }>;
@@ -284,6 +286,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('install-project-dependencies', projectPath, packageManager),
   saveAppConfiguration: (appConfig: any) => ipcRenderer.invoke('save-app-configuration', appConfig),
   launchApp: (appConfig: any) => ipcRenderer.invoke('launch-app', appConfig),
+  stopApp: (appId: string) => ipcRenderer.invoke('stop-app', appId),
+  isAppRunning: (appId: string) => ipcRenderer.invoke('is-app-running', appId),
   removeApp: (appId: string) => ipcRenderer.invoke('remove-app', appId),
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
   loadSavedApps: () => ipcRenderer.invoke('load-saved-apps'),

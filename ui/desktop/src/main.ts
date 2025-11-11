@@ -3071,6 +3071,9 @@ async function appMain() {
     }
   });
 
+  // Track running app processes
+  const runningApps = new Map<string, { process: any; port?: number }>();
+
   // Handle app launching
   ipcMain.handle('launch-app', async (_event, appConfig: any) => {
     try {
@@ -3078,6 +3081,11 @@ async function appMain() {
       
       if (!appConfig.startCommand) {
         return { success: false, error: 'No start command defined for this app' };
+      }
+      
+      // Check if app is already running
+      if (runningApps.has(appConfig.id)) {
+        return { success: false, error: 'App is already running. Stop it first before launching again.' };
       }
       
       // Parse the start command
@@ -3092,6 +3100,23 @@ async function appMain() {
         detached: true // Allow the process to run independently
       });
       
+      // Store the process reference
+      runningApps.set(appConfig.id, {
+        process: appProcess,
+        port: appConfig.port
+      });
+      
+      // Handle process exit
+      appProcess.on('exit', (code, signal) => {
+        console.log(`[Main] App ${appConfig.name} exited with code ${code}, signal ${signal}`);
+        runningApps.delete(appConfig.id);
+      });
+      
+      appProcess.on('error', (error) => {
+        console.error('[Main] App launch error:', error);
+        runningApps.delete(appConfig.id);
+      });
+      
       // Don't wait for the process to complete for web apps
       if (appConfig.projectType === 'web') {
         // Give it a moment to start up
@@ -3100,13 +3125,6 @@ async function appMain() {
         }, 2000);
       }
       
-      appProcess.on('error', (error) => {
-        console.error('[Main] App launch error:', error);
-      });
-      
-      // Store process reference for later cleanup if needed
-      // (In a real implementation, you'd want to track running processes)
-      
       console.log('[Main] App launched successfully');
       return { success: true };
       
@@ -3114,6 +3132,77 @@ async function appMain() {
       console.error('[Main] Error launching app:', error);
       return { success: false, error: error.message };
     }
+  });
+
+  // Handle app stopping
+  ipcMain.handle('stop-app', async (_event, appId: string) => {
+    try {
+      console.log('[Main] Stopping app:', appId);
+      
+      const runningApp = runningApps.get(appId);
+      if (!runningApp) {
+        return { success: false, error: 'App is not currently running' };
+      }
+      
+      const { process: appProcess, port } = runningApp;
+      
+      // Kill the process
+      if (appProcess && !appProcess.killed) {
+        appProcess.kill('SIGTERM');
+        
+        // If it doesn't exit gracefully, force kill after 5 seconds
+        setTimeout(() => {
+          if (!appProcess.killed) {
+            console.log('[Main] Force killing app process');
+            appProcess.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+      
+      // Also kill any processes on the port (in case of orphaned processes)
+      if (port) {
+        try {
+          const { spawn } = require('child_process');
+          const killPort = spawn('lsof', ['-ti', `:${port}`]);
+          
+          let pids = '';
+          killPort.stdout.on('data', (data) => {
+            pids += data.toString();
+          });
+          
+          killPort.on('close', (code) => {
+            if (code === 0 && pids.trim()) {
+              const pidList = pids.trim().split('\n');
+              pidList.forEach(pid => {
+                try {
+                  process.kill(parseInt(pid), 'SIGTERM');
+                  console.log(`[Main] Killed process ${pid} on port ${port}`);
+                } catch (error) {
+                  console.log(`[Main] Could not kill process ${pid}:`, error.message);
+                }
+              });
+            }
+          });
+        } catch (error) {
+          console.warn('[Main] Could not kill processes on port:', error);
+        }
+      }
+      
+      // Remove from tracking
+      runningApps.delete(appId);
+      
+      console.log('[Main] App stopped successfully');
+      return { success: true };
+      
+    } catch (error) {
+      console.error('[Main] Error stopping app:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle checking if app is running
+  ipcMain.handle('is-app-running', async (_event, appId: string) => {
+    return runningApps.has(appId);
   });
 
   // Handle app removal

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, GitBranch, Folder, Play, Settings, Trash2, ExternalLink, Edit3, Save, X } from 'lucide-react';
+import { Download, GitBranch, Folder, Play, Settings, Trash2, ExternalLink, Edit3, Save, X, Square } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
@@ -93,6 +93,7 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
   const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<string | null>(null);
+  const [runningApps, setRunningApps] = useState<Set<string>>(new Set());
   const [editForm, setEditForm] = useState<{
     name: string;
     description: string;
@@ -117,6 +118,20 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
         if (result.success) {
           setInstalledApps(result.apps);
           console.log('Loaded', result.apps.length, 'saved apps');
+          
+          // Check which apps are currently running
+          const runningAppIds = new Set<string>();
+          for (const app of result.apps) {
+            try {
+              const isRunning = await window.electron.isAppRunning(app.id);
+              if (isRunning) {
+                runningAppIds.add(app.id);
+              }
+            } catch (error) {
+              console.warn('Failed to check running status for app:', app.id, error);
+            }
+          }
+          setRunningApps(runningAppIds);
         }
       } catch (error) {
         console.error('Failed to load saved apps:', error);
@@ -315,6 +330,7 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
       setInstalledApps(prev => 
         prev.map(a => a.id === app.id ? { ...a, status: 'running' } : a)
       );
+      setRunningApps(prev => new Set([...prev, app.id]));
 
       const launchResult = await window.electron.launchApp(app);
       
@@ -341,6 +357,38 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
       setInstalledApps(prev => 
         prev.map(a => a.id === app.id ? { ...a, status: 'error' } : a)
       );
+    }
+  };
+
+  const handleStopApp = async (app: InstalledApp) => {
+    try {
+      console.log('Stopping app:', app.name);
+
+      setInstalledApps(prev => 
+        prev.map(a => a.id === app.id ? { ...a, status: 'ready' } : a)
+      );
+      setRunningApps(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(app.id);
+        return newSet;
+      });
+
+      const stopResult = await window.electron.stopApp(app.id);
+      
+      if (!stopResult.success) {
+        throw new Error(stopResult.error || 'Failed to stop app');
+      }
+
+      console.log('App stopped successfully:', app.name);
+
+    } catch (err) {
+      console.error('App stop failed:', err);
+      setError(`Failed to stop ${app.name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      // Revert status if stop failed
+      setInstalledApps(prev => 
+        prev.map(a => a.id === app.id ? { ...a, status: 'running' } : a)
+      );
+      setRunningApps(prev => new Set([...prev, app.id]));
     }
   };
 
@@ -633,20 +681,37 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
                     </div>
                     
                     <div className="flex items-center gap-1 ml-3">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleLaunchApp(app)}
-                            disabled={app.status === 'installing' || app.status === 'running'}
-                            className="p-1 h-8 w-8"
-                          >
-                            <Play size={14} />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Launch App</TooltipContent>
-                      </Tooltip>
+                      {runningApps.has(app.id) || app.status === 'running' ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleStopApp(app)}
+                              disabled={app.status === 'installing'}
+                              className="p-1 h-8 w-8 text-red-600 hover:text-red-700"
+                            >
+                              <Square size={14} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Stop App</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleLaunchApp(app)}
+                              disabled={app.status === 'installing'}
+                              className="p-1 h-8 w-8"
+                            >
+                              <Play size={14} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Launch App</TooltipContent>
+                        </Tooltip>
+                      )}
 
                       <Tooltip>
                         <TooltipTrigger asChild>
