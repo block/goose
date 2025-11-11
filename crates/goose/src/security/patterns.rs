@@ -570,7 +570,8 @@ mod tests {
         let matcher = PatternMatcher::new();
 
         // Test Docker privileged execution
-        let docker_matches = matcher.scan_for_patterns("docker run --privileged -it ubuntu /bin/bash");
+        let docker_matches =
+            matcher.scan_for_patterns("docker run --privileged -it ubuntu /bin/bash");
         assert!(!docker_matches.is_empty());
         assert!(docker_matches
             .iter()
@@ -585,7 +586,8 @@ mod tests {
         assert_eq!(kernel_matches[0].threat.risk_level, RiskLevel::Critical);
 
         // Test password cracking tools
-        let password_matches = matcher.scan_for_patterns("john --wordlist=passwords.txt hashes.txt");
+        let password_matches =
+            matcher.scan_for_patterns("john --wordlist=passwords.txt hashes.txt");
         assert!(!password_matches.is_empty());
         assert!(password_matches
             .iter()
