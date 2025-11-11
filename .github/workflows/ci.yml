@@ -13,6 +13,25 @@ on:
 name: CI
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: Check for file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
+        id: filter
+        with:
+          filters: |
+            docs-only:
+              - 'documentation/**'
+            code:
+              - '!documentation/**'
+
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: goose
