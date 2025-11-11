@@ -1,0 +1,58 @@
+[
+  {
+    "name": "claude-3-5-sonnet-20241022",
+    "model_type": "chat",
+    "context_limit": 200000,
+    "supports_streaming": true,
+    "supports_tools": true,
+    "supports_vision": true,
+    "supports_computer_use": false,
+    "input_token_cost": 3.0,
+    "output_token_cost": 15.0,
+    "currency": "USD",
+    "supports_cache_control": true,
+    "metadata": {}
+  },
+  {
+    "name": "claude-3-5-sonnet-computer-use",
+    "model_type": "chat",
+    "context_limit": 200000,
+    "supports_streaming": true,
+    "supports_tools": true,
+    "supports_vision": true,
+    "supports_computer_use": true,
+    "input_token_cost": 3.0,
+    "output_token_cost": 15.0,
+    "currency": "USD",
+    "supports_cache_control": true,
+    "metadata": {}
+  },
+  {
+    "name": "gpt-4-turbo",
+    "model_type": "chat",
+    "context_limit": 128000,
+    "supports_streaming": true,
+    "supports_tools": true,
+    "supports_vision": true,
+    "supports_computer_use": false,
+    "input_token_cost": 10.0,
+    "output_token_cost": 30.0,
+    "currency": "USD",
+    "supports_cache_control": false,
+    "metadata": {}
+  },
+  {
+    "name": "gpt-4o",
+    "model_type": "chat",
+    "context_limit": 128000,
+    "supports_streaming": true,
+    "supports_tools": true,
+    "supports_vision": true,
+    "supports_computer_use": false,
+    "input_token_cost": 2.5,
+    "output_token_cost": 10.0,
+    "currency": "USD",
+    "supports_cache_control": false,
+    "metadata": {}
+  }
+]

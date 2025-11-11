@@ -4,6 +4,7 @@ pub mod azure;
 pub mod azureauth;
 pub mod base;
 pub mod bedrock;
+pub mod canonical;
 pub mod claude_code;
 pub mod cursor_agent;
 pub mod databricks;
