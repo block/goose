@@ -2871,7 +2871,6 @@ dependencies = [
  "chrono",
  "clap",
  "config",
- "dirs 6.0.0",
  "futures",
  "goose",
  "goose-mcp",

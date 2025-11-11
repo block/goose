@@ -38,12 +38,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
-  const supportsTunnel =
-    window.electron.platform === 'darwin' || window.electron.platform === 'linux';
-
-  const tunnelWorkerUrl = window.appConfig.get('GOOSE_TUNNEL_WORKER_URL');
-  const hideTunnel = tunnelWorkerUrl === 'none' || tunnelWorkerUrl === 'no';
-
   // Detect theme changes
   useEffect(() => {
     const updateTheme = () => {
@@ -401,7 +395,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      {supportsTunnel && !hideTunnel && <TunnelSection />}
+      <TunnelSection />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
