@@ -19,6 +19,8 @@ use tracing::{info, warn};
 use utoipa::ToSchema;
 
 const CURRENT_SCHEMA_VERSION: i32 = 5;
+pub const SESSIONS_FOLDER: &str = "sessions";
+pub const DB_NAME: &str = "sessions.db";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -335,7 +337,7 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let session_dir = Paths::data_dir().join("sessions");
+    let session_dir = Paths::data_dir().join(SESSIONS_FOLDER);
 
     if !session_dir.exists() {
         fs::create_dir_all(&session_dir)?;
@@ -439,7 +441,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 impl SessionStorage {
     async fn new() -> Result<Self> {
         let session_dir = ensure_session_dir()?;
-        let db_path = session_dir.join("sessions.db");
+        let db_path = session_dir.join(DB_NAME);
 
         let storage = if db_path.exists() {
             Self::open(&db_path).await?

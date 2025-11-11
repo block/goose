@@ -62,12 +62,58 @@ export default function Pair({
           return prev;
         });
       } catch (error) {
-        console.log(error);
-        setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
+        console.error('Agent initialization failed:', error);
+
+        // Clear deleted session from URL and retry
+        if (
+          error instanceof Error &&
+          (error.message.includes('Session not found') || error.message.includes('404'))
+        ) {
+          console.log('Clearing invalid session ID from URL');
+          setSearchParams((prev) => {
+            prev.delete('resumeSessionId');
+            return prev;
+          });
+
+          try {
+            const chat = await loadCurrentChat({
+              setAgentWaitingMessage,
+            });
+            setChat(chat);
+            setSearchParams((prev) => {
+              prev.set('resumeSessionId', chat.sessionId);
+              return prev;
+            });
+          } catch (retryError) {
+            handleInitializationError(retryError);
+          }
+        } else {
+          handleInitializationError(error);
+        }
       } finally {
         setLoadingChat(false);
       }
     };
+
+    const handleInitializationError = (error: unknown) => {
+      let errorMessage = 'Unknown error occurred';
+      if (error) {
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+          // Handle case where error is an object with properties
+          try {
+            errorMessage = JSON.stringify(error);
+          } catch {
+            errorMessage = Object.prototype.toString.call(error);
+          }
+        } else {
+          errorMessage = String(error);
+        }
+      }
+      setFatalError(`Agent init failure: ${errorMessage}`);
+    };
+
     initializeFromState();
   }, [
     agentState,

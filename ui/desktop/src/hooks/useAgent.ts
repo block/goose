@@ -47,6 +47,7 @@ export function useAgent(): UseAgentReturn {
   const [agentState, setAgentState] = useState<AgentState>(AgentState.UNINITIALIZED);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const initPromiseRef = useRef<Promise<ChatType> | null>(null);
+  const deletedSessionsRef = useRef<Set<string>>(new Set());
   const recipeIdFromConfig = useRef<string | null>(
     (window.appConfig.get('recipeId') as string | null | undefined) ?? null
   );
@@ -64,30 +65,65 @@ export function useAgent(): UseAgentReturn {
     recipeIdFromConfig.current = null;
     recipeDeeplinkFromConfig.current = null;
     scheduledJobIdFromConfig.current = null;
+    deletedSessionsRef.current.clear();
   }, []);
 
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
-      if (agentIsInitialized && sessionId) {
-        const agentResponse = await resumeAgent({
-          body: {
-            session_id: sessionId,
-            load_model_and_extensions: false,
-          },
-          throwOnError: true,
-        });
+      // Skip deleted sessions
+      if (
+        initContext.resumeSessionId &&
+        deletedSessionsRef.current.has(initContext.resumeSessionId)
+      ) {
+        initContext.resumeSessionId = undefined;
 
-        const agentSession = agentResponse.data;
-        const messages = agentSession.conversation || [];
-        return {
-          sessionId: agentSession.id,
-          name: agentSession.recipe?.title || agentSession.name,
-          messageHistoryIndex: 0,
-          messages,
-          recipe: agentSession.recipe,
-          recipeParameterValues: agentSession.user_recipe_values || null,
-        };
+        // Clear from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('resumeSessionId');
+        window.history.replaceState({}, '', url.toString());
+      }
+
+      if (sessionId && deletedSessionsRef.current.has(sessionId)) {
+        setSessionId(null);
+      }
+
+      if (agentIsInitialized && sessionId && !deletedSessionsRef.current.has(sessionId)) {
+        let agentResponse;
+        try {
+          agentResponse = await resumeAgent({
+            body: {
+              session_id: sessionId,
+              load_model_and_extensions: false,
+            },
+            throwOnError: true,
+          });
+        } catch {
+          // Mark session as deleted and clear state
+          deletedSessionsRef.current.add(sessionId);
+          setSessionId(null);
+
+          // Clear from URL
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('resumeSessionId')) {
+            url.searchParams.delete('resumeSessionId');
+            window.history.replaceState({}, '', url.toString());
+          }
+        }
+
+        // Fall through to create new session
+        if (agentResponse?.data) {
+          const agentSession = agentResponse.data;
+          const messages = agentSession.conversation || [];
+          return {
+            sessionId: agentSession.id,
+            name: agentSession.recipe?.title || agentSession.name,
+            messageHistoryIndex: 0,
+            messages,
+            recipe: agentSession.recipe,
+            recipeParameterValues: agentSession.user_recipe_values || null,
+          };
+        }
       }
 
       if (initPromiseRef.current) {
@@ -109,15 +145,38 @@ export function useAgent(): UseAgentReturn {
             throw new NoProviderOrModelError();
           }
 
-          const agentResponse = initContext.resumeSessionId
-            ? await resumeAgent({
-                body: {
-                  session_id: initContext.resumeSessionId,
-                  load_model_and_extensions: false,
-                },
-                throwOnError: true,
-              })
-            : await startAgent({
+          let agentResponse;
+          try {
+            agentResponse = initContext.resumeSessionId
+              ? await resumeAgent({
+                  body: {
+                    session_id: initContext.resumeSessionId,
+                    load_model_and_extensions: false,
+                  },
+                  throwOnError: true,
+                })
+              : await startAgent({
+                  body: {
+                    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                    ...buildRecipeInput(
+                      initContext.recipe,
+                      recipeIdFromConfig.current,
+                      recipeDeeplinkFromConfig.current
+                    ),
+                  },
+                  throwOnError: true,
+                });
+          } catch (error) {
+            // If resuming fails, mark session as deleted and create new agent
+            if (initContext.resumeSessionId) {
+              deletedSessionsRef.current.add(initContext.resumeSessionId);
+
+              // Clear from URL
+              const url = new URL(window.location.href);
+              url.searchParams.delete('resumeSessionId');
+              window.history.replaceState({}, '', url.toString());
+
+              agentResponse = await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
                   ...buildRecipeInput(
@@ -128,6 +187,13 @@ export function useAgent(): UseAgentReturn {
                 },
                 throwOnError: true,
               });
+
+              // Clear resume flag
+              initContext.resumeSessionId = undefined;
+            } else {
+              throw error;
+            }
+          }
 
           const agentSession = agentResponse.data;
           if (!agentSession) {

@@ -4,6 +4,20 @@
 default:
   @just --list
 
+# Run all style checks and formatting (precommit validation)
+check-everything:
+    @echo "🔧 RUNNING ALL STYLE CHECKS..."
+    @echo "  → Formatting Rust code..."
+    cargo fmt --all
+    @echo "  → Running clippy linting..."
+    ./scripts/clippy-lint.sh
+    @echo "  → Checking UI code formatting..."
+    cd ui/desktop && npm run lint:check
+    @echo "  → Validating OpenAPI schema..."
+    ./scripts/check-openapi-schema.sh
+    @echo ""
+    @echo "✅ All style checks passed!"
+
 # Default release command
 release-binary:
     @echo "Building release version..."

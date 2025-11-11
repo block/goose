@@ -29,7 +29,13 @@ fn local_recipe_dirs() -> Vec<PathBuf> {
     local_dirs.push(get_recipe_library_dir(true));
     local_dirs.push(get_recipe_library_dir(false));
 
-    local_dirs
+    let mut dirs: Vec<PathBuf> = local_dirs
+        .into_iter()
+        .map(|dir| dir.canonicalize().unwrap_or(dir))
+        .collect();
+    dirs.sort();
+    dirs.dedup();
+    dirs
 }
 
 pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
