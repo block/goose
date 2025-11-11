@@ -632,9 +632,6 @@ impl CliSession {
                         .total_tokens(Some(0))
                         .input_tokens(Some(0))
                         .output_tokens(Some(0))
-                        .accumulated_total_tokens(Some(0))
-                        .accumulated_input_tokens(Some(0))
-                        .accumulated_output_tokens(Some(0))
                         .apply()
                         .await
                     {
