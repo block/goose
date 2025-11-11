@@ -2,8 +2,9 @@
 
 * Alex Hancock
 * Bradley Axen
-* Douwe Osinga
 * David Katz
+* Douwe Osinga
+
 * Jack Amadeo
 * Mic Neale
 * Zane Staggs
