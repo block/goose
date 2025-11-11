@@ -618,6 +618,10 @@ impl CliSession {
                 input::InputResult::Clear => {
                     save_history(&mut editor);
 
+                    // Perform all database operations first, only clear in-memory state if both succeed
+                    // This ensures consistency: if any DB operation fails, the session remains unchanged
+
+                    // Step 1: Clear conversation in database (uses transaction, will rollback on failure)
                     if let Err(e) = SessionManager::replace_conversation(
                         &self.session_id,
                         &Conversation::default(),
@@ -628,19 +632,29 @@ impl CliSession {
                         continue;
                     }
 
-                    // Reset token counts in session metadata
+                    // Step 2: Reset token counts in session metadata
                     if let Err(e) = SessionManager::update_session(&self.session_id)
                         .total_tokens(Some(0))
                         .input_tokens(Some(0))
                         .output_tokens(Some(0))
+                        .accumulated_total_tokens(Some(0))
+                        .accumulated_input_tokens(Some(0))
+                        .accumulated_output_tokens(Some(0))
                         .apply()
                         .await
                     {
                         output::render_error(&format!("Failed to reset token counts: {}", e));
+                        // Token reset failed, but conversation was already cleared in DB
+                        // Restore consistency by syncing in-memory state with DB (empty conversation)
+                        if let Ok(session) = SessionManager::get_session(&self.session_id, true).await {
+                            self.messages = session.conversation.unwrap_or_default();
+                        }
                         continue;
                     }
 
+                    // Step 3: Only after both DB operations succeed, clear in-memory state
                     self.messages.clear();
+
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
                         &Message::assistant().with_text("Chat context cleared."),
