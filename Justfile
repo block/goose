@@ -193,7 +193,7 @@ generate-openapi:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
     @echo "Generating frontend API..."
-    cd ui/desktop && npx openapi-ts
+    cd ui/desktop && npx @hey-api/openapi-ts
 
 # make GUI with latest binary
 lint-ui:
