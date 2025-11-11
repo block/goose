@@ -5,7 +5,7 @@ title: Using Extensions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Settings, Puzzle } from 'lucide-react';
+import { PanelLeft, Settings } from 'lucide-react';
 
 Extensions are add-ons that provide a way to extend the functionality of goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
@@ -351,19 +351,6 @@ You can enable or disable installed extensions based on your workflow needs.
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
-
-  #### Quick Toggle (Alpha Feature)
-
-  If you have [alpha features enabled](/docs/guides/environment-variables#experimental-features), you can quickly toggle extensions directly from the chat interface:
-
-  1. Click the <Puzzle className="inline" size={16} /> puzzle piece icon button in the bottom toolbar of the chat input to open the extension selection menu
-  2. Search for extensions by name or description using the search box
-  3. Toggle extensions on/off using the switches
-  4. Changes apply immediately to your current session
-
-  :::info
-  This feature requires `ALPHA_FEATURES=true` in your [configuration](/docs/guides/config-files) and is only available during active chat sessions. Extensions toggled this way are only enabled for the current session.
-  :::
 
   </TabItem>
 
