@@ -13,15 +13,9 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
-struct ToolCallScanResult {
+struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
-    ml_confidence: Option<f32>,
-}
-
-#[derive(Default)]
-struct MessageScanResult {
-    confidence: f32,
     ml_confidence: Option<f32>,
 }
 
@@ -58,7 +52,6 @@ impl PromptInjectionScanner {
         tool_call: &CallToolRequestParam,
         messages: &[Message],
     ) -> Result<ScanResult> {
-        let threshold = self.get_threshold_from_config();
         let tool_content = self.extract_tool_content(tool_call);
 
         tracing::info!(
@@ -68,78 +61,53 @@ impl PromptInjectionScanner {
         );
 
         let (tool_result, context_result) = tokio::join!(
-            self.scan_tool_call_content(&tool_content),
-            self.scan_conversation_for_injection(messages)
+            self.analyze_text(&tool_content),
+            self.scan_conversation(messages)
         );
 
-        let tool_result = tool_result?;
-        let context_result = context_result?;
-
-        let (max_confidence, pattern_matches, ml_confidence) =
-            if tool_result.confidence >= context_result.confidence {
-                (
-                    tool_result.confidence,
-                    Some(&tool_result.pattern_matches[..]),
-                    tool_result.ml_confidence,
-                )
-            } else {
-                (
-                    context_result.confidence,
-                    None,
-                    context_result.ml_confidence,
-                )
-            };
-
-        let explanation =
-            self.build_explanation(max_confidence, threshold, pattern_matches, ml_confidence);
-
-        tracing::info!(
-            "✅ Security analysis complete: max_confidence={:.3}, malicious={}",
-            max_confidence,
-            max_confidence >= threshold
-        );
-
-        Ok(ScanResult {
-            is_malicious: max_confidence >= threshold,
-            confidence: max_confidence,
-            explanation,
-        })
-    }
-
-    async fn scan_tool_call_content(&self, text: &str) -> Result<ToolCallScanResult> {
-        let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
-        let ml_confidence = self.scan_with_ml(text).await;
-        let confidence = ml_confidence.unwrap_or(0.0).max(pattern_confidence);
+        let highest_confidence_result =
+            self.select_highest_confidence_result(tool_result?, context_result?);
         let threshold = self.get_threshold_from_config();
 
         tracing::info!(
-            "✅ Tool call scan complete: confidence={:.3}, malicious={}",
-            confidence,
-            confidence >= threshold
+            "✅ Security analysis complete: confidence={:.3}, malicious={}",
+            highest_confidence_result.confidence,
+            highest_confidence_result.confidence >= threshold
         );
 
-        Ok(ToolCallScanResult {
+        Ok(ScanResult {
+            is_malicious: highest_confidence_result.confidence >= threshold,
+            confidence: highest_confidence_result.confidence,
+            explanation: self.build_explanation(&highest_confidence_result, threshold),
+        })
+    }
+
+    async fn analyze_text(&self, text: &str) -> Result<DetailedScanResult> {
+        let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
+        let ml_confidence = self.scan_with_ml(text).await;
+        let confidence = ml_confidence.unwrap_or(0.0).max(pattern_confidence);
+
+        Ok(DetailedScanResult {
             confidence,
             pattern_matches,
             ml_confidence,
         })
     }
 
-    async fn scan_conversation_for_injection(
-        &self,
-        messages: &[Message],
-    ) -> Result<MessageScanResult> {
+    async fn scan_conversation(&self, messages: &[Message]) -> Result<DetailedScanResult> {
         let user_messages = self.extract_user_messages(messages, USER_SCAN_LIMIT);
 
         if user_messages.is_empty() || self.ml_detector.is_none() {
-            tracing::debug!(
-                "ML detector not available or no user messages, skipping conversation scan"
-            );
-            return Ok(MessageScanResult::default());
+            tracing::debug!("Skipping conversation scan - no ML detector or messages");
+            return Ok(DetailedScanResult {
+                confidence: 0.0,
+                pattern_matches: Vec::new(),
+                ml_confidence: None,
+            });
         }
 
-        tracing::info!(
-            "🔍 Scanning {} recent user messages for injection ({} chars total)",
+        tracing::debug!(
+            "Scanning {} user messages ({} chars)",
             user_messages.len(),
             user_messages.iter().map(|m| m.len()).sum::<usize>()
         );
@@ -148,20 +116,26 @@ impl PromptInjectionScanner {
             .iter()
             .map(|msg| self.scan_with_ml(msg))
             .collect();
-
         let results = futures::future::join_all(scan_futures).await;
-
         let max_confidence = results.into_iter().flatten().fold(0.0, f32::max);
 
-        tracing::info!(
-            "✅ Conversation scan complete: max_confidence={:.3}",
-            max_confidence
-        );
-
-        Ok(MessageScanResult {
+        Ok(DetailedScanResult {
             confidence: max_confidence,
+            pattern_matches: Vec::new(),
             ml_confidence: Some(max_confidence),
         })
+    }
+
+    fn select_highest_confidence_result(
+        &self,
+        tool_result: DetailedScanResult,
+        context_result: DetailedScanResult,
+    ) -> DetailedScanResult {
+        if tool_result.confidence >= context_result.confidence {
+            tool_result
+        } else {
+            context_result
+        }
     }
 
     async fn scan_with_ml(&self, text: &str) -> Option<f32> {
@@ -187,8 +161,7 @@ impl PromptInjectionScanner {
     }
 
     fn pattern_based_scanning(&self, text: &str) -> (f32, Vec<PatternMatch>) {
-        let matches = self.pattern_matcher.scan_text(text);
-
+        let matches = self.pattern_matcher.scan_for_patterns(text);
         let confidence = self
             .pattern_matcher
             .get_max_risk_level(&matches)
@@ -197,18 +170,12 @@ impl PromptInjectionScanner {
         (confidence, matches)
     }
 
-    fn build_explanation(
-        &self,
-        confidence: f32,
-        threshold: f32,
-        pattern_matches: Option<&[PatternMatch]>,
-        ml_confidence: Option<f32>,
-    ) -> String {
-        if confidence < threshold {
+    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32) -> String {
+        if result.confidence < threshold {
             return "No security threats detected".to_string();
         }
 
-        if let Some(top_match) = pattern_matches.and_then(|m| m.first()) {
+        if let Some(top_match) = result.pattern_matches.first() {
             let preview = top_match.matched_text.chars().take(50).collect::<String>();
             return format!(
                 "Security threat detected: {} (Risk: {:?}) - Found: '{}'",
@@ -216,7 +183,7 @@ impl PromptInjectionScanner {
             );
         }
 
-        if let Some(ml_conf) = ml_confidence {
+        if let Some(ml_conf) = result.ml_confidence {
             format!("Security threat detected (ML confidence: {:.2})", ml_conf)
         } else {
             "Security threat detected".to_string()
@@ -262,10 +229,9 @@ mod tests {
     use rmcp::object;
 
     #[tokio::test]
-    async fn test_tool_call_pattern_detection() {
+    async fn test_text_pattern_detection() {
         let scanner = PromptInjectionScanner::new();
-
-        let result = scanner.scan_tool_call_content("rm -rf /").await.unwrap();
+        let result = scanner.analyze_text("rm -rf /").await.unwrap();
 
         assert!(result.confidence > 0.9);
         assert!(!result.pattern_matches.is_empty());
@@ -274,9 +240,7 @@ mod tests {
     #[tokio::test]
     async fn test_conversation_scan_without_ml() {
         let scanner = PromptInjectionScanner::new();
-
-        // Without ML detector, conversation scan should return 0 confidence
-        let result = scanner.scan_conversation_for_injection(&[]).await.unwrap();
+        let result = scanner.scan_conversation(&[]).await.unwrap();
 
         assert_eq!(result.confidence, 0.0);
     }

