@@ -46,7 +46,7 @@ jobs:
 
   rust-build-and-test:
     name: Build and Test Rust Project
-    runs-on: goose
+    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
