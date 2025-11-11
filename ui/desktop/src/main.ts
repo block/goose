@@ -3074,6 +3074,79 @@ async function appMain() {
     }
   });
 
+  // Handle checking for port conflicts
+  ipcMain.handle('check-port-conflict', async (_event, port: number) => {
+    try {
+      const { spawn } = require('child_process');
+      const lsof = spawn('lsof', ['-ti', `:${port}`]);
+      
+      let pids = '';
+      lsof.stdout.on('data', (data) => {
+        pids += data.toString();
+      });
+      
+      return new Promise((resolve) => {
+        lsof.on('close', (code) => {
+          if (code === 0 && pids.trim()) {
+            const pidList = pids.trim().split('\n').filter(pid => pid.trim());
+            resolve({ hasConflict: true, pids: pidList });
+          } else {
+            resolve({ hasConflict: false, pids: [] });
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[Main] Error checking port conflict:', error);
+      return { hasConflict: false, pids: [] };
+    }
+  });
+
+  // Handle killing processes on a port
+  ipcMain.handle('kill-port-processes', async (_event, port: number) => {
+    try {
+      const { spawn } = require('child_process');
+      const lsof = spawn('lsof', ['-ti', `:${port}`]);
+      
+      let pids = '';
+      lsof.stdout.on('data', (data) => {
+        pids += data.toString();
+      });
+      
+      return new Promise((resolve) => {
+        lsof.on('close', (code) => {
+          if (code === 0 && pids.trim()) {
+            const pidList = pids.trim().split('\n').filter(pid => pid.trim());
+            let killedCount = 0;
+            let errors = [];
+            
+            pidList.forEach(pid => {
+              try {
+                process.kill(parseInt(pid), 'SIGTERM');
+                console.log(`[Main] Killed process ${pid} on port ${port}`);
+                killedCount++;
+              } catch (error) {
+                console.log(`[Main] Could not kill process ${pid}:`, error.message);
+                errors.push(`PID ${pid}: ${error.message}`);
+              }
+            });
+            
+            resolve({ 
+              success: true, 
+              killedCount, 
+              totalProcesses: pidList.length,
+              errors: errors.length > 0 ? errors : undefined
+            });
+          } else {
+            resolve({ success: true, killedCount: 0, totalProcesses: 0 });
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[Main] Error killing port processes:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Handle app launching
   ipcMain.handle('launch-app', async (_event, appConfig: any) => {
     try {

@@ -327,6 +327,47 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
         localPath: app.localPath
       });
 
+      setError(null);
+
+      // Check for port conflicts if the app uses a port
+      if (app.port) {
+        console.log(`Checking for conflicts on port ${app.port}...`);
+        const portCheck = await window.electron.checkPortConflict(app.port);
+        
+        if (portCheck.hasConflict) {
+          console.log(`Port ${app.port} is in use by processes:`, portCheck.pids);
+          
+          // Ask user if they want to terminate the conflicting processes
+          const shouldKill = window.confirm(
+            `Port ${app.port} is already in use by ${portCheck.pids.length} process(es).\n\n` +
+            `Do you want to terminate the existing process(es) and launch ${app.name}?\n\n` +
+            `This will stop any applications currently running on port ${app.port}.`
+          );
+          
+          if (!shouldKill) {
+            console.log('User chose not to kill conflicting processes');
+            setError(`Cannot launch ${app.name}: Port ${app.port} is in use. Choose a different port or stop the conflicting application.`);
+            return;
+          }
+          
+          // Kill the conflicting processes
+          console.log(`Killing processes on port ${app.port}...`);
+          const killResult = await window.electron.killPortProcesses(app.port);
+          
+          if (killResult.success) {
+            console.log(`Successfully killed ${killResult.killedCount}/${killResult.totalProcesses} processes on port ${app.port}`);
+            if (killResult.errors && killResult.errors.length > 0) {
+              console.warn('Some processes could not be killed:', killResult.errors);
+            }
+            
+            // Give a moment for the port to be freed
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw new Error(`Failed to kill processes on port ${app.port}: ${killResult.error}`);
+          }
+        }
+      }
+
       setInstalledApps(prev => 
         prev.map(a => a.id === app.id ? { ...a, status: 'running' } : a)
       );
@@ -357,6 +398,11 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
       setInstalledApps(prev => 
         prev.map(a => a.id === app.id ? { ...a, status: 'error' } : a)
       );
+      setRunningApps(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(app.id);
+        return newSet;
+      });
     }
   };
 
