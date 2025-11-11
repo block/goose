@@ -380,6 +380,37 @@ export ALPHA_FEATURES=true
 ALPHA_FEATURES=true goose session
 ```
 
+## Development & Testing
+
+These variables are primarily used for development, testing, and debugging goose itself.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PATH_ROOT` | Override the root directory for all goose data, config, and state files | Absolute path to directory | Platform-specific defaults |
+
+**Default locations:**
+- macOS: `~/Library/Application Support/Block/goose/`
+- Linux: `~/.local/share/goose/`
+- Windows: `%APPDATA%\Block\goose\`
+
+When set, goose creates `config/`, `data/`, and `state/` subdirectories under the specified path. Useful for isolating test environments, running multiple configurations, or CI/CD pipelines.
+
+**Examples**
+
+```bash
+# Temporary test environment
+export GOOSE_PATH_ROOT="/tmp/goose-test"
+
+# Isolated environment for a single command
+GOOSE_PATH_ROOT="/tmp/goose-isolated" goose run --recipe my-recipe.yaml
+
+# CI/CD usage
+GOOSE_PATH_ROOT="$(mktemp -d)" goose run --recipe integration-test.yaml
+
+# Use with developer tools
+GOOSE_PATH_ROOT="/tmp/goose-test" ./scripts/goose-db-helper.sh status
+```
+
 ## Variables Controlled by goose
 
 These variables are automatically set by goose during command execution.
