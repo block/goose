@@ -2833,16 +2833,22 @@ async function appMain() {
         analysis.description = packageJson.description || '';
         analysis.requiresInstall = true;
         
-        // Detect package manager
+        // Detect package manager - prioritize package-lock.json over yarn.lock
+        // since package-lock.json is often the primary lock file
         try {
-          await fs.access(path.join(projectPath, 'yarn.lock'));
-          analysis.packageManager = 'yarn';
+          await fs.access(path.join(projectPath, 'package-lock.json'));
+          analysis.packageManager = 'npm';
         } catch {
           try {
             await fs.access(path.join(projectPath, 'pnpm-lock.yaml'));
             analysis.packageManager = 'pnpm';
           } catch {
-            analysis.packageManager = 'npm';
+            try {
+              await fs.access(path.join(projectPath, 'yarn.lock'));
+              analysis.packageManager = 'yarn';
+            } catch {
+              analysis.packageManager = 'npm'; // Default fallback
+            }
           }
         }
         
