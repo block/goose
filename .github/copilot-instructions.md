@@ -82,6 +82,7 @@ Do not comment on:
 - **Refactoring suggestions** - unless there's a clear bug or maintainability issue
 - **Multiple issues in one comment** - choose the single most critical issue
 - **Logging suggestions** - unless for errors or security events (the codebase needs less logging, not more)
+- **Pedantic accuracy in text** - unless it would cause actual confusion or errors
 
 ## Response Format
 
