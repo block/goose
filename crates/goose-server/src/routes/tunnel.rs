@@ -6,14 +6,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use utoipa::ToSchema;
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct TunnelStartRequest {
-    pub port: u16,
-}
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ErrorResponse {
@@ -24,7 +19,6 @@ pub struct ErrorResponse {
 #[utoipa::path(
     post,
     path = "/api/tunnel/start",
-    request_body = TunnelStartRequest,
     responses(
         (status = 200, description = "Tunnel started successfully", body = TunnelStatus),
         (status = 400, description = "Bad request", body = ErrorResponse),
@@ -32,11 +26,22 @@ pub struct ErrorResponse {
     )
 )]
 #[axum::debug_handler]
-pub async fn start_tunnel(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<TunnelStartRequest>,
-) -> Response {
-    match state.tunnel_manager.start(req.port).await {
+pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
+    let port = match *state.server_port.read().await {
+        Some(p) => p,
+        None => {
+            tracing::error!("Server port not set");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "Server port not initialized".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match state.tunnel_manager.start(port).await {
         Ok(_info) => {
             let status = state.tunnel_manager.get_status().await;
             (StatusCode::OK, Json(status)).into_response()

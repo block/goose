@@ -61,14 +61,13 @@ pub async fn run() -> Result<()> {
     info!("listening on {}", local_addr);
 
     let port = local_addr.port();
+    *app_state.server_port.write().await = Some(port);
 
     let app_state_clone = app_state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // a tiny pause to not flood
         app_state_clone.auto_start_tunnel(port).await;
     });
-
-    info!("listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

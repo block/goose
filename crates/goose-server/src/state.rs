@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::tunnel::TunnelManager;
 
@@ -17,6 +17,7 @@ pub struct AppState {
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
+    pub server_port: Arc<RwLock<Option<u16>>>,
 }
 
 impl AppState {
@@ -32,6 +33,7 @@ impl AppState {
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
+            server_port: Arc::new(RwLock::new(None)),
         }))
     }
 

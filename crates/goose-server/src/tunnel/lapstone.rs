@@ -74,12 +74,23 @@ struct TunnelResponse {
     is_last_chunk: Option<bool>,
 }
 
-fn build_request(
+fn validate_and_build_request(
     client: &reqwest::Client,
     url: &str,
     message: &TunnelMessage,
+    tunnel_secret: &str,
     server_secret: &str,
-) -> reqwest::RequestBuilder {
+) -> Result<reqwest::RequestBuilder> {
+    let incoming_secret = message
+        .headers
+        .as_ref()
+        .and_then(|h| h.get("x-secret-key").or_else(|| h.get("X-Secret-Key")))
+        .ok_or_else(|| anyhow::anyhow!("Missing tunnel secret header"))?;
+
+    if incoming_secret != tunnel_secret {
+        anyhow::bail!("Invalid tunnel secret");
+    }
+
     let mut request_builder = match message.method.as_str() {
         "GET" => client.get(url),
         "POST" => client.post(url),
@@ -106,7 +117,7 @@ fn build_request(
         }
     }
 
-    request_builder
+    Ok(request_builder)
 }
 
 async fn handle_streaming_response(
@@ -222,6 +233,7 @@ async fn handle_request(
     message: TunnelMessage,
     port: u16,
     ws_tx: WebSocketSender,
+    tunnel_secret: String,
     server_secret: String,
 ) -> Result<()> {
     let request_id = message.request_id.clone();
@@ -229,7 +241,29 @@ async fn handle_request(
 
     let client = reqwest::Client::new();
     let url = format!("http://127.0.0.1:{}{}", port, message.path);
-    let request_builder = build_request(&client, &url, &message, &server_secret);
+
+    let request_builder =
+        match validate_and_build_request(&client, &url, &message, &tunnel_secret, &server_secret) {
+            Ok(builder) => builder,
+            Err(e) => {
+                error!("✗ Authentication error [{}]: {}", request_id, e);
+                let error_response = TunnelResponse {
+                    request_id,
+                    status: 401,
+                    headers: None,
+                    body: None,
+                    error: Some(e.to_string()),
+                    chunk_index: None,
+                    total_chunks: None,
+                    is_chunked: None,
+                    is_streaming: None,
+                    is_first_chunk: None,
+                    is_last_chunk: None,
+                };
+                send_response(ws_tx, error_response).await?;
+                return Ok(());
+            }
+        };
 
     let response = match request_builder.send().await {
         Ok(resp) => resp,
@@ -340,6 +374,7 @@ async fn handle_websocket_messages(
     >,
     ws_tx: WebSocketSender,
     port: u16,
+    tunnel_secret: String,
     server_secret: String,
     last_activity: Arc<RwLock<Instant>>,
     active_tasks: Arc<RwLock<Vec<JoinHandle<()>>>>,
@@ -352,11 +387,17 @@ async fn handle_websocket_messages(
                 match serde_json::from_str::<TunnelMessage>(&text) {
                     Ok(tunnel_msg) => {
                         let ws_tx_clone = ws_tx.clone();
+                        let tunnel_secret_clone = tunnel_secret.clone();
                         let server_secret_clone = server_secret.clone();
                         let task = tokio::spawn(async move {
-                            if let Err(e) =
-                                handle_request(tunnel_msg, port, ws_tx_clone, server_secret_clone)
-                                    .await
+                            if let Err(e) = handle_request(
+                                tunnel_msg,
+                                port,
+                                ws_tx_clone,
+                                tunnel_secret_clone,
+                                server_secret_clone,
+                            )
+                            .await
                             {
                                 error!("Error handling request: {}", e);
                             }
@@ -406,6 +447,7 @@ async fn cleanup_connection(
 async fn run_single_connection(
     port: u16,
     agent_id: String,
+    tunnel_secret: String,
     server_secret: String,
     restart_tx: mpsc::Sender<()>,
 ) {
@@ -477,6 +519,7 @@ async fn run_single_connection(
             read,
             ws_tx.clone(),
             port,
+            tunnel_secret.clone(),
             server_secret.clone(),
             last_activity,
             active_tasks.clone()
@@ -506,10 +549,18 @@ pub async fn start(
     }
 
     let agent_id_clone = agent_id.clone();
+    let tunnel_secret_clone = tunnel_secret.clone();
     let server_secret_clone = server_secret;
 
     let task = tokio::spawn(async move {
-        run_single_connection(port, agent_id_clone, server_secret_clone, restart_tx).await;
+        run_single_connection(
+            port,
+            agent_id_clone,
+            tunnel_secret_clone,
+            server_secret_clone,
+            restart_tx,
+        )
+        .await;
     });
 
     *handle.write().await = Some(task);

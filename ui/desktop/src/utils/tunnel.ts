@@ -24,14 +24,12 @@ export interface TunnelStatus {
 export async function startTunnel(baseUrl: string, serverSecret: string): Promise<TunnelInfo> {
   log.info(`Starting tunnel via Rust API at ${baseUrl}`);
 
-  const port = parseInt(baseUrl.replace('http://127.0.0.1:', ''));
   const response = await fetch(`${baseUrl}/api/tunnel/start`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Secret-Key': serverSecret,
     },
-    body: JSON.stringify({ port }),
   });
 
   if (!response.ok) {
