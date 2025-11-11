@@ -381,15 +381,37 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
 
       // If it's a web app, we might want to open it in the WebViewer
       if (app.projectType === 'web' && app.port) {
-        // Dispatch event to open in WebViewer
-        const event = new CustomEvent('add-container', {
-          detail: { 
-            contentType: 'web-viewer',
-            url: `http://localhost:${app.port}`,
-            title: app.name
+        // Wait a bit longer for the server to be ready, then verify it's responding
+        console.log(`Waiting for server to be ready on port ${app.port}...`);
+        
+        // Wait 3 seconds, then check if server is responding
+        setTimeout(async () => {
+          try {
+            const response = await fetch(`http://localhost:${app.port}`, { 
+              method: 'HEAD',
+              cache: 'no-cache'
+            });
+            
+            if (response.ok) {
+              console.log(`Server is ready on port ${app.port}, opening WebViewer`);
+              // Dispatch event to open in WebViewer
+              const event = new CustomEvent('add-container', {
+                detail: { 
+                  contentType: 'web-viewer',
+                  url: `http://localhost:${app.port}`,
+                  title: app.name
+                }
+              });
+              window.dispatchEvent(event);
+            } else {
+              console.warn(`Server on port ${app.port} returned status ${response.status}`);
+              setError(`App launched but server is not responding properly (status: ${response.status})`);
+            }
+          } catch (fetchError) {
+            console.error(`Failed to verify server on port ${app.port}:`, fetchError);
+            setError(`App launched but server verification failed: ${fetchError.message}`);
           }
-        });
-        window.dispatchEvent(event);
+        }, 3000); // 3 second delay
       }
 
     } catch (err) {
