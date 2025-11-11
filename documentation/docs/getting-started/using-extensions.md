@@ -352,6 +352,20 @@ You can enable or disable installed extensions based on your workflow needs.
   2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
 
+  #### Quick Toggle
+
+  You can quickly toggle extensions directly from the chat interface:
+
+  1. Look for the extension toggle button (puzzle piece icon) in the bottom toolbar of the chat input
+  2. Click to open the extension selection menu
+  3. Search for extensions by name or description using the search box
+  4. Toggle extensions on/off using the switches
+  5. Changes apply immediately to your current session
+
+  :::info
+  Extensions toggled this way are only enabled for the current session.
+  :::
+
   </TabItem>
 
   <TabItem value="cli" label="goose CLI">

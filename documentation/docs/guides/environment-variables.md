@@ -236,6 +236,7 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
 | `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "1", "true" (case insensitive) to enable | false |
+| `GOOSE_SEARCH_PATHS` | Additional directories to search for executables when running extensions | JSON array of paths (e.g., `["/usr/local/bin", "~/custom/bin"]`) | System PATH only | No |
 
 **Examples**
 
@@ -249,7 +250,12 @@ export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
+
+# Add custom tool directories for extensions
+export GOOSE_SEARCH_PATHS='["/usr/local/bin", "~/custom/tools", "/opt/homebrew/bin"]'
 ```
+
+These paths are prepended to the system PATH when extensions execute commands, ensuring your custom tools are found without modifying your global PATH.
 
 ### Enhanced Code Editing
 

@@ -292,6 +292,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
 - **`--max-turns <NUMBER>`**: Maximum number of turns allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
+- **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
 
