@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::json;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -9,9 +10,13 @@ use tokio::process::Command;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use crate::config::base::GeminiCliCommand;
+use crate::config::search_path::SearchPaths;
+use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
-
 use crate::model::ModelConfig;
+use crate::providers::base::ConfigKey;
+use crate::subprocess::configure_command_no_window;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -22,7 +27,7 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 
 #[derive(Debug, serde::Serialize)]
 pub struct GeminiCliProvider {
-    command: String,
+    command: PathBuf,
     model: ModelConfig,
     #[serde(skip)]
     name: String,
@@ -30,77 +35,15 @@ pub struct GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let command: String = config
-            .get_param("GEMINI_CLI_COMMAND")
-            .unwrap_or_else(|_| "gemini".to_string());
-
-        let resolved_command = if !command.contains('/') {
-            Self::find_gemini_executable(&command).unwrap_or(command)
-        } else {
-            command
-        };
+        let config = Config::global();
+        let command: OsString = config.get_gemini_cli_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
         Ok(Self {
             command: resolved_command,
             model,
             name: Self::metadata().name,
         })
-    }
-
-    /// Search for gemini executable in common installation locations
-    fn find_gemini_executable(command_name: &str) -> Option<String> {
-        let home = std::env::var("HOME").ok()?;
-
-        // Common locations where gemini might be installed
-        let search_paths = vec![
-            format!("{}/.gemini/local/{}", home, command_name),
-            format!("{}/.local/bin/{}", home, command_name),
-            format!("{}/bin/{}", home, command_name),
-            format!("/usr/local/bin/{}", command_name),
-            format!("/usr/bin/{}", command_name),
-            format!("/opt/gemini/{}", command_name),
-            format!("/opt/google/{}", command_name),
-        ];
-
-        for path in search_paths {
-            let path_buf = PathBuf::from(&path);
-            if path_buf.exists() && path_buf.is_file() {
-                // Check if it's executable
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
-                        let permissions = metadata.permissions();
-                        if permissions.mode() & 0o111 != 0 {
-                            tracing::info!("Found gemini executable at: {}", path);
-                            return Some(path);
-                        }
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    // On non-Unix systems, just check if file exists
-                    tracing::info!("Found gemini executable at: {}", path);
-                    return Some(path);
-                }
-            }
-        }
-
-        // If not found in common locations, check if it's in PATH
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in path_var.split(':') {
-                let full_path = format!("{}/{}", dir, command_name);
-                let path_buf = PathBuf::from(&full_path);
-                if path_buf.exists() && path_buf.is_file() {
-                    tracing::info!("Found gemini executable in PATH at: {}", full_path);
-                    return Some(full_path);
-                }
-            }
-        }
-
-        tracing::warn!("Could not find gemini executable in common locations");
-        None
     }
 
     /// Execute gemini CLI command with simple text prompt
@@ -138,12 +81,17 @@ impl GeminiCliProvider {
 
         if std::env::var("GOOSE_GEMINI_CLI_DEBUG").is_ok() {
             println!("=== GEMINI CLI PROVIDER DEBUG ===");
-            println!("Command: {}", self.command);
+            println!("Command: {:?}", self.command);
             println!("Full prompt: {}", full_prompt);
             println!("================================");
         }
 
         let mut cmd = Command::new(&self.command);
+        configure_command_no_window(&mut cmd);
+
+        if let Ok(path) = SearchPaths::builder().with_npm().path() {
+            cmd.env("PATH", path);
+        }
 
         // Only pass model parameter if it's in the known models list
         if GEMINI_CLI_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
@@ -156,8 +104,8 @@ impl GeminiCliProvider {
 
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
-                "Failed to spawn Gemini CLI command '{}': {}. \
-                Make sure the Gemini CLI is installed and in your PATH.",
+                "Failed to spawn Gemini CLI command '{:?}': {}. \
+                Make sure the Gemini CLI is installed and available in the configured search paths.",
                 self.command, e
             ))
         })?;
@@ -287,7 +235,7 @@ impl Provider for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![], // No configuration needed
+            vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
         )
     }
 
@@ -345,30 +293,5 @@ impl Provider for GeminiCliProvider {
             message,
             ProviderUsage::new(self.model.model_name.clone(), usage),
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_gemini_cli_invalid_model_no_fallback() {
-        // Test that an invalid model is kept as-is (no fallback)
-        let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = GeminiCliProvider::from_env(invalid_model).await.unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "invalid-model");
-    }
-
-    #[tokio::test]
-    async fn test_gemini_cli_valid_model() {
-        // Test that a valid model is preserved
-        let valid_model = ModelConfig::new_or_fail(GEMINI_CLI_DEFAULT_MODEL);
-        let provider = GeminiCliProvider::from_env(valid_model).await.unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, GEMINI_CLI_DEFAULT_MODEL);
     }
 }

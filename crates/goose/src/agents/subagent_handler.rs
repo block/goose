@@ -1,10 +1,8 @@
-use crate::session::session_manager::SessionType;
 use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
     recipe::Recipe,
-    session::SessionManager,
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
@@ -21,14 +19,17 @@ pub async fn run_complete_subagent_task(
     recipe: Recipe,
     task_config: TaskConfig,
     return_last_only: bool,
+    session_id: String,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages(recipe, task_config).await.map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to execute task: {}", e),
-            None,
-        )
-    })?;
+    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id)
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -94,7 +95,11 @@ pub async fn run_complete_subagent_task(
     Ok(response_text)
 }
 
-fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesFuture {
+fn get_agent_messages(
+    recipe: Recipe,
+    task_config: TaskConfig,
+    session_id: String,
+) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
             .instructions
@@ -105,18 +110,9 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
         let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-        let parent_session_id = task_config.parent_session_id;
-        let working_dir = task_config.parent_working_dir;
-        let session = SessionManager::create_session(
-            working_dir.clone(),
-            format!("Subagent task for: {}", parent_session_id),
-            SessionType::SubAgent,
-        )
-        .await
-        .map_err(|e| anyhow!("Failed to create a session for sub agent: {}", e))?;
 
         let agent = agent_manager
-            .get_or_create_agent(session.id.clone())
+            .get_or_create_agent(session_id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
 
@@ -149,13 +145,13 @@ fn get_agent_messages(recipe: Recipe, task_config: TaskConfig) -> AgentMessagesF
             }
         }
         let session_config = SessionConfig {
-            id: session.id.clone(),
+            id: session_id.clone(),
             schedule_id: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: recipe.retry,
         };
 
-        let mut stream = crate::session_context::with_session_id(Some(session.id.clone()), async {
+        let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
             agent.reply(user_message, session_config, None).await
         })
         .await

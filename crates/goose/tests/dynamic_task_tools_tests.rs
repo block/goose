@@ -105,7 +105,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Check that the result is successful by awaiting the future
         let tool_result = result.result.await;
@@ -156,7 +163,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Check that the result fails since text_instruction is no longer supported
         let tool_result = result.result.await;
@@ -354,7 +368,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Should fail on the invalid task
         let tool_result = result.result.await;

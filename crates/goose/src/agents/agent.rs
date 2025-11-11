@@ -39,7 +39,6 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
-use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -60,6 +59,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 
@@ -346,7 +346,6 @@ impl Agent {
         Ok(tool_futures)
     }
 
-    /// Set the scheduler service for this agent
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
@@ -413,6 +412,20 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if session.session_type == crate::session::SessionType::SubAgent
+            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
+                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+        {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Subagents cannot create other subagents".to_string(),
+                    None,
+                )),
+            );
+        }
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -454,7 +467,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    arguments,
+                    &self.tasks_manager,
+                    &session.working_dir,
+                )
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = match self.provider().await {
@@ -542,7 +560,13 @@ impl Agent {
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
+            create_dynamic_task(
+                arguments,
+                &self.tasks_manager,
+                loaded_extensions,
+                &session.working_dir,
+            )
+            .await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -1330,7 +1354,6 @@ impl Agent {
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
-            .with_hints(&std::env::current_dir()?)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;

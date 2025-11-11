@@ -11,6 +11,7 @@ use crate::agents::subagent_execution_tool::{
 use crate::agents::tool_execution::ToolCallResult;
 use crate::config::GooseMode;
 use crate::recipe::{Recipe, RecipeBuilder};
+use crate::session::SessionManager;
 use anyhow::{anyhow, Result};
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use rmcp::schemars::{schema_for, JsonSchema};
@@ -276,6 +277,7 @@ pub async fn create_dynamic_task(
     params: Value,
     tasks_manager: &TasksManager,
     loaded_extensions: Vec<String>,
+    parent_working_dir: &std::path::Path,
 ) -> ToolCallResult {
     let task_params_array = extract_task_parameters(&params);
 
@@ -299,8 +301,26 @@ pub async fn create_dynamic_task(
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
+                // Create a session for this task - use its ID as the task ID
+                let session = match SessionManager::create_session(
+                    parent_working_dir.to_path_buf(),
+                    "Subagent task".to_string(),
+                    crate::session::session_manager::SessionType::SubAgent,
+                )
+                .await
+                {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return ToolCallResult::from(Err(ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to create session: {}", e)),
+                            data: None,
+                        }));
+                    }
+                };
+
                 let task = Task {
-                    id: uuid::Uuid::new_v4().to_string(),
+                    id: session.id,
                     payload: TaskPayload {
                         recipe,
                         return_last_only,

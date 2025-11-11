@@ -18,6 +18,7 @@ import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
 import { ProviderDetails, removeCustomProvider } from '../../../../api';
+import { Button } from '../../../../components/ui/button';
 
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
@@ -34,6 +35,7 @@ export default function ProviderConfigurationModal({
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isActiveProvider, setIsActiveProvider] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const requiredParameters = provider.metadata.config_keys.filter(
     (param) => param.required === true
@@ -79,8 +81,12 @@ export default function ProviderConfigurationModal({
         .map(([k, entry]) => [k, entry.value || ''])
     );
 
-    await providerConfigSubmitHandler(upsert, provider, toSubmit);
-    onClose();
+    try {
+      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      onClose();
+    } catch (error) {
+      setError(`${error}`);
+    }
   };
 
   const handleCancel = () => {
@@ -137,54 +143,71 @@ export default function ProviderConfigurationModal({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {getModalIcon()}
-            {headerText}
-          </DialogTitle>
-          <DialogDescription>{descriptionText}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={!!error} onOpenChange={(open) => !open && setError(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="flex items-center gap-2">Error</DialogTitle>
+          <DialogDescription className="text-inherit text-base">
+            There was an error checking this provider configuration.
+          </DialogDescription>
+          <pre className="ml-2">{error}</pre>
+          <div>Check your configuration again to use this provider.</div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setError(null)}>
+              Go Back
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!error} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {getModalIcon()}
+              {headerText}
+            </DialogTitle>
+            <DialogDescription>{descriptionText}</DialogDescription>
+          </DialogHeader>
 
-        <div className="py-4">
-          {/* Contains information used to set up each provider */}
-          {/* Only show the form when NOT in delete confirmation mode */}
-          {!showDeleteConfirmation ? (
-            <>
-              {/* Contains information used to set up each provider */}
-              <DefaultProviderSetupForm
-                configValues={configValues}
-                setConfigValues={setConfigValues}
-                provider={provider}
-                validationErrors={validationErrors}
-              />
+          <div className="py-4">
+            {/* Contains information used to set up each provider */}
+            {/* Only show the form when NOT in delete confirmation mode */}
+            {!showDeleteConfirmation ? (
+              <>
+                {/* Contains information used to set up each provider */}
+                <DefaultProviderSetupForm
+                  configValues={configValues}
+                  setConfigValues={setConfigValues}
+                  provider={provider}
+                  validationErrors={validationErrors}
+                />
 
-              {requiredParameters.length > 0 &&
-                provider.metadata.config_keys &&
-                provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
-            </>
-          ) : null}
-        </div>
+                {requiredParameters.length > 0 &&
+                  provider.metadata.config_keys &&
+                  provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
+              </>
+            ) : null}
+          </div>
 
-        <DialogFooter>
-          <ProviderSetupActions
-            requiredParameters={requiredParameters}
-            onCancel={handleCancel}
-            onSubmit={handleSubmitForm}
-            onDelete={handleDelete}
-            showDeleteConfirmation={showDeleteConfirmation}
-            onConfirmDelete={handleConfirmDelete}
-            onCancelDelete={() => {
-              setIsActiveProvider(false);
-              setShowDeleteConfirmation(false);
-            }}
-            canDelete={isConfigured && !isActiveProvider}
-            providerName={provider.metadata.display_name}
-            isActiveProvider={isActiveProvider}
-          />
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <ProviderSetupActions
+              requiredParameters={requiredParameters}
+              onCancel={handleCancel}
+              onSubmit={handleSubmitForm}
+              onDelete={handleDelete}
+              showDeleteConfirmation={showDeleteConfirmation}
+              onConfirmDelete={handleConfirmDelete}
+              onCancelDelete={() => {
+                setIsActiveProvider(false);
+                setShowDeleteConfirmation(false);
+              }}
+              canDelete={isConfigured && !isActiveProvider}
+              providerName={provider.metadata.display_name}
+              isActiveProvider={isActiveProvider}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
