@@ -352,9 +352,9 @@ You can enable or disable installed extensions based on your workflow needs.
   2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
 
-  #### Quick Toggle
+  #### Quick Toggle (Alpha Feature)
 
-  You can quickly toggle extensions directly from the chat interface:
+  If you have [alpha features enabled](/docs/guides/environment-variables#experimental-features), you can quickly toggle extensions directly from the chat interface:
 
   1. Click the <Puzzle className="inline" size={16} /> puzzle piece icon button in the bottom toolbar of the chat input to open the extension selection menu
   2. Search for extensions by name or description using the search box
@@ -362,7 +362,7 @@ You can enable or disable installed extensions based on your workflow needs.
   4. Changes apply immediately to your current session
 
   :::info
-  Extensions toggled this way are only enabled for the current session.
+  This feature requires `ALPHA_FEATURES=true` in your [configuration](/docs/guides/config-files) and is only available during active chat sessions. Extensions toggled this way are only enabled for the current session.
   :::
 
   </TabItem>
