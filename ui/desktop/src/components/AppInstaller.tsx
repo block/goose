@@ -394,10 +394,10 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
             
             if (response.ok) {
               console.log(`Server is ready on port ${app.port}, opening WebViewer`);
-              // Dispatch event to open in WebViewer
+              // Dispatch event to open in WebViewer with correct format
               const event = new CustomEvent('add-container', {
                 detail: { 
-                  contentType: 'web-viewer',
+                  type: 'web-viewer',
                   url: `http://localhost:${app.port}`,
                   title: app.name
                 }
