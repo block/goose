@@ -1,6 +1,42 @@
 {
-  "timestamp": "2025-11-10T18:00:30.074725+00:00",
+  "timestamp": "2025-11-11T21:48:08.783638+00:00",
   "unmapped_models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-3-5-haiku-20241022"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-3-7-sonnet-20250219"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-3-haiku-20240307"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-3-opus-20240229"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-4-1-20250805"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-4-20250514"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5-20250929"
+    },
     {
       "provider": "openai",
       "model": "ada:ft-square-2023-01-20-06-09-37"
@@ -2183,10 +2219,6 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-mini-test-api-ev3"
-    },
-    {
-      "provider": "openai",
       "model": "gpt-4.1-nano"
     },
     {
@@ -2856,10 +2888,6 @@
     {
       "provider": "openrouter",
       "model": "mistralai/mistral-7b-instruct-v0.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct-v0.3"
     },
     {
       "provider": "openrouter",
@@ -3839,6 +3867,10 @@
     },
     {
       "provider": "databricks",
+      "model": "raml-claude-sonnet-4-5"
+    },
+    {
+      "provider": "databricks",
       "model": "reportiq_selector_1"
     },
     {
@@ -4135,11 +4167,11 @@
     },
     {
       "provider": "google",
-      "model": "imagen-3.0-generate-002"
+      "model": "imagen-4.0-generate-preview-06-06"
     },
     {
       "provider": "google",
-      "model": "imagen-4.0-generate-preview-06-06"
+      "model": "imagen-4.0-ultra-generate-preview-06-06"
     },
     {
       "provider": "google",
@@ -4151,20 +4183,20 @@
     }
   ],
   "all_mappings": {
-    "tetrate": [],
-    "anthropic": [],
-    "openrouter": [],
-    "databricks": [],
+    "google": [],
     "openai": [],
-    "google": []
+    "tetrate": [],
+    "openrouter": [],
+    "anthropic": [],
+    "databricks": []
   },
   "model_counts": {
+    "anthropic": 9,
+    "google": 50,
     "tetrate": 0,
-    "openai": 626,
-    "anthropic": 0,
-    "databricks": 142,
-    "openrouter": 219,
-    "google": 50
+    "openai": 625,
+    "openrouter": 218,
+    "databricks": 143
   },
   "canonical_models_used": []
 }

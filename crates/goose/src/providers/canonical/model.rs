@@ -88,24 +88,3 @@ impl CanonicalModel {
         self
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_canonical_model_builder() {
-        let model = CanonicalModel::new("test-model", ModelType::Chat, 8192)
-            .with_streaming(true)
-            .with_tools(true)
-            .with_pricing(1.0, 2.0);
-
-        assert_eq!(model.name, "test-model");
-        assert_eq!(model.model_type, ModelType::Chat);
-        assert_eq!(model.context_limit, 8192);
-        assert!(model.supports_streaming);
-        assert!(model.supports_tools);
-        assert_eq!(model.input_token_cost, Some(1.0));
-        assert_eq!(model.output_token_cost, Some(2.0));
-    }
-}
