@@ -121,6 +121,11 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
+export type DetectedApiKey = {
+    env_var: string;
+    provider: string;
+};
+
 export type EmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -1340,6 +1345,22 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
+
+export type DetectApiKeysData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/detect_api_keys';
+};
+
+export type DetectApiKeysResponses = {
+    /**
+     * API key detection result
+     */
+    200: DetectedApiKey | null;
+};
+
+export type DetectApiKeysResponse = DetectApiKeysResponses[keyof DetectApiKeysResponses];
 
 export type GetExtensionsData = {
     body?: never;

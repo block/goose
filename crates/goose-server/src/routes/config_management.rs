@@ -781,6 +781,38 @@ pub async fn set_config_provider(
     Ok(())
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct DetectedApiKey {
+    pub provider: String,
+    pub env_var: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/detect_api_keys",
+    responses(
+        (status = 200, description = "API key detection result", body = Option<DetectedApiKey>),
+    )
+)]
+pub async fn detect_api_keys() -> Result<Json<Option<DetectedApiKey>>, StatusCode> {
+    let keys_to_check = [
+        ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openai", "OPENAI_API_KEY"),
+        ("openrouter", "OPENROUTER_API_KEY"),
+    ];
+
+    for (provider, env_var) in keys_to_check.iter() {
+        if std::env::var(env_var).is_ok() {
+            return Ok(Json(Some(DetectedApiKey {
+                provider: provider.to_string(),
+                env_var: env_var.to_string(),
+            })));
+        }
+    }
+
+    Ok(Json(None))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -807,6 +839,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
+        .route("/config/detect_api_keys", get(detect_api_keys))
         .with_state(state)
 }
 

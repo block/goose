@@ -10,6 +10,7 @@ import { OllamaSetup } from './OllamaSetup';
 
 import { Goose } from './icons/Goose';
 import { OpenRouter } from './icons';
+import { detectApiKeys, providers, setConfigProvider } from '../api/sdk.gen';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -23,6 +24,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [detectedApiKey, setDetectedApiKey] = useState<{
+    provider: string;
+    env_var: string;
+  } | null>(null);
 
   const [openRouterSetupState, setOpenRouterSetupState] = useState<{
     show: boolean;
@@ -101,6 +106,50 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
+  const handleDetectedKeySetup = async () => {
+    if (!detectedApiKey) return;
+
+    try {
+      console.log(`Setting up with detected ${detectedApiKey.provider} API key`);
+
+      // Get provider metadata to find default model
+      const providersResult = await providers();
+      const providerDetails = providersResult.data?.find((p) => p.name === detectedApiKey.provider);
+
+      if (!providerDetails) {
+        throw new Error(`Provider ${detectedApiKey.provider} not found`);
+      }
+
+      const defaultModel = providerDetails.metadata.default_model;
+
+      // Set the provider and model
+      await setConfigProvider({
+        body: {
+          provider: detectedApiKey.provider,
+          model: defaultModel,
+        },
+      });
+
+      toastService.configure({ silent: false });
+      toastService.success({
+        title: 'Success!',
+        msg: `Started goose with ${defaultModel} using your ${detectedApiKey.env_var}. You can change the model via the dropdown.`,
+      });
+
+      setShowFirstTimeSetup(false);
+      setHasProvider(true);
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Failed to setup with detected API key:', error);
+      toastService.configure({ silent: false });
+      toastService.error({
+        title: 'Setup Failed',
+        msg: `Failed to setup with detected API key: ${error instanceof Error ? error.message : String(error)}`,
+        traceback: error instanceof Error ? error.stack || '' : '',
+      });
+    }
+  };
+
   const handleOpenRouterSetup = async () => {
     setOpenRouterSetupState({
       show: true,
@@ -173,17 +222,26 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
-        // Always check for Ollama regardless of provider status
-
         if (provider && model) {
           console.log('ProviderGuard - Provider and model found, continuing normally');
           setHasProvider(true);
         } else {
           console.log('ProviderGuard - No provider/model configured');
+
+          // Detect API keys in environment
+          try {
+            const result = await detectApiKeys();
+            if (result.data) {
+              console.log('ProviderGuard - Detected API key:', result.data);
+              setDetectedApiKey(result.data);
+            }
+          } catch {
+            console.log('ProviderGuard - No API keys detected in environment');
+          }
+
           setShowFirstTimeSetup(true);
         }
       } catch (error) {
-        // On error, assume no provider and redirect to welcome
         console.error('Error checking provider configuration:', error);
         navigate('/welcome', { replace: true });
       } finally {
@@ -192,11 +250,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     };
 
     checkProvider();
-  }, [
-    navigate,
-    read,
-    didSelectProvider, // When the user makes a selection, re-trigger this check
-  ]);
+  }, [navigate, read, didSelectProvider]);
 
   if (
     isChecking &&
@@ -287,6 +341,68 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               {/* Setup options - same width container */}
 
               <div className="space-y-3 sm:space-y-4">
+                {/* Quick Setup Card - shown when API key is detected */}
+                {detectedApiKey && (
+                  <div className="relative">
+                    <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                        Ready to Go!
+                      </span>
+                    </div>
+
+                    <div
+                      onClick={handleDetectedKeySetup}
+                      className="relative w-full p-4 sm:p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-2 border-green-500 dark:border-green-600 rounded-xl hover:border-green-600 dark:hover:border-green-500 transition-all duration-200 cursor-pointer group"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg
+                              className="w-5 h-5 text-green-600 dark:text-green-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <h3 className="font-semibold text-text-standard text-sm sm:text-base">
+                              Quick Setup with{' '}
+                              {detectedApiKey.provider.charAt(0).toUpperCase() +
+                                detectedApiKey.provider.slice(1)}
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="text-green-600 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors">
+                          <svg
+                            className="w-4 h-4 sm:w-5 sm:h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <p className="text-text-standard text-sm sm:text-base font-medium mb-1">
+                        We detected your {detectedApiKey.env_var} environment variable!
+                      </p>
+                      <p className="text-text-muted text-sm sm:text-base">
+                        Click here to start using Goose immediately with your existing API key.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="relative">
                   {/* Tetrate Card */}
                   {/* Recommended badge - positioned relative to wrapper */}
