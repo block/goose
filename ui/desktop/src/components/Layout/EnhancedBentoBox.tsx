@@ -130,7 +130,7 @@ const DraggableContainer: React.FC<DraggableContainerProps> = ({
         layout: { duration: 0.3, ease: "easeInOut" },
         default: { duration: 0.2 }
       }}
-      className={`relative bg-background-default border border-border-subtle rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow ${getSizeClass(container.size)} ${className || ''}`}
+      className={`relative bg-background-default overflow-hidden ${getSizeClass(container.size)} ${className || ''}`}
       style={style}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -195,9 +195,13 @@ const DraggableContainer: React.FC<DraggableContainerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Container Content */}
-      <div className={`h-full w-full ${isHovered ? 'pt-10' : ''} transition-all duration-150`}>
-        {container.content || (
+      {/* Container Content - Full Bleed */}
+      <div className={`h-full w-full ${isHovered ? 'pt-10' : ''} transition-all duration-150 overflow-hidden`}>
+        {container.content ? (
+          <div className="h-full w-full">
+            {container.content}
+          </div>
+        ) : (
           <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted/50">
             <div className="w-8 h-8 rounded-lg bg-border-subtle animate-pulse" />
             <p className="text-text-muted text-sm text-center">Empty container</p>
@@ -249,13 +253,13 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   const getLayoutClasses = () => {
     switch (layout) {
       case 'vertical':
-        return 'flex flex-col gap-4 overflow-y-auto';
+        return 'flex flex-col gap-1 overflow-y-auto';
       case 'grid':
-        return 'grid grid-cols-3 auto-rows-fr gap-4 overflow-auto';
+        return 'grid grid-cols-3 auto-rows-fr gap-1 overflow-auto';
       case 'masonry':
-        return 'columns-2 gap-4 overflow-auto';
+        return 'columns-2 gap-1 overflow-auto';
       default: // horizontal
-        return 'flex gap-4 overflow-x-auto';
+        return 'flex gap-1 overflow-x-auto';
     }
   };
 
@@ -364,7 +368,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
       </motion.div>
 
       {/* Container Area */}
-      <div className="h-full pt-16 p-4">
+      <div className="h-full pt-16 p-1">
         {layout === 'horizontal' || layout === 'vertical' ? (
           <Reorder.Group
             axis={layout === 'horizontal' ? 'x' : 'y'}
