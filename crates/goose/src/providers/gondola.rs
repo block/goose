@@ -61,8 +61,8 @@ impl GondolaProvider {
         let config = Config::global();
 
         let endpoint = config
-            .get_param::<String>("gondola_endpoint")
-            .context("gondola_endpoint must be configured")?;
+            .get_param::<String>("GONDOLA_ENDPOINT")
+            .context("GONDOLA_ENDPOINT must be configured")?;
 
         Self::with_endpoint(&endpoint)
     }

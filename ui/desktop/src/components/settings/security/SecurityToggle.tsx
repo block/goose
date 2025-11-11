@@ -44,20 +44,19 @@ export const SecurityToggle = () => {
   };
 
   const handleMlToggle = async (enabled: boolean) => {
-    console.info(`[Security Settings] ML-based detection ${enabled ? 'enabled' : 'disabled'}`);
     await upsert('SECURITY_PROMPT_ML_ENABLED', enabled, false);
 
     if (enabled) {
       const modelToSet = mlModel || AVAILABLE_MODELS[0].value;
-      console.info(`[Security Settings] Ensuring ML model is configured: ${modelToSet}`);
       await upsert('SECURITY_PROMPT_ML_MODEL', modelToSet, false);
     }
   };
 
   const handleModelChange = async (model: string) => {
     const modelInfo = AVAILABLE_MODELS.find((m) => m.value === model);
-    console.info(`[Security Settings] ML detection model changed to: ${modelInfo?.label || model}`);
-    await upsert('SECURITY_PROMPT_ML_MODEL', model, false);
+    if (modelInfo) {
+      await upsert('SECURITY_PROMPT_ML_MODEL', model, false);
+    }
   };
 
   return (
