@@ -50,8 +50,16 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
+      - name: check disk space
+        run: |
+          df -h
+
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: check disk space
+        run: |
+          df -h
 
       - name: Activate hermit and set CARGO_HOME
         run: |
@@ -59,10 +67,18 @@ jobs:
           echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
           echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
 
+      - name: check disk space
+        run: |
+          df -h
+
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: check disk space
+        run: |
+          df -h
 
       - name: Cache Cargo artifacts
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
@@ -77,6 +93,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-debug-
 
+      - name: check disk space
+        run: |
+          df -h
+
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
@@ -85,20 +105,36 @@ jobs:
           cargo test --jobs 2
         working-directory: crates
 
+      - name: check disk space
+        run: |
+          df -h
+
       - name: Lint
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
           ./scripts/clippy-lint.sh
 
+      - name: check disk space
+        run: |
+          df -h
+
       - name: Install Node.js Dependencies for OpenAPI Check
         run: source ../../bin/activate-hermit && npm ci
         working-directory: ui/desktop
+
+      - name: check disk space
+        run: |
+          df -h
 
       - name: Check OpenAPI Schema is Up-to-Date
         run: |
           source ./bin/activate-hermit
           just check-openapi-schema
+
+      - name: check disk space
+        run: |
+          df -h
 
   desktop-lint:
     name: Test and Lint Electron Desktop App
@@ -130,5 +166,3 @@ jobs:
       - name: Run Tests
         run: source ../../bin/activate-hermit && npm run test:run
         working-directory: ui/desktop
-
-
