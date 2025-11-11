@@ -2,7 +2,7 @@
 
 * Alex Hancock
 * Bradley Axen
-* Douwe Osinga (Lead Maintainer)
+* Douwe Osinga
 * David Katz
 * Jack Amadeo
 * Mic Neale
