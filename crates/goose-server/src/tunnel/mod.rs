@@ -55,7 +55,8 @@ pub struct TunnelStatus {
 pub struct TunnelManager {
     state: Arc<RwLock<TunnelState>>,
     info: Arc<RwLock<Option<TunnelInfo>>>,
-    config: Arc<RwLock<TunnelConfig>>,
+    config: Arc<RwLock<Option<TunnelConfig>>>,
+    config_initialized: Arc<RwLock<bool>>,
     lapstone_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
@@ -66,17 +67,46 @@ impl TunnelManager {
         TunnelManager {
             state: Arc::new(RwLock::new(TunnelState::Idle)),
             info: Arc::new(RwLock::new(None)),
-            config: Arc::new(RwLock::new(config)),
+            config: Arc::new(RwLock::new(Some(config))),
+            config_initialized: Arc::new(RwLock::new(true)),
             lapstone_handle: Arc::new(RwLock::new(None)),
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
         }
     }
 
+    pub fn new_uninitialized() -> Self {
+        TunnelManager {
+            state: Arc::new(RwLock::new(TunnelState::Idle)),
+            info: Arc::new(RwLock::new(None)),
+            config: Arc::new(RwLock::new(None)),
+            config_initialized: Arc::new(RwLock::new(false)),
+            lapstone_handle: Arc::new(RwLock::new(None)),
+            restart_tx: Arc::new(RwLock::new(None)),
+            watchdog_handle: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    pub async fn ensure_initialized(&self) {
+        let initialized = *self.config_initialized.read().await;
+        if !initialized {
+            let loaded_config = config::load_config().await;
+            *self.config.write().await = Some(loaded_config);
+            *self.config_initialized.write().await = true;
+        }
+    }
+
     pub async fn get_status(&self) -> TunnelStatus {
+        self.ensure_initialized().await;
         let state = self.state.read().await.clone();
         let info = self.info.read().await.clone();
-        let auto_start = self.config.read().await.auto_start;
+        let auto_start = self
+            .config
+            .read()
+            .await
+            .as_ref()
+            .map(|c| c.auto_start)
+            .unwrap_or(false);
         TunnelStatus {
             state,
             info,
@@ -88,14 +118,19 @@ impl TunnelManager {
     where
         F: FnOnce(&mut TunnelConfig),
     {
-        let mut cfg = self.config.write().await;
-        f(&mut cfg);
-        if let Err(e) = config::save_config(&cfg).await {
-            tracing::error!("Failed to save tunnel config: {}", e);
+        self.ensure_initialized().await;
+        let mut cfg_opt = self.config.write().await;
+        if let Some(cfg) = cfg_opt.as_mut() {
+            f(cfg);
+            if let Err(e) = config::save_config(cfg).await {
+                tracing::error!("Failed to save tunnel config: {}", e);
+            }
         }
     }
 
     pub async fn start(&self) -> anyhow::Result<TunnelInfo> {
+        self.ensure_initialized().await;
+
         let mut state = self.state.write().await;
         if *state != TunnelState::Idle {
             anyhow::bail!("Tunnel is already running or starting");
@@ -103,7 +138,7 @@ impl TunnelManager {
         *state = TunnelState::Starting;
         drop(state);
 
-        let config = self.config.read().await.clone();
+        let config = self.config.read().await.clone().unwrap_or_default();
         let server_port = get_server_port()?;
 
         let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
@@ -144,7 +179,13 @@ impl TunnelManager {
 
                 let watchdog = tokio::spawn(async move {
                     while restart_rx.recv().await.is_some() {
-                        if config.read().await.auto_start {
+                        let auto_start = config
+                            .read()
+                            .await
+                            .as_ref()
+                            .map(|c| c.auto_start)
+                            .unwrap_or(false);
+                        if auto_start {
                             tracing::warn!("Tunnel connection lost, initiating restart...");
 
                             lapstone::stop(lapstone_handle.clone()).await;
@@ -153,7 +194,7 @@ impl TunnelManager {
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
                             *state.write().await = TunnelState::Starting;
-                            let cfg = config.read().await.clone();
+                            let cfg = config.read().await.clone().unwrap_or_default();
                             let tunnel_secret = cfg.secret.clone().unwrap_or_else(generate_secret);
                             let server_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
                                 .unwrap_or_else(|_| "test".to_string());

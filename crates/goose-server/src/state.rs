@@ -22,8 +22,9 @@ pub struct AppState {
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = AgentManager::instance().await?;
-        let tunnel_config = crate::tunnel::config::load_config().await;
-        let tunnel_manager = Arc::new(TunnelManager::new(tunnel_config));
+        // Initialize tunnel manager with default config - will lazy-load actual config when needed
+        // This prevents blocking server startup if keyring access requires password prompt
+        let tunnel_manager = Arc::new(TunnelManager::new_uninitialized());
 
         Ok(Arc::new(Self {
             agent_manager,
@@ -35,6 +36,9 @@ impl AppState {
     }
 
     pub async fn auto_start_tunnel(&self) {
+        // Ensure config is loaded before checking status
+        self.tunnel_manager.ensure_initialized().await;
+
         let status = self.tunnel_manager.get_status().await;
 
         if status.auto_start && status.state == crate::tunnel::TunnelState::Idle {
