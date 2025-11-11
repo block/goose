@@ -116,8 +116,10 @@ jobs:
           just check-openapi-schema
 
       - name: check disk space
+        if: always()
         run: |
           df -h
+
 
   desktop-lint:
     name: Test and Lint Electron Desktop App
