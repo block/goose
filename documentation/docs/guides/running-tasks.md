@@ -173,12 +173,6 @@ The JSON output includes:
 - Tool outputs and any errors
 - Structured data suitable for parsing by scripts and CI/CD pipelines
 
-This is particularly useful when:
-- Integrating goose into automated workflows
-- Processing results programmatically
-- Building custom tooling around goose
-- Monitoring task execution in production environments
-
 ## Common Use Cases
 
 ### Running Script Files
