@@ -18,10 +18,10 @@ Defines the core data structures:
 
 - `ModelType` enum: chat, voice, embedding, image, other
 - `CanonicalModel`: Complete model metadata including:
-  - Basic info: name, type, context limit
-  - Capabilities: streaming, tools, vision, computer use
-  - Pricing: input/output token costs
-  - Additional features: cache control, custom metadata
+  - Basic info: name (provider/model-name format), type, context limit
+  - Capabilities: streaming, tools
+  - Pricing: input/output token costs (in USD)
+  - Additional features: cache control
 
 ### `registry.rs`
 
@@ -51,8 +51,8 @@ async fn map_to_canonical_models(&self) -> Result<Vec<ModelMapping>, ProviderErr
     for model in models {
         // Map your provider's model name to canonical name
         let canonical = match model.as_str() {
-            "claude-3-5-sonnet-20241022" => "claude-3-5-sonnet-20241022",
-            "gpt-4-turbo-2024-04-09" => "gpt-4-turbo",
+            "claude-3-5-sonnet-20241022" => "anthropic/claude-3-5-sonnet",
+            "gpt-4-turbo-2024-04-09" => "openai/gpt-4-turbo",
             // ... more mappings
             _ => continue, // Skip unmapped models
         };
@@ -87,25 +87,23 @@ This will:
 
 1. Add the model definition to `canonical_models.json`
 2. Include all required metadata:
-   - name, model_type, context_limit (required)
-   - capabilities (streaming, tools, vision, etc.)
-   - pricing information
+   - name (provider/model-name format), model_type, context_limit (required)
+   - capabilities (streaming, tools, cache_control)
+   - pricing information (in USD)
 3. Run the test script to verify mappings
 
 ## Model Metadata Fields
 
-- `name`: Canonical name for the model (e.g., "claude-3-5-sonnet-20241022")
+- `name`: Canonical name for the model using provider/model-name format (e.g., "anthropic/claude-3-5-sonnet", "openai/gpt-4o")
 - `model_type`: Type of model (chat, voice, embedding, image, other)
 - `context_limit`: Maximum context window in tokens
 - `supports_streaming`: Whether model supports streaming responses
-- `supports_tools`: Whether model supports tool/function calling
-- `supports_vision`: Whether model supports image inputs
-- `supports_computer_use`: Whether model supports computer use/MCP
-- `input_token_cost`: Cost per million input tokens (optional)
-- `output_token_cost`: Cost per million output tokens (optional)
-- `currency`: Currency for pricing (default: "USD")
+- `supports_tools`: Whether model supports tool/function calling (includes MCP)
+- `input_token_cost`: Cost per million input tokens in USD (optional)
+- `output_token_cost`: Cost per million output tokens in USD (optional)
 - `supports_cache_control`: Whether model supports prompt caching
-- `metadata`: Additional custom metadata as key-value pairs
+
+**Note:** Canonical models represent model families without datetime-specific versions. Provider-specific versioned models (e.g., "claude-3-5-sonnet-20241022") should be mapped to their canonical equivalents (e.g., "anthropic/claude-3-5-sonnet").
 
 ## Goals
 

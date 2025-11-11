@@ -19,7 +19,7 @@ pub enum ModelType {
 /// Canonical representation of a model with standardized metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalModel {
-    /// Canonical name for this model (e.g., "claude-3-5-sonnet-20241022")
+    /// Canonical name for this model (e.g., "anthropic/claude-3-5-sonnet")
     pub name: String,
 
     /// The type of model
@@ -34,33 +34,14 @@ pub struct CanonicalModel {
     /// Whether the model supports tool/function calling
     pub supports_tools: bool,
 
-    /// Whether the model supports vision/image inputs
-    pub supports_vision: bool,
-
-    /// Whether the model supports computer use/MCP
-    pub supports_computer_use: bool,
-
-    /// Cost per million input tokens
+    /// Cost per million input tokens (in USD)
     pub input_token_cost: Option<f64>,
 
-    /// Cost per million output tokens
+    /// Cost per million output tokens (in USD)
     pub output_token_cost: Option<f64>,
 
-    /// Currency for pricing (defaults to USD)
-    #[serde(default = "default_currency")]
-    pub currency: String,
-
     /// Whether the model supports prompt caching
-    #[serde(default)]
     pub supports_cache_control: bool,
-
-    /// Additional metadata as key-value pairs
-    #[serde(default)]
-    pub metadata: std::collections::HashMap<String, serde_json::Value>,
-}
-
-fn default_currency() -> String {
-    "USD".to_string()
 }
 
 impl CanonicalModel {
@@ -76,13 +57,9 @@ impl CanonicalModel {
             context_limit,
             supports_streaming: false,
             supports_tools: false,
-            supports_vision: false,
-            supports_computer_use: false,
             input_token_cost: None,
             output_token_cost: None,
-            currency: default_currency(),
             supports_cache_control: false,
-            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -98,19 +75,7 @@ impl CanonicalModel {
         self
     }
 
-    /// Builder method to set vision support
-    pub fn with_vision(mut self, supports: bool) -> Self {
-        self.supports_vision = supports;
-        self
-    }
-
-    /// Builder method to set computer use support
-    pub fn with_computer_use(mut self, supports: bool) -> Self {
-        self.supports_computer_use = supports;
-        self
-    }
-
-    /// Builder method to set pricing
+    /// Builder method to set pricing (in USD per million tokens)
     pub fn with_pricing(mut self, input_cost: f64, output_cost: f64) -> Self {
         self.input_token_cost = Some(input_cost);
         self.output_token_cost = Some(output_cost);
@@ -120,12 +85,6 @@ impl CanonicalModel {
     /// Builder method to set cache control support
     pub fn with_cache_control(mut self, supports: bool) -> Self {
         self.supports_cache_control = supports;
-        self
-    }
-
-    /// Builder method to add custom metadata
-    pub fn with_metadata(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
-        self.metadata.insert(key.into(), value);
         self
     }
 }
