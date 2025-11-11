@@ -1,6 +1,7 @@
 ---
 title: VS Code Extension
 description: Use VS Code MCP Server as a Goose Extension for file operations and VS Code integration
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
