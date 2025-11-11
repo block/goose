@@ -132,6 +132,31 @@ pub struct GithubCopilotProvider {
 }
 
 impl GithubCopilotProvider {
+    fn payload_contains_image(payload: &Value) -> bool {
+        if let Some(messages) = payload.get("messages").and_then(|m| m.as_array()) {
+            for msg in messages {
+                if let Some(content) = msg.get("content") {
+                    if content.is_array() {
+                        for item in content.as_array().unwrap() {
+                            if let Some(t) = item.get("type").and_then(|v| v.as_str()) {
+                                if t == "image_url" || t == "image" {
+                                    return true;
+                                }
+                            }
+                        }
+                    } else if content.is_object() {
+                        if let Some(t) = content.get("type").and_then(|v| v.as_str()) {
+                            if t == "image_url" || t == "image" {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -164,10 +189,14 @@ impl GithubCopilotProvider {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        // Build headers and include Copilot-Vision-Request when payload contains processed images
+        let headers = self.get_github_headers(Some(&*payload));
+
         let response = self
             .client
             .post(url)
-            .headers(self.get_github_headers())
+            .headers(headers)
             .header("Authorization", format!("Bearer {}", token))
             .json(payload)
             .send()
@@ -260,7 +289,7 @@ impl GithubCopilotProvider {
         let resp = self
             .client
             .get(GITHUB_COPILOT_API_KEY_URL)
-            .headers(self.get_github_headers())
+            .headers(self.get_github_headers(None))
             .header(http::header::AUTHORIZATION, format!("bearer {}", &token))
             .send()
             .await?
@@ -303,7 +332,7 @@ impl GithubCopilotProvider {
         }
         self.client
             .post(GITHUB_COPILOT_DEVICE_CODE_URL)
-            .headers(self.get_github_headers())
+            .headers(self.get_github_headers(None))
             .json(&DeviceCodeRequest {
                 client_id: GITHUB_COPILOT_CLIENT_ID.to_string(),
                 scope: "read:user".to_string(),
@@ -338,7 +367,7 @@ impl GithubCopilotProvider {
             let resp = self
                 .client
                 .post(GITHUB_COPILOT_ACCESS_TOKEN_URL)
-                .headers(self.get_github_headers())
+                .headers(self.get_github_headers(None))
                 .json(&AccessTokenRequest {
                     client_id: GITHUB_COPILOT_CLIENT_ID.to_string(),
                     device_code: device_code.to_string(),
@@ -375,7 +404,7 @@ impl GithubCopilotProvider {
         Err(anyhow!("failed to get access token"))
     }
 
-    fn get_github_headers(&self) -> http::HeaderMap {
+    fn get_github_headers(&self, payload: Option<&Value>) -> http::HeaderMap {
         let mut headers = http::HeaderMap::new();
         headers.insert(http::header::ACCEPT, "application/json".parse().unwrap());
         headers.insert(
@@ -388,6 +417,11 @@ impl GithubCopilotProvider {
         );
         headers.insert("editor-version", "vscode/1.85.1".parse().unwrap());
         headers.insert("editor-plugin-version", "copilot/1.155.0".parse().unwrap());
+        if let Some(p) = payload {
+            if Self::payload_contains_image(p) {
+                headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
+            }
+        }
         headers
     }
 }
