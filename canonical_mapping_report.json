@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-11-11T21:48:08.783638+00:00",
+  "timestamp": "2025-11-11T22:13:04.957991+00:00",
   "unmapped_models": [
     {
       "provider": "anthropic",
@@ -4183,20 +4183,20 @@
     }
   ],
   "all_mappings": {
-    "google": [],
+    "databricks": [],
     "openai": [],
-    "tetrate": [],
     "openrouter": [],
-    "anthropic": [],
-    "databricks": []
+    "tetrate": [],
+    "google": [],
+    "anthropic": []
   },
   "model_counts": {
-    "anthropic": 9,
+    "databricks": 143,
+    "openai": 625,
     "google": 50,
     "tetrate": 0,
-    "openai": 625,
     "openrouter": 218,
-    "databricks": 143
+    "anthropic": 9
   },
   "canonical_models_used": []
 }
