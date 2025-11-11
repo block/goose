@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -29,6 +29,7 @@ export default function UpdateSection() {
     currentVersion: '',
   });
   const [progress, setProgress] = useState<number>(0);
+  const progressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Get current version on mount
@@ -75,7 +76,15 @@ export default function UpdateSection() {
 
         case 'download-progress':
           setUpdateStatus('downloading');
-          setProgress((event.data as UpdateEventData)?.percent || 0);
+
+          // Debounce progress updates to prevent flickering (max 10 updates/sec)
+          if (progressTimeoutRef.current) {
+            clearTimeout(progressTimeoutRef.current);
+          }
+
+          progressTimeoutRef.current = setTimeout(() => {
+            setProgress((event.data as UpdateEventData)?.percent || 0);
+          }, 100); // Update at most every 100ms
           break;
 
         case 'update-downloaded':
@@ -93,6 +102,13 @@ export default function UpdateSection() {
           break;
       }
     });
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+      }
+    };
   }, []);
 
   const checkForUpdates = async () => {

@@ -459,7 +459,12 @@ export function setupAutoUpdater(tray?: Tray) {
     log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
     log_message = log_message + ' (' + progressObj.transferred + '/' + progressObj.total + ')';
     log.info(log_message);
-    sendStatusToWindow('download-progress', progressObj);
+
+    // Round percentage to avoid fractional jitter (12.3456% -> 12%)
+    sendStatusToWindow('download-progress', {
+      ...progressObj,
+      percent: Math.round(progressObj.percent),
+    });
   });
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {

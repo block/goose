@@ -165,6 +165,7 @@ export class GitHubUpdater {
       if (!response.body) {
         throw new Error('Response body is null');
       }
+      let lastReportedPercent = -1; // Track last reported percentage to throttle updates
 
       // Read the response stream
       const reader = response.body.getReader();
@@ -178,10 +179,15 @@ export class GitHubUpdater {
         chunks.push(value);
         downloadedSize += value.length;
 
-        // Report progress
+        // Report progress - only when percentage changes by at least 1%
         if (totalSize > 0 && onProgress) {
           const percent = Math.round((downloadedSize / totalSize) * 100);
-          onProgress(percent);
+
+          // Only report if percent changed (throttles from hundreds/sec to ~100 total)
+          if (percent !== lastReportedPercent) {
+            onProgress(percent);
+            lastReportedPercent = percent;
+          }
         }
       }
 
