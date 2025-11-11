@@ -628,10 +628,24 @@ impl CliSession {
                         continue;
                     }
 
+                    if let Err(e) = SessionManager::update_session(&self.session_id)
+                        .total_tokens(Some(0))
+                        .input_tokens(Some(0))
+                        .output_tokens(Some(0))
+                        .accumulated_total_tokens(Some(0))
+                        .accumulated_input_tokens(Some(0))
+                        .accumulated_output_tokens(Some(0))
+                        .apply()
+                        .await
+                    {
+                        output::render_error(&format!("Failed to clear session metrics: {}", e));
+                        continue;
+                    }
+
                     self.messages.clear();
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
-                        &Message::assistant().with_text("Chat context cleared."),
+                        &Message::assistant().with_text("Chat context cleared.\n"),
                         self.debug,
                     );
 
