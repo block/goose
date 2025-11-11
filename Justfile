@@ -300,9 +300,12 @@ prepare-release version:
     # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
-    @just generate-openapi
+    @just set-openapi-version {{ version }}
     @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json
     @git commit --message "chore(release): release version {{ version }}"
+
+set-openapi-version version:
+    @jq '.info.version |= "{{ version }}"' ui/desktop/openapi.json > ui/desktop/openapi.json.tmp && mv ui/desktop/openapi.json.tmp ui/desktop/openapi.json
 
 # extract version from Cargo.toml
 get-tag-version:
