@@ -9,3 +9,6 @@
 * Jack Amadeo
 
 # Maintainers
+
+* Abhijay Jain
+* The-Best-Codes (on GitHub)
