@@ -134,7 +134,7 @@ List all saved sessions.
 **Options:**
 - **`-f, --format <format>`**: Specify output format (`text` or `json`). Default is `text`
 - **`--ascending`**: Sort sessions by date in ascending order (oldest first)
-- **`-w, --working-dir <path>`**: Filter sessions by working directory
+- **`-p, --working-dir <path>`**: Filter sessions by working directory
 - **`-l, --limit <number>`**: Limit the number of results
 
 **Usage:**
@@ -149,7 +149,7 @@ goose session list --format json
 goose session list --ascending
 
 # Filter sessions by working directory
-goose session list -w ~/projects/myapp
+goose session list -p ~/projects/myapp
 
 # List only the 10 most recent sessions
 goose session list --limit 10
@@ -225,7 +225,7 @@ goose session export -p ./my-session.jsonl -o exported.md
 Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
 
 **Options:**
-- **`-i, --id <ID>`**: Generate diagnostics for a specific session by ID
+- **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
 - **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
 
@@ -238,13 +238,13 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 **Usage:**
 ```bash
 # Generate diagnostics for a specific session by ID
-goose session diagnostics -i 20251108_5
+goose session diagnostics --session-id 20251108_5
 
 # Generate diagnostics for a session by name
 goose session diagnostics --name my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics -i 20251108_5 --output /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 --output /path/to/my-diagnostics.zip
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
