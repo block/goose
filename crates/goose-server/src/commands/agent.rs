@@ -68,7 +68,6 @@ pub async fn run() -> Result<()> {
         app_state_clone.auto_start_tunnel(port).await;
     });
 
-    // Ensure the listener/socket is properly closed on cancellation by using graceful shutdown
     info!("listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
