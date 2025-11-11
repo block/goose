@@ -4,7 +4,6 @@
 * Bradley Axen
 * David Katz
 * Douwe Osinga
-
 * Jack Amadeo
 * Mic Neale
 * Zane Staggs
