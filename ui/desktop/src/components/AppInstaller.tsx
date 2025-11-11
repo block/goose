@@ -381,37 +381,22 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
 
       // If it's a web app, we might want to open it in the WebViewer
       if (app.projectType === 'web' && app.port) {
-        // Wait a bit longer for the server to be ready, then verify it's responding
+        // Wait a bit for the server to start, then open WebViewer
         console.log(`Waiting for server to be ready on port ${app.port}...`);
         
-        // Wait 3 seconds, then check if server is responding
-        setTimeout(async () => {
-          try {
-            const response = await fetch(`http://localhost:${app.port}`, { 
-              method: 'HEAD',
-              cache: 'no-cache'
-            });
-            
-            if (response.ok) {
-              console.log(`Server is ready on port ${app.port}, opening WebViewer`);
-              // Dispatch event to open in WebViewer with correct format
-              const event = new CustomEvent('add-container', {
-                detail: { 
-                  type: 'web-viewer',
-                  url: `http://localhost:${app.port}`,
-                  title: app.name
-                }
-              });
-              window.dispatchEvent(event);
-            } else {
-              console.warn(`Server on port ${app.port} returned status ${response.status}`);
-              setError(`App launched but server is not responding properly (status: ${response.status})`);
+        // Wait 3 seconds for server startup, then open WebViewer
+        setTimeout(() => {
+          console.log(`Opening WebViewer for ${app.name} on port ${app.port}`);
+          // Dispatch event to open in WebViewer with correct format
+          const event = new CustomEvent('add-container', {
+            detail: { 
+              type: 'web-viewer',
+              url: `http://localhost:${app.port}`,
+              title: app.name
             }
-          } catch (fetchError) {
-            console.error(`Failed to verify server on port ${app.port}:`, fetchError);
-            setError(`App launched but server verification failed: ${fetchError.message}`);
-          }
-        }, 3000); // 3 second delay
+          });
+          window.dispatchEvent(event);
+        }, 3000); // 3 second delay for server startup
       }
 
     } catch (err) {
