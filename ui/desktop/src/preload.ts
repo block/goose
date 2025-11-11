@@ -130,11 +130,13 @@ type ElectronAPI = {
   // App Installer functions
   cloneRepository: (gitUrl: string, appId: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
   analyzeProject: (projectPath: string) => Promise<{ success: boolean; name?: string; description?: string; projectType?: string; buildCommand?: string; startCommand?: string; port?: number; requiresInstall?: boolean; packageManager?: string; error?: string }>;
+  analyzeProjectWithLLM: (projectPath: string, basicAnalysis: any) => Promise<{ success: boolean; analysis?: any; error?: string }>;
   installProjectDependencies: (projectPath: string, packageManager: string) => Promise<{ success: boolean; error?: string }>;
   saveAppConfiguration: (appConfig: any) => Promise<{ success: boolean; error?: string }>;
   launchApp: (appConfig: any) => Promise<{ success: boolean; error?: string }>;
   removeApp: (appId: string) => Promise<{ success: boolean; error?: string }>;
   showItemInFolder: (path: string) => Promise<void>;
+  loadSavedApps: () => Promise<{ success: boolean; apps: any[]; error?: string }>;
 };
 
 type AppConfigAPI = {
@@ -277,12 +279,14 @@ const electronAPI: ElectronAPI = {
   // App Installer functions
   cloneRepository: (gitUrl: string, appId: string) => ipcRenderer.invoke('clone-repository', gitUrl, appId),
   analyzeProject: (projectPath: string) => ipcRenderer.invoke('analyze-project', projectPath),
+  analyzeProjectWithLLM: (projectPath: string, basicAnalysis: any) => ipcRenderer.invoke('analyze-project-with-llm', projectPath, basicAnalysis),
   installProjectDependencies: (projectPath: string, packageManager: string) => 
     ipcRenderer.invoke('install-project-dependencies', projectPath, packageManager),
   saveAppConfiguration: (appConfig: any) => ipcRenderer.invoke('save-app-configuration', appConfig),
   launchApp: (appConfig: any) => ipcRenderer.invoke('launch-app', appConfig),
   removeApp: (appId: string) => ipcRenderer.invoke('remove-app', appId),
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
+  loadSavedApps: () => ipcRenderer.invoke('load-saved-apps'),
 };
 
 const appConfigAPI: AppConfigAPI = {

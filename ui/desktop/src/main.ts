@@ -2707,6 +2707,650 @@ async function appMain() {
     }
   });
 
+  // ========================================
+  // App Installer IPC Handlers
+  // ========================================
+
+  // Handle repository cloning
+  ipcMain.handle('clone-repository', async (_event, gitUrl: string, appId: string) => {
+    try {
+      console.log('[Main] Cloning repository:', gitUrl, 'with ID:', appId);
+      
+      // Create apps directory in user data
+      const appsDir = path.join(app.getPath('userData'), 'installed-apps');
+      await fs.mkdir(appsDir, { recursive: true });
+      
+      const localPath = path.join(appsDir, appId);
+      
+      // Check if directory already exists
+      try {
+        await fs.access(localPath);
+        return { success: false, error: 'App directory already exists' };
+      } catch {
+        // Directory doesn't exist, which is good
+      }
+      
+      // Clone the repository using git
+      return new Promise((resolve) => {
+        const gitProcess = spawn('git', ['clone', gitUrl, localPath], {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let errorOutput = '';
+        
+        gitProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        gitProcess.on('close', (code) => {
+          if (code === 0) {
+            console.log('[Main] Repository cloned successfully to:', localPath);
+            resolve({ success: true, localPath });
+          } else {
+            console.error('[Main] Git clone failed:', errorOutput);
+            resolve({ success: false, error: errorOutput || 'Git clone failed' });
+          }
+        });
+        
+        gitProcess.on('error', (error) => {
+          console.error('[Main] Git process error:', error);
+          resolve({ success: false, error: error.message });
+        });
+      });
+      
+    } catch (error) {
+      console.error('[Main] Error cloning repository:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle project analysis
+  ipcMain.handle('analyze-project', async (_event, projectPath: string) => {
+    try {
+      console.log('[Main] Analyzing project at:', projectPath);
+      
+      const analysis = {
+        name: path.basename(projectPath),
+        description: '',
+        projectType: 'unknown' as 'web' | 'electron' | 'cli' | 'library' | 'unknown',
+        buildCommand: undefined as string | undefined,
+        startCommand: undefined as string | undefined,
+        port: undefined as number | undefined,
+        requiresInstall: false,
+        packageManager: 'npm' as string
+      };
+      
+      // Check for package.json (Node.js project)
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      try {
+        const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(packageJsonContent);
+        
+        analysis.name = packageJson.name || analysis.name;
+        analysis.description = packageJson.description || '';
+        analysis.requiresInstall = true;
+        
+        // Detect package manager
+        try {
+          await fs.access(path.join(projectPath, 'yarn.lock'));
+          analysis.packageManager = 'yarn';
+        } catch {
+          try {
+            await fs.access(path.join(projectPath, 'pnpm-lock.yaml'));
+            analysis.packageManager = 'pnpm';
+          } catch {
+            analysis.packageManager = 'npm';
+          }
+        }
+        
+        // Analyze scripts and dependencies
+        const scripts = packageJson.scripts || {};
+        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        
+        // Detect project type and set appropriate commands
+        if (dependencies['electron']) {
+          analysis.projectType = 'electron';
+          analysis.startCommand = scripts.start || scripts.electron || 'npm start';
+        } else if (dependencies['react'] || dependencies['vue'] || dependencies['angular'] || dependencies['svelte'] || dependencies['next'] || dependencies['nuxt'] || dependencies['vite'] || dependencies['webpack']) {
+          analysis.projectType = 'web';
+          analysis.startCommand = scripts.start || scripts.dev || scripts.serve || 'npm run dev';
+          analysis.buildCommand = scripts.build;
+          
+          // Try to detect port from common patterns
+          if (scripts.start || scripts.dev) {
+            const command = scripts.start || scripts.dev;
+            const portMatch = command.match(/--port[= ](\d+)|:(\d+)/);
+            if (portMatch) {
+              analysis.port = parseInt(portMatch[1] || portMatch[2]);
+            }
+          }
+          
+          // Default ports for common frameworks
+          if (!analysis.port) {
+            if (dependencies['react'] && !dependencies['next']) analysis.port = 3000;
+            else if (dependencies['vue'] && !dependencies['nuxt']) analysis.port = 8080;
+            else if (dependencies['angular']) analysis.port = 4200;
+            else if (dependencies['svelte']) analysis.port = 5000;
+            else if (dependencies['next']) analysis.port = 3000;
+            else if (dependencies['nuxt']) analysis.port = 3000;
+            else if (dependencies['vite']) analysis.port = 5173;
+            else analysis.port = 3000; // Default fallback
+          }
+        } else if (packageJson.bin || scripts.cli) {
+          analysis.projectType = 'cli';
+          analysis.startCommand = scripts.start || Object.keys(packageJson.bin || {})[0] || 'npm start';
+        } else if (scripts.start || scripts.dev || scripts.serve) {
+          // Has start scripts but not a recognized web framework
+          analysis.projectType = 'web';
+          analysis.startCommand = scripts.start || scripts.dev || scripts.serve;
+          analysis.port = 3000; // Default port
+        } else if (scripts.test || scripts.build) {
+          // Looks like a library or tool
+          analysis.projectType = 'library';
+          analysis.startCommand = scripts.start || 'npm start'; // Fallback
+        } else {
+          // Generic Node.js project
+          analysis.projectType = 'cli';
+          analysis.startCommand = 'npm start';
+        }
+        
+      } catch (error) {
+        // No package.json or invalid JSON
+        console.log('[Main] No valid package.json found, checking other project types');
+      }
+      
+      // Check for Python projects
+      if (analysis.projectType === 'unknown') {
+        try {
+          await fs.access(path.join(projectPath, 'requirements.txt'));
+          analysis.projectType = 'web';
+          analysis.requiresInstall = true;
+          analysis.packageManager = 'pip';
+          analysis.startCommand = 'python app.py';
+          analysis.port = 5000;
+        } catch {
+          // Check for setup.py or pyproject.toml
+          try {
+            await fs.access(path.join(projectPath, 'setup.py'));
+            analysis.projectType = 'library';
+            analysis.requiresInstall = true;
+            analysis.packageManager = 'pip';
+          } catch {
+            try {
+              await fs.access(path.join(projectPath, 'pyproject.toml'));
+              analysis.projectType = 'library';
+              analysis.requiresInstall = true;
+              analysis.packageManager = 'pip';
+            } catch {
+              // Not a Python project
+            }
+          }
+        }
+      }
+      
+      // Check for Rust projects
+      if (analysis.projectType === 'unknown') {
+        try {
+          await fs.access(path.join(projectPath, 'Cargo.toml'));
+          analysis.projectType = 'cli';
+          analysis.requiresInstall = true;
+          analysis.packageManager = 'cargo';
+          analysis.startCommand = 'cargo run';
+        } catch {
+          // Not a Rust project
+        }
+      }
+      
+      // Check for Go projects
+      if (analysis.projectType === 'unknown') {
+        try {
+          await fs.access(path.join(projectPath, 'go.mod'));
+          analysis.projectType = 'cli';
+          analysis.requiresInstall = false; // Go doesn't require separate install step
+          analysis.startCommand = 'go run .';
+        } catch {
+          // Not a Go project
+        }
+      }
+      
+      console.log('[Main] Project analysis complete:', analysis);
+      return { success: true, ...analysis };
+      
+    } catch (error) {
+      console.error('[Main] Error analyzing project:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle dependency installation
+  ipcMain.handle('install-project-dependencies', async (_event, projectPath: string, packageManager: string) => {
+    try {
+      console.log('[Main] Installing dependencies for project at:', projectPath, 'using:', packageManager);
+      
+      let command: string;
+      let args: string[];
+      
+      switch (packageManager) {
+        case 'npm':
+          command = 'npm';
+          args = ['install'];
+          break;
+        case 'yarn':
+          command = 'yarn';
+          args = ['install'];
+          break;
+        case 'pnpm':
+          command = 'pnpm';
+          args = ['install'];
+          break;
+        case 'pip':
+          command = 'pip';
+          args = ['install', '-r', 'requirements.txt'];
+          break;
+        case 'cargo':
+          command = 'cargo';
+          args = ['build'];
+          break;
+        default:
+          return { success: false, error: `Unsupported package manager: ${packageManager}` };
+      }
+      
+      return new Promise((resolve) => {
+        const installProcess = spawn(command, args, {
+          cwd: projectPath,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let output = '';
+        let errorOutput = '';
+        
+        installProcess.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        installProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        installProcess.on('close', (code) => {
+          if (code === 0) {
+            console.log('[Main] Dependencies installed successfully');
+            resolve({ success: true });
+          } else {
+            console.error('[Main] Dependency installation failed:', errorOutput);
+            resolve({ success: false, error: errorOutput || 'Installation failed' });
+          }
+        });
+        
+        installProcess.on('error', (error) => {
+          console.error('[Main] Install process error:', error);
+          resolve({ success: false, error: error.message });
+        });
+      });
+      
+    } catch (error) {
+      console.error('[Main] Error installing dependencies:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle app configuration saving
+  ipcMain.handle('save-app-configuration', async (_event, appConfig: any) => {
+    try {
+      console.log('[Main] Saving app configuration:', appConfig.id);
+      
+      const configDir = path.join(app.getPath('userData'), 'app-configs');
+      await fs.mkdir(configDir, { recursive: true });
+      
+      const configPath = path.join(configDir, `${appConfig.id}.json`);
+      await fs.writeFile(configPath, JSON.stringify(appConfig, null, 2));
+      
+      console.log('[Main] App configuration saved to:', configPath);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('[Main] Error saving app configuration:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle app launching
+  ipcMain.handle('launch-app', async (_event, appConfig: any) => {
+    try {
+      console.log('[Main] Launching app:', appConfig.name);
+      
+      if (!appConfig.startCommand) {
+        return { success: false, error: 'No start command defined for this app' };
+      }
+      
+      // Parse the start command
+      const commandParts = appConfig.startCommand.split(' ');
+      const command = commandParts[0];
+      const args = commandParts.slice(1);
+      
+      // Launch the app process
+      const appProcess = spawn(command, args, {
+        cwd: appConfig.localPath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true // Allow the process to run independently
+      });
+      
+      // Don't wait for the process to complete for web apps
+      if (appConfig.projectType === 'web') {
+        // Give it a moment to start up
+        setTimeout(() => {
+          console.log('[Main] Web app should be starting on port:', appConfig.port);
+        }, 2000);
+      }
+      
+      appProcess.on('error', (error) => {
+        console.error('[Main] App launch error:', error);
+      });
+      
+      // Store process reference for later cleanup if needed
+      // (In a real implementation, you'd want to track running processes)
+      
+      console.log('[Main] App launched successfully');
+      return { success: true };
+      
+    } catch (error) {
+      console.error('[Main] Error launching app:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle app removal
+  ipcMain.handle('remove-app', async (_event, appId: string) => {
+    try {
+      console.log('[Main] Removing app:', appId);
+      
+      // Remove app directory
+      const appsDir = path.join(app.getPath('userData'), 'installed-apps');
+      const appPath = path.join(appsDir, appId);
+      
+      try {
+        await fs.rm(appPath, { recursive: true, force: true });
+        console.log('[Main] App directory removed:', appPath);
+      } catch (error) {
+        console.warn('[Main] Could not remove app directory:', error);
+      }
+      
+      // Remove app configuration
+      const configDir = path.join(app.getPath('userData'), 'app-configs');
+      const configPath = path.join(configDir, `${appId}.json`);
+      
+      try {
+        await fs.unlink(configPath);
+        console.log('[Main] App configuration removed:', configPath);
+      } catch (error) {
+        console.warn('[Main] Could not remove app configuration:', error);
+      }
+      
+      return { success: true };
+      
+    } catch (error) {
+      console.error('[Main] Error removing app:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle showing item in folder
+  ipcMain.handle('show-item-in-folder', async (_event, itemPath: string) => {
+    try {
+      console.log('[Main] Showing item in folder:', itemPath);
+      await shell.showItemInFolder(itemPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] Error showing item in folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle LLM-powered project analysis for better start commands
+  ipcMain.handle('analyze-project-with-llm', async (event, projectPath: string, basicAnalysis: any) => {
+    try {
+      console.log('[Main] Running LLM-powered project analysis for:', projectPath);
+      
+      // Get the goosed client for this window
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+      if (!windowId) {
+        return { success: false, error: 'No window context found' };
+      }
+      
+      const client = goosedClients.get(windowId);
+      if (!client) {
+        return { success: false, error: 'No goosed client found' };
+      }
+      
+      // Read key project files for context
+      const projectFiles = [];
+      const filesToCheck = [
+        'package.json',
+        'README.md',
+        'README.rst',
+        'requirements.txt',
+        'Cargo.toml',
+        'go.mod',
+        'Makefile',
+        'docker-compose.yml',
+        'Dockerfile',
+        '.env.example',
+        'pyproject.toml',
+        'setup.py'
+      ];
+      
+      for (const fileName of filesToCheck) {
+        try {
+          const filePath = path.join(projectPath, fileName);
+          const content = await fs.readFile(filePath, 'utf-8');
+          projectFiles.push({
+            name: fileName,
+            content: content.length > 2000 ? content.substring(0, 2000) + '...' : content
+          });
+        } catch {
+          // File doesn't exist, skip
+        }
+      }
+      
+      // Get directory structure (first 2 levels)
+      let directoryStructure = '';
+      try {
+        const getDirectoryTree = async (dir: string, level: number = 0, maxLevel: number = 2): Promise<string> => {
+          if (level > maxLevel) return '';
+          
+          const items = await fs.readdir(dir);
+          let tree = '';
+          
+          for (const item of items.slice(0, 20)) { // Limit to first 20 items
+            if (item.startsWith('.') && !['package.json', 'README.md'].includes(item)) continue;
+            
+            const itemPath = path.join(dir, item);
+            const stats = await fs.lstat(itemPath);
+            const indent = '  '.repeat(level);
+            
+            if (stats.isDirectory()) {
+              tree += `${indent}${item}/\n`;
+              if (level < maxLevel) {
+                tree += await getDirectoryTree(itemPath, level + 1, maxLevel);
+              }
+            } else {
+              tree += `${indent}${item}\n`;
+            }
+          }
+          return tree;
+        };
+        
+        directoryStructure = await getDirectoryTree(projectPath);
+      } catch (error) {
+        directoryStructure = 'Could not read directory structure';
+      }
+      
+      // Create a comprehensive prompt for the LLM
+      const prompt = `You are a project analysis expert. I need help analyzing a Git repository to determine the best way to run/start this project.
+
+**Project Path:** ${path.basename(projectPath)}
+
+**Basic Analysis Results:**
+- Project Type: ${basicAnalysis.projectType || 'unknown'}
+- Package Manager: ${basicAnalysis.packageManager || 'unknown'}
+- Current Start Command: ${basicAnalysis.startCommand || 'none'}
+- Build Command: ${basicAnalysis.buildCommand || 'none'}
+- Port: ${basicAnalysis.port || 'unknown'}
+
+**Directory Structure:**
+\`\`\`
+${directoryStructure}
+\`\`\`
+
+**Project Files:**
+${projectFiles.map(file => `
+**${file.name}:**
+\`\`\`
+${file.content}
+\`\`\`
+`).join('\n')}
+
+**Task:** Please analyze this project and provide:
+
+1. **Project Type** (web, cli, library, desktop, mobile, etc.)
+2. **Best Start Command** - The exact command to run this project
+3. **Setup Steps** - Any required setup before running (if needed)
+4. **Port** - Default port if it's a web service
+5. **Description** - Brief description of what this project does
+
+**Requirements:**
+- Provide practical, working commands
+- Consider the most common development workflow
+- If it's a web project, prioritize development server commands
+- If multiple options exist, choose the most standard one
+- Be specific about package managers (npm, yarn, pnpm, pip, cargo, etc.)
+
+**Response Format (JSON):**
+\`\`\`json
+{
+  "projectType": "web|cli|library|desktop|mobile|unknown",
+  "startCommand": "exact command to run",
+  "setupSteps": ["step 1", "step 2"],
+  "port": 3000,
+  "description": "Brief project description",
+  "confidence": "high|medium|low",
+  "reasoning": "Why these commands were chosen"
+}
+\`\`\``;
+
+      // Send the prompt to the LLM
+      try {
+        const response = await fetch(`${client.getConfig().baseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : SERVER_SECRET,
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            model: 'gpt-4o', // Use a capable model
+            temperature: 0.1, // Low temperature for consistent analysis
+            max_tokens: 1000
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`LLM API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const llmResponse = result.choices?.[0]?.message?.content;
+
+        if (!llmResponse) {
+          throw new Error('No response from LLM');
+        }
+
+        // Extract JSON from the response
+        const jsonMatch = llmResponse.match(/```json\s*([\s\S]*?)\s*```/);
+        if (!jsonMatch) {
+          throw new Error('Could not parse LLM response as JSON');
+        }
+
+        const analysis = JSON.parse(jsonMatch[1]);
+        
+        console.log('[Main] LLM analysis complete:', analysis);
+        return { success: true, analysis };
+
+      } catch (llmError) {
+        console.error('[Main] LLM analysis failed:', llmError);
+        return { success: false, error: `LLM analysis failed: ${llmError.message}` };
+      }
+
+    } catch (error) {
+      console.error('[Main] Error in LLM project analysis:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle loading all saved app configurations
+  ipcMain.handle('load-saved-apps', async (_event) => {
+    try {
+      console.log('[Main] Loading saved app configurations');
+      
+      const configDir = path.join(app.getPath('userData'), 'app-configs');
+      
+      // Check if config directory exists
+      try {
+        await fs.access(configDir);
+      } catch {
+        // Directory doesn't exist, return empty array
+        console.log('[Main] No app configs directory found, returning empty array');
+        return { success: true, apps: [] };
+      }
+      
+      // Read all config files
+      const configFiles = await fs.readdir(configDir);
+      const jsonFiles = configFiles.filter(file => file.endsWith('.json'));
+      
+      const apps = [];
+      for (const file of jsonFiles) {
+        try {
+          const configPath = path.join(configDir, file);
+          const configContent = await fs.readFile(configPath, 'utf-8');
+          const appConfig = JSON.parse(configContent);
+          
+          // Verify the app directory still exists
+          try {
+            await fs.access(appConfig.localPath);
+            // Convert lastUpdated string back to Date object
+            if (appConfig.lastUpdated) {
+              appConfig.lastUpdated = new Date(appConfig.lastUpdated);
+            }
+            apps.push(appConfig);
+          } catch {
+            console.warn('[Main] App directory no longer exists, skipping:', appConfig.localPath);
+            // Optionally remove the orphaned config file
+            try {
+              await fs.unlink(configPath);
+              console.log('[Main] Removed orphaned config file:', file);
+            } catch (unlinkError) {
+              console.warn('[Main] Could not remove orphaned config file:', unlinkError);
+            }
+          }
+        } catch (error) {
+          console.error('[Main] Error reading config file:', file, error);
+        }
+      }
+      
+      console.log('[Main] Loaded', apps.length, 'saved apps');
+      return { success: true, apps };
+      
+    } catch (error) {
+      console.error('[Main] Error loading saved apps:', error);
+      return { success: false, error: error.message, apps: [] };
+    }
+  });
+
 
 }
 
