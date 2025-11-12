@@ -57,14 +57,12 @@ pub async fn run() -> Result<()> {
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
-    let local_addr = listener.local_addr()?;
-    info!("listening on {}", local_addr);
+    info!("listening on {}", listener.local_addr()?);
 
-    let app_state_clone = app_state.clone();
+    let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
-        // a very short pause for goosed to start, I found without this, reconnections may struggle
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        app_state_clone.auto_start_tunnel().await;
+        tunnel_manager.check_auto_start().await;
     });
 
     axum::serve(listener, app)
