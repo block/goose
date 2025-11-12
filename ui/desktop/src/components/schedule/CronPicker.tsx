@@ -83,11 +83,11 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
   const [second, setSecond] = useState('0');
   const [minute, setMinute] = useState('0');
   const [hour12, setHour12] = useState(2);
-  const [currentCron, setCurrentCron] = useState('');
   const [isPM, setIsPM] = useState(true);
   const [dayOfWeek, setDayOfWeek] = useState('1');
   const [dayOfMonth, setDayOfMonth] = useState('1');
   const [month, setMonth] = useState('1');
+  const [readableCron, setReadableCron] = useState('');
 
   useEffect(() => {
     const parsed = parseCron(schedule?.cron || '');
@@ -130,23 +130,18 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
         cron = '0 0 0 * * *';
     }
     onChange(cron);
-    setCurrentCron(cron);
-  }, [period, second, minute, hour12, isPM, dayOfWeek, dayOfMonth, month, onChange]);
-
-  const getReadable = () => {
-    if (!currentCron) {
-      return '';
+    if (cron) {
+      const cronWithoutSeconds = cron.split(' ').slice(1).join(' ');
+      try {
+        setReadableCron(cronstrue.toString(cronWithoutSeconds));
+        isValid(true);
+      } catch (e) {
+        isValid(false);
+        setReadableCron('error: ' + errorMessage(e));
+      }
     }
-    const cronWithoutSeconds = currentCron.split(' ').slice(1).join(' ');
-    try {
-      const cron = cronstrue.toString(cronWithoutSeconds);
-      isValid(true);
-      return cron;
-    } catch (e) {
-      isValid(false);
-      return 'error: ' + errorMessage(e);
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, second, minute, hour12, isPM, dayOfWeek, dayOfMonth, month]);
 
   const selectClassName = 'px-2 py-1 border rounded bg-white dark:bg-gray-800 dark:border-gray-600';
 
@@ -286,7 +281,7 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
         )}
       </div>
 
-      <div className="text-xs text-gray-500 mt-2">{getReadable()}</div>
+      <div className="text-xs text-gray-500 mt-2">{readableCron}</div>
     </div>
   );
 };
