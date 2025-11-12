@@ -16,6 +16,7 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import { startAgent } from './api';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -100,6 +101,7 @@ const PairRouteWrapper = ({
     undefined
   );
   const [lastSessionId, setLastSessionId] = useState<string | undefined>(undefined);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
@@ -121,11 +123,41 @@ const PairRouteWrapper = ({
 
   // Capture initialMessage from route state before it gets cleared
   useEffect(() => {
-    if (routeState.initialMessage && !capturedInitialMessage) {
+    if (routeState.initialMessage) {
       console.log('[PairRouteWrapper] Capturing initialMessage:', routeState.initialMessage);
       setCapturedInitialMessage(routeState.initialMessage);
     }
-  }, [routeState.initialMessage, capturedInitialMessage]);
+  }, [routeState.initialMessage]);
+
+  useEffect(() => {
+    if (initialMessage && !sessionId && !isCreatingSession) {
+      console.log('[PairRouteWrapper] Creating new session for initialMessage');
+      setIsCreatingSession(true);
+
+      (async () => {
+        try {
+          const newAgent = await startAgent({
+            body: {
+              working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+            },
+            throwOnError: true,
+          });
+          const newSession = newAgent.data;
+          console.log('[PairRouteWrapper] Created new session:', newSession.id);
+
+          setSearchParams((prev) => {
+            prev.set('resumeSessionId', newSession.id);
+            return prev;
+          });
+          setActiveSessionId(newSession.id);
+        } catch (error) {
+          console.error('[PairRouteWrapper] Failed to create session:', error);
+        } finally {
+          setIsCreatingSession(false);
+        }
+      })();
+    }
+  }, [initialMessage, sessionId, isCreatingSession, setSearchParams, setActiveSessionId]);
 
   // Clear captured initialMessage when sessionId actually changes to a different session
   useEffect(() => {
