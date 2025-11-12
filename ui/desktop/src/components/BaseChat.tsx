@@ -419,6 +419,9 @@ function BaseChatContent({
               loadingChat ? null : filteredMessages.length > 0 ||
                 (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
+                  {/* Spacer above first message */}
+                  <div className="h-[50px]"></div>
+                  
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
                     <ProgressiveMessageList
