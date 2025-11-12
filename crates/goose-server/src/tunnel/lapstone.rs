@@ -17,15 +17,15 @@ use url::Url;
 fn secure_compare(a: &str, b: &str) -> bool {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    
+
     let mut hasher_a = DefaultHasher::new();
     a.hash(&mut hasher_a);
     let hash_a = hasher_a.finish();
-    
+
     let mut hasher_b = DefaultHasher::new();
     b.hash(&mut hasher_b);
     let hash_b = hasher_b.finish();
-    
+
     hash_a == hash_b
 }
 
@@ -105,6 +105,30 @@ fn validate_and_build_request(
 
     if !secure_compare(incoming_secret, tunnel_secret) {
         anyhow::bail!("Invalid tunnel secret");
+    }
+
+    // Ed25519 signature validation (if configured)
+    if let Ok(public_key_hex) = std::env::var("GOOSE_TUNNEL_ED25519_PUBLIC_KEY") {
+        match super::ed25519::Ed25519Validator::new(&public_key_hex) {
+            Ok(validator) => {
+                let sig_header = message
+                    .headers
+                    .as_ref()
+                    .and_then(|h| h.get("x-corp-signature").or_else(|| h.get("X-Corp-Signature")))
+                    .ok_or_else(|| anyhow::anyhow!("Missing X-Corp-Signature header"))?;
+
+                validator.verify(
+                    sig_header,
+                    &message.method,
+                    &message.path,
+                    message.body.as_deref(),
+                )?;
+                tracing::info!("✓ Signature valid for {} {}", message.method, message.path);
+            }
+            Err(e) => {
+                anyhow::bail!("Failed to create Ed25519 validator: {}", e);
+            }
+        }
     }
 
     let mut request_builder = match message.method.as_str() {

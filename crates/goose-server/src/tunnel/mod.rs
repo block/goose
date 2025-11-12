@@ -1,4 +1,5 @@
 pub mod config;
+pub mod ed25519;
 pub mod lapstone;
 
 use crate::configuration::Settings;
