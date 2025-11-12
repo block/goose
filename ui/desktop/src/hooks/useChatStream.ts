@@ -19,6 +19,19 @@ const resultsCache = new Map<string, { messages: Message[]; session: Session }>(
 // Debug logging - set to false in production
 const DEBUG_CHAT_STREAM = true;
 
+/**
+ * Extracts a string error message from various error types
+ */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String(error.message);
+  }
+  return String(error);
+}
+
 const log = {
   session: (action: string, sessionId: string, details?: Record<string, unknown>) => {
     if (!DEBUG_CHAT_STREAM) return;
@@ -163,7 +176,7 @@ async function streamFromResponse(
   } catch (error) {
     if (error instanceof Error && error.name !== 'AbortError') {
       log.error('stream read error', error);
-      onFinish('Stream error: ' + error);
+      onFinish('Stream error: ' + getErrorMessage(error));
     }
   }
 }
@@ -284,7 +297,7 @@ export function useChatStream({
         if (cancelled) return;
 
         log.error('session load failed', error);
-        setSessionLoadError(error instanceof Error ? error.message : String(error));
+        setSessionLoadError(getErrorMessage(error));
 
         log.state(ChatState.Idle, { reason: 'session load error' });
         setChatState(ChatState.Idle);
@@ -348,7 +361,7 @@ export function useChatStream({
         } else {
           // Unexpected error during fetch setup (streamFromResponse handles its own errors)
           log.error('submit failed', error);
-          onFinish('Submit error: ' + (error instanceof Error ? error.message : String(error)));
+          onFinish('Submit error: ' + getErrorMessage(error));
         }
       }
     },
