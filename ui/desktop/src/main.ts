@@ -50,8 +50,6 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { Recipe } from './recipe';
-import { decodeRecipe } from './api/sdk.gen';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -495,22 +493,10 @@ const createChat = async (
   _version?: string,
   resumeSessionId?: string,
   viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink string to be decoded into recipe
+  recipeDeeplink?: string, // Raw deeplink decoded on server
   scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeId?: string, // Recipe ID for saved recipes (non-deeplink case)
-  recipe?: Recipe // Decoded recipe object
+  recipeId?: string
 ) => {
-  console.log('[Main] createChat called with params:', {
-    initialMessage: initialMessage ? `"${initialMessage.substring(0, 50)}..."` : undefined,
-    dir,
-    resumeSessionId,
-    viewType,
-    recipeDeeplink: recipeDeeplink ? `"${recipeDeeplink.substring(0, 100)}..."` : undefined,
-    scheduledJobId,
-    recipeId,
-    recipe: recipe ? 'provided' : undefined,
-  });
-
   updateEnvironmentVariables(envToggles);
 
   const envVars = {
@@ -522,47 +508,6 @@ const createChat = async (
     dir || os.homedir(),
     envVars
   );
-
-  // Decode recipe from deeplink if provided and recipe not already decoded
-  if (recipeDeeplink && !recipe) {
-    console.log('[Main] createChat: Decoding recipe from deeplink:', recipeDeeplink);
-
-    const maxRetries = 5;
-    const retryDelay = 100;
-
-    // Create a temporary client for decoding
-    const tempClient = createClient(
-      createConfig({
-        baseUrl: `http://127.0.0.1:${port}`,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': SERVER_SECRET,
-        },
-      })
-    );
-
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          console.log(`[Main] createChat: Retry attempt ${attempt + 1}/${maxRetries}`);
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        }
-
-        const response = await decodeRecipe({
-          client: tempClient,
-          body: { deeplink: recipeDeeplink },
-        });
-
-        recipe = response.data?.recipe;
-        console.log('[Main] createChat: Successfully decoded recipe');
-        break;
-      } catch (error) {
-        if (attempt === maxRetries - 1) {
-          console.error('[Main] createChat: Error decoding recipe after all retries:', error);
-        }
-      }
-    }
-  }
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -598,7 +543,7 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeId: recipeId,
-          recipe: recipe,
+          recipeDeeplink: recipeDeeplink,
           scheduledJobId: scheduledJobId,
         }),
       ],
@@ -2119,9 +2064,6 @@ async function appMain() {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
-
-      // Log the recipeId for debugging
-      console.log('[Main] create-chat-window IPC handler - recipeId:', recipeId);
 
       createChat(
         app,
