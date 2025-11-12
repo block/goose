@@ -415,11 +415,11 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
-    /// Map fetched provider models to canonical models
-    /// Returns a list of ModelMapping for each model this provider supports
-    /// Default implementation returns an empty list (no mappings configured yet)
-    async fn map_to_canonical_models(&self) -> Result<Vec<crate::providers::canonical::ModelMapping>, ProviderError> {
-        Ok(Vec::new())
+    /// Map a provider-specific model name to a canonical model ID
+    /// Returns the canonical model ID (e.g., "anthropic/claude-3-5-sonnet") if a mapping exists
+    /// Default implementation returns None (no mapping configured)
+    async fn map_to_canonical_model(&self, _provider_model: &str) -> Result<Option<String>, ProviderError> {
+        Ok(None)
     }
 
     fn supports_embeddings(&self) -> bool {

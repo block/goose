@@ -1,7 +1,23 @@
 use super::CanonicalModel;
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::Path;
+
+/// Cached bundled canonical model registry
+static BUNDLED_REGISTRY: Lazy<Result<CanonicalModelRegistry>> = Lazy::new(|| {
+    const CANONICAL_MODELS_JSON: &str = include_str!("canonical_models.json");
+
+    let models: Vec<CanonicalModel> = serde_json::from_str(CANONICAL_MODELS_JSON)
+        .context("Failed to parse bundled canonical models JSON")?;
+
+    let mut registry = CanonicalModelRegistry::new();
+    for model in models {
+        registry.register(model);
+    }
+
+    Ok(registry)
+});
 
 /// Registry for managing canonical models
 #[derive(Debug, Clone)]
@@ -15,6 +31,19 @@ impl CanonicalModelRegistry {
         Self {
             models: HashMap::new(),
         }
+    }
+
+    /// Load registry from the bundled canonical_models.json file
+    /// This uses a cached version for performance
+    pub fn bundled() -> Result<Self> {
+        BUNDLED_REGISTRY.as_ref().map(|r| r.clone()).map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    /// Check if a canonical model exists in the bundled registry (faster than loading the whole registry)
+    pub fn bundled_contains(name: &str) -> Result<bool> {
+        BUNDLED_REGISTRY.as_ref()
+            .map(|r| r.contains(name))
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     /// Load registry from a JSON file

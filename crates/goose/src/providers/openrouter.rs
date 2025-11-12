@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::canonical::{canonical_name, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
@@ -364,6 +365,18 @@ impl Provider for OpenRouterProvider {
 
         models.sort();
         Ok(Some(models))
+    }
+
+    async fn map_to_canonical_model(&self, provider_model: &str) -> Result<Option<String>, ProviderError> {
+        // OpenRouter models are already in canonical format (e.g., "anthropic/claude-3-5-sonnet")
+        let canonical = canonical_name("openrouter", provider_model);
+
+        // Check if this canonical model exists in our registry
+        if CanonicalModelRegistry::bundled_contains(&canonical)? {
+            Ok(Some(canonical))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn supports_cache_control(&self) -> bool {

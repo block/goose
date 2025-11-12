@@ -242,17 +242,22 @@ async fn check_provider(
         }
     };
 
-    // Get canonical mappings
-    let mappings = match provider.map_to_canonical_models().await {
-        Ok(m) => {
-            println!("  ✓ Found {} mappings", m.len());
-            m
+    // Map each fetched model to canonical model
+    let mut mappings = Vec::new();
+    for model in &fetched_models {
+        match provider.map_to_canonical_model(model).await {
+            Ok(Some(canonical)) => {
+                mappings.push(ModelMapping::new(model.clone(), canonical).verified());
+            }
+            Ok(None) => {
+                // No mapping found for this model
+            }
+            Err(e) => {
+                println!("  ⚠ Failed to map model '{}': {}", model, e);
+            }
         }
-        Err(e) => {
-            println!("  ⚠ Failed to get mappings: {}", e);
-            Vec::new()
-        }
-    };
+    }
+    println!("  ✓ Found {} mappings", mappings.len());
 
     Ok((fetched_models, mappings))
 }

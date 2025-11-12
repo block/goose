@@ -1,12 +1,11 @@
 [
   {
     "id": "anthropic/claude-3-haiku",
-    "name": "Claude 3 Haiku",
+    "name": "Anthropic: Claude 3 Haiku",
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -15,19 +14,17 @@
     "pricing": {
       "prompt": "0.00000025",
       "completion": "0.00000125",
-      "image": "0.0004",
-      "input_cache_read": "0.00000003",
-      "input_cache_write": "0.0000003"
+      "request": "0",
+      "image": "0.0004"
     }
   },
   {
     "id": "anthropic/claude-3-opus",
-    "name": "Claude 3 Opus",
+    "name": "Anthropic: Claude 3 Opus",
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -36,20 +33,17 @@
     "pricing": {
       "prompt": "0.000015",
       "completion": "0.000075",
-      "image": "0.024",
-      "input_cache_read": "0.0000015",
-      "input_cache_write": "0.00001875"
+      "request": "0",
+      "image": "0.024"
     }
   },
   {
     "id": "anthropic/claude-3.5-haiku",
-    "name": "Claude 3.5 Haiku (2024-10-22)",
+    "name": "Anthropic: Claude 3.5 Haiku",
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -58,19 +52,17 @@
     "pricing": {
       "prompt": "0.0000008",
       "completion": "0.000004",
-      "input_cache_read": "0.00000008",
-      "input_cache_write": "0.000001"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "anthropic/claude-3.5-sonnet",
-    "name": "Claude 3.5 Sonnet",
+    "name": "Anthropic: Claude 3.5 Sonnet",
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -79,20 +71,17 @@
     "pricing": {
       "prompt": "0.000003",
       "completion": "0.000015",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
+      "request": "0",
+      "image": "0.0048"
     }
   },
   {
     "id": "anthropic/claude-3.7-sonnet",
-    "name": "Claude 3.7 Sonnet",
+    "name": "Anthropic: Claude 3.7 Sonnet",
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -101,20 +90,17 @@
     "pricing": {
       "prompt": "0.000003",
       "completion": "0.000015",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
+      "request": "0",
+      "image": "0.0048"
     }
   },
   {
     "id": "anthropic/claude-3.7-sonnet:thinking",
-    "name": "Claude 3.7 Sonnet (thinking)",
+    "name": "Anthropic: Claude 3.7 Sonnet (thinking)",
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -123,18 +109,16 @@
     "pricing": {
       "prompt": "0.000003",
       "completion": "0.000015",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
+      "request": "0",
+      "image": "0.0048"
     }
   },
   {
     "id": "anthropic/claude-haiku",
-    "name": "Claude Haiku 4.5",
+    "name": "Anthropic: Claude Haiku 4.5",
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "image",
       "text"
     ],
     "output_modalities": [
@@ -144,19 +128,17 @@
     "pricing": {
       "prompt": "0.000001",
       "completion": "0.000005",
-      "input_cache_read": "0.0000001",
-      "input_cache_write": "0.00000125"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "anthropic/claude-opus",
-    "name": "Claude Opus 4.1",
+    "name": "Anthropic: Claude Opus 4",
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -165,20 +147,17 @@
     "pricing": {
       "prompt": "0.000015",
       "completion": "0.000075",
-      "image": "0.024",
-      "input_cache_read": "0.0000015",
-      "input_cache_write": "0.00001875"
+      "request": "0",
+      "image": "0.024"
     }
   },
   {
     "id": "anthropic/claude-sonnet",
-    "name": "Claude Sonnet 4.5",
+    "name": "Anthropic: Claude Sonnet 4",
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -187,20 +166,17 @@
     "pricing": {
       "prompt": "0.000003",
       "completion": "0.000015",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
+      "request": "0",
+      "image": "0.0048"
     }
   },
   {
     "id": "google/gemini-2.0-flash",
-    "name": "Gemini 2.0 Flash",
+    "name": "Google: Gemini 2.0 Flash",
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -209,22 +185,17 @@
     "pricing": {
       "prompt": "0.0000001",
       "completion": "0.0000004",
-      "image": "0.0000258",
-      "audio": "0.0000007",
-      "input_cache_read": "0.000000025",
-      "input_cache_write": "0.0000001833"
+      "request": "0",
+      "image": "0.0000258"
     }
   },
   {
     "id": "google/gemini-2.0-flash-lite",
-    "name": "Gemini 2.0 Flash Lite",
+    "name": "Google: Gemini 2.0 Flash Lite",
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -232,20 +203,18 @@
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.000000075",
-      "completion": "0.0000003"
+      "completion": "0.0000003",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemini-2.5-flash",
-    "name": "Gemini 2.5 Flash",
+    "name": "Google: Gemini 2.5 Flash",
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "file",
-      "image",
-      "text",
-      "audio",
-      "video"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -254,62 +223,36 @@
     "pricing": {
       "prompt": "0.0000003",
       "completion": "0.0000025",
-      "image": "0.001238",
-      "input_cache_read": "0.00000003",
-      "input_cache_write": "0.0000003833"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-flash-image",
-    "name": "Gemini 2.5 Flash Image (Nano Banana)",
-    "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "image",
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
+      "request": "0",
       "image": "0.001238"
     }
   },
   {
-    "id": "google/gemini-2.5-flash-image-preview",
-    "name": "Gemini 2.5 Flash Image Preview (Nano Banana)",
+    "id": "google/gemini-2.5-flash-image",
+    "name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
     "context_length": 32768,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "image",
       "text"
     ],
     "output_modalities": [
-      "image",
       "text"
     ],
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.0000003",
       "completion": "0.0000025",
+      "request": "0",
       "image": "0.001238"
     }
   },
   {
     "id": "google/gemini-2.5-flash-lite",
-    "name": "Gemini 2.5 Flash Lite",
+    "name": "Google: Gemini 2.5 Flash Lite",
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -318,90 +261,17 @@
     "pricing": {
       "prompt": "0.0000001",
       "completion": "0.0000004",
-      "input_cache_read": "0.00000001",
-      "input_cache_write": "0.0000001833"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-flash-lite-preview-06",
-    "name": "Gemini 2.5 Flash Lite Preview 06-17",
-    "context_length": 1048576,
-    "max_completion_tokens": 65535,
-    "input_modalities": [
-      "file",
-      "image",
-      "text",
-      "audio"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "audio": "0.0000003",
-      "input_cache_read": "0.000000025",
-      "input_cache_write": "0.0000001833"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-flash-lite-preview-09",
-    "name": "Gemini 2.5 Flash Lite Preview 09-2025",
-    "context_length": 1048576,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-flash-preview-09",
-    "name": "Gemini 2.5 Flash Preview 09-2025",
-    "context_length": 1048576,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "image",
-      "file",
-      "text",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "image": "0.001238",
-      "audio": "0.000001",
-      "input_cache_read": "0.000000075",
-      "input_cache_write": "0.0000003833"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemini-2.5-pro",
-    "name": "Gemini 2.5 Pro",
+    "name": "Google: Gemini 2.5 Pro",
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -410,63 +280,14 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
-      "image": "0.00516",
-      "input_cache_read": "0.000000125",
-      "input_cache_write": "0.000001625"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-pro-preview",
-    "name": "Gemini 2.5 Pro Preview 06-05",
-    "context_length": 1048576,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "file",
-      "image",
-      "text",
-      "audio"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "image": "0.00516",
-      "input_cache_read": "0.00000031",
-      "input_cache_write": "0.000001625"
-    }
-  },
-  {
-    "id": "google/gemini-2.5-pro-preview-05",
-    "name": "Gemini 2.5 Pro Preview 05-06",
-    "context_length": 1048576,
-    "max_completion_tokens": 65535,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "Gemini",
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "image": "0.00516",
-      "input_cache_read": "0.00000031",
-      "input_cache_write": "0.000001625"
+      "request": "0",
+      "image": "0.00516"
     }
   },
   {
     "id": "google/gemma-2-27b-it",
-    "name": "Gemma 2 27B",
+    "name": "Google: Gemma 2 27B",
     "context_length": 8192,
-    "max_completion_tokens": null,
     "input_modalities": [
       "text"
     ],
@@ -476,14 +297,15 @@
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.00000065",
-      "completion": "0.00000065"
+      "completion": "0.00000065",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemma-2-9b-it",
-    "name": "Gemma 2 9B",
+    "name": "Google: Gemma 2 9B",
     "context_length": 8192,
-    "max_completion_tokens": null,
     "input_modalities": [
       "text"
     ],
@@ -493,17 +315,18 @@
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.00000003",
-      "completion": "0.00000009"
+      "completion": "0.00000009",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemma-3-12b-it",
-    "name": "Gemma 3 12B",
+    "name": "Google: Gemma 3 12B",
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -511,17 +334,18 @@
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.00000003",
-      "completion": "0.0000001"
+      "completion": "0.0000001",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemma-3-27b-it",
-    "name": "Gemma 3 27B",
+    "name": "Google: Gemma 3 27B",
     "context_length": 131072,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -530,17 +354,16 @@
     "pricing": {
       "prompt": "0.00000009",
       "completion": "0.00000016",
+      "request": "0",
       "image": "0.0000256"
     }
   },
   {
     "id": "google/gemma-3-4b-it",
-    "name": "Gemma 3 4B",
+    "name": "Google: Gemma 3 4B",
     "context_length": 96000,
-    "max_completion_tokens": null,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -548,34 +371,36 @@
     "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.00000001703012",
-      "completion": "0.0000000681536"
+      "completion": "0.0000000681536",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "google/gemma-3n-e4b-it",
-    "name": "Gemma 3n 4B",
+    "name": "Google: Gemma 3n 4B",
     "context_length": 32768,
-    "max_completion_tokens": null,
     "input_modalities": [
       "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "tokenizer": "Other",
+    "tokenizer": "Gemini",
     "pricing": {
       "prompt": "0.00000002",
-      "completion": "0.00000004"
+      "completion": "0.00000004",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/chatgpt-4o-latest",
-    "name": "ChatGPT-4o",
+    "name": "OpenAI: ChatGPT-4o",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -584,16 +409,16 @@
     "pricing": {
       "prompt": "0.000005",
       "completion": "0.000015",
+      "request": "0",
       "image": "0.007225"
     }
   },
   {
     "id": "openai/codex-mini",
-    "name": "Codex Mini",
+    "name": "OpenAI: Codex Mini",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "image",
       "text"
     ],
     "output_modalities": [
@@ -603,33 +428,32 @@
     "pricing": {
       "prompt": "0.0000015",
       "completion": "0.000006",
-      "input_cache_read": "0.000000375"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt",
-    "name": "GPT-4.1",
-    "context_length": 1047576,
-    "max_completion_tokens": 32768,
+    "name": "OpenAI: GPT-5",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
     "tokenizer": "GPT",
     "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "web_search": "0.01",
-      "input_cache_read": "0.0000005"
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-3.5-turbo",
-    "name": "GPT-3.5 Turbo",
+    "name": "OpenAI: GPT-3.5 Turbo",
     "context_length": 16385,
     "max_completion_tokens": 4096,
     "input_modalities": [
@@ -641,12 +465,14 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.0000005",
-      "completion": "0.0000015"
+      "completion": "0.0000015",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-3.5-turbo-16k",
-    "name": "GPT-3.5 Turbo 16k",
+    "name": "OpenAI: GPT-3.5 Turbo 16k",
     "context_length": 16385,
     "max_completion_tokens": 4096,
     "input_modalities": [
@@ -658,12 +484,14 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.000003",
-      "completion": "0.000004"
+      "completion": "0.000004",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-3.5-turbo-instruct",
-    "name": "GPT-3.5 Turbo Instruct",
+    "name": "OpenAI: GPT-3.5 Turbo Instruct",
     "context_length": 4095,
     "max_completion_tokens": 4096,
     "input_modalities": [
@@ -675,51 +503,18 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.0000015",
-      "completion": "0.000002"
-    }
-  },
-  {
-    "id": "openai/gpt-4",
-    "name": "GPT-4 (older v0314)",
-    "context_length": 8191,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "GPT",
-    "pricing": {
-      "prompt": "0.00003",
-      "completion": "0.00006"
-    }
-  },
-  {
-    "id": "openai/gpt-4-1106-preview",
-    "name": "GPT-4 Turbo (older v1106)",
-    "context_length": 128000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "GPT",
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003"
+      "completion": "0.000002",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-4-turbo",
-    "name": "GPT-4 Turbo",
+    "name": "OpenAI: GPT-4 Turbo",
     "context_length": 128000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -728,35 +523,17 @@
     "pricing": {
       "prompt": "0.00001",
       "completion": "0.00003",
+      "request": "0",
       "image": "0.01445"
     }
   },
   {
-    "id": "openai/gpt-4-turbo-preview",
-    "name": "GPT-4 Turbo Preview",
-    "context_length": 128000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "GPT",
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003"
-    }
-  },
-  {
     "id": "openai/gpt-4.1-mini",
-    "name": "GPT-4.1 Mini",
+    "name": "OpenAI: GPT-4.1 Mini",
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -765,19 +542,17 @@
     "pricing": {
       "prompt": "0.0000004",
       "completion": "0.0000016",
-      "web_search": "0.01",
-      "input_cache_read": "0.0000001"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-4.1-nano",
-    "name": "GPT-4.1 Nano",
+    "name": "OpenAI: GPT-4.1 Nano",
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -786,19 +561,17 @@
     "pricing": {
       "prompt": "0.0000001",
       "completion": "0.0000004",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000025"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-4o",
-    "name": "GPT-4o (2024-11-20)",
+    "name": "OpenAI: GPT-4o",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -807,17 +580,16 @@
     "pricing": {
       "prompt": "0.0000025",
       "completion": "0.00001",
-      "image": "0.003613",
-      "input_cache_read": "0.00000125"
+      "request": "0",
+      "image": "0.003613"
     }
   },
   {
-    "id": "openai/gpt-4o-audio-preview",
-    "name": "GPT-4o Audio",
+    "id": "openai/gpt-4o-audio",
+    "name": "OpenAI: GPT-4o Audio",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "audio",
       "text"
     ],
     "output_modalities": [
@@ -827,33 +599,13 @@
     "pricing": {
       "prompt": "0.0000025",
       "completion": "0.00001",
-      "audio": "0.00004"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-4o-mini",
-    "name": "GPT-4o-mini",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "GPT",
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "image": "0.000217",
-      "input_cache_read": "0.000000075"
-    }
-  },
-  {
-    "id": "openai/gpt-4o-mini-search-preview",
-    "name": "GPT-4o-mini Search Preview",
+    "name": "OpenAI: GPT-4o-mini",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
@@ -866,13 +618,32 @@
     "pricing": {
       "prompt": "0.00000015",
       "completion": "0.0000006",
-      "image": "0.000217",
-      "request": "0.0275"
+      "request": "0",
+      "image": "0.000217"
     }
   },
   {
-    "id": "openai/gpt-4o-search-preview",
-    "name": "GPT-4o Search Preview",
+    "id": "openai/gpt-4o-mini-search",
+    "name": "OpenAI: GPT-4o-mini Search Preview",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "pricing": {
+      "prompt": "0.00000015",
+      "completion": "0.0000006",
+      "request": "0.0275",
+      "image": "0.000217"
+    }
+  },
+  {
+    "id": "openai/gpt-4o-search",
+    "name": "OpenAI: GPT-4o Search Preview",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
@@ -885,19 +656,17 @@
     "pricing": {
       "prompt": "0.0000025",
       "completion": "0.00001",
-      "image": "0.003613",
-      "request": "0.035"
+      "request": "0.035",
+      "image": "0.003613"
     }
   },
   {
     "id": "openai/gpt-4o:extended",
-    "name": "GPT-4o (extended)",
+    "name": "OpenAI: GPT-4o (extended)",
     "context_length": 128000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -906,17 +675,16 @@
     "pricing": {
       "prompt": "0.000006",
       "completion": "0.000018",
+      "request": "0",
       "image": "0.007225"
     }
   },
   {
     "id": "openai/gpt-5-chat",
-    "name": "GPT-5 Chat",
+    "name": "OpenAI: GPT-5 Chat",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "file",
-      "image",
       "text"
     ],
     "output_modalities": [
@@ -926,18 +694,17 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000125"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-5-codex",
-    "name": "GPT-5 Codex",
+    "name": "OpenAI: GPT-5 Codex",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -946,64 +713,55 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
-      "input_cache_read": "0.000000125"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-5-image",
-    "name": "GPT-5 Image",
+    "name": "OpenAI: GPT-5 Image",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
-      "image",
       "text"
     ],
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.00001",
       "completion": "0.00001",
-      "image": "0.00001",
-      "web_search": "0.01",
-      "input_cache_read": "0.00000125"
+      "request": "0",
+      "image": "0.00001"
     }
   },
   {
     "id": "openai/gpt-5-image-mini",
-    "name": "GPT-5 Image Mini",
+    "name": "OpenAI: GPT-5 Image Mini",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "file",
-      "image",
       "text"
     ],
     "output_modalities": [
-      "image",
       "text"
     ],
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.0000025",
       "completion": "0.000002",
-      "image": "0.0000025",
-      "web_search": "0.01",
-      "input_cache_read": "0.00000025"
+      "request": "0",
+      "image": "0.0000025"
     }
   },
   {
     "id": "openai/gpt-5-mini",
-    "name": "GPT-5 Mini",
+    "name": "OpenAI: GPT-5 Mini",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1012,19 +770,17 @@
     "pricing": {
       "prompt": "0.00000025",
       "completion": "0.000002",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000025"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-5-nano",
-    "name": "GPT-5 Nano",
+    "name": "OpenAI: GPT-5 Nano",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1033,19 +789,17 @@
     "pricing": {
       "prompt": "0.00000005",
       "completion": "0.0000004",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000005"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-5-pro",
-    "name": "GPT-5 Pro",
+    "name": "OpenAI: GPT-5 Pro",
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1054,12 +808,13 @@
     "pricing": {
       "prompt": "0.000015",
       "completion": "0.00012",
-      "web_search": "0.01"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-oss-120b",
-    "name": "gpt-oss-120b",
+    "name": "OpenAI: gpt-oss-120b",
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
@@ -1071,14 +826,15 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.00000004",
-      "completion": "0.0000004"
+      "completion": "0.0000004",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-oss-120b:exacto",
-    "name": "gpt-oss-120b (exacto)",
+    "name": "OpenAI: gpt-oss-120b (exacto)",
     "context_length": 131072,
-    "max_completion_tokens": null,
     "input_modalities": [
       "text"
     ],
@@ -1088,14 +844,15 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.00000005",
-      "completion": "0.00000024"
+      "completion": "0.00000024",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-oss-20b",
-    "name": "gpt-oss-20b",
+    "name": "OpenAI: gpt-oss-20b",
     "context_length": 131072,
-    "max_completion_tokens": null,
     "input_modalities": [
       "text"
     ],
@@ -1105,12 +862,14 @@
     "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.00000003",
-      "completion": "0.00000014"
+      "completion": "0.00000014",
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/gpt-oss-safeguard-20b",
-    "name": "gpt-oss-safeguard-20b",
+    "name": "OpenAI: gpt-oss-safeguard-20b",
     "context_length": 131072,
     "max_completion_tokens": 65536,
     "input_modalities": [
@@ -1123,18 +882,17 @@
     "pricing": {
       "prompt": "0.000000075",
       "completion": "0.0000003",
-      "input_cache_read": "0.000000037"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/o1",
-    "name": "o1",
+    "name": "OpenAI: o1",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1143,19 +901,17 @@
     "pricing": {
       "prompt": "0.000015",
       "completion": "0.00006",
-      "image": "0.021675",
-      "input_cache_read": "0.0000075"
+      "request": "0",
+      "image": "0.021675"
     }
   },
   {
     "id": "openai/o1-pro",
-    "name": "o1-pro",
+    "name": "OpenAI: o1-pro",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1164,18 +920,17 @@
     "pricing": {
       "prompt": "0.00015",
       "completion": "0.0006",
+      "request": "0",
       "image": "0.21675"
     }
   },
   {
     "id": "openai/o3",
-    "name": "o3",
+    "name": "OpenAI: o3",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1184,20 +939,17 @@
     "pricing": {
       "prompt": "0.000002",
       "completion": "0.000008",
-      "image": "0.00153",
-      "web_search": "0.01",
-      "input_cache_read": "0.0000005"
+      "request": "0",
+      "image": "0.00153"
     }
   },
   {
     "id": "openai/o3-deep-research",
-    "name": "o3 Deep Research",
+    "name": "OpenAI: o3 Deep Research",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1206,19 +958,17 @@
     "pricing": {
       "prompt": "0.00001",
       "completion": "0.00004",
-      "image": "0.00765",
-      "web_search": "0.01",
-      "input_cache_read": "0.0000025"
+      "request": "0",
+      "image": "0.00765"
     }
   },
   {
     "id": "openai/o3-mini",
-    "name": "o3 Mini",
+    "name": "OpenAI: o3 Mini",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1227,17 +977,17 @@
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
-      "input_cache_read": "0.00000055"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/o3-mini-high",
-    "name": "o3 Mini High",
+    "name": "OpenAI: o3 Mini High",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1246,18 +996,17 @@
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
-      "input_cache_read": "0.00000055"
+      "request": "0",
+      "image": "0"
     }
   },
   {
     "id": "openai/o3-pro",
-    "name": "o3 Pro",
+    "name": "OpenAI: o3 Pro",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file",
-      "image"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1266,19 +1015,17 @@
     "pricing": {
       "prompt": "0.00002",
       "completion": "0.00008",
-      "image": "0.0153",
-      "web_search": "0.01"
+      "request": "0",
+      "image": "0.0153"
     }
   },
   {
     "id": "openai/o4-mini",
-    "name": "o4 Mini",
+    "name": "OpenAI: o4 Mini",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1287,19 +1034,16 @@
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
-      "image": "0.0008415",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000275"
+      "request": "0",
+      "image": "0.0008415"
     }
   },
   {
     "id": "openai/o4-mini-deep-research",
-    "name": "o4 Mini Deep Research",
+    "name": "OpenAI: o4 Mini Deep Research",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "file",
-      "image",
       "text"
     ],
     "output_modalities": [
@@ -1309,31 +1053,27 @@
     "pricing": {
       "prompt": "0.000002",
       "completion": "0.000008",
-      "image": "0.00153",
-      "web_search": "0.01",
-      "input_cache_read": "0.0000005"
+      "request": "0",
+      "image": "0.00153"
     }
   },
   {
     "id": "openai/o4-mini-high",
-    "name": "o4 Mini High",
+    "name": "OpenAI: o4 Mini High",
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "tokenizer": "Other",
+    "tokenizer": "GPT",
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
-      "image": "0.0008415",
-      "web_search": "0.01",
-      "input_cache_read": "0.000000275"
+      "request": "0",
+      "image": "0.0008415"
     }
   }
 ]
