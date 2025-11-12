@@ -147,6 +147,15 @@ export type ErrorResponse = {
     message: string;
 };
 
+export type ExtendPromptRequest = {
+    extension: string;
+    session_id: string;
+};
+
+export type ExtendPromptResponse = {
+    success: boolean;
+};
+
 /**
  * Represents the different types of MCP extensions that can be added to the manager
  */
@@ -956,6 +965,33 @@ export type AgentAddExtensionResponses = {
 };
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type ExtendPromptData = {
+    body: ExtendPromptRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/prompt';
+};
+
+export type ExtendPromptErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+};
+
+export type ExtendPromptResponses = {
+    /**
+     * Extended system prompt successfully
+     */
+    200: ExtendPromptResponse;
+};
+
+export type ExtendPromptResponse2 = ExtendPromptResponses[keyof ExtendPromptResponses];
 
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
