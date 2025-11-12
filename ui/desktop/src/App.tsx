@@ -28,7 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
-import { WebViewerProvider } from './contexts/WebViewerContext';
+// import { WebViewerProvider } from './contexts/WebViewerContext'; // Temporarily disabled
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, ConfigProvider } from './components/ConfigContext';
@@ -547,7 +547,8 @@ export function AppInner() {
             path="/"
             element={
               <ProviderGuard didSelectProvider={didSelectProvider}>
-                <WebViewerProvider>
+                {/* Temporarily disabled WebViewerProvider to fix infinite loop */}
+                {/* <WebViewerProvider> */}
                   <ChatProvider
                     chat={chat}
                     setChat={setChat}
@@ -556,7 +557,7 @@ export function AppInner() {
                   >
                     <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
                   </ChatProvider>
-                </WebViewerProvider>
+                {/* </WebViewerProvider> */}
               </ProviderGuard>
             }
           >
