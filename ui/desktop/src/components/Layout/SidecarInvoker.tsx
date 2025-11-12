@@ -36,8 +36,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
     }
   }, [isHovering]);
 
-  // NOW we can do conditional rendering after all hooks are called
-  if (!isVisible) return null;
+  // Component is always rendered but hidden/shown with CSS transitions
 
   const handleLocalhostClick = () => {
     console.log('🔍 SidecarInvoker: Localhost button clicked');
@@ -192,7 +191,11 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full mb-2"
+      className={`relative w-full mb-2 transition-all duration-300 ease-out ${
+        isVisible 
+          ? 'opacity-100 translate-y-0' 
+          : 'opacity-0 -translate-y-2 pointer-events-none'
+      }`}
     >
       {/* Screenshot backdrops - positioned behind the dock */}
       {iframeBackdrops.map((backdrop) => (

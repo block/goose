@@ -349,6 +349,9 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
+  // Hover state for sidecar dock
+  const [isHoveringChatInput, setIsHoveringChatInput] = useState(false);
+
   // Sidecar functionality
   const sidecar = useSidecar();
 
@@ -1590,6 +1593,8 @@ export default function ChatInput({
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
+      onMouseEnter={() => setIsHoveringChatInput(true)}
+      onMouseLeave={() => setIsHoveringChatInput(false)}
     >
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
@@ -1612,7 +1617,7 @@ export default function ChatInput({
         onShowLocalhost={handleShowLocalhost}
         onShowFileViewer={handleShowFileViewer}
         onAddContainer={handleAddContainer}
-        isVisible={true}
+        isVisible={isHoveringChatInput}
       />
 
       {/* Input row with inline action buttons wrapped in form */}
