@@ -2003,7 +2003,7 @@ ipcMain.handle('create-dock-window', async (event) => {
       </html>
     `;
 
-    // Create the dock child window
+    // Create the dock child window with very high z-index
     const dockWindow = new BrowserWindow({
       parent: mainWindow,
       width: 80,
@@ -2023,8 +2023,14 @@ ipcMain.handle('create-dock-window', async (event) => {
         nodeIntegration: true,
         contextIsolation: false,
         webSecurity: true,
+        zoomFactor: 1.0,
       },
     });
+
+    // Set the dock window to have the highest possible z-index
+    dockWindow.setAlwaysOnTop(true, 'screen-saver', 1000);
+    dockWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    dockWindow.setFullScreenable(false);
 
     // Load the dock HTML
     await dockWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(dockHtml)}`);
@@ -2072,8 +2078,11 @@ ipcMain.handle('show-dock-window', async (event) => {
 
     const dockWindow = (mainWindow as any).dockWindow;
     if (!dockWindow.isDestroyed()) {
+      // Re-enforce the highest z-index when showing
+      dockWindow.setAlwaysOnTop(true, 'screen-saver', 1000);
       dockWindow.show();
-      console.log('[Main] Dock window shown');
+      dockWindow.focus();
+      console.log('[Main] Dock window shown with highest z-index');
       return true;
     }
     return false;
