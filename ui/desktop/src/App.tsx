@@ -20,7 +20,7 @@ import { startAgent } from './api';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
-import { PairRouteState } from './components/Pair';
+import Pair, { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -40,7 +40,6 @@ import RecipesView from './components/recipes/RecipesView';
 import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
-import Pair from './components/Pair';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -106,20 +105,8 @@ const PairRouteWrapper = ({
   // Use route state if available, otherwise use captured state
   const initialMessage = routeState.initialMessage || capturedInitialMessage;
 
-  console.log('[PairRouteWrapper] routeState.initialMessage:', routeState.initialMessage);
-  console.log('[PairRouteWrapper] capturedInitialMessage:', capturedInitialMessage);
-  console.log('[PairRouteWrapper] final initialMessage:', initialMessage);
-  console.log('[PairRouteWrapper] sessionId:', sessionId, 'lastSessionId:', lastSessionId);
-  console.log('[PairRouteWrapper] recipeId from URL:', recipeId);
-  console.log(
-    '[PairRouteWrapper] recipe from appConfig:',
-    recipeFromConfig ? 'present' : 'not present'
-  );
-
-  // Capture initialMessage from route state before it gets cleared
   useEffect(() => {
     if (routeState.initialMessage) {
-      console.log('[PairRouteWrapper] Capturing initialMessage:', routeState.initialMessage);
       setCapturedInitialMessage(routeState.initialMessage);
     }
   }, [routeState.initialMessage]);
@@ -138,18 +125,15 @@ const PairRouteWrapper = ({
 
           // If we have a recipe from appConfig (deeplink case), use it directly
           if (recipeFromConfig) {
-            console.log('[PairRouteWrapper] Using recipe from appConfig (deeplink)');
             recipe = recipeFromConfig;
           }
           // If we have a recipeId, load the recipe from saved recipes
           else if (recipeId) {
-            console.log('[PairRouteWrapper] Loading recipe with ID:', recipeId);
             const { listSavedRecipes } = await import('./recipe/recipe_management');
             const recipes = await listSavedRecipes();
             const recipeManifest = recipes.find((r) => r.id === recipeId);
             if (recipeManifest) {
               recipe = recipeManifest.recipe;
-              console.log('[PairRouteWrapper] Loaded recipe:', recipe?.title);
             } else {
               console.error('[PairRouteWrapper] Recipe not found with ID:', recipeId);
             }
@@ -163,7 +147,6 @@ const PairRouteWrapper = ({
             throwOnError: true,
           });
           const newSession = newAgent.data;
-          console.log('[PairRouteWrapper] Created new session:', newSession.id);
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
@@ -192,12 +175,8 @@ const PairRouteWrapper = ({
   // Clear captured initialMessage when sessionId actually changes to a different session
   useEffect(() => {
     if (sessionId !== lastSessionId) {
-      console.log('[PairRouteWrapper] Session changed from', lastSessionId, 'to', sessionId);
       setLastSessionId(sessionId);
-
-      // Only clear if we don't have a new initialMessage from route state
       if (!routeState.initialMessage) {
-        console.log('[PairRouteWrapper] Clearing capturedInitialMessage due to session change');
         setCapturedInitialMessage(undefined);
       }
     }
