@@ -565,7 +565,7 @@ export function WebViewer({
     let lastKnownBounds = { x: 0, y: 0, width: 0, height: 0 };
     let isUpdating = false;
 
-    const immediateUpdateBounds = () => {
+    const immediateUpdateBounds = (force = false) => {
       if (isUpdating || !containerRef.current || !childWindowId.current) return;
       
       const rect = containerRef.current.getBoundingClientRect();
@@ -578,8 +578,9 @@ export function WebViewer({
         height: Math.round(Math.max(rect.height, 200)), // Minimum height
       };
       
-      // Only update if bounds actually changed (avoid unnecessary calls)
-      if (adjustedBounds.x === lastKnownBounds.x && 
+      // Only update if bounds actually changed (avoid unnecessary calls) unless forced
+      if (!force && 
+          adjustedBounds.x === lastKnownBounds.x && 
           adjustedBounds.y === lastKnownBounds.y &&
           adjustedBounds.width === lastKnownBounds.width &&
           adjustedBounds.height === lastKnownBounds.height) {
@@ -593,7 +594,7 @@ export function WebViewer({
         isUpdating = true;
         lastKnownBounds = { ...adjustedBounds };
         
-        console.log(`[WebViewer-${childWindowId.current}] Immediate bounds update:`, adjustedBounds);
+        console.log(`[WebViewer-${childWindowId.current}] ${force ? 'FORCED' : 'Immediate'} bounds update:`, adjustedBounds);
         
         window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds)
           .catch(console.error)
@@ -603,6 +604,18 @@ export function WebViewer({
       } else {
         console.warn(`[WebViewer-${childWindowId.current}] Invalid bounds calculated:`, adjustedBounds);
       }
+    };
+
+    // Force initial bounds sync - this helps with positioning issues on mount
+    const forceInitialSync = () => {
+      console.log(`[WebViewer-${childWindowId.current}] Forcing initial bounds synchronization`);
+      immediateUpdateBounds(true);
+      
+      // Double-check after a short delay to handle any layout settling
+      setTimeout(() => {
+        console.log(`[WebViewer-${childWindowId.current}] Double-checking initial bounds after layout settle`);
+        immediateUpdateBounds(true);
+      }, 250);
     };
 
     const throttledUpdateBounds = () => {
@@ -615,8 +628,8 @@ export function WebViewer({
       updateBoundsTimeoutRef.current = setTimeout(immediateUpdateBounds, 8); // ~120fps for smoother drag
     };
 
-    // Initial bounds update
-    immediateUpdateBounds();
+    // Force initial bounds synchronization
+    forceInitialSync();
 
     // Set up resize observer for the container
     const resizeObserver = new ResizeObserver(() => {
@@ -810,14 +823,59 @@ export function WebViewer({
     return () => clearInterval(interval);
   }, [childWindowCreated, actualUrl]);
 
-  // Handle visibility changes (show/hide child window)
+  // Handle visibility changes (show/hide child window) with bounds synchronization
   useEffect(() => {
     if (!childWindowCreated) return;
 
     console.log(`[WebViewer-${childWindowId.current}] Visibility changed to:`, isVisible);
+    
     if (isVisible) {
       console.log(`[WebViewer-${childWindowId.current}] Showing child window`);
-      window.electron.showChildWebViewer(childWindowId.current);
+      
+      // Force bounds synchronization when showing the window
+      const syncBoundsAndShow = async () => {
+        try {
+          // First, ensure we have the correct bounds
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const adjustedBounds = {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              width: Math.round(Math.max(rect.width, 300)),
+              height: Math.round(Math.max(rect.height, 200)),
+            };
+            
+            console.log(`[WebViewer-${childWindowId.current}] Syncing bounds before show:`, adjustedBounds);
+            
+            // Update bounds first, then show
+            await window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds);
+            await window.electron.showChildWebViewer(childWindowId.current);
+            
+            // Double-check bounds after showing (some window managers need this)
+            setTimeout(async () => {
+              if (containerRef.current) {
+                const newRect = containerRef.current.getBoundingClientRect();
+                const newBounds = {
+                  x: Math.round(newRect.x),
+                  y: Math.round(newRect.y),
+                  width: Math.round(Math.max(newRect.width, 300)),
+                  height: Math.round(Math.max(newRect.height, 200)),
+                };
+                
+                console.log(`[WebViewer-${childWindowId.current}] Double-checking bounds after show:`, newBounds);
+                await window.electron.updateChildWebViewerBounds(childWindowId.current, newBounds);
+              }
+            }, 100);
+          } else {
+            // Fallback if no container ref
+            await window.electron.showChildWebViewer(childWindowId.current);
+          }
+        } catch (error) {
+          console.error(`[WebViewer-${childWindowId.current}] Error syncing bounds and showing:`, error);
+        }
+      };
+      
+      syncBoundsAndShow();
     } else {
       console.log(`[WebViewer-${childWindowId.current}] Hiding child window`);
       window.electron.hideChildWebViewer(childWindowId.current);
