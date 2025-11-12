@@ -218,6 +218,38 @@ function BaseChatContent({
     (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') ||
     (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
 
+  if (sessionLoadError) {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        <MainPanelLayout
+          backgroundColor={'bg-background-muted'}
+          removeTopPadding={true}
+          {...customMainLayoutProps}
+        >
+          {renderHeader && renderHeader()}
+          <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+            <div className="flex-1 bg-background-default rounded-b-2xl flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center p-8">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
+                  <h3 className="font-semibold mb-2">Failed to Load Session</h3>
+                  <p className="text-sm">{sessionLoadError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setView('chat');
+                  }}
+                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                >
+                  Go home
+                </button>
+              </div>
+            </div>
+          </div>
+        </MainPanelLayout>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
@@ -257,23 +289,6 @@ function BaseChatContent({
               </div>
             )}
 
-            {sessionLoadError && (
-              <div className="flex flex-col items-center justify-center p-8">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
-                  <h3 className="font-semibold mb-2">Failed to Load Session</h3>
-                  <p className="text-sm">{sessionLoadError}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setView('chat');
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
-                >
-                  Go home
-                </button>
-              </div>
-            )}
-
             {/* Messages or Popular Topics */}
             {messages.length > 0 || recipe ? (
               <>
@@ -286,7 +301,7 @@ function BaseChatContent({
             ) : null}
           </ScrollArea>
 
-          {chatState !== ChatState.Idle && !sessionLoadError && (
+          {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 chatState={chatState}
