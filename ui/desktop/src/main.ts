@@ -818,12 +818,19 @@ const createChat = async (
     // Clean up BrowserViews
     cleanupBrowserViews(mainWindow);
 
-    // Clean up child webviewer windows
+    // Clean up child webviewer windows with more robust cleanup
     const childWindows = childWebViewerWindows.get(windowId);
     if (childWindows) {
-      console.log('[Main] Cleaning up child webviewer windows for main window:', windowId);
+      console.log(`[Main] Cleaning up ${childWindows.size} child webviewer windows for main window:`, windowId);
       for (const [viewerId, childWindow] of childWindows.entries()) {
         try {
+          // Remove all event listeners first to prevent memory leaks
+          childWindow.removeAllListeners();
+          if (childWindow.webContents && !childWindow.webContents.isDestroyed()) {
+            childWindow.webContents.removeAllListeners();
+          }
+          
+          // Force destroy the child window
           if (!childWindow.isDestroyed()) {
             childWindow.destroy();
           }
@@ -832,6 +839,7 @@ const createChat = async (
           console.error('[Main] Error cleaning up child webviewer window:', viewerId, error);
         }
       }
+      childWindows.clear(); // Clear the map
       childWebViewerWindows.delete(windowId);
     }
 

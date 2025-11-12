@@ -184,17 +184,33 @@ export function WebViewer({
     };
   }, [url, isVisible]);
 
-  // Cleanup child window on component unmount
+  // Cleanup child window on component unmount with robust error handling
   useEffect(() => {
-    return () => {
+    const cleanup = async () => {
       console.log('WebViewer component unmounting, cleaning up child window:', childWindowId.current);
-      if (childWindowId.current) {
-        window.electron.destroyChildWebViewer(childWindowId.current).catch((err) => {
+      if (childWindowId.current && childWindowCreated) {
+        try {
+          // First hide the child window
+          await window.electron.hideChildWebViewer(childWindowId.current);
+          // Then destroy it
+          await window.electron.destroyChildWebViewer(childWindowId.current);
+          console.log('Child window cleanup completed successfully');
+        } catch (err) {
           console.error('Error destroying child window on unmount:', err);
-        });
+          // Force cleanup even if there's an error
+          try {
+            await window.electron.destroyChildWebViewer(childWindowId.current);
+          } catch (forceErr) {
+            console.error('Force cleanup also failed:', forceErr);
+          }
+        }
       }
     };
-  }, []);
+
+    return () => {
+      cleanup();
+    };
+  }, [childWindowCreated]);
 
   // Update child window bounds when container resizes (throttled)
   useEffect(() => {
