@@ -316,6 +316,15 @@ export function AppInner() {
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
+  // Debug component lifecycle
+  useEffect(() => {
+    console.log('🔍 AppInner: Component MOUNTED');
+    return () => {
+      console.log('🔍 AppInner: Component UNMOUNTING');
+      console.trace('AppInner unmount stack trace');
+    };
+  }, []);
+
   const navigate = useNavigate();
 
   const location = useLocation();

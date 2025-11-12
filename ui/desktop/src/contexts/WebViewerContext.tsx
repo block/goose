@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useRef, useCallback, useEffect } from 'react';
 
 export interface WebViewerInfo {
   id: string;
@@ -34,6 +34,14 @@ export const useWebViewerContextOptional = () => {
 };
 
 export const WebViewerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Debug component lifecycle
+  useEffect(() => {
+    console.log('🔍 WebViewerProvider: Component MOUNTED');
+    return () => {
+      console.log('🔍 WebViewerProvider: Component UNMOUNTING');
+      console.trace('WebViewerProvider unmount stack trace');
+    };
+  }, []);
   // Use ref instead of state to avoid triggering re-renders
   const activeWebViewersRef = useRef<WebViewerInfo[]>([]);
 

@@ -807,8 +807,35 @@ const createChat = async (
 
   // Clean up BrowserViews when window reloads
   mainWindow.webContents.on('did-start-loading', () => {
-    console.log('[Main] Window started loading, cleaning up BrowserViews');
-    cleanupBrowserViews(mainWindow);
+    const currentUrl = mainWindow.webContents.getURL();
+    console.log('[Main] ⚠️  Window started loading, URL:', currentUrl);
+    console.trace('[Main] Window did-start-loading stack trace');
+    
+    // Only cleanup if this is actually a full page reload/navigation
+    // Skip cleanup for hash changes, query parameter changes, or same-page navigation
+    if (currentUrl && !currentUrl.includes('#') && !currentUrl.includes('?')) {
+      console.log('[Main] Detected full page reload, cleaning up BrowserViews');
+      cleanupBrowserViews(mainWindow);
+      
+      // Also cleanup child windows on full page reload
+      const childWindows = childWebViewerWindows.get(windowId);
+      if (childWindows && childWindows.size > 0) {
+        console.log('[Main] Detected full page reload, cleaning up child webviewer windows');
+        for (const [viewerId, childWindow] of childWindows.entries()) {
+          try {
+            if (!childWindow.isDestroyed()) {
+              childWindow.destroy();
+            }
+            childWindows.delete(viewerId);
+            console.log('[Main] Child webviewer window destroyed during reload:', viewerId);
+          } catch (error) {
+            console.error('[Main] Error destroying child window during reload:', error);
+          }
+        }
+      }
+    } else {
+      console.log('[Main] Detected same-page navigation, skipping cleanup');
+    }
   });
 
   // Handle window closure

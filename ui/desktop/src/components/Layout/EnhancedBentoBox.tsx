@@ -4,6 +4,11 @@ import { Plus, X, Globe, FileText, Grid3X3, LayoutGrid, Maximize2, Minimize2, Gr
 import { Button } from '../ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
 import { useNavigation } from './AppLayout';
+import SidecarTabs from '../SidecarTabs';
+import { FileViewer } from '../FileViewer';
+import DocumentEditor from '../DocumentEditor';
+import WebViewer from '../WebViewer';
+import AppInstaller from '../AppInstaller';
 
 export interface SidecarContainer {
   id: string;
@@ -12,6 +17,13 @@ export interface SidecarContainer {
   title?: string;
   size?: 'small' | 'medium' | 'large';
   position?: { row: number; col: number };
+  // Store props for stable rendering
+  contentProps?: {
+    initialUrl?: string;
+    allowAllSites?: boolean;
+    filePath?: string;
+    placeholder?: string;
+  };
 }
 
 type LayoutType = 'horizontal' | 'vertical' | 'grid' | 'masonry';
@@ -82,6 +94,86 @@ const ContainerPopover: React.FC<ContainerPopoverProps> = ({ onSelect, onClose, 
   );
 };
 
+// Completely isolated WebViewer component that only depends on containerId and initialUrl
+const IsolatedWebViewer = React.memo<{ containerId: string; initialUrl: string }>(({ containerId, initialUrl }) => {
+  console.log('🔍 IsolatedWebViewer: Rendering for container:', containerId, 'URL:', initialUrl);
+  
+  return (
+    <WebViewer 
+      initialUrl={initialUrl} 
+      allowAllSites={true} 
+    />
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render if containerId or initialUrl actually changes
+  return prevProps.containerId === nextProps.containerId && prevProps.initialUrl === nextProps.initialUrl;
+});
+
+// Stable content renderer component - defined outside to avoid recreation
+const ContainerContentRenderer = React.memo<{ container: SidecarContainer }>(({ container }) => {
+  console.log('🔍 ContainerContentRenderer: Rendering for container:', container.id, container.contentType);
+  
+  // If we have legacy content (JSX), use it
+  if (container.content) {
+    return <>{container.content}</>;
+  }
+
+  // Otherwise, render based on contentType and contentProps
+  switch (container.contentType) {
+    case 'sidecar':
+      return (
+        <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+          <p>Sidecar content will go here</p>
+        </div>
+      );
+    case 'localhost':
+      return <SidecarTabs initialUrl="http://localhost:3000" />;
+    case 'file':
+      return container.contentProps?.filePath ? (
+        <FileViewer filePath={container.contentProps.filePath} />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center text-text-muted">
+          <p>No file path specified</p>
+        </div>
+      );
+    case 'document-editor':
+      return (
+        <DocumentEditor 
+          filePath={container.contentProps?.filePath} 
+          placeholder={container.contentProps?.placeholder || "Start writing your document..."} 
+        />
+      );
+    case 'web-viewer':
+      // Create a completely isolated WebViewer instance
+      return <IsolatedWebViewer containerId={container.id} initialUrl={container.contentProps?.initialUrl || "https://google.com"} />;
+    case 'app-installer':
+      return <AppInstaller />;
+    default:
+      return (
+        <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted/50">
+          <div className="w-8 h-8 rounded-lg bg-border-subtle animate-pulse" />
+          <p className="text-text-muted text-sm text-center">Empty container</p>
+        </div>
+      );
+  }
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prev = prevProps.container;
+  const next = nextProps.container;
+  
+  // Compare all the important properties
+  return (
+    prev.id === next.id &&
+    prev.contentType === next.contentType &&
+    prev.title === next.title &&
+    prev.size === next.size &&
+    prev.contentProps?.initialUrl === next.contentProps?.initialUrl &&
+    prev.contentProps?.allowAllSites === next.contentProps?.allowAllSites &&
+    prev.contentProps?.filePath === next.contentProps?.filePath &&
+    prev.contentProps?.placeholder === next.contentProps?.placeholder
+  );
+});
+
 interface DraggableContainerProps {
   container: SidecarContainer;
   onRemove: (id: string) => void;
@@ -92,7 +184,7 @@ interface DraggableContainerProps {
   enableCustomDrag?: boolean; // For grid layout where we don't use Reorder.Item
 }
 
-const DraggableContainer: React.FC<DraggableContainerProps> = ({ 
+const DraggableContainer = React.memo<DraggableContainerProps>(({ 
   container, 
   onRemove, 
   onResize, 
@@ -206,20 +298,33 @@ const DraggableContainer: React.FC<DraggableContainerProps> = ({
 
       {/* Container Content - Minimal top padding for header */}
       <div className="h-full w-full pt-8 overflow-hidden">
-        {container.content ? (
-          <div className="h-full w-full">
-            {container.content}
-          </div>
-        ) : (
-          <div className="h-full w-full flex flex-col items-center justify-center p-4 space-y-3 bg-background-muted/50">
-            <div className="w-8 h-8 rounded-lg bg-border-subtle animate-pulse" />
-            <p className="text-text-muted text-sm text-center">Empty container</p>
-          </div>
-        )}
+        <div className="h-full w-full">
+          <ContainerContentRenderer container={container} />
+        </div>
       </div>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  const prev = prevProps.container;
+  const next = nextProps.container;
+  
+  // Compare all the important properties
+  return (
+    prev.id === next.id &&
+    prev.contentType === next.contentType &&
+    prev.title === next.title &&
+    prev.size === next.size &&
+    prev.contentProps?.initialUrl === next.contentProps?.initialUrl &&
+    prev.contentProps?.allowAllSites === next.contentProps?.allowAllSites &&
+    prev.contentProps?.filePath === next.contentProps?.filePath &&
+    prev.contentProps?.placeholder === next.contentProps?.placeholder &&
+    prevProps.layout === nextProps.layout &&
+    prevProps.className === nextProps.className &&
+    prevProps.enableCustomDrag === nextProps.enableCustomDrag
+    // Note: We don't compare onRemove, onResize, or style as they may be recreated but functionally equivalent
+  );
+});
 
 interface EnhancedBentoBoxProps {
   containers: SidecarContainer[];
@@ -239,17 +344,37 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
   const [isAddHovered, setIsAddHovered] = useState(false);
   const { isNavExpanded } = useNavigation();
-
+  
+  // Use ref to store current containers to avoid callback dependencies
+  const containersRef = useRef(containers);
+  containersRef.current = containers;
+  
+  // Debug containers changes
+  useEffect(() => {
+    console.log('🔍 EnhancedBentoBox: containers prop changed:', {
+      length: containers.length,
+      containers: containers.map(c => ({ 
+        id: c.id, 
+        type: c.contentType,
+        title: c.title,
+        hasContent: !!c.content,
+        hasProps: !!c.contentProps,
+        propsKeys: c.contentProps ? Object.keys(c.contentProps) : []
+      }))
+    });
+  }, [containers]);
+  
   const handleReorder = useCallback((newContainers: SidecarContainer[]) => {
     onReorderContainers?.(newContainers);
   }, [onReorderContainers]);
 
   const handleContainerResize = useCallback((id: string, size: 'small' | 'medium' | 'large') => {
-    const updatedContainers = containers.map(container =>
+    // Use ref to get current containers and avoid dependency
+    const updatedContainers = containersRef.current.map(container =>
       container.id === id ? { ...container, size } : container
     );
     onReorderContainers?.(updatedContainers);
-  }, [containers, onReorderContainers]);
+  }, [onReorderContainers]);
 
   const handleAddClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -410,6 +535,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
                   }}
                 >
                   <DraggableContainer
+                    key={`draggable-${container.id}`}
                     container={container}
                     onRemove={onRemoveContainer}
                     onResize={handleContainerResize}

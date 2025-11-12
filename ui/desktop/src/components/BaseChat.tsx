@@ -67,7 +67,7 @@ import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { SidecarInvoker } from './Layout/SidecarInvoker';
 import { useSidecar } from './SidecarLayout';
-import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
+
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -126,8 +126,7 @@ function BaseChatContent({
   // Sidecar functionality
   const sidecar = useSidecar();
 
-  // WebViewer context for prompt injection
-  const webViewerContext = useWebViewerContextOptional();
+
 
   const handleShowLocalhost = () => {
     console.log('Localhost viewer requested');

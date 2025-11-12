@@ -5,6 +5,106 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
 import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
+// Global registry to persist child windows across component re-mounts
+class ChildWindowRegistry {
+  private static instance: ChildWindowRegistry;
+  private windows = new Map<string, {
+    windowId: string;
+    url: string;
+    refCount: number;
+    lastUsed: number;
+  }>();
+
+  static getInstance(): ChildWindowRegistry {
+    if (!ChildWindowRegistry.instance) {
+      ChildWindowRegistry.instance = new ChildWindowRegistry();
+    }
+    return ChildWindowRegistry.instance;
+  }
+
+  // Generate a stable key for a WebViewer instance
+  private getKey(initialUrl: string, allowAllSites: boolean): string {
+    return `${allowAllSites ? 'main' : 'sidecar'}-${initialUrl}`;
+  }
+
+  // Register or reuse a child window
+  registerWindow(initialUrl: string, allowAllSites: boolean, windowId?: string): string {
+    const key = this.getKey(initialUrl, allowAllSites);
+    const existing = this.windows.get(key);
+
+    if (existing) {
+      // Reuse existing window
+      existing.refCount++;
+      existing.lastUsed = Date.now();
+      console.log(`[ChildWindowRegistry] Reusing existing window for ${key}, refCount: ${existing.refCount}`);
+      return existing.windowId;
+    } else {
+      // Register new window
+      const newWindowId = windowId || `webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      this.windows.set(key, {
+        windowId: newWindowId,
+        url: initialUrl,
+        refCount: 1,
+        lastUsed: Date.now()
+      });
+      console.log(`[ChildWindowRegistry] Registered new window for ${key}, windowId: ${newWindowId}`);
+      return newWindowId;
+    }
+  }
+
+  // Unregister a window (decrease ref count)
+  unregisterWindow(initialUrl: string, allowAllSites: boolean): boolean {
+    const key = this.getKey(initialUrl, allowAllSites);
+    const existing = this.windows.get(key);
+
+    if (existing) {
+      existing.refCount--;
+      console.log(`[ChildWindowRegistry] Unregistered window for ${key}, refCount: ${existing.refCount}`);
+      
+      if (existing.refCount <= 0) {
+        // No more references, can be cleaned up
+        this.windows.delete(key);
+        console.log(`[ChildWindowRegistry] Window ${key} marked for cleanup`);
+        return true; // Should destroy
+      }
+    }
+    
+    return false; // Should not destroy
+  }
+
+  // Check if a window exists and is being used
+  hasWindow(initialUrl: string, allowAllSites: boolean): boolean {
+    const key = this.getKey(initialUrl, allowAllSites);
+    return this.windows.has(key);
+  }
+
+  // Get window ID if it exists
+  getWindowId(initialUrl: string, allowAllSites: boolean): string | null {
+    const key = this.getKey(initialUrl, allowAllSites);
+    const existing = this.windows.get(key);
+    return existing ? existing.windowId : null;
+  }
+
+  // Cleanup old unused windows (called periodically)
+  cleanup(): void {
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+
+    for (const [key, windowInfo] of this.windows.entries()) {
+      if (windowInfo.refCount <= 0 && (now - windowInfo.lastUsed) > maxAge) {
+        console.log(`[ChildWindowRegistry] Cleaning up old window ${key}`);
+        this.windows.delete(key);
+        // Destroy the actual window
+        if (typeof window !== 'undefined' && (window as any).electron) {
+          (window as any).electron.destroyChildWebViewer(windowInfo.windowId).catch(console.error);
+        }
+      }
+    }
+  }
+}
+
+const childWindowRegistry = ChildWindowRegistry.getInstance();
+
 interface WebViewerProps {
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
@@ -83,21 +183,30 @@ export function WebViewer({
   onUrlChange,
   allowAllSites = true,
 }: WebViewerProps) {
-  // Generate a unique ID for this child window instance
-  const childWindowId = useRef(`webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // Use registry to get or create a stable window ID
+  const childWindowId = useRef<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
   const updateBoundsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  console.log(`[WebViewer-${childWindowId.current}] Component mounting/rendering`);
+  // Calculate the actual URL consistently
+  const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
+  const actualRegistryUrl = (typeof window !== 'undefined' && localStorage.getItem(storageKey)) || initialUrl;
+  
+  // Initialize window ID from registry on mount
+  useEffect(() => {
+    // Generate a window ID but don't register it yet - wait until window is actually created
+    const windowId = `webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    childWindowId.current = windowId;
+    console.log(`[WebViewer-${windowId}] Component MOUNTED - generated window ID for URL: ${actualRegistryUrl}`);
+    
+    // No cleanup function - we want child windows to persist across component lifecycles
+  }, [actualRegistryUrl, allowAllSites]);
   
   // WebViewer context for AI prompt injection
   const webViewerContext = useWebViewerContextOptional();
   
   // Unified sidecar context for comprehensive AI context
   const unifiedSidecarContext = useUnifiedSidecarContextOptional();
-  
-  // Initialize from localStorage or use initialUrl
-  const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
   const [url, setUrl] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(storageKey) || initialUrl;
@@ -122,19 +231,62 @@ export function WebViewer({
   const [childWindowCreated, setChildWindowCreated] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
-  // Create child window on mount with timeout and retry logic
+  // Create or reuse child window on mount with timeout and retry logic
   useEffect(() => {
-    const createChildWindow = async (retryCount = 0) => {
-      if (!containerRef.current) return;
+    const createOrReuseChildWindow = async (retryCount = 0) => {
+      if (!containerRef.current || !childWindowId.current) {
+        console.log(`[WebViewer-${childWindowId.current}] Skipping window creation - missing container or windowId`);
+        return;
+      }
+
+      console.log(`[WebViewer-${childWindowId.current}] Starting createOrReuseChildWindow (attempt ${retryCount + 1})`);
 
       try {
-        console.log(`[WebViewer-${childWindowId.current}] Attempting to create child window with URL:`, url, `(attempt ${retryCount + 1})`);
+        // Check if window already exists (for reuse case) - use the same URL as registration
+        const existingWindow = childWindowRegistry.hasWindow(actualRegistryUrl, allowAllSites);
+        
+        console.log(`[WebViewer-${childWindowId.current}] Checking for existing window with URL: ${actualRegistryUrl}, exists: ${existingWindow}`);
+        
+        if (existingWindow) {
+          console.log(`[WebViewer-${childWindowId.current}] Found existing window in registry, attempting to reuse`);
+          
+          // Get the existing window ID from the registry
+          const existingWindowId = childWindowRegistry.getWindowId(actualRegistryUrl, allowAllSites);
+          if (existingWindowId) {
+            // Update our window ID to match the existing one
+            childWindowId.current = existingWindowId;
+            console.log(`[WebViewer-${childWindowId.current}] Updated window ID to match existing registry entry`);
+            
+            // Register ourselves as another user of this window
+            childWindowRegistry.registerWindow(actualRegistryUrl, allowAllSites, existingWindowId);
+            console.log(`[WebViewer-${childWindowId.current}] Registered as additional user of existing window`);
+            
+            setChildWindowCreated(true);
+            
+            // Update bounds for the existing window
+            const rect = containerRef.current.getBoundingClientRect();
+            const adjustedBounds = {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y), 
+              width: Math.round(Math.max(rect.width, 300)),
+              height: Math.round(Math.max(rect.height, 200)),
+            };
+            
+            // Show and update bounds of existing window
+            await window.electron.showChildWebViewer(childWindowId.current);
+            await window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds);
+            return;
+          } else {
+            console.warn(`[WebViewer-${childWindowId.current}] Registry says window exists but couldn't get window ID - creating new window`);
+          }
+        }
+
+        console.log(`[WebViewer-${childWindowId.current}] Creating new child window with URL:`, url, `(attempt ${retryCount + 1})`);
         
         const rect = containerRef.current.getBoundingClientRect();
         console.log(`[WebViewer-${childWindowId.current}] Container bounds:`, rect);
         
         // Child window expects coordinates relative to the main window
-        // getBoundingClientRect() returns viewport coordinates, so we use them directly
         const adjustedBounds = {
           x: Math.round(rect.x),
           y: Math.round(rect.y), 
@@ -157,7 +309,16 @@ export function WebViewer({
         console.log(`[WebViewer-${childWindowId.current}] Child window creation result:`, result);
         
         if (result.success && result.viewerId) {
-          childWindowId.current = result.viewerId;
+          // Ensure the window ID matches what we expected
+          if (result.viewerId !== childWindowId.current) {
+            console.warn(`[WebViewer] Window ID mismatch: expected ${childWindowId.current}, got ${result.viewerId}`);
+            childWindowId.current = result.viewerId;
+          }
+          
+          // NOW register the window in the registry since it was successfully created
+          childWindowRegistry.registerWindow(actualRegistryUrl, allowAllSites, childWindowId.current);
+          console.log(`[WebViewer-${childWindowId.current}] Registered successfully created window in registry`);
+          
           setChildWindowCreated(true);
           console.log(`[WebViewer-${childWindowId.current}] Child window created successfully:`, result.viewerId);
           
@@ -174,7 +335,7 @@ export function WebViewer({
         // Retry logic for transient failures
         if (retryCount < 2 && (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED'))) {
           console.log(`[WebViewer-${childWindowId.current}] Retrying child window creation in 1 second...`);
-          setTimeout(() => createChildWindow(retryCount + 1), 1000);
+          setTimeout(() => createOrReuseChildWindow(retryCount + 1), 1000);
           return;
         }
         
@@ -182,17 +343,17 @@ export function WebViewer({
       }
     };
 
-    // Add a small delay to ensure the container is properly rendered
+    // Add a small delay to ensure the container is properly rendered and window ID is set
     const timer = setTimeout(() => {
-      if (containerRef.current) {
-        createChildWindow();
+      if (containerRef.current && childWindowId.current) {
+        createOrReuseChildWindow();
       }
     }, 100);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [url, isVisible]);
+  }, [url, isVisible, actualRegistryUrl, allowAllSites]);
 
   // Register/unregister with WebViewer context for AI prompt injection
   useEffect(() => {
@@ -281,10 +442,10 @@ export function WebViewer({
     return () => clearTimeout(updateTimeout);
   }, [unifiedSidecarContext, childWindowCreated, actualUrl, pageTitle, isSecure, canGoBack, canGoForward, isLoading]);
 
-  // Cleanup child window on component unmount with robust error handling
+  // Cleanup child window on component unmount - but only unregister from registry, don't destroy the actual window
   useEffect(() => {
     const cleanup = async () => {
-      console.log('WebViewer component unmounting, cleaning up child window:', childWindowId.current);
+      console.log(`[WebViewer-${childWindowId.current}] Component unmounting, unregistering from registry`);
       
       // Unregister from contexts first
       if (webViewerContext) {
@@ -294,29 +455,19 @@ export function WebViewer({
         unifiedSidecarContext.unregisterSidecar(childWindowId.current);
       }
       
-      if (childWindowId.current && childWindowCreated) {
-        try {
-          // First hide the child window
-          await window.electron.hideChildWebViewer(childWindowId.current);
-          // Then destroy it
-          await window.electron.destroyChildWebViewer(childWindowId.current);
-          console.log('Child window cleanup completed successfully');
-        } catch (err) {
-          console.error('Error destroying child window on unmount:', err);
-          // Force cleanup even if there's an error
-          try {
-            await window.electron.destroyChildWebViewer(childWindowId.current);
-          } catch (forceErr) {
-            console.error('Force cleanup also failed:', forceErr);
-          }
-        }
-      }
+      // Unregister from the registry but DON'T destroy the window
+      // The window will persist and be reused by the next component instance
+      const shouldDestroy = childWindowRegistry.unregisterWindow(actualRegistryUrl, allowAllSites);
+      console.log(`[WebViewer-${childWindowId.current}] Registry unregister result - shouldDestroy:`, shouldDestroy, "(but we're not destroying)");
+      
+      // NOTE: We intentionally do NOT destroy the child window here
+      // It will be reused by the next component instance or cleaned up by the periodic cleanup
     };
 
     return () => {
       cleanup();
     };
-  }, [childWindowCreated, webViewerContext, unifiedSidecarContext]);
+  }, [childWindowCreated, webViewerContext, unifiedSidecarContext, actualRegistryUrl, allowAllSites]);
 
   // Update child window bounds when container resizes or window moves (throttled)
   useEffect(() => {
@@ -852,5 +1003,10 @@ export function WebViewer({
     </div>
   );
 }
+
+// Set up periodic cleanup for the registry
+setInterval(() => {
+  childWindowRegistry.cleanup();
+}, 60000); // Cleanup every minute
 
 export default WebViewer;

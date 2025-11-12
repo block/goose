@@ -59,6 +59,20 @@ export const MainPanelLayout: React.FC<{
   // Simplified state - just track if we have a bento box and what's in it
   const [hasBentoBox, setHasBentoBox] = useState(false);
   const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
+  
+  // Debug what's causing re-renders
+  useEffect(() => {
+    console.log('🔍 MainPanelLayout: bentoBoxContainers changed:', {
+      length: bentoBoxContainers.length,
+      containers: bentoBoxContainers.map(c => ({ 
+        id: c.id, 
+        type: c.contentType,
+        hasContent: !!c.content,
+        hasProps: !!c.contentProps,
+        propsKeys: c.contentProps ? Object.keys(c.contentProps) : []
+      }))
+    });
+  }, [bentoBoxContainers]);
   const [chatWidth, setChatWidth] = useState(600);
 
   // Create or show the bento box
@@ -80,8 +94,12 @@ export const MainPanelLayout: React.FC<{
     }
   }, [hasBentoBox]);
 
-  // Add content to bento box
-  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string, url?: string, title?: string) => {
+  // Add content to bento box - Use useRef to avoid recreating the callback
+  const addToBentoBoxRef = useRef<(contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string, url?: string, title?: string) => void>();
+  
+  addToBentoBoxRef.current = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string, url?: string, title?: string) => {
+    console.log('🔍 MainPanelLayout: addToBentoBox called with:', contentType, filePath, url, title);
+    console.trace('MainPanelLayout addToBentoBox call stack trace');
     const newContainer: SidecarContainer = {
       id: `bento-${Date.now()}`,
       content: null,
@@ -102,45 +120,68 @@ export const MainPanelLayout: React.FC<{
       newContainer.contentType = 'localhost';
       newContainer.title = 'Localhost Viewer';
     } else if (contentType === 'file' && filePath) {
-      newContainer.content = <FileViewer filePath={filePath} />;
+      newContainer.content = null; // No JSX content
       newContainer.contentType = 'file';
       newContainer.title = filePath?.split('/').pop() || 'File Viewer';
+      newContainer.contentProps = {
+        filePath
+      };
     } else if (contentType === 'document-editor') {
       const fileName = filePath ? filePath.split('/').pop() || filePath : 'Untitled Document';
-      newContainer.content = <DocumentEditor filePath={filePath} placeholder="Start writing your document..." />;
+      newContainer.content = null; // No JSX content
       newContainer.contentType = 'document-editor';
       newContainer.title = fileName;
+      newContainer.contentProps = {
+        filePath,
+        placeholder: "Start writing your document..."
+      };
     } else if (contentType === 'web-viewer') {
       // Use the URL from the event if provided, otherwise default to Google
       const initialUrl = url || "https://google.com";
       const containerTitle = title || 'Web Viewer';
       console.log('🔍 Creating WebViewer with URL:', initialUrl, 'and title:', containerTitle);
-      newContainer.content = <WebViewer initialUrl={initialUrl} allowAllSites={true} />;
+      // Store props instead of JSX for stable rendering
+      newContainer.content = null; // No JSX content
       newContainer.contentType = 'web-viewer';
       newContainer.title = containerTitle;
+      newContainer.contentProps = {
+        initialUrl,
+        allowAllSites: true
+      };
     } else if (contentType === 'app-installer') {
       newContainer.content = <AppInstaller />;
       newContainer.contentType = 'app-installer';
       newContainer.title = 'App Installer';
     }
 
-    // If no bento box exists, create it first
-    if (!hasBentoBox) {
-      setHasBentoBox(true);
-      setBentoBoxContainers([newContainer]);
-    } else {
-      // Add to existing bento box
-      setBentoBoxContainers(prev => [...prev, newContainer]);
-    }
-  }, [hasBentoBox]);
+    // Use functional updates to avoid dependency on hasBentoBox
+    setBentoBoxContainers(prev => {
+      const hasExistingContainers = prev.length > 0;
+      if (!hasExistingContainers) {
+        setHasBentoBox(true);
+      }
+      return [...prev, newContainer];
+    });
+  }, []);
+
+  // Stable wrapper function that doesn't change
+  const addToBentoBox = useCallback((contentType: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string, url?: string, title?: string) => {
+    addToBentoBoxRef.current?.(contentType, filePath, url, title);
+  }, []);
+
+  // Debug when addToBentoBox callback is recreated
+  useEffect(() => {
+    console.log('🔍 MainPanelLayout: addToBentoBox callback recreated');
+  }, [addToBentoBox]);
 
   // Remove from bento box
   const removeFromBentoBox = useCallback((containerId: string) => {
     console.log('🔍 MainPanelLayout: removeFromBentoBox called with ID:', containerId);
+    console.trace('MainPanelLayout removeFromBentoBox stack trace'); // This will show us what caused the removal
     setBentoBoxContainers(prev => {
-      console.log('🔍 MainPanelLayout: Current containers before removal:', prev.length);
+      console.log('🔍 MainPanelLayout: Current containers before removal:', prev.length, prev.map(c => ({ id: c.id, type: c.contentType })));
       const updated = prev.filter(c => c.id !== containerId);
-      console.log('🔍 MainPanelLayout: Containers after removal:', updated.length);
+      console.log('🔍 MainPanelLayout: Containers after removal:', updated.length, updated.map(c => ({ id: c.id, type: c.contentType })));
       
       // If no containers left, hide the bento box
       if (updated.length === 0) {
@@ -156,16 +197,28 @@ export const MainPanelLayout: React.FC<{
     setChatWidth(prev => Math.max(300, Math.min(1000, prev + delta)));
   }, []);
 
+  // Stable callback for reordering containers
+  const handleReorderContainers = useCallback((newContainers: SidecarContainer[]) => {
+    console.log('🔍 MainPanelLayout: handleReorderContainers called with:', newContainers.length, newContainers.map(c => ({ id: c.id, type: c.contentType })));
+    console.trace('MainPanelLayout handleReorderContainers stack trace');
+    setBentoBoxContainers(newContainers);
+  }, []);
+
   // Listen for add-container events from SidecarInvoker
   useEffect(() => {
     const handleAddContainer = (e: CustomEvent<{ type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer'; filePath?: string; url?: string; title?: string }>) => {
       console.log('🔍 MainPanelLayout: Received add-container event:', e.detail.type, e.detail.filePath, e.detail.url);
-      addToBentoBox(e.detail.type, e.detail.filePath, e.detail.url, e.detail.title);
+      console.trace('MainPanelLayout add-container event stack trace');
+      addToBentoBoxRef.current?.(e.detail.type, e.detail.filePath, e.detail.url, e.detail.title);
     };
 
+    console.log('🔍 MainPanelLayout: Setting up add-container event listener');
     window.addEventListener('add-container', handleAddContainer as EventListener);
-    return () => window.removeEventListener('add-container', handleAddContainer as EventListener);
-  }, [addToBentoBox]);
+    return () => {
+      console.log('🔍 MainPanelLayout: Removing add-container event listener');
+      window.removeEventListener('add-container', handleAddContainer as EventListener);
+    };
+  }, []); // Remove dependency on addToBentoBox
 
   return (
     <div className="h-dvh">
@@ -194,7 +247,7 @@ export const MainPanelLayout: React.FC<{
             containers={bentoBoxContainers}
             onRemoveContainer={removeFromBentoBox}
             onAddContainer={addToBentoBox}
-            onReorderContainers={setBentoBoxContainers}
+            onReorderContainers={handleReorderContainers}
           />
         )}
       </div>

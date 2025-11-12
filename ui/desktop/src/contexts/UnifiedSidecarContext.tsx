@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useRef, useCallback, useEffect } from 'react';
 
 // Base interface for all sidecar types
 interface BaseSidecarInfo {
@@ -94,6 +94,15 @@ interface UnifiedSidecarProviderProps {
 }
 
 export const UnifiedSidecarProvider: React.FC<UnifiedSidecarProviderProps> = ({ children }) => {
+  // Debug component lifecycle
+  React.useEffect(() => {
+    console.log('🔍 UnifiedSidecarProvider: Component MOUNTED');
+    return () => {
+      console.log('🔍 UnifiedSidecarProvider: Component UNMOUNTING');
+      console.trace('UnifiedSidecarProvider unmount stack trace');
+    };
+  }, []);
+  
   // Use ref to store sidecar data to prevent re-renders
   const activeSidecarsRef = useRef<Map<string, SidecarInfo>>(new Map());
   
