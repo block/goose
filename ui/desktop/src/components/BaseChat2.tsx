@@ -209,8 +209,10 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
+  // Only use initialMessage for the prompt if it hasn't been submitted yet
   const initialPrompt =
-    initialMessage || (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
+    (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') ||
+    (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
 
   return (
     <div className="h-full flex flex-col min-h-0">
