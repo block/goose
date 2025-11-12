@@ -88,6 +88,8 @@ export function WebViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const updateBoundsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  console.log(`[WebViewer-${childWindowId.current}] Component mounting/rendering`);
+  
   // WebViewer context for AI prompt injection
   const webViewerContext = useWebViewerContextOptional();
   
@@ -521,9 +523,12 @@ export function WebViewer({
   useEffect(() => {
     if (!childWindowCreated) return;
 
+    console.log(`[WebViewer-${childWindowId.current}] Visibility changed to:`, isVisible);
     if (isVisible) {
+      console.log(`[WebViewer-${childWindowId.current}] Showing child window`);
       window.electron.showChildWebViewer(childWindowId.current);
     } else {
+      console.log(`[WebViewer-${childWindowId.current}] Hiding child window`);
       window.electron.hideChildWebViewer(childWindowId.current);
     }
   }, [isVisible, childWindowCreated]);
