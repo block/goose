@@ -1562,7 +1562,7 @@ ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x:
       x: constrainedBounds.x,
       y: constrainedBounds.y,
       frame: false,
-      transparent: false,
+      transparent: true,
       alwaysOnTop: false,
       skipTaskbar: true,
       resizable: false, // Prevent user from resizing
@@ -1570,6 +1570,7 @@ ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x:
       maximizable: false,
       closable: false, // Prevent user from closing manually
       show: false,
+      hasShadow: false, // Explicitly disable drop shadow
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
