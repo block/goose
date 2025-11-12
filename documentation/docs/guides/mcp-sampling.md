@@ -8,9 +8,9 @@ description: Transforms MCP servers into intelligent agents that can think, anal
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-MCP Sampling can transform extensions from simple data providers into intelligent agents. Instead of just returning raw information for goose to interpret, extensions can leverage goose's AI to provide expert-level guidance, perform contextual analysis, and create entirely new interaction patterns.
+MCP Sampling can transform extensions from simple data providers into intelligent agents. Instead of just returning raw information for goose to interpret, extensions can leverage goose's AI capabilities to provide expert-level guidance, perform contextual analysis, and create entirely new interaction patterns.
 
-This feature is automatically enabled in goose—no configuration required! Any MCP server extension that supports sampling will automatically have access to goose's AI. This means:
+This feature is automatically enabled in goose—no configuration required! Any MCP server extension that supports sampling will automatically have access to goose's main configured LLM provider. This means:
 - goose users can get more targeted responses tailored to the extension's specific capabilities
 - Developers can add sampling support to their MCP servers to provide enhanced capabilities in goose
 
