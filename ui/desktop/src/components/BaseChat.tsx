@@ -494,6 +494,20 @@ function BaseChatContent({
                     </>
                   )}
 
+                  {/* Inline loading indicator below messages */}
+                  {(chatState !== ChatState.Idle || isCompacting) && (
+                    <div className="px-6 py-2">
+                      <LoadingGoose
+                        message={
+                          isCompacting
+                            ? 'goose is compacting the conversation...'
+                            : undefined
+                        }
+                        chatState={chatState}
+                      />
+                    </div>
+                  )}
+
                   <div className="block h-8" />
                 </>
               ) : !recipeConfig && showPopularTopics ? (
@@ -502,25 +516,19 @@ function BaseChatContent({
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
             }
 
+            {/* Loading indicator for initial chat loading */}
+            {loadingChat && (
+              <div className="px-6 py-4">
+                <LoadingGoose
+                  message="loading conversation..."
+                  chatState={ChatState.Idle}
+                />
+              </div>
+            )}
+
             {/* Custom content after messages */}
             {renderAfterMessages && renderAfterMessages()}
           </ScrollArea>
-
-          {/* Fixed loading indicator at bottom left of chat container */}
-          {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
-            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                message={
-                  loadingChat
-                    ? 'loading conversation...'
-                    : isCompacting
-                      ? 'goose is compacting the conversation...'
-                      : undefined
-                }
-                chatState={chatState}
-              />
-            </div>
-          )}
         </div>
 
         <div
