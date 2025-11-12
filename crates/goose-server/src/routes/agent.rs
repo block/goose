@@ -25,13 +25,24 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tracing::{error, warn};
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ExtendPromptRequest {
+    extension: String,
+    session_id: String,
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ExtendPromptResponse {
+    success: bool,
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -330,6 +341,25 @@ async fn update_from_session(
 }
 
 #[utoipa::path(
+    post,
+    path = "/agent/prompt",
+    request_body = ExtendPromptRequest,
+    responses(
+        (status = 200, description = "Extended system prompt successfully", body = ExtendPromptResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+    ),
+)]
+async fn extend_prompt(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ExtendPromptRequest>,
+) -> Result<Json<ExtendPromptResponse>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
+    agent.extend_system_prompt(payload.extension).await;
+    Ok(Json(ExtendPromptResponse { success: true }))
+}
+
+#[utoipa::path(
     get,
     path = "/agent/tools",
     params(
@@ -554,6 +584,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
+        .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(

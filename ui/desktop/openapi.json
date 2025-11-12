@@ -52,6 +52,42 @@
         }
       }
     },
+    "/agent/prompt": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "extend_prompt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendPromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extended system prompt successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendPromptResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
     "/agent/remove_extension": {
       "post": {
         "tags": [
@@ -2510,6 +2546,32 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "ExtendPromptRequest": {
+        "type": "object",
+        "required": [
+          "extension",
+          "session_id"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtendPromptResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
           }
         }
       },
