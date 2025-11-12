@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import cronstrue from 'cronstrue';
 import { ScheduledJob } from '../../schedule';
+import { errorMessage } from '../../utils/conversionUtils';
 
 type Period = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 
@@ -17,6 +18,7 @@ type ParsedCron = {
 interface CronPickerProps {
   schedule: ScheduledJob | null;
   onChange: (cron: string) => void;
+  isValid: (valid: boolean) => void;
 }
 
 const parseCron = (cron: string): ParsedCron => {
@@ -76,7 +78,7 @@ const to12Hour = (hour24: number): { hour: number; isPM: boolean } => {
   return { hour: hour24, isPM: false };
 };
 
-export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange }) => {
+export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isValid }) => {
   const [period, setPeriod] = useState<Period>('day');
   const [second, setSecond] = useState('0');
   const [minute, setMinute] = useState('0');
@@ -136,7 +138,14 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange }) =>
       return '';
     }
     const cronWithoutSeconds = currentCron.split(' ').slice(1).join(' ');
-    return cronstrue.toString(cronWithoutSeconds);
+    try {
+      const cron = cronstrue.toString(cronWithoutSeconds);
+      isValid(true);
+      return cron;
+    } catch (e) {
+      isValid(false);
+      return 'error: ' + errorMessage(e);
+    }
   };
 
   const selectClassName = 'px-2 py-1 border rounded bg-white dark:bg-gray-800 dark:border-gray-600';
