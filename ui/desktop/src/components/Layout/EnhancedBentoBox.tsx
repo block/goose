@@ -339,6 +339,36 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   onAddContainer,
   onReorderContainers 
 }) => {
+  // Enhanced container removal handler that destroys child windows
+  const handleContainerRemoval = useCallback((containerId: string) => {
+    console.log('🔍 EnhancedBentoBox: Removing container:', containerId);
+    
+    // Find the container being removed
+    const containerToRemove = containers.find(c => c.id === containerId);
+    
+    if (containerToRemove && containerToRemove.contentType === 'web-viewer') {
+      console.log('🔍 EnhancedBentoBox: Container is web-viewer, destroying child window');
+      
+      // Get the child window registry
+      const childWindowRegistry = (window as any).childWindowRegistry;
+      
+      if (childWindowRegistry && containerToRemove.contentProps?.initialUrl) {
+        // Determine if it's allowAllSites based on the URL or default to true
+        const allowAllSites = containerToRemove.contentProps.allowAllSites !== false;
+        const initialUrl = containerToRemove.contentProps.initialUrl;
+        
+        console.log('🔍 EnhancedBentoBox: Destroying child window for URL:', initialUrl, 'allowAllSites:', allowAllSites);
+        
+        // Explicitly destroy the child window
+        childWindowRegistry.destroyWindowByUrl(initialUrl, allowAllSites);
+      } else {
+        console.warn('🔍 EnhancedBentoBox: Child window registry not available or no initial URL');
+      }
+    }
+    
+    // Call the original removal handler
+    onRemoveContainer(containerId);
+  }, [containers, onRemoveContainer]);
   const [layout, setLayout] = useState<LayoutType>('horizontal');
   const [showPopover, setShowPopover] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
@@ -537,7 +567,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
                   <DraggableContainer
                     key={`draggable-${container.id}`}
                     container={container}
-                    onRemove={onRemoveContainer}
+                    onRemove={handleContainerRemoval}
                     onResize={handleContainerResize}
                     layout={layout}
                     className="h-full"
@@ -553,7 +583,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
                 <DraggableContainer
                   key={container.id}
                   container={container}
-                  onRemove={onRemoveContainer}
+                  onRemove={handleContainerRemoval}
                   onResize={handleContainerResize}
                   layout={layout}
                   style={getContainerStyle(index)}

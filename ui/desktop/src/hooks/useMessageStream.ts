@@ -453,19 +453,52 @@ export function useMessageStream({
   const injectSidecarContext = useCallback((messages: Message[]): Message[] => {
     if (messages.length === 0) return messages;
     
-    // Get unified sidecar context from global window object if available
+    // Get unified sidecar context from global window object with validation
     const unifiedSidecarContext = (window as any).__unifiedSidecarContext;
-    if (!unifiedSidecarContext?.getSidecarContext) return messages;
+    
+    // Enhanced validation and debugging
+    if (!unifiedSidecarContext) {
+      console.log('🔧 useMessageStream: No unified sidecar context found on window object');
+      return messages;
+    }
+    
+    if (!unifiedSidecarContext.getSidecarContext) {
+      console.warn('🔧 useMessageStream: Unified sidecar context missing getSidecarContext method');
+      return messages;
+    }
+    
+    // Log context info for debugging
+    console.log('🔧 useMessageStream: Found unified sidecar context:', {
+      contextId: unifiedSidecarContext.contextId,
+      version: unifiedSidecarContext.version,
+      hasGetSidecarContext: !!unifiedSidecarContext.getSidecarContext,
+      hasGetActiveSidecars: !!unifiedSidecarContext.getActiveSidecars
+    });
     
     try {
+      // First check how many active sidecars we have
+      const activeSidecars = unifiedSidecarContext.getActiveSidecars ? unifiedSidecarContext.getActiveSidecars() : [];
+      console.log('🔧 useMessageStream: Active sidecars before context generation:', activeSidecars.length, 
+        activeSidecars.map(s => ({ id: s.id, type: s.type, title: s.title })));
+      
       const contextInfo = unifiedSidecarContext.getSidecarContext();
-      if (!contextInfo.trim()) return messages;
+      console.log('🔧 useMessageStream: Generated context info length:', contextInfo.length, 'chars');
+      
+      if (!contextInfo.trim()) {
+        console.log('🔧 useMessageStream: Context info is empty, not injecting');
+        return messages;
+      }
       
       // Find the last user message
       const lastMessageIndex = messages.length - 1;
       const lastMessage = messages[lastMessageIndex];
       
-      if (lastMessage.role !== 'user') return messages;
+      if (lastMessage.role !== 'user') {
+        console.log('🔧 useMessageStream: Last message is not from user, not injecting context');
+        return messages;
+      }
+      
+      console.log('🔧 useMessageStream: Injecting context into user message');
       
       // Clone the messages array and modify only the last user message
       const modifiedMessages = [...messages];
@@ -482,9 +515,10 @@ export function useMessageStream({
         })
       };
       
+      console.log('🔧 useMessageStream: Successfully injected sidecar context');
       return modifiedMessages;
     } catch (error) {
-      console.warn('Error injecting sidecar context:', error);
+      console.error('🔧 useMessageStream: Error injecting sidecar context:', error);
       return messages;
     }
   }, []);

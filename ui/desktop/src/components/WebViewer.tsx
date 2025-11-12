@@ -13,6 +13,7 @@ class ChildWindowRegistry {
     url: string;
     refCount: number;
     lastUsed: number;
+    componentId: string; // Track which component instance owns this window
   }>();
 
   static getInstance(): ChildWindowRegistry {
@@ -22,65 +23,64 @@ class ChildWindowRegistry {
     return ChildWindowRegistry.instance;
   }
 
-  // Generate a stable key for a WebViewer instance
-  private getKey(initialUrl: string, allowAllSites: boolean): string {
-    return `${allowAllSites ? 'main' : 'sidecar'}-${initialUrl}`;
+  // Generate a stable key for a WebViewer instance using component ID to ensure uniqueness
+  private getKey(componentId: string): string {
+    return `window-${componentId}`;
   }
 
-  // Register or reuse a child window
-  registerWindow(initialUrl: string, allowAllSites: boolean, windowId?: string): string {
-    const key = this.getKey(initialUrl, allowAllSites);
+  // Register a new window for a specific component instance
+  registerWindow(componentId: string, initialUrl: string, allowAllSites: boolean, windowId?: string): string {
+    const key = this.getKey(componentId);
     const existing = this.windows.get(key);
 
     if (existing) {
-      // Reuse existing window
+      // This component already has a window registered, just update ref count
       existing.refCount++;
       existing.lastUsed = Date.now();
-      console.log(`[ChildWindowRegistry] Reusing existing window for ${key}, refCount: ${existing.refCount}`);
+      existing.url = initialUrl; // Update URL in case it changed
+      console.log(`[ChildWindowRegistry] Reusing existing window for component ${componentId}, refCount: ${existing.refCount}`);
       return existing.windowId;
     } else {
-      // Register new window
+      // Register new window for this component
       const newWindowId = windowId || `webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       this.windows.set(key, {
         windowId: newWindowId,
         url: initialUrl,
         refCount: 1,
-        lastUsed: Date.now()
+        lastUsed: Date.now(),
+        componentId: componentId
       });
-      console.log(`[ChildWindowRegistry] Registered new window for ${key}, windowId: ${newWindowId}`);
+      console.log(`[ChildWindowRegistry] Registered new window for component ${componentId}, windowId: ${newWindowId}`);
       return newWindowId;
     }
   }
 
-  // Unregister a window (decrease ref count)
-  unregisterWindow(initialUrl: string, allowAllSites: boolean): boolean {
-    const key = this.getKey(initialUrl, allowAllSites);
+  // Unregister a window (decrease ref count) - NEVER auto-destroy
+  unregisterWindow(componentId: string): boolean {
+    const key = this.getKey(componentId);
     const existing = this.windows.get(key);
 
     if (existing) {
       existing.refCount--;
-      console.log(`[ChildWindowRegistry] Unregistered window for ${key}, refCount: ${existing.refCount}`);
+      console.log(`[ChildWindowRegistry] Unregistered window for component ${componentId}, refCount: ${existing.refCount}`);
       
-      if (existing.refCount <= 0) {
-        // No more references, can be cleaned up
-        this.windows.delete(key);
-        console.log(`[ChildWindowRegistry] Window ${key} marked for cleanup`);
-        return true; // Should destroy
-      }
+      // NEVER auto-destroy windows - they should only be destroyed by explicit user action
+      // Keep the window in registry even with 0 refs for potential reuse
+      console.log(`[ChildWindowRegistry] Window for component ${componentId} kept alive (refCount: ${existing.refCount})`);
     }
     
-    return false; // Should not destroy
+    return false; // NEVER auto-destroy
   }
 
-  // Check if a window exists and is being used
-  hasWindow(initialUrl: string, allowAllSites: boolean): boolean {
-    const key = this.getKey(initialUrl, allowAllSites);
+  // Check if a window exists for a component
+  hasWindow(componentId: string): boolean {
+    const key = this.getKey(componentId);
     return this.windows.has(key);
   }
 
-  // Get window ID if it exists
-  getWindowId(initialUrl: string, allowAllSites: boolean): string | null {
-    const key = this.getKey(initialUrl, allowAllSites);
+  // Get window ID if it exists for a component
+  getWindowId(componentId: string): string | null {
+    const key = this.getKey(componentId);
     const existing = this.windows.get(key);
     return existing ? existing.windowId : null;
   }
@@ -101,9 +101,67 @@ class ChildWindowRegistry {
       }
     }
   }
+
+  // Force cleanup all windows (called when parent window is closing)
+  forceCleanupAll(): void {
+    console.log(`[ChildWindowRegistry] Force cleaning up all ${this.windows.size} windows`);
+    
+    for (const [key, windowInfo] of this.windows.entries()) {
+      console.log(`[ChildWindowRegistry] Force destroying window ${key} (${windowInfo.windowId})`);
+      
+      // Destroy the actual window
+      if (typeof window !== 'undefined' && (window as any).electron) {
+        (window as any).electron.destroyChildWebViewer(windowInfo.windowId).catch(console.error);
+      }
+    }
+    
+    // Clear the registry
+    this.windows.clear();
+    console.log(`[ChildWindowRegistry] Force cleanup completed`);
+  }
+
+  // Destroy a specific window by component ID (called when user explicitly removes container)
+  destroyWindowByComponentId(componentId: string): void {
+    const key = this.getKey(componentId);
+    const existing = this.windows.get(key);
+
+    if (existing) {
+      console.log(`[ChildWindowRegistry] Explicitly destroying window ${key} (${existing.windowId})`);
+      
+      // Remove from registry
+      this.windows.delete(key);
+      
+      // Destroy the actual window
+      if (typeof window !== 'undefined' && (window as any).electron) {
+        (window as any).electron.destroyChildWebViewer(existing.windowId).catch(console.error);
+      }
+      
+      console.log(`[ChildWindowRegistry] Window ${key} explicitly destroyed`);
+    } else {
+      console.log(`[ChildWindowRegistry] No window found for ${key} to destroy`);
+    }
+  }
+
+  // Find and destroy window by URL (for backward compatibility with container removal)
+  destroyWindowByUrl(initialUrl: string, allowAllSites: boolean): void {
+    // Find the window with matching URL
+    for (const [key, windowInfo] of this.windows.entries()) {
+      if (windowInfo.url === initialUrl) {
+        console.log(`[ChildWindowRegistry] Found window with URL ${initialUrl}, destroying component ${windowInfo.componentId}`);
+        this.destroyWindowByComponentId(windowInfo.componentId);
+        return;
+      }
+    }
+    console.log(`[ChildWindowRegistry] No window found with URL ${initialUrl} to destroy`);
+  }
 }
 
 const childWindowRegistry = ChildWindowRegistry.getInstance();
+
+// Expose the registry globally for container removal
+if (typeof window !== 'undefined') {
+  (window as any).childWindowRegistry = childWindowRegistry;
+}
 
 interface WebViewerProps {
   initialUrl?: string;
@@ -242,23 +300,23 @@ export function WebViewer({
       console.log(`[WebViewer-${childWindowId.current}] Starting createOrReuseChildWindow (attempt ${retryCount + 1})`);
 
       try {
-        // Check if window already exists (for reuse case) - use the same URL as registration
-        const existingWindow = childWindowRegistry.hasWindow(actualRegistryUrl, allowAllSites);
+        // Check if this component already has a window (for reuse case)
+        const existingWindow = childWindowRegistry.hasWindow(childWindowId.current);
         
-        console.log(`[WebViewer-${childWindowId.current}] Checking for existing window with URL: ${actualRegistryUrl}, exists: ${existingWindow}`);
+        console.log(`[WebViewer-${childWindowId.current}] Checking for existing window for component: ${childWindowId.current}, exists: ${existingWindow}`);
         
         if (existingWindow) {
           console.log(`[WebViewer-${childWindowId.current}] Found existing window in registry, attempting to reuse`);
           
           // Get the existing window ID from the registry
-          const existingWindowId = childWindowRegistry.getWindowId(actualRegistryUrl, allowAllSites);
+          const existingWindowId = childWindowRegistry.getWindowId(childWindowId.current);
           if (existingWindowId) {
             // Update our window ID to match the existing one
             childWindowId.current = existingWindowId;
             console.log(`[WebViewer-${childWindowId.current}] Updated window ID to match existing registry entry`);
             
             // Register ourselves as another user of this window
-            childWindowRegistry.registerWindow(actualRegistryUrl, allowAllSites, existingWindowId);
+            childWindowRegistry.registerWindow(childWindowId.current, actualRegistryUrl, allowAllSites, existingWindowId);
             console.log(`[WebViewer-${childWindowId.current}] Registered as additional user of existing window`);
             
             setChildWindowCreated(true);
@@ -316,7 +374,7 @@ export function WebViewer({
           }
           
           // NOW register the window in the registry since it was successfully created
-          childWindowRegistry.registerWindow(actualRegistryUrl, allowAllSites, childWindowId.current);
+          childWindowRegistry.registerWindow(childWindowId.current, actualRegistryUrl, allowAllSites, childWindowId.current);
           console.log(`[WebViewer-${childWindowId.current}] Registered successfully created window in registry`);
           
           setChildWindowCreated(true);
@@ -355,97 +413,124 @@ export function WebViewer({
     };
   }, [url, isVisible, actualRegistryUrl, allowAllSites]);
 
-  // Register/unregister with WebViewer context for AI prompt injection
+  // Consolidated context registration and updates
   useEffect(() => {
-    if (!webViewerContext || !childWindowCreated) return;
+    if (!childWindowCreated) return;
+
+    console.log(`[WebViewer-${childWindowId.current}] Starting context registration process`);
     
-    const webViewerInfo = {
+    // Prepare common info
+    const commonInfo = {
       id: childWindowId.current,
       url: actualUrl || url,
       title: pageTitle || 'Loading...',
       domain: getDomainFromUrl(actualUrl || url),
       isSecure: isSecure,
       isLocalhost: isLocalhostUrl(actualUrl || url),
-      lastUpdated: new Date(),
-      type: (allowAllSites ? 'main' : 'sidecar') as 'sidecar' | 'main',
     };
 
-    webViewerContext.registerWebViewer(webViewerInfo);
-    console.log('[WebViewer] Registered with context:', webViewerInfo);
+    // Register with WebViewer context if available
+    if (webViewerContext) {
+      const webViewerInfo = {
+        ...commonInfo,
+        lastUpdated: new Date(),
+        type: (allowAllSites ? 'main' : 'sidecar') as 'sidecar' | 'main',
+      };
 
+      console.log(`[WebViewer-${childWindowId.current}] Registering with WebViewer context:`, webViewerInfo);
+      webViewerContext.registerWebViewer(webViewerInfo);
+    } else {
+      console.warn(`[WebViewer-${childWindowId.current}] WebViewer context not available for registration`);
+    }
+
+    // Register with Unified Sidecar context if available
+    if (unifiedSidecarContext) {
+      const sidecarInfo = {
+        ...commonInfo,
+        type: 'web-viewer' as const,
+        canGoBack: canGoBack,
+        canGoForward: canGoForward,
+        isLoading: isLoading,
+        timestamp: Date.now(),
+      };
+
+      console.log(`[WebViewer-${childWindowId.current}] Registering with Unified Sidecar context:`, sidecarInfo);
+      unifiedSidecarContext.registerSidecar(sidecarInfo);
+    } else {
+      console.warn(`[WebViewer-${childWindowId.current}] Unified Sidecar context not available for registration`);
+    }
+
+    // Cleanup function
     return () => {
-      webViewerContext.unregisterWebViewer(childWindowId.current);
-      console.log('[WebViewer] Unregistered from context:', childWindowId.current);
+      console.log(`[WebViewer-${childWindowId.current}] Unregistering from contexts`);
+      
+      if (webViewerContext) {
+        webViewerContext.unregisterWebViewer(childWindowId.current);
+        console.log(`[WebViewer-${childWindowId.current}] Unregistered from WebViewer context`);
+      }
+      
+      if (unifiedSidecarContext) {
+        unifiedSidecarContext.unregisterSidecar(childWindowId.current);
+        console.log(`[WebViewer-${childWindowId.current}] Unregistered from Unified Sidecar context`);
+      }
     };
-  }, [webViewerContext, childWindowCreated, allowAllSites]);
+  }, [webViewerContext, unifiedSidecarContext, childWindowCreated, allowAllSites]);
 
-  // Update WebViewer context when URL or title changes (debounced)
+  // Consolidated context updates (debounced)
   useEffect(() => {
-    if (!webViewerContext || !childWindowCreated) return;
+    if (!childWindowCreated) return;
 
     const updateTimeout = setTimeout(() => {
-      webViewerContext.updateWebViewer(childWindowId.current, {
+      console.log(`[WebViewer-${childWindowId.current}] Updating contexts with latest state`);
+      
+      // Common update info
+      const commonUpdates = {
         url: actualUrl || url,
         title: pageTitle || 'Loading...',
         domain: getDomainFromUrl(actualUrl || url),
         isSecure: isSecure,
         isLocalhost: isLocalhostUrl(actualUrl || url),
-      });
+      };
+
+      // Update WebViewer context
+      if (webViewerContext) {
+        webViewerContext.updateWebViewer(childWindowId.current, commonUpdates);
+        console.log(`[WebViewer-${childWindowId.current}] Updated WebViewer context`);
+      }
+
+      // Update Unified Sidecar context
+      if (unifiedSidecarContext) {
+        const sidecarUpdates = {
+          ...commonUpdates,
+          canGoBack: canGoBack,
+          canGoForward: canGoForward,
+          isLoading: isLoading,
+          timestamp: Date.now(),
+        };
+        
+        unifiedSidecarContext.updateSidecar(childWindowId.current, sidecarUpdates);
+        console.log(`[WebViewer-${childWindowId.current}] Updated Unified Sidecar context`);
+      }
     }, 100); // Debounce updates to prevent rapid re-renders
 
     return () => clearTimeout(updateTimeout);
-  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure, url]);
+  }, [
+    webViewerContext, 
+    unifiedSidecarContext, 
+    childWindowCreated, 
+    actualUrl, 
+    url,
+    pageTitle, 
+    isSecure, 
+    canGoBack, 
+    canGoForward, 
+    isLoading
+  ]);
 
-  // Register/unregister with Unified Sidecar context for comprehensive AI context
-  useEffect(() => {
-    if (!unifiedSidecarContext || !childWindowCreated) return;
-    
-    const sidecarInfo = {
-      id: childWindowId.current,
-      type: 'web-viewer' as const,
-      title: pageTitle || 'Web Browser',
-      url: actualUrl || url,
-      domain: getDomainFromUrl(actualUrl || url),
-      isSecure: isSecure,
-      canGoBack: canGoBack,
-      canGoForward: canGoForward,
-      isLoading: isLoading,
-      timestamp: Date.now(),
-    };
-
-    unifiedSidecarContext.registerSidecar(sidecarInfo);
-    console.log('[WebViewer] Registered with unified sidecar context:', sidecarInfo);
-
-    return () => {
-      unifiedSidecarContext.unregisterSidecar(childWindowId.current);
-      console.log('[WebViewer] Unregistered from unified sidecar context:', childWindowId.current);
-    };
-  }, [unifiedSidecarContext, childWindowCreated]);
-
-  // Update Unified Sidecar context when state changes (debounced)
-  useEffect(() => {
-    if (!unifiedSidecarContext || !childWindowCreated) return;
-
-    const updateTimeout = setTimeout(() => {
-      unifiedSidecarContext.updateSidecar(childWindowId.current, {
-        title: pageTitle || 'Web Browser',
-        url: actualUrl || url,
-        domain: getDomainFromUrl(actualUrl || url),
-        isSecure: isSecure,
-        canGoBack: canGoBack,
-        canGoForward: canGoForward,
-        isLoading: isLoading,
-        timestamp: Date.now(),
-      });
-    }, 100); // Debounce updates to prevent rapid re-renders
-
-    return () => clearTimeout(updateTimeout);
-  }, [unifiedSidecarContext, childWindowCreated, actualUrl, pageTitle, isSecure, canGoBack, canGoForward, isLoading]);
-
-  // Cleanup child window on component unmount - but only unregister from registry, don't destroy the actual window
+  // Handle cleanup on component unmount - ONLY unregister from contexts, NEVER destroy windows
   useEffect(() => {
     const cleanup = async () => {
-      console.log(`[WebViewer-${childWindowId.current}] Component unmounting, unregistering from registry`);
+      console.log(`[WebViewer-${childWindowId.current}] Component unmounting - unregistering from contexts only`);
       
       // Unregister from contexts first
       if (webViewerContext) {
@@ -455,13 +540,9 @@ export function WebViewer({
         unifiedSidecarContext.unregisterSidecar(childWindowId.current);
       }
       
-      // Unregister from the registry but DON'T destroy the window
-      // The window will persist and be reused by the next component instance
-      const shouldDestroy = childWindowRegistry.unregisterWindow(actualRegistryUrl, allowAllSites);
-      console.log(`[WebViewer-${childWindowId.current}] Registry unregister result - shouldDestroy:`, shouldDestroy, "(but we're not destroying)");
-      
-      // NOTE: We intentionally do NOT destroy the child window here
-      // It will be reused by the next component instance or cleaned up by the periodic cleanup
+      // Unregister from the registry but NEVER destroy the window automatically
+      childWindowRegistry.unregisterWindow(childWindowId.current);
+      console.log(`[WebViewer-${childWindowId.current}] Unregistered from registry - window kept alive`);
     };
 
     return () => {
@@ -469,9 +550,52 @@ export function WebViewer({
     };
   }, [childWindowCreated, webViewerContext, unifiedSidecarContext, actualRegistryUrl, allowAllSites]);
 
-  // Update child window bounds when container resizes or window moves (throttled)
+  // Update child window bounds when container resizes or window moves (enhanced for drag operations)
   useEffect(() => {
     if (!childWindowCreated || !containerRef.current) return;
+
+    let lastKnownBounds = { x: 0, y: 0, width: 0, height: 0 };
+    let isUpdating = false;
+
+    const immediateUpdateBounds = () => {
+      if (isUpdating || !containerRef.current || !childWindowId.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      
+      // Use exact container bounds for child window positioning
+      const adjustedBounds = {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(Math.max(rect.width, 300)), // Minimum width
+        height: Math.round(Math.max(rect.height, 200)), // Minimum height
+      };
+      
+      // Only update if bounds actually changed (avoid unnecessary calls)
+      if (adjustedBounds.x === lastKnownBounds.x && 
+          adjustedBounds.y === lastKnownBounds.y &&
+          adjustedBounds.width === lastKnownBounds.width &&
+          adjustedBounds.height === lastKnownBounds.height) {
+        return;
+      }
+      
+      // Validate bounds are positive and reasonable
+      if (adjustedBounds.width > 0 && adjustedBounds.height > 0 && 
+          adjustedBounds.x >= 0 && adjustedBounds.y >= 0) {
+        
+        isUpdating = true;
+        lastKnownBounds = { ...adjustedBounds };
+        
+        console.log(`[WebViewer-${childWindowId.current}] Immediate bounds update:`, adjustedBounds);
+        
+        window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds)
+          .catch(console.error)
+          .finally(() => {
+            isUpdating = false;
+          });
+      } else {
+        console.warn(`[WebViewer-${childWindowId.current}] Invalid bounds calculated:`, adjustedBounds);
+      }
+    };
 
     const throttledUpdateBounds = () => {
       // Clear any pending update
@@ -479,53 +603,37 @@ export function WebViewer({
         clearTimeout(updateBoundsTimeoutRef.current);
       }
       
-      // Schedule new update (throttled to max 60fps)
-      updateBoundsTimeoutRef.current = setTimeout(() => {
-        if (containerRef.current && childWindowId.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          
-          // Use exact container bounds for child window positioning
-          const adjustedBounds = {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(Math.max(rect.width, 300)), // Minimum width
-            height: Math.round(Math.max(rect.height, 200)), // Minimum height
-          };
-          
-          // Validate bounds are positive and reasonable
-          if (adjustedBounds.width > 0 && adjustedBounds.height > 0 && 
-              adjustedBounds.x >= 0 && adjustedBounds.y >= 0) {
-            console.log(`[WebViewer-${childWindowId.current}] Updating child window bounds:`, adjustedBounds);
-            window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds).catch(console.error);
-          } else {
-            console.warn(`[WebViewer-${childWindowId.current}] Invalid bounds calculated:`, adjustedBounds);
-          }
-        }
-      }, 16); // ~60fps throttling
+      // For drag operations, use immediate updates
+      updateBoundsTimeoutRef.current = setTimeout(immediateUpdateBounds, 8); // ~120fps for smoother drag
     };
 
     // Initial bounds update
-    throttledUpdateBounds();
+    immediateUpdateBounds();
 
     // Set up resize observer for the container
-    const resizeObserver = new ResizeObserver(throttledUpdateBounds);
+    const resizeObserver = new ResizeObserver(() => {
+      immediateUpdateBounds(); // Immediate for resize
+    });
     resizeObserver.observe(containerRef.current);
 
     // Listen for window resize, scroll, and focus events
-    window.addEventListener('resize', throttledUpdateBounds);
+    window.addEventListener('resize', immediateUpdateBounds);
     window.addEventListener('scroll', throttledUpdateBounds);
     window.addEventListener('focus', throttledUpdateBounds);
     window.addEventListener('blur', throttledUpdateBounds);
     
-    // Use MutationObserver with broader scope to catch drag operations
+    // Enhanced MutationObserver to catch all positioning changes
     const mutationObserver = new MutationObserver((mutations) => {
-      // Check if any mutations affect positioning
       let shouldUpdate = false;
+      
       for (const mutation of mutations) {
         // Check for style changes that might affect positioning
-        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-          shouldUpdate = true;
-          break;
+        if (mutation.type === 'attributes') {
+          const attrName = mutation.attributeName;
+          if (attrName === 'style' || attrName === 'class' || attrName === 'data-x' || attrName === 'data-y') {
+            shouldUpdate = true;
+            break;
+          }
         }
         // Check for DOM structure changes that might affect layout
         if (mutation.type === 'childList') {
@@ -533,45 +641,45 @@ export function WebViewer({
           break;
         }
       }
+      
       if (shouldUpdate) {
-        throttledUpdateBounds();
+        immediateUpdateBounds(); // Immediate for DOM changes
       }
     });
     
-    // Observe the container and walk up the DOM tree to catch drag operations
+    // Observe the container and all its ancestors for positioning changes
     mutationObserver.observe(containerRef.current, {
       attributes: true,
-      attributeFilter: ['style', 'class']
+      attributeFilter: ['style', 'class', 'data-x', 'data-y', 'transform'],
+      childList: true,
+      subtree: false
     });
     
-    // Also observe the parent container (walk up to find the bento container)
-    let currentParent = containerRef.current.parentElement;
-    while (currentParent) {
-      if (currentParent.classList.contains('relative') || 
-          currentParent.classList.contains('flex-1') ||
-          currentParent.getAttribute('data-container-type')) {
-        resizeObserver.observe(currentParent);
-        break;
-      }
-      currentParent = currentParent.parentElement;
-    }
-    
-    // Observe parent elements up to the bento box to catch drag/layout changes
+    // Walk up the DOM tree and observe all ancestors that might affect positioning
     let ancestorElement = containerRef.current.parentElement;
     let depth = 0;
-    const maxDepth = 5; // Limit depth to avoid performance issues
+    const maxDepth = 10; // Increased depth to catch more layout changes
+    const observedElements = [containerRef.current];
     
     while (ancestorElement && depth < maxDepth) {
+      // Observe this ancestor
       mutationObserver.observe(ancestorElement, {
         childList: true,
         attributes: true,
-        attributeFilter: ['style', 'class', 'transform']
+        attributeFilter: ['style', 'class', 'transform', 'data-x', 'data-y'],
+        subtree: false
       });
       
-      // Stop if we reach the bento container or main layout
-      if (ancestorElement.classList.contains('bento') || 
+      // Also observe with ResizeObserver for layout changes
+      resizeObserver.observe(ancestorElement);
+      observedElements.push(ancestorElement);
+      
+      // Stop if we reach the document body or a major layout boundary
+      if (ancestorElement.tagName === 'BODY' || 
+          ancestorElement.classList.contains('bento') || 
           ancestorElement.classList.contains('enhanced-bento') ||
-          ancestorElement.getAttribute('data-container-type')) {
+          ancestorElement.getAttribute('data-container-type') ||
+          ancestorElement.id === 'root') {
         break;
       }
       
@@ -579,36 +687,53 @@ export function WebViewer({
       depth++;
     }
     
-    // Also use an interval as a fallback to ensure bounds stay in sync
+    // Enhanced interval-based fallback with more frequent checks during potential drag operations
+    let intervalFrequency = 50; // Start with 50ms checks
+    let consecutiveNoChanges = 0;
+    
     const boundsCheckInterval = setInterval(() => {
-      if (containerRef.current && childWindowId.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        // Only update if position has actually changed
-        const currentBounds = {
-          x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(Math.max(rect.height, 200)),
-        };
+      if (!containerRef.current || !childWindowId.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const currentBounds = {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(Math.max(rect.height, 200)),
+      };
+      
+      // Check if position changed
+      if (currentBounds.x !== lastKnownBounds.x || 
+          currentBounds.y !== lastKnownBounds.y ||
+          currentBounds.width !== lastKnownBounds.width ||
+          currentBounds.height !== lastKnownBounds.height) {
         
-        // Store last bounds to detect changes
-        if (!containerRef.current.dataset.lastBounds) {
-          containerRef.current.dataset.lastBounds = JSON.stringify(currentBounds);
-          return;
-        }
-        
-        const lastBounds = JSON.parse(containerRef.current.dataset.lastBounds);
-        if (currentBounds.x !== lastBounds.x || 
-            currentBounds.y !== lastBounds.y ||
-            currentBounds.width !== lastBounds.width ||
-            currentBounds.height !== lastBounds.height) {
-          
-          console.log(`[WebViewer-${childWindowId.current}] Position changed, updating bounds:`, currentBounds);
-          containerRef.current.dataset.lastBounds = JSON.stringify(currentBounds);
-          window.electron.updateChildWebViewerBounds(childWindowId.current, currentBounds).catch(console.error);
+        console.log(`[WebViewer-${childWindowId.current}] Interval detected position change:`, currentBounds);
+        immediateUpdateBounds();
+        consecutiveNoChanges = 0;
+        intervalFrequency = 16; // Speed up during active changes (60fps)
+      } else {
+        consecutiveNoChanges++;
+        // Slow down if no changes detected for a while
+        if (consecutiveNoChanges > 20) {
+          intervalFrequency = Math.min(200, intervalFrequency * 1.1); // Slow down to max 200ms
         }
       }
-    }, 100); // Check every 100ms
+    }, intervalFrequency);
+
+    // Listen for mouse events that might indicate drag operations
+    const handleMouseMove = throttledUpdateBounds;
+    const handleMouseUp = immediateUpdateBounds;
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    // Listen for touch events for mobile drag operations
+    const handleTouchMove = throttledUpdateBounds;
+    const handleTouchEnd = immediateUpdateBounds;
+    
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       // Clear any pending bounds update
@@ -620,12 +745,19 @@ export function WebViewer({
       // Clear the bounds check interval
       clearInterval(boundsCheckInterval);
       
+      // Disconnect observers
       resizeObserver.disconnect();
       mutationObserver.disconnect();
-      window.removeEventListener('resize', throttledUpdateBounds);
+      
+      // Remove event listeners
+      window.removeEventListener('resize', immediateUpdateBounds);
       window.removeEventListener('scroll', throttledUpdateBounds);
       window.removeEventListener('focus', throttledUpdateBounds);
       window.removeEventListener('blur', throttledUpdateBounds);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
     };
   }, [childWindowCreated]);
 
@@ -1008,5 +1140,42 @@ export function WebViewer({
 setInterval(() => {
   childWindowRegistry.cleanup();
 }, 60000); // Cleanup every minute
+
+// Global cleanup handler for when the parent window closes
+if (typeof window !== 'undefined') {
+  let globalCleanupRegistered = false;
+  
+  const registerGlobalCleanup = () => {
+    if (globalCleanupRegistered) return;
+    globalCleanupRegistered = true;
+    
+    console.log('[ChildWindowRegistry] Registering global cleanup handlers');
+    
+    const forceCleanupAll = () => {
+      console.log('[ChildWindowRegistry] Global cleanup triggered - parent window closing');
+      childWindowRegistry.forceCleanupAll();
+    };
+    
+    // Listen for window close events
+    window.addEventListener('beforeunload', forceCleanupAll);
+    window.addEventListener('unload', forceCleanupAll);
+    
+    // Also listen for page visibility changes as a backup
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        // Small delay to see if it's just a tab switch or actual close
+        setTimeout(() => {
+          if (document.visibilityState === 'hidden') {
+            console.log('[ChildWindowRegistry] Page hidden for extended time, triggering cleanup');
+            forceCleanupAll();
+          }
+        }, 1000);
+      }
+    });
+  };
+  
+  // Register cleanup when the first WebViewer is loaded
+  registerGlobalCleanup();
+}
 
 export default WebViewer;

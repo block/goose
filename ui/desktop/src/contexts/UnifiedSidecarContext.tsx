@@ -94,11 +94,20 @@ interface UnifiedSidecarProviderProps {
 }
 
 export const UnifiedSidecarProvider: React.FC<UnifiedSidecarProviderProps> = ({ children }) => {
+  // Add context version for detecting stale contexts
+  const contextVersionRef = useRef(0);
+  const contextIdRef = useRef(`unified-sidecar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  
   // Debug component lifecycle
   React.useEffect(() => {
-    console.log('🔍 UnifiedSidecarProvider: Component MOUNTED');
+    console.log('🔍 UnifiedSidecarProvider: Component MOUNTED with ID:', contextIdRef.current);
     return () => {
-      console.log('🔍 UnifiedSidecarProvider: Component UNMOUNTING');
+      console.log('🔍 UnifiedSidecarProvider: Component UNMOUNTING, ID:', contextIdRef.current);
+      // Clean up global reference on unmount
+      if ((window as any).__unifiedSidecarContext?.contextId === contextIdRef.current) {
+        delete (window as any).__unifiedSidecarContext;
+        console.log('🔍 UnifiedSidecarProvider: Cleaned up global context reference');
+      }
       console.trace('UnifiedSidecarProvider unmount stack trace');
     };
   }, []);
@@ -107,39 +116,61 @@ export const UnifiedSidecarProvider: React.FC<UnifiedSidecarProviderProps> = ({ 
   const activeSidecarsRef = useRef<Map<string, SidecarInfo>>(new Map());
   
   // Use ref for the context value to maintain stable reference
-  const contextValueRef = useRef<UnifiedSidecarContextType>({} as UnifiedSidecarContextType);
+  const contextValueRef = useRef<UnifiedSidecarContextType & { contextId: string; version: number }>({} as any);
 
   const registerSidecar = useCallback((info: SidecarInfo) => {
-    console.log('🔧 UnifiedSidecarContext: Registering sidecar:', info.id, info.type);
+    console.log('🔧 UnifiedSidecarContext: Registering sidecar:', info.id, info.type, 'Context:', contextIdRef.current);
     activeSidecarsRef.current.set(info.id, { ...info, timestamp: Date.now() });
+    contextVersionRef.current++;
+    
+    // Debug: Log current active sidecars
+    console.log('🔧 UnifiedSidecarContext: Active sidecars after registration:', 
+      Array.from(activeSidecarsRef.current.keys()));
   }, []);
 
   const updateSidecar = useCallback((id: string, updates: Partial<SidecarInfo>) => {
     const existing = activeSidecarsRef.current.get(id);
     if (existing) {
-      console.log('🔧 UnifiedSidecarContext: Updating sidecar:', id, updates);
+      console.log('🔧 UnifiedSidecarContext: Updating sidecar:', id, updates, 'Context:', contextIdRef.current);
       activeSidecarsRef.current.set(id, { ...existing, ...updates, timestamp: Date.now() });
+      contextVersionRef.current++;
+    } else {
+      console.warn('🔧 UnifiedSidecarContext: Attempted to update non-existent sidecar:', id);
     }
   }, []);
 
   const unregisterSidecar = useCallback((id: string) => {
-    console.log('🔧 UnifiedSidecarContext: Unregistering sidecar:', id);
+    const existed = activeSidecarsRef.current.has(id);
+    console.log('🔧 UnifiedSidecarContext: Unregistering sidecar:', id, 'existed:', existed, 'Context:', contextIdRef.current);
     activeSidecarsRef.current.delete(id);
+    if (existed) {
+      contextVersionRef.current++;
+    }
+    
+    // Debug: Log remaining active sidecars
+    console.log('🔧 UnifiedSidecarContext: Active sidecars after unregistration:', 
+      Array.from(activeSidecarsRef.current.keys()));
   }, []);
 
   const getActiveSidecars = useCallback((): SidecarInfo[] => {
-    return Array.from(activeSidecarsRef.current.values());
+    const sidecars = Array.from(activeSidecarsRef.current.values());
+    console.log('🔧 UnifiedSidecarContext: getActiveSidecars called, returning:', sidecars.length, 'sidecars');
+    return sidecars;
   }, []);
 
   const getSidecarContext = useCallback((): string => {
     const sidecars = Array.from(activeSidecarsRef.current.values());
+    console.log('🔧 UnifiedSidecarContext: getSidecarContext called, found:', sidecars.length, 'sidecars', 
+      'Context:', contextIdRef.current, 'Version:', contextVersionRef.current);
     
     if (sidecars.length === 0) {
+      console.log('🔧 UnifiedSidecarContext: No sidecars found, returning empty context');
       return '';
     }
 
     // Sort by timestamp (most recent first)
     const sortedSidecars = sidecars.sort((a, b) => b.timestamp - a.timestamp);
+    console.log('🔧 UnifiedSidecarContext: Sorted sidecars:', sortedSidecars.map(s => ({ id: s.id, type: s.type, title: s.title })));
 
     let contextParts: string[] = [];
     
@@ -165,20 +196,41 @@ export const UnifiedSidecarProvider: React.FC<UnifiedSidecarProviderProps> = ({ 
     contextParts.push('Use this context to provide more relevant assistance based on the tools and content the user is actively working with. Reference specific files, URLs, or content when relevant to help the user with their current workflow.');
     contextParts.push('');
 
-    return contextParts.join('\n');
+    const finalContext = contextParts.join('\n');
+    console.log('🔧 UnifiedSidecarContext: Generated context length:', finalContext.length, 'chars');
+    return finalContext;
   }, []);
 
-  // Initialize context value
+  // Initialize context value with versioning
   contextValueRef.current = {
     registerSidecar,
     updateSidecar,
     unregisterSidecar,
     getSidecarContext,
     getActiveSidecars,
+    contextId: contextIdRef.current,
+    version: contextVersionRef.current,
   };
 
-  // Expose globally for useMessageStream access
-  (window as any).__unifiedSidecarContext = contextValueRef.current;
+  // Expose globally for useMessageStream access with better error handling
+  React.useEffect(() => {
+    const globalContext = {
+      ...contextValueRef.current,
+      contextId: contextIdRef.current,
+      version: contextVersionRef.current,
+    };
+    
+    (window as any).__unifiedSidecarContext = globalContext;
+    console.log('🔧 UnifiedSidecarProvider: Exposed global context with ID:', contextIdRef.current, 'Version:', contextVersionRef.current);
+    
+    return () => {
+      // Only clean up if this is still the current context
+      if ((window as any).__unifiedSidecarContext?.contextId === contextIdRef.current) {
+        delete (window as any).__unifiedSidecarContext;
+        console.log('🔧 UnifiedSidecarProvider: Cleaned up global context on effect cleanup');
+      }
+    };
+  }, []); // Empty dependency array - only run on mount/unmount
 
   return (
     <UnifiedSidecarContext.Provider value={contextValueRef.current}>
