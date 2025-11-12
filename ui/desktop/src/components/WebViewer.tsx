@@ -570,12 +570,29 @@ export function WebViewer({
       
       const rect = containerRef.current.getBoundingClientRect();
       
-      // Use exact container bounds for child window positioning
+      // Get the actual content area, accounting for any padding/borders
+      const computedStyle = window.getComputedStyle(containerRef.current);
+      const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+      const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+      const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+      const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+      const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+      const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+      const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+      const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+      
+      // Calculate the actual content area (excluding padding and borders)
+      const contentX = rect.x + borderLeft + paddingLeft;
+      const contentY = rect.y + borderTop + paddingTop;
+      const contentWidth = rect.width - borderLeft - borderRight - paddingLeft - paddingRight;
+      const contentHeight = rect.height - borderTop - borderBottom - paddingTop - paddingBottom;
+      
+      // Use exact content bounds for child window positioning
       const adjustedBounds = {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(Math.max(rect.width, 300)), // Minimum width
-        height: Math.round(Math.max(rect.height, 200)), // Minimum height
+        x: Math.round(contentX),
+        y: Math.round(contentY),
+        width: Math.round(Math.max(contentWidth, 300)), // Minimum width
+        height: Math.round(Math.max(contentHeight, 200)), // Minimum height
       };
       
       // Only update if bounds actually changed (avoid unnecessary calls) unless forced
@@ -716,11 +733,28 @@ export function WebViewer({
       if (!containerRef.current || !childWindowId.current) return;
       
       const rect = containerRef.current.getBoundingClientRect();
+      
+      // Use the same content area calculation as immediateUpdateBounds
+      const computedStyle = window.getComputedStyle(containerRef.current);
+      const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+      const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+      const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+      const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+      const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+      const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+      const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+      const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+      
+      const contentX = rect.x + borderLeft + paddingLeft;
+      const contentY = rect.y + borderTop + paddingTop;
+      const contentWidth = rect.width - borderLeft - borderRight - paddingLeft - paddingRight;
+      const contentHeight = rect.height - borderTop - borderBottom - paddingTop - paddingBottom;
+      
       const currentBounds = {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(Math.max(rect.height, 200)),
+        x: Math.round(contentX),
+        y: Math.round(contentY),
+        width: Math.round(Math.max(contentWidth, 300)),
+        height: Math.round(Math.max(contentHeight, 200)),
       };
       
       // Check if position changed
@@ -835,14 +869,31 @@ export function WebViewer({
       // Force bounds synchronization when showing the window
       const syncBoundsAndShow = async () => {
         try {
-          // First, ensure we have the correct bounds
+          // First, ensure we have the correct bounds using content area calculation
           if (containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
+            
+            // Get the actual content area, accounting for any padding/borders
+            const computedStyle = window.getComputedStyle(containerRef.current);
+            const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+            const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+            const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+            const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+            const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+            const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+            const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
+            const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+            
+            const contentX = rect.x + borderLeft + paddingLeft;
+            const contentY = rect.y + borderTop + paddingTop;
+            const contentWidth = rect.width - borderLeft - borderRight - paddingLeft - paddingRight;
+            const contentHeight = rect.height - borderTop - borderBottom - paddingTop - paddingBottom;
+            
             const adjustedBounds = {
-              x: Math.round(rect.x),
-              y: Math.round(rect.y),
-              width: Math.round(Math.max(rect.width, 300)),
-              height: Math.round(Math.max(rect.height, 200)),
+              x: Math.round(contentX),
+              y: Math.round(contentY),
+              width: Math.round(Math.max(contentWidth, 300)),
+              height: Math.round(Math.max(contentHeight, 200)),
             };
             
             console.log(`[WebViewer-${childWindowId.current}] Syncing bounds before show:`, adjustedBounds);
@@ -855,11 +906,28 @@ export function WebViewer({
             setTimeout(async () => {
               if (containerRef.current) {
                 const newRect = containerRef.current.getBoundingClientRect();
+                
+                // Recalculate content area for double-check
+                const newComputedStyle = window.getComputedStyle(containerRef.current);
+                const newPaddingLeft = parseFloat(newComputedStyle.paddingLeft) || 0;
+                const newPaddingTop = parseFloat(newComputedStyle.paddingTop) || 0;
+                const newPaddingRight = parseFloat(newComputedStyle.paddingRight) || 0;
+                const newPaddingBottom = parseFloat(newComputedStyle.paddingBottom) || 0;
+                const newBorderLeft = parseFloat(newComputedStyle.borderLeftWidth) || 0;
+                const newBorderTop = parseFloat(newComputedStyle.borderTopWidth) || 0;
+                const newBorderRight = parseFloat(newComputedStyle.borderRightWidth) || 0;
+                const newBorderBottom = parseFloat(newComputedStyle.borderBottomWidth) || 0;
+                
+                const newContentX = newRect.x + newBorderLeft + newPaddingLeft;
+                const newContentY = newRect.y + newBorderTop + newPaddingTop;
+                const newContentWidth = newRect.width - newBorderLeft - newBorderRight - newPaddingLeft - newPaddingRight;
+                const newContentHeight = newRect.height - newBorderTop - newBorderBottom - newPaddingTop - newPaddingBottom;
+                
                 const newBounds = {
-                  x: Math.round(newRect.x),
-                  y: Math.round(newRect.y),
-                  width: Math.round(Math.max(newRect.width, 300)),
-                  height: Math.round(Math.max(newRect.height, 200)),
+                  x: Math.round(newContentX),
+                  y: Math.round(newContentY),
+                  width: Math.round(Math.max(newContentWidth, 300)),
+                  height: Math.round(Math.max(newContentHeight, 200)),
                 };
                 
                 console.log(`[WebViewer-${childWindowId.current}] Double-checking bounds after show:`, newBounds);
