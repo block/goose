@@ -219,7 +219,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       ))}
 
       {/* Horizontal dock above chat input */}
-      <div className="flex justify-center">
+      <div className="flex justify-start pl-4">
         <div
           className={`transition-all duration-300 ease-out ${
             isHovering 
