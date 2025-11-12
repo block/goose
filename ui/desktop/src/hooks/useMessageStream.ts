@@ -449,6 +449,46 @@ export function useMessageStream({
     });
   }, [expandCustomCommandPills]);
 
+  // Function to inject webviewer context into the last user message before sending to API
+  const injectWebViewerContext = useCallback((messages: Message[]): Message[] => {
+    if (messages.length === 0) return messages;
+    
+    // Get webviewer context from global window object if available
+    const webViewerContext = (window as any).__webViewerContext;
+    if (!webViewerContext?.getWebViewerContext) return messages;
+    
+    try {
+      const contextInfo = webViewerContext.getWebViewerContext();
+      if (!contextInfo.trim()) return messages;
+      
+      // Find the last user message
+      const lastMessageIndex = messages.length - 1;
+      const lastMessage = messages[lastMessageIndex];
+      
+      if (lastMessage.role !== 'user') return messages;
+      
+      // Clone the messages array and modify only the last user message
+      const modifiedMessages = [...messages];
+      modifiedMessages[lastMessageIndex] = {
+        ...lastMessage,
+        content: lastMessage.content.map(content => {
+          if (content.type === 'text') {
+            return {
+              ...content,
+              text: `${contextInfo}\n\n---\n\n${content.text}`
+            };
+          }
+          return content;
+        })
+      };
+      
+      return modifiedMessages;
+    } catch (error) {
+      console.warn('Error injecting webviewer context:', error);
+      return messages;
+    }
+  }, []);
+
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
@@ -461,7 +501,10 @@ export function useMessageStream({
         abortControllerRef.current = abortController;
 
         // Expand action pills in messages before sending to API
-        const expandedMessages = expandActionPillsInMessages(requestMessages);
+        let expandedMessages = expandActionPillsInMessages(requestMessages);
+        
+        // Inject webviewer context into the last user message before sending to API
+        expandedMessages = injectWebViewerContext(expandedMessages);
 
         // Send request to the server
         const response = await fetch(api, {
@@ -539,7 +582,7 @@ export function useMessageStream({
       }
     },
 
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages, injectWebViewerContext]
   );
 
   // Append a new message and send request

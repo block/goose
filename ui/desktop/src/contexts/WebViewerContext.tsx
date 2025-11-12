@@ -158,6 +158,14 @@ export const WebViewerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     getWebViewerContext,
   });
 
+  // Expose context globally so useMessageStream can access it
+  React.useEffect(() => {
+    (window as any).__webViewerContext = contextValue.current;
+    return () => {
+      delete (window as any).__webViewerContext;
+    };
+  }, []);
+
   return (
     <WebViewerContext.Provider value={contextValue.current}>
       {children}

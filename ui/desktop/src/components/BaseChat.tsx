@@ -329,21 +329,8 @@ function BaseChatContent({
       onMessageSubmit(combinedTextFromInput);
     }
 
-    // Inject webviewer context into the prompt if webviewers are active
-    let messageWithContext = combinedTextFromInput;
-    if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
-      try {
-        const contextInfo = webViewerContext.getWebViewerContext();
-        if (contextInfo.trim()) {
-          messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
-        }
-      } catch (error) {
-        console.warn('Error getting webviewer context:', error);
-        // Continue with original message if context fails
-      }
-    }
-
-    engineHandleSubmit(messageWithContext);
+    // Store the original user message in chat history (visible to user)
+    engineHandleSubmit(combinedTextFromInput);
   }, [recipeConfig, setHasStartedUsingRecipe, onMessageSubmit, engineHandleSubmit]);
 
   const toolCount = useToolCount(chat.sessionId);
