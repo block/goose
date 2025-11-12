@@ -28,6 +28,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import { WebViewerProvider } from './contexts/WebViewerContext';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, ConfigProvider } from './components/ConfigContext';
@@ -546,14 +547,16 @@ export function AppInner() {
             path="/"
             element={
               <ProviderGuard didSelectProvider={didSelectProvider}>
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="hub"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
-                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                </ChatProvider>
+                <WebViewerProvider>
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="hub"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
+                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                  </ChatProvider>
+                </WebViewerProvider>
               </ProviderGuard>
             }
           >

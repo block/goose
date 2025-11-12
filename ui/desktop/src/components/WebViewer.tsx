@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
+import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
 
 interface WebViewerProps {
   initialUrl?: string;
@@ -85,6 +86,9 @@ export function WebViewer({
   const childWindowId = useRef(`webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const containerRef = useRef<HTMLDivElement>(null);
   const updateBoundsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // WebViewer context for AI prompt injection
+  const webViewerContext = useWebViewerContextOptional();
   
   // Initialize from localStorage or use initialUrl
   const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
@@ -184,10 +188,53 @@ export function WebViewer({
     };
   }, [url, isVisible]);
 
+  // Register/unregister with WebViewer context for AI prompt injection
+  useEffect(() => {
+    if (!webViewerContext || !childWindowCreated || !actualUrl) return;
+    
+    const webViewerInfo = {
+      id: childWindowId.current,
+      url: actualUrl,
+      title: pageTitle || 'Loading...',
+      domain: getDomainFromUrl(actualUrl),
+      isSecure: isSecure,
+      isLocalhost: isLocalhostUrl(actualUrl),
+      lastUpdated: new Date(),
+      type: (allowAllSites ? 'main' : 'sidecar') as 'sidecar' | 'main',
+    };
+
+    webViewerContext.registerWebViewer(webViewerInfo);
+    console.log('[WebViewer] Registered with context:', webViewerInfo);
+
+    return () => {
+      webViewerContext.unregisterWebViewer(childWindowId.current);
+      console.log('[WebViewer] Unregistered from context:', childWindowId.current);
+    };
+  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure, allowAllSites]);
+
+  // Update WebViewer context when URL or title changes
+  useEffect(() => {
+    if (!webViewerContext || !childWindowCreated || !actualUrl) return;
+
+    webViewerContext.updateWebViewer(childWindowId.current, {
+      url: actualUrl,
+      title: pageTitle || 'Loading...',
+      domain: getDomainFromUrl(actualUrl),
+      isSecure: isSecure,
+      isLocalhost: isLocalhostUrl(actualUrl),
+    });
+  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure]);
+
   // Cleanup child window on component unmount with robust error handling
   useEffect(() => {
     const cleanup = async () => {
       console.log('WebViewer component unmounting, cleaning up child window:', childWindowId.current);
+      
+      // Unregister from context first
+      if (webViewerContext) {
+        webViewerContext.unregisterWebViewer(childWindowId.current);
+      }
+      
       if (childWindowId.current && childWindowCreated) {
         try {
           // First hide the child window
@@ -210,7 +257,7 @@ export function WebViewer({
     return () => {
       cleanup();
     };
-  }, [childWindowCreated]);
+  }, [childWindowCreated, webViewerContext]);
 
   // Update child window bounds when container resizes (throttled)
   useEffect(() => {

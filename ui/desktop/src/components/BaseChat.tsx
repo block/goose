@@ -67,6 +67,7 @@ import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { SidecarInvoker } from './Layout/SidecarInvoker';
 import { useSidecar } from './SidecarLayout';
+import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -124,6 +125,9 @@ function BaseChatContent({
 
   // Sidecar functionality
   const sidecar = useSidecar();
+
+  // WebViewer context for prompt injection
+  const webViewerContext = useWebViewerContextOptional();
 
   const handleShowLocalhost = () => {
     console.log('Localhost viewer requested');
@@ -325,7 +329,16 @@ function BaseChatContent({
       onMessageSubmit(combinedTextFromInput);
     }
 
-    engineHandleSubmit(combinedTextFromInput);
+    // Inject webviewer context into the prompt if webviewers are active
+    let messageWithContext = combinedTextFromInput;
+    if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
+      const contextInfo = webViewerContext.getWebViewerContext();
+      if (contextInfo.trim()) {
+        messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
+      }
+    }
+
+    engineHandleSubmit(messageWithContext);
   };
 
   const toolCount = useToolCount(chat.sessionId);
