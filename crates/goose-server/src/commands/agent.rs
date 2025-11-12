@@ -61,7 +61,8 @@ pub async fn run() -> Result<()> {
 
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Give time for GUI to render before doing autostart
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         tunnel_manager.check_auto_start().await;
     });
 
