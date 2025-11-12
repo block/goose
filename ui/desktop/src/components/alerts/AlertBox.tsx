@@ -27,19 +27,17 @@ const alertStyles: Record<AlertType, string> = {
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   const { read } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
-  const [loadedThreshold, setLoadedThreshold] = useState<number | null>(null);
-  const [thresholdValue, setThresholdValue] = useState(
-    alert.autoCompactThreshold ? Math.max(1, Math.round(alert.autoCompactThreshold * 100)) : 80
-  );
+  const [loadedThreshold, setLoadedThreshold] = useState<number>(0.8);
+  const [thresholdValue, setThresholdValue] = useState(80);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const loadThreshold = async () => {
       try {
         const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-        if (threshold !== undefined && threshold !== null) {
-          setLoadedThreshold(threshold as number);
-          setThresholdValue(Math.max(1, Math.round((threshold as number) * 100)));
+        if (threshold !== undefined && threshold !== null && typeof threshold === 'number') {
+          setLoadedThreshold(threshold);
+          setThresholdValue(Math.max(1, Math.round(threshold * 100)));
         }
       } catch (err) {
         console.error('Error fetching auto-compact threshold:', err);
@@ -49,8 +47,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     loadThreshold();
   }, [read]);
 
-  const currentThreshold =
-    loadedThreshold !== null ? loadedThreshold : (alert.autoCompactThreshold ?? 0.8);
+  const currentThreshold = loadedThreshold;
 
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
