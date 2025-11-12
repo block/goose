@@ -27,12 +27,14 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 /// First normalizes version numbers (e.g., `-3-5-` → `-3.5-`), then strips:
 /// - `-20241022` (8-digit dates)
 /// - `-2024-04-09` (YYYY-MM-DD dates)
-/// - `-002` or `-v1.5` (version numbers)
+/// - `-002`, `-001` (patch versions: 3+ digits only, preserves model family like `-4`, `-4.5`)
+/// - `-v1.5` (semantic versions with "v" prefix)
 /// - `-exp`, `-exp-1219`, `-exp-01-21` (experimental suffixes)
 /// - `-preview`, `-preview-09`, `-preview-05-20` (preview suffixes)
 ///
 /// Examples:
 /// - `strip_version_suffix("claude-3-5-sonnet-20241022")` → `"claude-3.5-sonnet"`
+/// - `strip_version_suffix("claude-sonnet-4.5")` → `"claude-sonnet-4.5"` (preserves model family)
 /// - `strip_version_suffix("gpt-4-turbo-2024-04-09")` → `"gpt-4-turbo"`
 /// - `strip_version_suffix("gemini-1.5-pro-002")` → `"gemini-1.5-pro"`
 /// - `strip_version_suffix("gemini-2.0-flash-exp")` → `"gemini-2.0-flash"`
@@ -49,7 +51,8 @@ pub fn strip_version_suffix(model: &str) -> String {
         regex::Regex::new(r"-exp(-\d+)*$").unwrap(),      // -exp, -exp-1219, -exp-01-21
         regex::Regex::new(r"-\d{8}$").unwrap(),           // -20241022
         regex::Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // -2024-04-09
-        regex::Regex::new(r"-v?\d+(\.\d+)*$").unwrap(),   // -v1.5 or -002
+        regex::Regex::new(r"-v\d+(\.\d+)*$").unwrap(),    // -v1.5 (semantic versions with "v" prefix)
+        regex::Regex::new(r"-\d{3,}$").unwrap(),          // -002, -001 (patch versions: 3+ digits only)
     ];
 
     // Apply patterns multiple times to handle cases like "-preview-09-2025"
@@ -134,8 +137,12 @@ mod tests {
 
     #[test]
     fn test_strip_version_suffix_version_number() {
+        // Patch versions (3+ digits) are stripped
         assert_eq!(strip_version_suffix("gemini-1.5-pro-002"), "gemini-1.5-pro");
+        assert_eq!(strip_version_suffix("gemini-1.5-pro-001"), "gemini-1.5-pro");
+        // Semantic versions with "v" prefix are stripped
         assert_eq!(strip_version_suffix("model-v1.5"), "model");
+        assert_eq!(strip_version_suffix("model-v2.0"), "model");
     }
 
     #[test]
@@ -179,9 +186,11 @@ mod tests {
         // Anthropic models use dashes (3-5) while OpenRouter uses dots (3.5)
         assert_eq!(strip_version_suffix("claude-3-5-haiku"), "claude-3.5-haiku");
         assert_eq!(strip_version_suffix("claude-3-7-sonnet"), "claude-3.7-sonnet");
-        // When model name ends with version like "claude-haiku-4-5", it normalizes to 4.5 then strips it
-        assert_eq!(strip_version_suffix("claude-haiku-4-5"), "claude-haiku");
-        assert_eq!(strip_version_suffix("claude-opus-4-1"), "claude-opus");
+        // Model family numbers are preserved (not stripped)
+        assert_eq!(strip_version_suffix("claude-haiku-4-5"), "claude-haiku-4.5");
+        assert_eq!(strip_version_suffix("claude-opus-4-1"), "claude-opus-4.1");
+        assert_eq!(strip_version_suffix("claude-sonnet-4-5"), "claude-sonnet-4.5");
+        assert_eq!(strip_version_suffix("claude-sonnet-4"), "claude-sonnet-4");
     }
 
     #[test]
@@ -195,13 +204,28 @@ mod tests {
             strip_version_suffix("claude-3-7-sonnet-20250219"),
             "claude-3.7-sonnet"
         );
+        // Model family numbers are preserved, only dates stripped
         assert_eq!(
             strip_version_suffix("claude-haiku-4-5-20251001"),
-            "claude-haiku"
+            "claude-haiku-4.5"
         );
         assert_eq!(
             strip_version_suffix("claude-sonnet-4-5-20250929"),
-            "claude-sonnet"
+            "claude-sonnet-4.5"
         );
+    }
+
+    #[test]
+    fn test_preserve_model_family_versions() {
+        // Model family identifiers (1-2 digits) should be preserved
+        assert_eq!(strip_version_suffix("claude-sonnet-4.5"), "claude-sonnet-4.5");
+        assert_eq!(strip_version_suffix("claude-sonnet-4"), "claude-sonnet-4");
+        assert_eq!(strip_version_suffix("claude-haiku-4.5"), "claude-haiku-4.5");
+        assert_eq!(strip_version_suffix("gpt-4-turbo"), "gpt-4-turbo");
+        assert_eq!(strip_version_suffix("gpt-3.5-turbo"), "gpt-3.5-turbo");
+
+        // But patch versions (3+ digits) are still stripped
+        assert_eq!(strip_version_suffix("model-002"), "model");
+        assert_eq!(strip_version_suffix("model-123"), "model");
     }
 }

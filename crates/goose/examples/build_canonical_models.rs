@@ -115,25 +115,36 @@ fn main() -> Result<()> {
         }
         .to_string();
 
-        // Parse pricing
+        // Check if model supports tool calling
+        let supports_tools = model
+            .get("supported_parameters")
+            .and_then(|v| v.as_array())
+            .map(|params| {
+                params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"))
+            })
+            .unwrap_or(false);
+
+        // Parse pricing (convert strings to f64)
         let pricing_obj = model.get("pricing").unwrap();
         let pricing = Pricing {
             prompt: pricing_obj
                 .get("prompt")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+                .and_then(|s| s.parse().ok()),
             completion: pricing_obj
                 .get("completion")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+                .and_then(|s| s.parse().ok()),
             request: pricing_obj
                 .get("request")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+                .and_then(|s| s.parse().ok()),
             image: pricing_obj
                 .get("image")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+                .and_then(|s| s.parse().ok()),
             audio: None, // Not in OpenRouter API
             web_search: None, // Not in OpenRouter API
             internal_reasoning: None, // Not in OpenRouter API
@@ -149,6 +160,7 @@ fn main() -> Result<()> {
             input_modalities,
             output_modalities,
             tokenizer,
+            supports_tools,
             pricing,
         };
 

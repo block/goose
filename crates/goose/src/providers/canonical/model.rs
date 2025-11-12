@@ -1,55 +1,43 @@
 use serde::{Deserialize, Serialize};
 
-/// Pricing information for a model (all costs in USD per token as strings)
+/// Pricing information for a model (all costs in USD per token)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pricing {
     /// Cost per prompt token
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
+    pub prompt: Option<f64>,
 
     /// Cost per completion token
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion: Option<String>,
+    pub completion: Option<f64>,
 
     /// Cost per request
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub request: Option<String>,
+    pub request: Option<f64>,
 
     /// Cost per image
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
+    pub image: Option<f64>,
 
     /// Cost per audio token/unit
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub audio: Option<String>,
+    pub audio: Option<f64>,
 
     /// Cost for web search
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub web_search: Option<String>,
+    pub web_search: Option<f64>,
 
     /// Cost for internal reasoning tokens
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub internal_reasoning: Option<String>,
+    pub internal_reasoning: Option<f64>,
 
     /// Cost for input cache reads
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_cache_read: Option<String>,
+    pub input_cache_read: Option<f64>,
 
     /// Cost for input cache writes
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_cache_write: Option<String>,
-}
-
-impl Pricing {
-    /// Parse prompt cost as f64 (cost per token)
-    pub fn prompt_cost(&self) -> Option<f64> {
-        self.prompt.as_ref().and_then(|s| s.parse().ok())
-    }
-
-    /// Parse completion cost as f64 (cost per token)
-    pub fn completion_cost(&self) -> Option<f64> {
-        self.completion.as_ref().and_then(|s| s.parse().ok())
-    }
+    pub input_cache_write: Option<f64>,
 }
 
 /// Canonical representation of a model
@@ -78,6 +66,10 @@ pub struct CanonicalModel {
 
     /// Tokenizer type (e.g., "GPT", "Claude", "Gemini")
     pub tokenizer: String,
+
+    /// Whether the model supports tool calling
+    #[serde(default)]
+    pub supports_tools: bool,
 
     /// Pricing for this model
     pub pricing: Pricing,
@@ -120,11 +112,11 @@ impl CanonicalModel {
 
     /// Get prompt cost as f64 (cost per token)
     pub fn prompt_cost(&self) -> Option<f64> {
-        self.pricing.prompt_cost()
+        self.pricing.prompt
     }
 
     /// Get completion cost as f64 (cost per token)
     pub fn completion_cost(&self) -> Option<f64> {
-        self.pricing.completion_cost()
+        self.pricing.completion
     }
 }

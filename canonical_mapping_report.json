@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-11-12T19:02:28.386534+00:00",
+  "timestamp": "2025-11-12T19:12:39.449555+00:00",
   "unmapped_models": [
     {
       "provider": "openai",
@@ -3555,6 +3555,309 @@
     }
   ],
   "all_mappings": {
+    "openai": [
+      {
+        "provider_model": "chatgpt-4o-latest",
+        "canonical_model": "openai/chatgpt-4o-latest",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-0125",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-1106",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-16k",
+        "canonical_model": "openai/gpt-3.5-turbo-16k",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct-0914",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0125-preview",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0314",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0613",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-1106-preview",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo-2024-04-09",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo-preview",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-2025-04-14",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-mini",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-mini-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-nano",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-nano-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-05-13",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-08-06",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-11-20",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2024-10-01",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2024-12-17",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2025-06-03",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-2024-07-18",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview",
+        "canonical_model": "openai/gpt-4o-mini-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-mini-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-search-preview",
+        "canonical_model": "openai/gpt-4o-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-2025-08-07",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-codex",
+        "canonical_model": "openai/gpt-5-codex",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-mini",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-mini-2025-08-07",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-nano",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-nano-2025-08-07",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-pro",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-pro-2025-10-06",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o1",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-2024-12-17",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-pro",
+        "canonical_model": "openai/o1-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-pro-2025-03-19",
+        "canonical_model": "openai/o1-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o3",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-2025-04-16",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-deep-research",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-deep-research-2025-06-26",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-mini",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-mini-2025-01-31",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-pro",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-pro-2025-06-10",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-2025-04-16",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-deep-research",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-deep-research-2025-06-26",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      }
+    ],
+    "databricks": [],
     "anthropic": [
       {
         "provider_model": "claude-3-5-haiku-20241022",
@@ -3602,7 +3905,6 @@
         "verified": true
       }
     ],
-    "tetrate": [],
     "openrouter": [
       {
         "provider_model": "anthropic/claude-3-haiku",
@@ -3925,308 +4227,6 @@
         "verified": true
       }
     ],
-    "openai": [
-      {
-        "provider_model": "chatgpt-4o-latest",
-        "canonical_model": "openai/chatgpt-4o-latest",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo",
-        "canonical_model": "openai/gpt-3.5-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-0125",
-        "canonical_model": "openai/gpt-3.5-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-1106",
-        "canonical_model": "openai/gpt-3.5-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-16k",
-        "canonical_model": "openai/gpt-3.5-turbo-16k",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-instruct",
-        "canonical_model": "openai/gpt-3.5-turbo-instruct",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-instruct-0914",
-        "canonical_model": "openai/gpt-3.5-turbo-instruct",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-0125-preview",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-0314",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-0613",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-1106-preview",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-turbo",
-        "canonical_model": "openai/gpt-4-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-turbo-2024-04-09",
-        "canonical_model": "openai/gpt-4-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4-turbo-preview",
-        "canonical_model": "openai/gpt-4-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1-2025-04-14",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1-mini",
-        "canonical_model": "openai/gpt-4.1-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1-mini-2025-04-14",
-        "canonical_model": "openai/gpt-4.1-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1-nano",
-        "canonical_model": "openai/gpt-4.1-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4.1-nano-2025-04-14",
-        "canonical_model": "openai/gpt-4.1-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-2024-05-13",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-2024-08-06",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-2024-11-20",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview",
-        "canonical_model": "openai/gpt-4o-audio",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview-2024-10-01",
-        "canonical_model": "openai/gpt-4o-audio",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview-2024-12-17",
-        "canonical_model": "openai/gpt-4o-audio",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview-2025-06-03",
-        "canonical_model": "openai/gpt-4o-audio",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-mini",
-        "canonical_model": "openai/gpt-4o-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-mini-2024-07-18",
-        "canonical_model": "openai/gpt-4o-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-mini-search-preview",
-        "canonical_model": "openai/gpt-4o-mini-search",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-mini-search-preview-2025-03-11",
-        "canonical_model": "openai/gpt-4o-mini-search",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-search-preview",
-        "canonical_model": "openai/gpt-4o-search",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-4o-search-preview-2025-03-11",
-        "canonical_model": "openai/gpt-4o-search",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-2025-08-07",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-codex",
-        "canonical_model": "openai/gpt-5-codex",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-mini",
-        "canonical_model": "openai/gpt-5-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-mini-2025-08-07",
-        "canonical_model": "openai/gpt-5-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-nano",
-        "canonical_model": "openai/gpt-5-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-nano-2025-08-07",
-        "canonical_model": "openai/gpt-5-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-pro",
-        "canonical_model": "openai/gpt-5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "gpt-5-pro-2025-10-06",
-        "canonical_model": "openai/gpt-5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "o1",
-        "canonical_model": "openai/o1",
-        "verified": true
-      },
-      {
-        "provider_model": "o1-2024-12-17",
-        "canonical_model": "openai/o1",
-        "verified": true
-      },
-      {
-        "provider_model": "o1-pro",
-        "canonical_model": "openai/o1-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "o1-pro-2025-03-19",
-        "canonical_model": "openai/o1-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "o3",
-        "canonical_model": "openai/o3",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-2025-04-16",
-        "canonical_model": "openai/o3",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-deep-research",
-        "canonical_model": "openai/o3-deep-research",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-deep-research-2025-06-26",
-        "canonical_model": "openai/o3-deep-research",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-mini",
-        "canonical_model": "openai/o3-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-mini-2025-01-31",
-        "canonical_model": "openai/o3-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-pro",
-        "canonical_model": "openai/o3-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "o3-pro-2025-06-10",
-        "canonical_model": "openai/o3-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "o4-mini",
-        "canonical_model": "openai/o4-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "o4-mini-2025-04-16",
-        "canonical_model": "openai/o4-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "o4-mini-deep-research",
-        "canonical_model": "openai/o4-mini-deep-research",
-        "verified": true
-      },
-      {
-        "provider_model": "o4-mini-deep-research-2025-06-26",
-        "canonical_model": "openai/o4-mini-deep-research",
-        "verified": true
-      }
-    ],
     "google": [
       {
         "provider_model": "gemini-2.0-flash",
@@ -4344,70 +4344,70 @@
         "verified": true
       }
     ],
-    "databricks": []
+    "tetrate": []
   },
   "model_counts": {
+    "anthropic": 9,
+    "databricks": 143,
+    "tetrate": 0,
     "openai": 625,
     "openrouter": 217,
-    "google": 50,
-    "anthropic": 9,
-    "tetrate": 0,
-    "databricks": 143
+    "google": 50
   },
   "canonical_models_used": [
-    "openai/gpt-oss-20b",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3-haiku",
-    "openai/gpt-4o-audio",
-    "google/gemma-3-4b-it",
-    "openai/gpt-4.1-nano",
-    "google/gemini-2.5-flash-image",
-    "google/gemini-2.5-flash",
-    "anthropic/claude-haiku",
-    "openai/gpt-5-image",
-    "openai/gpt-3.5-turbo-16k",
-    "anthropic/claude-sonnet",
-    "openai/o3-deep-research",
-    "anthropic/claude-3-opus",
-    "openai/chatgpt-4o-latest",
-    "openai/gpt-4-turbo",
-    "anthropic/claude-3.5-haiku",
-    "openai/gpt-4o-search",
-    "openai/gpt-3.5-turbo-instruct",
-    "openai/gpt",
-    "openai/o4-mini",
-    "openai/gpt-5-mini",
-    "openai/gpt-4o:extended",
-    "openai/gpt-oss-120b:exacto",
-    "openai/o4-mini-high",
-    "openai/gpt-oss-safeguard-20b",
-    "openai/gpt-4o-mini",
-    "openai/gpt-4o-mini-search",
-    "google/gemini-2.0-flash",
-    "openai/o3-mini-high",
-    "google/gemma-3-12b-it",
-    "openai/gpt-5-nano",
-    "openai/gpt-3.5-turbo",
-    "google/gemma-3n-e4b-it",
-    "openai/o3-mini",
-    "google/gemini-2.5-flash-lite",
-    "openai/gpt-5-codex",
-    "openai/o3",
-    "anthropic/claude-opus",
-    "openai/o3-pro",
+    "openai/o1",
     "openai/o1-pro",
-    "google/gemini-2.0-flash-lite",
-    "openai/gpt-4o",
-    "google/gemma-3-27b-it",
-    "openai/gpt-oss-120b",
-    "openai/o4-mini-deep-research",
+    "openai/gpt-4-turbo",
     "google/gemini-2.5-pro",
+    "openai/chatgpt-4o-latest",
+    "openai/o4-mini",
+    "anthropic/claude-haiku",
     "openai/gpt-4.1-mini",
+    "openai/gpt-3.5-turbo-instruct",
+    "google/gemini-2.5-flash-lite",
+    "openai/gpt-oss-20b",
+    "openai/o3-mini",
+    "openai/o3-pro",
+    "openai/gpt-4o-audio",
+    "openai/gpt-oss-safeguard-20b",
+    "google/gemma-3-12b-it",
+    "anthropic/claude-3-opus",
+    "anthropic/claude-sonnet",
+    "anthropic/claude-opus",
+    "anthropic/claude-3.7-sonnet",
+    "openai/o4-mini-deep-research",
+    "anthropic/claude-3.5-haiku",
+    "openai/gpt",
+    "openai/gpt-4o-search",
+    "openai/gpt-4.1-nano",
+    "openai/gpt-3.5-turbo-16k",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "anthropic/claude-3.5-sonnet",
+    "openai/gpt-4o",
+    "anthropic/claude-3-haiku",
+    "openai/gpt-4o-mini",
+    "openai/o3",
+    "openai/gpt-5-nano",
     "openai/gpt-5-image-mini",
     "openai/codex-mini",
-    "anthropic/claude-3.7-sonnet",
+    "openai/o3-mini-high",
+    "openai/gpt-5-codex",
+    "google/gemma-3-27b-it",
+    "openai/gpt-oss-120b",
+    "google/gemma-3-4b-it",
+    "google/gemma-3n-e4b-it",
+    "openai/o4-mini-high",
+    "openai/o3-deep-research",
+    "google/gemini-2.0-flash-lite",
+    "openai/gpt-oss-120b:exacto",
+    "google/gemini-2.5-flash",
     "openai/gpt-5-pro",
-    "anthropic/claude-3.7-sonnet:thinking",
-    "openai/o1"
+    "openai/gpt-4o:extended",
+    "openai/gpt-5-image",
+    "google/gemini-2.0-flash",
+    "openai/gpt-3.5-turbo",
+    "google/gemini-2.5-flash-image",
+    "openai/gpt-4o-mini-search",
+    "openai/gpt-5-mini"
   ]
 }

@@ -11,11 +11,12 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000025",
-      "completion": "0.00000125",
-      "request": "0",
-      "image": "0.0004"
+      "prompt": 2.5e-7,
+      "completion": 1.25e-6,
+      "request": 0.0,
+      "image": 0.0004
     }
   },
   {
@@ -30,11 +31,12 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.000075",
-      "request": "0",
-      "image": "0.024"
+      "prompt": 0.000015,
+      "completion": 0.000075,
+      "request": 0.0,
+      "image": 0.024
     }
   },
   {
@@ -49,11 +51,12 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000008",
-      "completion": "0.000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 8e-7,
+      "completion": 4e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -68,11 +71,12 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048"
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0048
     }
   },
   {
@@ -87,11 +91,12 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048"
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0048
     }
   },
   {
@@ -106,15 +111,16 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048"
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0048
     }
   },
   {
-    "id": "anthropic/claude-haiku",
+    "id": "anthropic/claude-haiku-4.5",
     "name": "Anthropic: Claude Haiku 4.5",
     "context_length": 200000,
     "max_completion_tokens": 64000,
@@ -125,15 +131,16 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000001",
-      "completion": "0.000005",
-      "request": "0",
-      "image": "0"
+      "prompt": 1e-6,
+      "completion": 5e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
-    "id": "anthropic/claude-opus",
+    "id": "anthropic/claude-opus-4",
     "name": "Anthropic: Claude Opus 4",
     "context_length": 200000,
     "max_completion_tokens": 32000,
@@ -144,15 +151,36 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.000075",
-      "request": "0",
-      "image": "0.024"
+      "prompt": 0.000015,
+      "completion": 0.000075,
+      "request": 0.0,
+      "image": 0.024
     }
   },
   {
-    "id": "anthropic/claude-sonnet",
+    "id": "anthropic/claude-opus-4.1",
+    "name": "Anthropic: Claude Opus 4.1",
+    "context_length": 200000,
+    "max_completion_tokens": 32000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 0.000015,
+      "completion": 0.000075,
+      "request": 0.0,
+      "image": 0.024
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-4",
     "name": "Anthropic: Claude Sonnet 4",
     "context_length": 1000000,
     "max_completion_tokens": 64000,
@@ -163,11 +191,32 @@
       "text"
     ],
     "tokenizer": "Claude",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048"
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0048
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-4.5",
+    "name": "Anthropic: Claude Sonnet 4.5",
+    "context_length": 1000000,
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -182,11 +231,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0.0000258"
+      "prompt": 1e-7,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0000258
     }
   },
   {
@@ -201,11 +251,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.0000003",
-      "request": "0",
-      "image": "0"
+      "prompt": 7.5e-8,
+      "completion": 3e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -220,11 +271,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238"
+      "prompt": 3e-7,
+      "completion": 2.5e-6,
+      "request": 0.0,
+      "image": 0.001238
     }
   },
   {
@@ -239,11 +291,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238"
+      "prompt": 3e-7,
+      "completion": 2.5e-6,
+      "request": 0.0,
+      "image": 0.001238
     }
   },
   {
@@ -258,11 +311,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 1e-7,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -277,11 +331,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00516"
+      "prompt": 1.25e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.00516
     }
   },
   {
@@ -295,11 +350,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000065",
-      "completion": "0.00000065",
-      "request": "0",
-      "image": "0"
+      "prompt": 6.5e-7,
+      "completion": 6.5e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -313,11 +369,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.00000009",
-      "request": "0",
-      "image": "0"
+      "prompt": 3e-8,
+      "completion": 9e-8,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -332,11 +389,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.0000001",
-      "request": "0",
-      "image": "0"
+      "prompt": 3e-8,
+      "completion": 1e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -351,11 +409,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000009",
-      "completion": "0.00000016",
-      "request": "0",
-      "image": "0.0000256"
+      "prompt": 9e-8,
+      "completion": 1.6e-7,
+      "request": 0.0,
+      "image": 0.0000256
     }
   },
   {
@@ -369,11 +428,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000001703012",
-      "completion": "0.0000000681536",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.703012e-8,
+      "completion": 6.81536e-8,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -387,11 +447,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000002",
-      "completion": "0.00000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 2e-8,
+      "completion": 4e-8,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -406,11 +467,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.000005",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.007225"
+      "prompt": 5e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.007225
     }
   },
   {
@@ -425,30 +487,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000015",
-      "completion": "0.000006",
-      "request": "0",
-      "image": "0"
-    }
-  },
-  {
-    "id": "openai/gpt",
-    "name": "OpenAI: GPT-5",
-    "context_length": 400000,
-    "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "tokenizer": "GPT",
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.5e-6,
+      "completion": 6e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -463,11 +507,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000005",
-      "completion": "0.0000015",
-      "request": "0",
-      "image": "0"
+      "prompt": 5e-7,
+      "completion": 1.5e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -482,11 +527,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 3e-6,
+      "completion": 4e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -501,11 +547,32 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.0000015",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.5e-6,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "openai/gpt-4",
+    "name": "OpenAI: GPT-4",
+    "context_length": 8191,
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 0.00003,
+      "completion": 0.00006,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -520,11 +587,32 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003",
-      "request": "0",
-      "image": "0.01445"
+      "prompt": 0.00001,
+      "completion": 0.00003,
+      "request": 0.0,
+      "image": 0.01445
+    }
+  },
+  {
+    "id": "openai/gpt-4.1",
+    "name": "OpenAI: GPT-4.1",
+    "context_length": 1047576,
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 8e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -539,11 +627,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.0000016",
-      "request": "0",
-      "image": "0"
+      "prompt": 4e-7,
+      "completion": 1.6e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -558,11 +647,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 1e-7,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -577,11 +667,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.003613"
+      "prompt": 2.5e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.003613
     }
   },
   {
@@ -596,11 +687,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0"
+      "prompt": 2.5e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -615,11 +707,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "request": "0",
-      "image": "0.000217"
+      "prompt": 1.5e-7,
+      "completion": 6e-7,
+      "request": 0.0,
+      "image": 0.000217
     }
   },
   {
@@ -634,11 +727,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "request": "0.0275",
-      "image": "0.000217"
+      "prompt": 1.5e-7,
+      "completion": 6e-7,
+      "request": 0.0275,
+      "image": 0.000217
     }
   },
   {
@@ -653,11 +747,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0.035",
-      "image": "0.003613"
+      "prompt": 2.5e-6,
+      "completion": 0.00001,
+      "request": 0.035,
+      "image": 0.003613
     }
   },
   {
@@ -672,11 +767,32 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000006",
-      "completion": "0.000018",
-      "request": "0",
-      "image": "0.007225"
+      "prompt": 6e-6,
+      "completion": 0.000018,
+      "request": 0.0,
+      "image": 0.007225
+    }
+  },
+  {
+    "id": "openai/gpt-5",
+    "name": "OpenAI: GPT-5",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.25e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -691,11 +807,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.25e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -710,11 +827,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.25e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -729,11 +847,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00001"
+      "prompt": 0.00001,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.00001
     }
   },
   {
@@ -748,11 +867,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0.0000025"
+      "prompt": 2.5e-6,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 2.5e-6
     }
   },
   {
@@ -767,11 +887,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000025",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0"
+      "prompt": 2.5e-7,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -786,11 +907,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000005",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 5e-8,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -805,11 +927,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.00012",
-      "request": "0",
-      "image": "0"
+      "prompt": 0.000015,
+      "completion": 0.00012,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -824,11 +947,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000004",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0"
+      "prompt": 4e-8,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -842,11 +966,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000005",
-      "completion": "0.00000024",
-      "request": "0",
-      "image": "0"
+      "prompt": 5e-8,
+      "completion": 2.4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -860,11 +985,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.00000014",
-      "request": "0",
-      "image": "0"
+      "prompt": 3e-8,
+      "completion": 1.4e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -879,11 +1005,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.0000003",
-      "request": "0",
-      "image": "0"
+      "prompt": 7.5e-8,
+      "completion": 3e-7,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -898,11 +1025,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.00006",
-      "request": "0",
-      "image": "0.021675"
+      "prompt": 0.000015,
+      "completion": 0.00006,
+      "request": 0.0,
+      "image": 0.021675
     }
   },
   {
@@ -917,11 +1045,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": false,
     "pricing": {
-      "prompt": "0.00015",
-      "completion": "0.0006",
-      "request": "0",
-      "image": "0.21675"
+      "prompt": 0.00015,
+      "completion": 0.0006,
+      "request": 0.0,
+      "image": 0.21675
     }
   },
   {
@@ -936,11 +1065,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "request": "0",
-      "image": "0.00153"
+      "prompt": 2e-6,
+      "completion": 8e-6,
+      "request": 0.0,
+      "image": 0.00153
     }
   },
   {
@@ -955,11 +1085,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00004",
-      "request": "0",
-      "image": "0.00765"
+      "prompt": 0.00001,
+      "completion": 0.00004,
+      "request": 0.0,
+      "image": 0.00765
     }
   },
   {
@@ -974,11 +1105,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.1e-6,
+      "completion": 4.4e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -993,11 +1125,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0"
+      "prompt": 1.1e-6,
+      "completion": 4.4e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -1012,11 +1145,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.00002",
-      "completion": "0.00008",
-      "request": "0",
-      "image": "0.0153"
+      "prompt": 0.00002,
+      "completion": 0.00008,
+      "request": 0.0,
+      "image": 0.0153
     }
   },
   {
@@ -1031,11 +1165,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0.0008415"
+      "prompt": 1.1e-6,
+      "completion": 4.4e-6,
+      "request": 0.0,
+      "image": 0.0008415
     }
   },
   {
@@ -1050,11 +1185,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "request": "0",
-      "image": "0.00153"
+      "prompt": 2e-6,
+      "completion": 8e-6,
+      "request": 0.0,
+      "image": 0.00153
     }
   },
   {
@@ -1069,11 +1205,12 @@
       "text"
     ],
     "tokenizer": "GPT",
+    "supports_tools": true,
     "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0.0008415"
+      "prompt": 1.1e-6,
+      "completion": 4.4e-6,
+      "request": 0.0,
+      "image": 0.0008415
     }
   }
 ]
