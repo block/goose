@@ -138,7 +138,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                       handleSaveThreshold();
                     } else if (e.key === 'Escape') {
                       setIsEditingThreshold(false);
-                      const resetValue = currentThreshold ? Math.round(currentThreshold * 100) : 80;
+                      const resetValue = Math.round(currentThreshold * 100);
                       setThresholdValue(Math.max(1, resetValue));
                     }
                   }}
