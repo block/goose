@@ -229,8 +229,8 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Dock container with macOS styling - horizontal layout */}
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3 shadow-2xl">
+          {/* Dock container - horizontal layout */}
+          <div className="p-3">
             <div className="flex flex-row space-x-2">
               {dockApps.map((app, index) => (
                 <div
