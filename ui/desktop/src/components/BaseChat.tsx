@@ -25,6 +25,9 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/providerUtils';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import { toastSuccess } from '../toasts';
+import { Recipe } from '../recipe';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -74,6 +77,7 @@ function BaseChatContent({
 
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [hasSubmittedInitialMessage, setHasSubmittedInitialMessage] = useState(false);
+  const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   useEffect(() => {
     setSessionLoaded(false);
@@ -184,6 +188,22 @@ function BaseChatContent({
     window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
     return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
   }, []);
+
+  useEffect(() => {
+    const handleMakeAgent = () => {
+      setIsCreateRecipeModalOpen(true);
+    };
+
+    window.addEventListener('make-agent-from-chat', handleMakeAgent);
+    return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
+  }, []);
+
+  const handleRecipeCreated = (recipe: Recipe) => {
+    toastSuccess({
+      title: 'Recipe created successfully!',
+      msg: `"${recipe.title}" has been saved and is ready to use.`,
+    });
+  };
 
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>
@@ -378,13 +398,12 @@ function BaseChatContent({
         />
       )}
 
-      {/*/!* Create Recipe from Session Modal *!/*/}
-      {/*<CreateRecipeFromSessionModal*/}
-      {/*  isOpen={isCreateRecipeModalOpen}*/}
-      {/*  onClose={() => setIsCreateRecipeModalOpen(false)}*/}
-      {/*  sessionId={chat.sessionId}*/}
-      {/*  onRecipeCreated={handleRecipeCreated}*/}
-      {/*/>*/}
+      <CreateRecipeFromSessionModal
+        isOpen={isCreateRecipeModalOpen}
+        onClose={() => setIsCreateRecipeModalOpen(false)}
+        sessionId={chat.sessionId}
+        onRecipeCreated={handleRecipeCreated}
+      />
     </div>
   );
 }

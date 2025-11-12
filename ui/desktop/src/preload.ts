@@ -52,7 +52,6 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipe?: Recipe,
     viewType?: string,
     recipeId?: string
   ) => void;
@@ -144,7 +143,6 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipe?: Recipe,
     viewType?: string,
     recipeId?: string
   ) =>
@@ -154,7 +152,6 @@ const electronAPI: ElectronAPI = {
       dir,
       version,
       resumeSessionId,
-      recipe,
       viewType,
       recipeId
     ),

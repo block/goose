@@ -90,6 +90,10 @@ const PairRouteWrapper = ({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const recipeId = searchParams.get('recipeId') ?? undefined;
+
+  // Get recipe from appConfig (passed from main process for deeplinks)
+  const recipeFromConfig = window.appConfig?.get('recipe') as import('./api').Recipe | undefined;
 
   // Determine which session ID to use:
   // 1. From route state (when navigating from Hub with a new session)
@@ -106,6 +110,11 @@ const PairRouteWrapper = ({
   console.log('[PairRouteWrapper] capturedInitialMessage:', capturedInitialMessage);
   console.log('[PairRouteWrapper] final initialMessage:', initialMessage);
   console.log('[PairRouteWrapper] sessionId:', sessionId, 'lastSessionId:', lastSessionId);
+  console.log('[PairRouteWrapper] recipeId from URL:', recipeId);
+  console.log(
+    '[PairRouteWrapper] recipe from appConfig:',
+    recipeFromConfig ? 'present' : 'not present'
+  );
 
   // Capture initialMessage from route state before it gets cleared
   useEffect(() => {
@@ -116,15 +125,40 @@ const PairRouteWrapper = ({
   }, [routeState.initialMessage]);
 
   useEffect(() => {
-    if (initialMessage && !sessionId && !isCreatingSession) {
-      console.log('[PairRouteWrapper] Creating new session for initialMessage');
+    // Create a new session if we have an initialMessage, recipeId, or recipe from config but no sessionId
+    if ((initialMessage || recipeId || recipeFromConfig) && !sessionId && !isCreatingSession) {
+      console.log(
+        '[PairRouteWrapper] Creating new session for initialMessage, recipeId, or recipe from config'
+      );
       setIsCreatingSession(true);
 
       (async () => {
         try {
+          let recipe = undefined;
+
+          // If we have a recipe from appConfig (deeplink case), use it directly
+          if (recipeFromConfig) {
+            console.log('[PairRouteWrapper] Using recipe from appConfig (deeplink)');
+            recipe = recipeFromConfig;
+          }
+          // If we have a recipeId, load the recipe from saved recipes
+          else if (recipeId) {
+            console.log('[PairRouteWrapper] Loading recipe with ID:', recipeId);
+            const { listSavedRecipes } = await import('./recipe/recipe_management');
+            const recipes = await listSavedRecipes();
+            const recipeManifest = recipes.find((r) => r.id === recipeId);
+            if (recipeManifest) {
+              recipe = recipeManifest.recipe;
+              console.log('[PairRouteWrapper] Loaded recipe:', recipe?.title);
+            } else {
+              console.error('[PairRouteWrapper] Recipe not found with ID:', recipeId);
+            }
+          }
+
           const newAgent = await startAgent({
             body: {
               working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+              ...(recipe && { recipe }),
             },
             throwOnError: true,
           });
@@ -133,6 +167,8 @@ const PairRouteWrapper = ({
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
+            // Remove recipeId from URL after session is created
+            prev.delete('recipeId');
             return prev;
           });
           setActiveSessionId(newSession.id);
@@ -143,7 +179,15 @@ const PairRouteWrapper = ({
         }
       })();
     }
-  }, [initialMessage, sessionId, isCreatingSession, setSearchParams, setActiveSessionId]);
+  }, [
+    initialMessage,
+    recipeId,
+    recipeFromConfig,
+    sessionId,
+    isCreatingSession,
+    setSearchParams,
+    setActiveSessionId,
+  ]);
 
   // Clear captured initialMessage when sessionId actually changes to a different session
   useEffect(() => {
