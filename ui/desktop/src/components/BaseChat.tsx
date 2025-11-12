@@ -315,7 +315,7 @@ function BaseChatContent({
   }, []);
 
   // Handle submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = React.useCallback((e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
@@ -331,15 +331,21 @@ function BaseChatContent({
 
     // Inject webviewer context into the prompt if webviewers are active
     let messageWithContext = combinedTextFromInput;
-    if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
-      const contextInfo = webViewerContext.getWebViewerContext();
-      if (contextInfo.trim()) {
-        messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
-      }
-    }
+    // Temporarily disabled to fix infinite loop - will re-enable with better approach
+    // if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
+    //   try {
+    //     const contextInfo = webViewerContext.getWebViewerContext();
+    //     if (contextInfo.trim()) {
+    //       messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
+    //     }
+    //   } catch (error) {
+    //     console.warn('Error getting webviewer context:', error);
+    //     // Continue with original message if context fails
+    //   }
+    // }
 
     engineHandleSubmit(messageWithContext);
-  };
+  }, [recipeConfig, setHasStartedUsingRecipe, onMessageSubmit, engineHandleSubmit]);
 
   const toolCount = useToolCount(chat.sessionId);
 
