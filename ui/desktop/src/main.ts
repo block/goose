@@ -50,7 +50,8 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { Recipe } from './api';
+import { Recipe } from './recipe';
+import { decodeRecipe } from './api/sdk.gen';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -529,6 +530,17 @@ const createChat = async (
     const maxRetries = 5;
     const retryDelay = 100;
 
+    // Create a temporary client for decoding
+    const tempClient = createClient(
+      createConfig({
+        baseUrl: `http://127.0.0.1:${port}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': SERVER_SECRET,
+        },
+      })
+    );
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         if (attempt > 0) {
@@ -536,25 +548,14 @@ const createChat = async (
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
         }
 
-        const response = await fetch(`http://127.0.0.1:${port}/recipes/decode`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': SERVER_SECRET,
-          },
-          body: JSON.stringify({ deeplink: recipeDeeplink }),
+        const response = await decodeRecipe({
+          client: tempClient,
+          body: { deeplink: recipeDeeplink },
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          recipe = data.recipe;
-          console.log('[Main] createChat: Successfully decoded recipe');
-          break;
-        } else {
-          const errorText = await response.text();
-          console.error('[Main] createChat: Failed to decode recipe:', response.status, errorText);
-          break;
-        }
+        recipe = response.data?.recipe;
+        console.log('[Main] createChat: Successfully decoded recipe');
+        break;
       } catch (error) {
         if (attempt === maxRetries - 1) {
           console.error('[Main] createChat: Error decoding recipe after all retries:', error);
