@@ -2,6 +2,8 @@ use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse
 use reqwest::IntoUrl;
 use rmcp::transport::{auth::OAuthState, AuthError};
 use serde::{Deserialize, Serialize};
+use oauth2::TokenResponse;
+use tracing::info;
 
 use crate::config::Config;
 
@@ -23,9 +25,17 @@ pub async fn save_credentials(
     let (client_id, token_response) = oauth_state.get_credentials().await?;
 
     let credentials = SerializableCredentials {
-        client_id,
-        token_response,
+        client_id: client_id.clone(),
+        token_response: token_response.clone(),
     };
+
+    // log whether we have a refresh token
+    if let Some(ref token_resp) = credentials.token_response {
+        let has_refresh = token_resp.refresh_token().is_some();
+        info!("save_credentials: client_id={}, has_refresh_token={}", client_id, has_refresh);
+    } else {
+        info!("save_credentials: client_id={}, no token response", client_id);
+    }
 
     let key = secret_key(name);
     config.set_secret(&key, &credentials)?;
