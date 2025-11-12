@@ -1328,7 +1328,7 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn configure_keyring_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_keyring_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     if std::env::var("GOOSE_DISABLE_KEYRING").is_ok() {
@@ -1601,7 +1601,7 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
+fn configure_scheduler_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
     if std::env::var("GOOSE_SCHEDULER_TYPE").is_ok() {
