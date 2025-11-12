@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 export interface WebViewerInfo {
   id: string;
@@ -138,13 +138,13 @@ export const WebViewerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return contextParts.join('\n');
   }, [activeWebViewers]);
 
-  const value: WebViewerContextType = {
+  const value: WebViewerContextType = useMemo(() => ({
     activeWebViewers,
     registerWebViewer,
     updateWebViewer,
     unregisterWebViewer,
     getWebViewerContext,
-  };
+  }), [activeWebViewers, registerWebViewer, updateWebViewer, unregisterWebViewer, getWebViewerContext]);
 
   return (
     <WebViewerContext.Provider value={value}>

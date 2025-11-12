@@ -190,15 +190,15 @@ export function WebViewer({
 
   // Register/unregister with WebViewer context for AI prompt injection
   useEffect(() => {
-    if (!webViewerContext || !childWindowCreated || !actualUrl) return;
+    if (!webViewerContext || !childWindowCreated) return;
     
     const webViewerInfo = {
       id: childWindowId.current,
-      url: actualUrl,
+      url: actualUrl || url,
       title: pageTitle || 'Loading...',
-      domain: getDomainFromUrl(actualUrl),
+      domain: getDomainFromUrl(actualUrl || url),
       isSecure: isSecure,
-      isLocalhost: isLocalhostUrl(actualUrl),
+      isLocalhost: isLocalhostUrl(actualUrl || url),
       lastUpdated: new Date(),
       type: (allowAllSites ? 'main' : 'sidecar') as 'sidecar' | 'main',
     };
@@ -210,20 +210,24 @@ export function WebViewer({
       webViewerContext.unregisterWebViewer(childWindowId.current);
       console.log('[WebViewer] Unregistered from context:', childWindowId.current);
     };
-  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure, allowAllSites]);
+  }, [webViewerContext, childWindowCreated, allowAllSites]);
 
-  // Update WebViewer context when URL or title changes
+  // Update WebViewer context when URL or title changes (debounced)
   useEffect(() => {
-    if (!webViewerContext || !childWindowCreated || !actualUrl) return;
+    if (!webViewerContext || !childWindowCreated) return;
 
-    webViewerContext.updateWebViewer(childWindowId.current, {
-      url: actualUrl,
-      title: pageTitle || 'Loading...',
-      domain: getDomainFromUrl(actualUrl),
-      isSecure: isSecure,
-      isLocalhost: isLocalhostUrl(actualUrl),
-    });
-  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure]);
+    const updateTimeout = setTimeout(() => {
+      webViewerContext.updateWebViewer(childWindowId.current, {
+        url: actualUrl || url,
+        title: pageTitle || 'Loading...',
+        domain: getDomainFromUrl(actualUrl || url),
+        isSecure: isSecure,
+        isLocalhost: isLocalhostUrl(actualUrl || url),
+      });
+    }, 100); // Debounce updates to prevent rapid re-renders
+
+    return () => clearTimeout(updateTimeout);
+  }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure, url]);
 
   // Cleanup child window on component unmount with robust error handling
   useEffect(() => {
