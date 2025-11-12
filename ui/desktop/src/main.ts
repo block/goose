@@ -2024,7 +2024,7 @@ ipcMain.handle('create-dock-window', async (event) => {
       parent: mainWindow,
       width: 80,
       height: 320,
-      x: mainBounds.x + mainBounds.width - 100,
+      x: mainBounds.x + 20,
       y: mainBounds.y + Math.floor(mainBounds.height / 2) - 160,
       frame: false,
       transparent: true,
@@ -2059,7 +2059,7 @@ ipcMain.handle('create-dock-window', async (event) => {
       if (dockWindow && !dockWindow.isDestroyed()) {
         const newBounds = mainWindow.getBounds();
         dockWindow.setPosition(
-          newBounds.x + newBounds.width - 100,
+          newBounds.x + 20,
           newBounds.y + Math.floor(newBounds.height / 2) - 160
         );
       }
