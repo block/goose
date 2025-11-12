@@ -85,19 +85,27 @@ class ChildWindowRegistry {
     return existing ? existing.windowId : null;
   }
 
-  // Cleanup old unused windows (called periodically)
+  // Cleanup old unused windows (called periodically) - VERY conservative cleanup
   cleanup(): void {
     const now = Date.now();
-    const maxAge = 5 * 60 * 1000; // 5 minutes
+    const maxAge = 30 * 60 * 1000; // 30 minutes - much longer to account for navigation
+    
+    console.log(`[ChildWindowRegistry] Running cleanup check for ${this.windows.size} windows`);
 
     for (const [key, windowInfo] of this.windows.entries()) {
-      if (windowInfo.refCount <= 0 && (now - windowInfo.lastUsed) > maxAge) {
-        console.log(`[ChildWindowRegistry] Cleaning up old window ${key}`);
+      const age = now - windowInfo.lastUsed;
+      
+      // Only cleanup windows that have been unused for a very long time AND have no references
+      // This prevents cleanup during normal navigation
+      if (windowInfo.refCount <= 0 && age > maxAge) {
+        console.log(`[ChildWindowRegistry] Cleaning up old window ${key} (unused for ${Math.round(age / 60000)} minutes)`);
         this.windows.delete(key);
         // Destroy the actual window
         if (typeof window !== 'undefined' && (window as any).electron) {
           (window as any).electron.destroyChildWebViewer(windowInfo.windowId).catch(console.error);
         }
+      } else if (windowInfo.refCount <= 0) {
+        console.log(`[ChildWindowRegistry] Keeping window ${key} (unused for ${Math.round(age / 60000)} minutes, under ${maxAge / 60000} minute threshold)`);
       }
     }
   }
