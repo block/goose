@@ -1595,19 +1595,19 @@ ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x:
     // Store reference to child window
     childWindows.set(actualViewerId, childWindow);
 
+    // Store the initial relative position (fixed at creation time)
+    const initialRelativeX = constrainedBounds.x - mainBounds.x;
+    const initialRelativeY = constrainedBounds.y - mainBounds.y;
+
     // Handle child window position updates when main window moves
     const updateChildPosition = () => {
       if (childWindow && !childWindow.isDestroyed()) {
         const newMainBounds = mainWindow.getBounds();
-        const currentChildBounds = childWindow.getBounds();
         
-        // Calculate relative position within main window
-        const relativeX = currentChildBounds.x - mainBounds.x;
-        const relativeY = currentChildBounds.y - mainBounds.y;
-        
+        // Use the fixed initial relative position instead of calculating it dynamically
         childWindow.setPosition(
-          newMainBounds.x + relativeX,
-          newMainBounds.y + relativeY
+          newMainBounds.x + initialRelativeX,
+          newMainBounds.y + initialRelativeY
         );
       }
     };
