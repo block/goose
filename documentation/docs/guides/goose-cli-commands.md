@@ -274,7 +274,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
 - **`-n, --name <name>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
-- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl` for legacy session storage)
+- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file- based session storage.
 - **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Extension Options:**
