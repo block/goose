@@ -316,7 +316,7 @@ export function WebViewer({
     };
   }, [childWindowCreated, webViewerContext, unifiedSidecarContext]);
 
-  // Update child window bounds when container resizes (throttled)
+  // Update child window bounds when container resizes or window moves (throttled)
   useEffect(() => {
     if (!childWindowCreated || !containerRef.current) return;
 
@@ -358,9 +358,11 @@ export function WebViewer({
     const resizeObserver = new ResizeObserver(throttledUpdateBounds);
     resizeObserver.observe(containerRef.current);
 
-    // Listen for window resize and scroll events
+    // Listen for window resize, scroll, and focus events
     window.addEventListener('resize', throttledUpdateBounds);
     window.addEventListener('scroll', throttledUpdateBounds);
+    window.addEventListener('focus', throttledUpdateBounds);
+    window.addEventListener('blur', throttledUpdateBounds);
     
     // Use MutationObserver with broader scope to catch drag operations
     const mutationObserver = new MutationObserver((mutations) => {
@@ -469,6 +471,8 @@ export function WebViewer({
       mutationObserver.disconnect();
       window.removeEventListener('resize', throttledUpdateBounds);
       window.removeEventListener('scroll', throttledUpdateBounds);
+      window.removeEventListener('focus', throttledUpdateBounds);
+      window.removeEventListener('blur', throttledUpdateBounds);
     };
   }, [childWindowCreated]);
 
