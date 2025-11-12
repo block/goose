@@ -3,6 +3,7 @@ import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
+import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 interface WebViewerProps {
   initialUrl?: string;
@@ -89,6 +90,9 @@ export function WebViewer({
   
   // WebViewer context for AI prompt injection
   const webViewerContext = useWebViewerContextOptional();
+  
+  // Unified sidecar context for comprehensive AI context
+  const unifiedSidecarContext = useUnifiedSidecarContextOptional();
   
   // Initialize from localStorage or use initialUrl
   const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
@@ -229,14 +233,63 @@ export function WebViewer({
     return () => clearTimeout(updateTimeout);
   }, [webViewerContext, childWindowCreated, actualUrl, pageTitle, isSecure, url]);
 
+  // Register/unregister with Unified Sidecar context for comprehensive AI context
+  useEffect(() => {
+    if (!unifiedSidecarContext || !childWindowCreated) return;
+    
+    const sidecarInfo = {
+      id: childWindowId.current,
+      type: 'web-viewer' as const,
+      title: pageTitle || 'Web Browser',
+      url: actualUrl || url,
+      domain: getDomainFromUrl(actualUrl || url),
+      isSecure: isSecure,
+      canGoBack: canGoBack,
+      canGoForward: canGoForward,
+      isLoading: isLoading,
+      timestamp: Date.now(),
+    };
+
+    unifiedSidecarContext.registerSidecar(sidecarInfo);
+    console.log('[WebViewer] Registered with unified sidecar context:', sidecarInfo);
+
+    return () => {
+      unifiedSidecarContext.unregisterSidecar(childWindowId.current);
+      console.log('[WebViewer] Unregistered from unified sidecar context:', childWindowId.current);
+    };
+  }, [unifiedSidecarContext, childWindowCreated]);
+
+  // Update Unified Sidecar context when state changes (debounced)
+  useEffect(() => {
+    if (!unifiedSidecarContext || !childWindowCreated) return;
+
+    const updateTimeout = setTimeout(() => {
+      unifiedSidecarContext.updateSidecar(childWindowId.current, {
+        title: pageTitle || 'Web Browser',
+        url: actualUrl || url,
+        domain: getDomainFromUrl(actualUrl || url),
+        isSecure: isSecure,
+        canGoBack: canGoBack,
+        canGoForward: canGoForward,
+        isLoading: isLoading,
+        timestamp: Date.now(),
+      });
+    }, 100); // Debounce updates to prevent rapid re-renders
+
+    return () => clearTimeout(updateTimeout);
+  }, [unifiedSidecarContext, childWindowCreated, actualUrl, pageTitle, isSecure, canGoBack, canGoForward, isLoading]);
+
   // Cleanup child window on component unmount with robust error handling
   useEffect(() => {
     const cleanup = async () => {
       console.log('WebViewer component unmounting, cleaning up child window:', childWindowId.current);
       
-      // Unregister from context first
+      // Unregister from contexts first
       if (webViewerContext) {
         webViewerContext.unregisterWebViewer(childWindowId.current);
+      }
+      if (unifiedSidecarContext) {
+        unifiedSidecarContext.unregisterSidecar(childWindowId.current);
       }
       
       if (childWindowId.current && childWindowCreated) {
@@ -261,7 +314,7 @@ export function WebViewer({
     return () => {
       cleanup();
     };
-  }, [childWindowCreated, webViewerContext]);
+  }, [childWindowCreated, webViewerContext, unifiedSidecarContext]);
 
   // Update child window bounds when container resizes (throttled)
   useEffect(() => {

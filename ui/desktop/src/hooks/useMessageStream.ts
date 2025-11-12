@@ -449,16 +449,16 @@ export function useMessageStream({
     });
   }, [expandCustomCommandPills]);
 
-  // Function to inject webviewer context into the last user message before sending to API
-  const injectWebViewerContext = useCallback((messages: Message[]): Message[] => {
+  // Function to inject unified sidecar context into the last user message before sending to API
+  const injectSidecarContext = useCallback((messages: Message[]): Message[] => {
     if (messages.length === 0) return messages;
     
-    // Get webviewer context from global window object if available
-    const webViewerContext = (window as any).__webViewerContext;
-    if (!webViewerContext?.getWebViewerContext) return messages;
+    // Get unified sidecar context from global window object if available
+    const unifiedSidecarContext = (window as any).__unifiedSidecarContext;
+    if (!unifiedSidecarContext?.getSidecarContext) return messages;
     
     try {
-      const contextInfo = webViewerContext.getWebViewerContext();
+      const contextInfo = unifiedSidecarContext.getSidecarContext();
       if (!contextInfo.trim()) return messages;
       
       // Find the last user message
@@ -484,7 +484,7 @@ export function useMessageStream({
       
       return modifiedMessages;
     } catch (error) {
-      console.warn('Error injecting webviewer context:', error);
+      console.warn('Error injecting sidecar context:', error);
       return messages;
     }
   }, []);
@@ -503,8 +503,8 @@ export function useMessageStream({
         // Expand action pills in messages before sending to API
         let expandedMessages = expandActionPillsInMessages(requestMessages);
         
-        // Inject webviewer context into the last user message before sending to API
-        expandedMessages = injectWebViewerContext(expandedMessages);
+        // Inject unified sidecar context into the last user message before sending to API
+        expandedMessages = injectSidecarContext(expandedMessages);
 
         // Send request to the server
         const response = await fetch(api, {
@@ -582,7 +582,7 @@ export function useMessageStream({
       }
     },
 
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages, injectWebViewerContext]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages, injectSidecarContext]
   );
 
   // Append a new message and send request

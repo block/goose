@@ -5,6 +5,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import SidecarTabs from './SidecarTabs';
 import { FileViewer } from './FileViewer';
 import DocumentEditor from './DocumentEditor';
+import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 interface SidecarView {
   id: string;
@@ -311,6 +312,9 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
 export function SidecarProvider({ children, showSidecar = true }: SidecarProviderProps) {
   const [activeViews, setActiveViews] = useState<string[]>([]);
   const [views, setViews] = useState<SidecarView[]>([]);
+  
+  // Unified sidecar context for comprehensive AI context
+  const unifiedSidecarContext = useUnifiedSidecarContextOptional();
 
   const showView = async (view: SidecarView) => {
     console.log('🔍 SidecarProvider: showView called with view:', view.id, view.title);
@@ -428,6 +432,123 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     setViews((prev) => prev.filter((v) => v.id !== id));
     hideView(id);
   };
+
+  // Register/unregister sidecars with unified context when they become active/inactive
+  useEffect(() => {
+    if (!unifiedSidecarContext) return;
+
+    // Register all active views with unified context
+    activeViews.forEach(viewId => {
+      const view = views.find(v => v.id === viewId);
+      if (!view) return;
+
+      // Create sidecar info based on view type
+      let sidecarInfo;
+      
+      if (view.id.startsWith('diff-')) {
+        // Parse diff content to get statistics
+        const diffContent = view.content?.props?.diffContent || '';
+        const lines = diffContent.split('\n');
+        let addedLines = 0;
+        let removedLines = 0;
+        
+        lines.forEach(line => {
+          if (line.startsWith('+') && !line.startsWith('+++')) addedLines++;
+          if (line.startsWith('-') && !line.startsWith('---')) removedLines++;
+        });
+        
+        sidecarInfo = {
+          id: view.id,
+          type: 'diff-viewer' as const,
+          title: view.title,
+          fileName: view.fileName || 'Unknown File',
+          filePath: view.fileName,
+          addedLines,
+          removedLines,
+          totalChanges: addedLines + removedLines,
+          viewMode: 'unified' as 'split' | 'unified',
+          timestamp: Date.now(),
+        };
+      } else if (view.id.startsWith('localhost-')) {
+        const url = view.fileName || 'http://localhost:3000';
+        const urlObj = new URL(url);
+        
+        sidecarInfo = {
+          id: view.id,
+          type: 'localhost-viewer' as const,
+          title: view.title,
+          url: url,
+          port: parseInt(urlObj.port) || 3000,
+          protocol: urlObj.protocol.replace(':', '') as 'http' | 'https',
+          isLocal: urlObj.hostname === 'localhost' || urlObj.hostname === '127.0.0.1',
+          serviceType: 'development',
+          timestamp: Date.now(),
+        };
+      } else if (view.id.startsWith('file-')) {
+        const filePath = view.content?.props?.filePath || view.fileName || '';
+        const fileName = filePath.split('/').pop() || filePath;
+        const fileExtension = fileName.split('.').pop() || '';
+        
+        sidecarInfo = {
+          id: view.id,
+          type: 'file-viewer' as const,
+          title: view.title,
+          filePath: filePath,
+          fileName: fileName,
+          fileSize: 0, // Would need to get from FileViewer component
+          fileType: fileExtension,
+          isReadable: true,
+          lastModified: Date.now(),
+          timestamp: Date.now(),
+        };
+      } else if (view.id.startsWith('editor-')) {
+        const filePath = view.content?.props?.filePath;
+        const fileName = filePath ? filePath.split('/').pop() || filePath : view.fileName || 'Untitled Document';
+        
+        sidecarInfo = {
+          id: view.id,
+          type: 'document-editor' as const,
+          title: view.title,
+          filePath: filePath,
+          fileName: fileName,
+          contentLength: 0, // Would need to get from DocumentEditor component
+          hasUnsavedChanges: false,
+          isNewDocument: !filePath,
+          language: filePath ? filePath.split('.').pop() : undefined,
+          timestamp: Date.now(),
+        };
+      }
+
+      if (sidecarInfo) {
+        unifiedSidecarContext.registerSidecar(sidecarInfo);
+        console.log('[SidecarProvider] Registered sidecar with unified context:', sidecarInfo);
+      }
+    });
+
+    // Cleanup function to unregister views that are no longer active
+    return () => {
+      views.forEach(view => {
+        if (!activeViews.includes(view.id)) {
+          unifiedSidecarContext.unregisterSidecar(view.id);
+          console.log('[SidecarProvider] Unregistered sidecar from unified context:', view.id);
+        }
+      });
+    };
+  }, [unifiedSidecarContext, activeViews, views]);
+
+  // Unregister sidecars when they are hidden
+  useEffect(() => {
+    if (!unifiedSidecarContext) return;
+
+    // Find views that were removed from activeViews
+    const allViewIds = views.map(v => v.id);
+    const inactiveViewIds = allViewIds.filter(id => !activeViews.includes(id));
+    
+    inactiveViewIds.forEach(viewId => {
+      unifiedSidecarContext.unregisterSidecar(viewId);
+      console.log('[SidecarProvider] Unregistered inactive sidecar:', viewId);
+    });
+  }, [unifiedSidecarContext, activeViews, views]);
 
   const contextValue: SidecarContextType = {
     activeViews,
