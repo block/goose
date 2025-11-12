@@ -526,20 +526,21 @@ function BaseChatContent({
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          {/* Sidecar Invoker Dock - positioned above ChatInput */}
-          <div className="relative">
-            <SidecarInvoker 
-              onShowLocalhost={handleShowLocalhost}
-              onShowFileViewer={handleShowFileViewer}
-              onAddContainer={handleAddContainer}
-              isVisible={isHoveringChatInput}
-            />
-          </div>
-
+          {/* Combined hover zone for both dock and chat input */}
           <div
             onMouseEnter={() => setIsHoveringChatInput(true)}
             onMouseLeave={() => setIsHoveringChatInput(false)}
           >
+            {/* Sidecar Invoker Dock - positioned above ChatInput */}
+            <div className="relative">
+              <SidecarInvoker 
+                onShowLocalhost={handleShowLocalhost}
+                onShowFileViewer={handleShowFileViewer}
+                onAddContainer={handleAddContainer}
+                isVisible={isHoveringChatInput}
+              />
+            </div>
+
             <ChatInput
               sessionId={chat.sessionId}
               handleSubmit={handleSubmit}
