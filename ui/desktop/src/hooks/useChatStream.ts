@@ -195,8 +195,6 @@ export function useChatStream({
         setSession(session);
         updateMessages(session?.conversation || []);
         setChatState(ChatState.Idle);
-
-        // Notify parent that session is loaded
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
