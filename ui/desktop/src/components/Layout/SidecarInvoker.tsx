@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Globe, FileText, Edit, ExternalLink, Download } from 'lucide-react';
+import { Plus, Globe, FileText, Edit, ExternalLink, Download, Code, Folder, Terminal, Monitor } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useSidecar } from '../SidecarLayout';
 
@@ -16,38 +16,32 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   onAddContainer,
   isVisible 
 }) => {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const [isHovering, setIsHovering] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [iframeBackdrops, setIframeBackdrops] = useState<any[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Move the hook call to the top level of the component
   const sidecar = useSidecar();
 
-  // Handle click outside to close menu
+  // Handle click outside to close dock
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
         setIsHovering(false);
       }
     };
 
-    if (showMenu) {
+    if (isHovering) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showMenu]);
+  }, [isHovering]);
 
+  // NOW we can do conditional rendering after all hooks are called
   if (!isVisible) return null;
-
-  const handlePlusClick = () => {
-    setShowMenu(!showMenu);
-  };
 
   const handleLocalhostClick = () => {
     console.log('🔍 SidecarInvoker: Localhost button clicked');
     onAddContainer('localhost');
-    setShowMenu(false);
     setIsHovering(false);
   };
 
@@ -69,21 +63,18 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       console.error('Error opening file dialog:', error);
     }
 
-    setShowMenu(false);
     setIsHovering(false);
   };
 
   const handleSidecarClick = () => {
     console.log('🔍 SidecarInvoker: Sidecar button clicked');
     onAddContainer('sidecar');
-    setShowMenu(false);
     setIsHovering(false);
   };
 
   const handleDocumentEditorClick = () => {
     console.log('🔍 SidecarInvoker: Document Editor button clicked');
     onAddContainer('document-editor');
-    setShowMenu(false);
     setIsHovering(false);
   };
 
@@ -105,136 +96,191 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       console.error('Error opening file dialog for editing:', error);
     }
 
-    setShowMenu(false);
     setIsHovering(false);
   };
 
   const handleWebViewerClick = () => {
     console.log('🔍 SidecarInvoker: Web Viewer button clicked');
     onAddContainer('web-viewer');
-    setShowMenu(false);
     setIsHovering(false);
   };
 
   const handleAppInstallerClick = () => {
     console.log('🔍 SidecarInvoker: App Installer button clicked');
     onAddContainer('app-installer');
-    setShowMenu(false);
     setIsHovering(false);
   };
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = async () => {
     setIsHovering(true);
-  };
-
-  const handleMouseLeave = () => {
-    // Only hide if menu is not open
-    if (!showMenu) {
-      setIsHovering(false);
+    // Create iframe backdrops to show live content behind the dock
+    try {
+      const result = await window.electron.createIframeBackdrop();
+      if (result.success && result.backdropData) {
+        setIframeBackdrops(result.backdropData);
+        console.log('🎬 Created iframe backdrops:', result.backdropData.length);
+      }
+    } catch (error) {
+      console.error('Failed to create iframe backdrop:', error);
     }
   };
 
-  return (
-    <div
-      ref={containerRef}
-      className="fixed top-0 right-0 z-50 pointer-events-none"
-      style={{ width: showMenu ? '200px' : '16px', height: '100%' }}
-    >
-      {/* Hover detection zone - extends to cover menu area when open */}
-      <div
-        className="absolute top-0 right-0 h-full pointer-events-auto"
-        style={{ width: showMenu ? '200px' : '16px' }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        {/* Plus button container - positioned relative to hover zone */}
-        <div className="absolute top-1/2 right-2 transform -translate-y-1/2">
-          {/* Plus button - appears on hover or when menu is open */}
-          <div
-            className={`transition-all duration-300 ease-out ${
-              isHovering || showMenu ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
-            }`}
-          >
-            <Button
-              onClick={handlePlusClick}
-              className="w-8 h-8 rounded-full bg-background-default border border-border-subtle shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 pointer-events-auto"
-              variant="ghost"
-              size="sm"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
+  const handleMouseLeave = async () => {
+    setIsHovering(false);
+    // Remove iframe backdrops and restore BrowserViews
+    try {
+      await window.electron.removeIframeBackdrop();
+      setIframeBackdrops([]);
+      console.log('🎬 Removed iframe backdrops');
+    } catch (error) {
+      console.error('Failed to remove iframe backdrop:', error);
+    }
+  };
 
-          {/* Floating menu - positioned to the left of the plus button */}
-          {showMenu && (
-            <div
-              className="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-background-default border border-border-subtle rounded-lg shadow-xl p-2 min-w-[160px] pointer-events-auto animate-in fade-in slide-in-from-right-2 duration-200"
-            >
-              <div className="space-y-1">
-                <Button
-                  onClick={handleAppInstallerClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
+  // Define dock apps with proper icons and colors
+  const dockApps = [
+    {
+      id: 'app-installer',
+      name: 'App Store',
+      icon: Download,
+      color: 'from-blue-500 to-blue-600',
+      onClick: handleAppInstallerClick,
+      description: 'Install apps from GitHub'
+    },
+    {
+      id: 'document-editor',
+      name: 'TextEdit',
+      icon: Edit,
+      color: 'from-gray-400 to-gray-600',
+      onClick: handleDocumentEditorClick,
+      description: 'Create new document'
+    },
+    {
+      id: 'file-editor',
+      name: 'Code Editor',
+      icon: Code,
+      color: 'from-indigo-500 to-purple-600',
+      onClick: handleEditFileClick,
+      description: 'Edit existing file'
+    },
+    {
+      id: 'web-viewer',
+      name: 'Safari',
+      icon: Monitor,
+      color: 'from-blue-400 to-cyan-500',
+      onClick: handleWebViewerClick,
+      description: 'Browse the web'
+    },
+    {
+      id: 'localhost',
+      name: 'Terminal',
+      icon: Terminal,
+      color: 'from-gray-800 to-black',
+      onClick: handleLocalhostClick,
+      description: 'View localhost apps'
+    },
+    {
+      id: 'file-viewer',
+      name: 'Finder',
+      icon: Folder,
+      color: 'from-blue-500 to-blue-700',
+      onClick: handleFileViewerClick,
+      description: 'Browse files'
+    }
+  ];
+
+  return (
+    <>
+      {/* Screenshot backdrops - positioned behind the dock */}
+      {iframeBackdrops.map((backdrop) => (
+        <div
+          key={backdrop.viewId}
+          className="fixed pointer-events-none"
+          style={{
+            left: backdrop.bounds.x,
+            top: backdrop.bounds.y,
+            width: backdrop.bounds.width,
+            height: backdrop.bounds.height,
+            zIndex: 99998, // Just below the dock
+            backgroundImage: `url(${backdrop.screenshot})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+          title={`Screenshot backdrop for ${backdrop.viewId}`}
+        />
+      ))}
+
+      <div
+        ref={containerRef}
+        className="fixed top-0 right-0 z-[99999] pointer-events-none"
+        style={{ width: isHovering ? '100px' : '20px', height: '100%' }}
+      >
+        {/* Hover detection zone */}
+        <div
+          className="absolute top-0 right-0 h-full pointer-events-auto"
+          style={{ width: isHovering ? '100px' : '20px' }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+        {/* macOS-style dock - with smooth enter/exit animations */}
+        <div
+          className={`absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-auto transition-all duration-300 ease-out ${
+            isHovering 
+              ? 'opacity-100 translate-x-0 scale-100' 
+              : 'opacity-0 translate-x-4 scale-95 pointer-events-none'
+          }`}
+          style={{ marginTop: '60px' }}
+        >
+          {/* Dock container with macOS styling */}
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3 shadow-2xl">
+            <div className="flex flex-col space-y-2">
+              {dockApps.map((app, index) => (
+                <div
+                  key={app.id}
+                  className="group relative"
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Install App
-                </Button>
-                
-                <Button
-                  onClick={handleDocumentEditorClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  New Document
-                </Button>
-                
-                <Button
-                  onClick={handleEditFileClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit File
-                </Button>
-                
-                <Button
-                  onClick={handleWebViewerClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Web Viewer
-                </Button>
-                
-                <Button
-                  onClick={handleLocalhostClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <Globe className="w-4 h-4 mr-2" />
-                  Localhost Viewer
-                </Button>
-                
-                <Button
-                  onClick={handleFileViewerClick}
-                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  View File
-                </Button>
-              </div>
+                  {/* App icon with staggered animations */}
+                  <button
+                    onClick={app.onClick}
+                    className={`
+                      w-12 h-12 rounded-xl bg-gradient-to-br ${app.color} 
+                      shadow-lg hover:shadow-xl 
+                      transform hover:scale-110 hover:-translate-y-1
+                      transition-all duration-200 ease-out
+                      flex items-center justify-center
+                      border border-white/20
+                      ${isHovering 
+                        ? 'animate-in slide-in-from-right-2 fade-in' 
+                        : 'animate-out slide-out-to-right-2 fade-out'
+                      }
+                    `}
+                    style={{
+                      animationDelay: isHovering ? `${index * 50}ms` : `${(dockApps.length - index - 1) * 30}ms`,
+                      animationFillMode: 'both'
+                    }}
+                    title={app.name}
+                  >
+                    <app.icon className="w-6 h-6 text-white drop-shadow-sm" />
+                  </button>
+
+                  {/* Tooltip */}
+                  <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="bg-gray-900/90 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md whitespace-nowrap shadow-lg">
+                      {app.description}
+                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-l-gray-900/90"></div>
+                    </div>
+                  </div>
+
+                  {/* Active indicator dot (like macOS dock) */}
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-white/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
+    </>
   );
 };

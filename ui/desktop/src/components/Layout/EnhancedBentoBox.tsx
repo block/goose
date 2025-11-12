@@ -3,6 +3,7 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { Plus, X, Globe, FileText, Grid3X3, LayoutGrid, Maximize2, Minimize2, GripVertical } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
+import { useNavigation } from './AppLayout';
 
 export interface SidecarContainer {
   id: string;
@@ -88,6 +89,7 @@ interface DraggableContainerProps {
   layout: LayoutType;
   style?: React.CSSProperties;
   className?: string;
+  enableCustomDrag?: boolean; // For grid layout where we don't use Reorder.Item
 }
 
 const DraggableContainer: React.FC<DraggableContainerProps> = ({ 
@@ -96,10 +98,10 @@ const DraggableContainer: React.FC<DraggableContainerProps> = ({
   onResize, 
   layout,
   style,
-  className 
+  className,
+  enableCustomDrag = false
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const controls = useDragControls();
 
   const getSizeClass = (size: string = 'medium') => {
@@ -119,84 +121,91 @@ const DraggableContainer: React.FC<DraggableContainerProps> = ({
     onResize(container.id, nextSize);
   };
 
+  // For horizontal/vertical layouts, Reorder.Item handles dragging
+  // For grid layout, we handle dragging ourselves
+  const shouldEnableDrag = layout === 'grid' || layout === 'masonry';
+  
   return (
     <motion.div
-      layout
+      layout={!isDragging} // Disable layout animation during drag
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
-      whileHover={{ y: -2 }}
+      whileHover={!isDragging && shouldEnableDrag ? { y: -2 } : {}} // Only enable hover for grid/masonry
+      {...(shouldEnableDrag && {
+        whileDrag: { 
+          scale: 1.02, 
+          zIndex: 1000,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
+        },
+        onDragStart: () => setIsDragging(true),
+        onDragEnd: () => setIsDragging(false),
+        dragControls: controls
+      })}
       transition={{ 
         layout: { duration: 0.3, ease: "easeInOut" },
         default: { duration: 0.2 }
       }}
-      className={`relative bg-background-default overflow-hidden ${getSizeClass(container.size)} ${className || ''}`}
-      style={style}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      dragControls={controls}
+      className={`relative bg-background-default overflow-hidden rounded-lg ${getSizeClass(container.size)} ${className || ''} ${isDragging ? 'cursor-grabbing' : ''}`}
+      style={{
+        ...style,
+        zIndex: isDragging ? 1000 : 'auto'
+      }}
     >
-      {/* Container Header */}
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-0 left-0 right-0 z-10 bg-background-muted/95 backdrop-blur-sm border-b border-border-subtle p-2 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <motion.div
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-background-default rounded"
-                onPointerDown={(e) => controls.start(e)}
-                whileHover={{ scale: 1.1 }}
+      {/* Container Header - Always Visible */}
+      <div className="absolute top-0 left-0 right-0 z-10 bg-background-muted/95 backdrop-blur-sm p-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {/* Only show grip handle for grid/masonry layouts */}
+          {shouldEnableDrag && (
+            <motion.div
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-background-default rounded"
+              onPointerDown={(e) => controls.start(e)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <GripVertical size={14} className="text-text-subtle" />
+            </motion.div>
+          )}
+          <span className="text-xs font-medium text-text-standard truncate">
+            {container.title || 'Container'}
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {layout === 'grid' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleSizeToggle}
+                  className="p-1 hover:bg-background-default rounded text-text-subtle hover:text-text-standard"
+                >
+                  {container.size === 'large' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                </motion.button>
+              </TooltipTrigger>
+              <TooltipContent>Resize Container</TooltipContent>
+            </Tooltip>
+          )}
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: '#ef4444' }}
                 whileTap={{ scale: 0.9 }}
+                onClick={() => onRemove(container.id)}
+                className="p-1 hover:bg-red-500 rounded text-text-subtle hover:text-white transition-colors"
               >
-                <GripVertical size={14} className="text-text-subtle" />
-              </motion.div>
-              <span className="text-xs font-medium text-text-standard truncate">
-                {container.title || 'Container'}
-              </span>
-            </div>
-            
-            <div className="flex items-center gap-1">
-              {layout === 'grid' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={handleSizeToggle}
-                      className="p-1 hover:bg-background-default rounded text-text-subtle hover:text-text-standard"
-                    >
-                      {container.size === 'large' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                    </motion.button>
-                  </TooltipTrigger>
-                  <TooltipContent>Resize Container</TooltipContent>
-                </Tooltip>
-              )}
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <motion.button
-                    whileHover={{ scale: 1.1, backgroundColor: '#ef4444' }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => onRemove(container.id)}
-                    className="p-1 hover:bg-red-500 rounded text-text-subtle hover:text-white transition-colors"
-                  >
-                    <X size={12} />
-                  </motion.button>
-                </TooltipTrigger>
-                <TooltipContent>Remove Container</TooltipContent>
-              </Tooltip>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <X size={12} />
+              </motion.button>
+            </TooltipTrigger>
+            <TooltipContent>Remove Container</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
 
-      {/* Container Content - Full Bleed */}
-      <div className={`h-full w-full ${isHovered ? 'pt-10' : ''} transition-all duration-150 overflow-hidden`}>
+      {/* Container Content - Minimal top padding for header */}
+      <div className="h-full w-full pt-8 overflow-hidden">
         {container.content ? (
           <div className="h-full w-full">
             {container.content}
@@ -229,6 +238,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   const [showPopover, setShowPopover] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
   const [isAddHovered, setIsAddHovered] = useState(false);
+  const { isNavExpanded } = useNavigation();
 
   const handleReorder = useCallback((newContainers: SidecarContainer[]) => {
     onReorderContainers?.(newContainers);
@@ -253,22 +263,30 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   const getLayoutClasses = () => {
     switch (layout) {
       case 'vertical':
-        return 'flex flex-col gap-1 overflow-y-auto';
+        return 'flex flex-col gap-1 h-full'; // Ensure full height
       case 'grid':
-        return 'grid grid-cols-3 auto-rows-fr gap-1 overflow-auto';
+        return 'grid grid-cols-3 auto-rows-fr gap-1 h-full overflow-auto';
       case 'masonry':
-        return 'columns-2 gap-1 overflow-auto';
+        return 'columns-2 gap-1 h-full overflow-auto';
       default: // horizontal
-        return 'flex gap-1 overflow-x-auto';
+        return 'flex gap-1 h-full overflow-x-auto';
     }
   };
 
   const getContainerStyle = (index: number) => {
     if (layout === 'horizontal') {
-      return { minWidth: '300px', width: `${100 / Math.max(containers.length, 1)}%` };
+      return { 
+        minWidth: '300px', 
+        flex: '1 1 0%', // Use flex instead of percentage for better distribution
+        width: `${100 / Math.max(containers.length, 1)}%` 
+      };
     }
     if (layout === 'vertical') {
-      return { minHeight: '200px', height: `${100 / Math.max(containers.length, 1)}%` };
+      return { 
+        minHeight: '200px', 
+        flex: '1 1 0%', // Use flex instead of percentage for better distribution
+        height: `${100 / Math.max(containers.length, 1)}%` 
+      };
     }
     if (layout === 'masonry') {
       return { breakInside: 'avoid', marginBottom: '1rem' };
@@ -293,22 +311,18 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
     >
       {/* Header Controls */}
       <motion.div 
-        className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between"
+        className={`absolute top-3 left-3 z-[100] flex items-center justify-between bg-background-default/95 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300`}
         initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        animate={{ 
+          opacity: 1, 
+          y: 0,
+          right: isNavExpanded ? '12px' : '170px' // Custom 170px offset when navigation is closed
+        }}
+        transition={{ delay: 0.1, duration: 0.3 }}
+        style={{ zIndex: 100 }} // Lower z-index to stay below main navigation
       >
-        <div className="flex items-center gap-2">
-          <motion.div 
-            className="text-xs font-medium text-text-standard bg-background-muted px-2 py-1 rounded-md border border-border-subtle"
-            whileHover={{ scale: 1.05 }}
-          >
-            {containers.length} container{containers.length !== 1 ? 's' : ''}
-          </motion.div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Layout Switcher */}
+        <div className="flex items-center gap-4">
+          {/* Layout Switcher - Moved to left side where counter was */}
           <div className="flex items-center bg-background-muted rounded-md border border-border-subtle overflow-hidden">
             {(['horizontal', 'vertical', 'grid'] as LayoutType[]).map((layoutType) => {
               const Icon = layoutIcons[layoutType];
@@ -333,7 +347,9 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
               );
             })}
           </div>
-
+        </div>
+        
+        <div className="flex items-center gap-4">
           {/* Add Container Button */}
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -360,7 +376,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
             whileHover={{ scale: 1.1, backgroundColor: '#ef4444' }}
             whileTap={{ scale: 0.9 }}
             onClick={() => containers.forEach(container => onRemoveContainer(container.id))}
-            className="w-6 h-6 rounded-full bg-background-muted hover:bg-red-500 text-text-subtle hover:text-white transition-colors border border-border-subtle flex items-center justify-center"
+            className="w-8 h-8 rounded-full bg-background-muted hover:bg-red-500 text-text-subtle hover:text-white transition-colors border border-border-subtle flex items-center justify-center"
           >
             <X size={12} />
           </motion.button>
@@ -368,7 +384,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
       </motion.div>
 
       {/* Container Area */}
-      <div className="h-full pt-16 p-1">
+      <div className="h-full p-1" style={{ paddingTop: '58px' }}> {/* 58px spacing from header */}
         {layout === 'horizontal' || layout === 'vertical' ? (
           <Reorder.Group
             axis={layout === 'horizontal' ? 'x' : 'y'}
@@ -381,9 +397,17 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
                 <Reorder.Item
                   key={container.id}
                   value={container}
-                  dragControls={false}
-                  className="flex-shrink-0"
+                  className="" // Remove flex-shrink-0 to allow proper flexing
                   style={getContainerStyle(index)}
+                  whileDrag={{
+                    zIndex: 1000,
+                    scale: 1.02,
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
+                  }}
+                  dragTransition={{ 
+                    bounceStiffness: 300, 
+                    bounceDamping: 30 
+                  }}
                 >
                   <DraggableContainer
                     container={container}

@@ -1,5 +1,4 @@
 import { ScrollArea } from '../ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
@@ -7,10 +6,10 @@ import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
+import SettingsTileNavigation from './SettingsTileNavigation';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -67,80 +66,53 @@ export default function SettingsView({
 
   return (
     <>
-      <MainPanelLayout>
+      <MainPanelLayout removeTopPadding={true}>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
-            <div className="flex flex-col page-transition">
-              <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Settings</h1>
-              </div>
+          {/* Tile Navigation - Full bleed like TopNavigation */}
+          <div className="bg-background-muted overflow-hidden relative z-50">
+            <div className="pb-0.5 overflow-y-auto">
+              <SettingsTileNavigation 
+                activeSection={activeTab} 
+                onSectionChange={setActiveTab} 
+              />
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 relative px-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-              <div className="px-1">
-                <TabsList className="w-full mb-2 justify-start">
-                  <TabsTrigger
-                    value="models"
-                    className="flex gap-2"
-                    data-testid="settings-models-tab"
-                  >
-                    <Bot className="h-4 w-4" />
-                    Models
-                  </TabsTrigger>
-                  <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
-                    <MessageSquare className="h-4 w-4" />
-                    Chat
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="sharing"
-                    className="flex gap-2"
-                    data-testid="settings-sharing-tab"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Session
-                  </TabsTrigger>
-                  <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
-                    <Monitor className="h-4 w-4" />
-                    App
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+          {/* Spacer where header was */}
+          <div className="h-[50px]"></div>
 
-              <ScrollArea className="flex-1 px-2">
-                <TabsContent
-                  value="models"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <ModelsSection setView={setView} />
-                </TabsContent>
-
-                <TabsContent
-                  value="chat"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <ChatSettingsSection />
-                </TabsContent>
-
-                <TabsContent
-                  value="sharing"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <SessionSharingSection />
-                </TabsContent>
-
-                <TabsContent
-                  value="app"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <div className="space-y-8">
-                    {CONFIGURATION_ENABLED && <ConfigSettings />}
-                    <AppSettingsSection scrollToSection={viewOptions.section} />
+          {/* Content Area */}
+          <div className="flex-1 min-h-0 relative">
+            <ScrollArea className="h-full w-full">
+              <div className="px-8 pb-8">
+                {activeTab === 'models' && (
+                  <div className="focus-visible:outline-none focus-visible:ring-0">
+                    <ModelsSection setView={setView} />
                   </div>
-                </TabsContent>
-              </ScrollArea>
-            </Tabs>
+                )}
+
+                {activeTab === 'chat' && (
+                  <div className="focus-visible:outline-none focus-visible:ring-0">
+                    <ChatSettingsSection />
+                  </div>
+                )}
+
+                {activeTab === 'sharing' && (
+                  <div className="focus-visible:outline-none focus-visible:ring-0">
+                    <SessionSharingSection />
+                  </div>
+                )}
+
+                {activeTab === 'app' && (
+                  <div className="focus-visible:outline-none focus-visible:ring-0">
+                    <div className="space-y-8">
+                      {CONFIGURATION_ENABLED && <ConfigSettings />}
+                      <AppSettingsSection scrollToSection={viewOptions.section} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
           </div>
         </div>
       </MainPanelLayout>

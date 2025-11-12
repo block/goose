@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -6,6 +6,17 @@ import { SidebarProvider } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
 import { SidecarInvoker } from './SidecarInvoker';
 import { TopNavigation } from './TopNavigation';
+
+// Create context for navigation state
+const NavigationContext = createContext<{
+  isNavExpanded: boolean;
+  setIsNavExpanded: (expanded: boolean) => void;
+}>({
+  isNavExpanded: false,
+  setIsNavExpanded: () => {}
+});
+
+export const useNavigation = () => useContext(NavigationContext);
 
 interface AppLayoutProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -74,51 +85,53 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair');
 
   return (
-    <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
-      {/* Top Navigation Bar */}
-      <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
-      
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* New hover-triggered sidecar invoker */}
-        <SidecarInvoker 
-          onShowLocalhost={handleShowLocalhost}
-          onShowFileViewer={handleShowFileViewer}
-          onAddContainer={handleAddContainer}
-          isVisible={shouldShowSidecarInvoker}
-        />
+    <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded }}>
+      <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
+        {/* Top Navigation Bar */}
+        <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
+        
+        {/* Main Content Area */}
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* New hover-triggered sidecar invoker */}
+          <SidecarInvoker 
+            onShowLocalhost={handleShowLocalhost}
+            onShowFileViewer={handleShowFileViewer}
+            onAddContainer={handleAddContainer}
+            isVisible={shouldShowSidecarInvoker}
+          />
 
-        {/* Main content without sidebar */}
-        <div className="flex-1 overflow-hidden">
-          <Outlet />
+          {/* Main content without sidebar */}
+          <div className="flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+        </div>
+        
+        {/* Control Buttons - floating in top right */}
+        <div className="absolute top-4 right-4 z-[9999] flex gap-2">
+          <Button
+            onClick={() => setIsNavExpanded(!isNavExpanded)}
+            className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
+            variant="ghost"
+            size="xs"
+            title="Toggle navigation"
+          >
+            {isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <span className="ml-2 text-xs text-text-muted font-mono">
+              {isNavExpanded ? 'Hide menu' : 'Show menu'}
+            </span>
+          </Button>
+          <Button
+            onClick={handleNewWindow}
+            className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
+            variant="ghost"
+            size="xs"
+            title="Start a new session in a new window"
+          >
+            {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
+          </Button>
         </div>
       </div>
-      
-      {/* Control Buttons - floating in top right */}
-      <div className="absolute top-4 right-4 z-50 flex gap-2">
-        <Button
-          onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
-          variant="ghost"
-          size="xs"
-          title="Toggle navigation"
-        >
-          {isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          <span className="ml-2 text-xs text-text-muted font-mono">
-            {isNavExpanded ? 'Hide menu' : 'Show menu'}
-          </span>
-        </Button>
-        <Button
-          onClick={handleNewWindow}
-          className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
-          variant="ghost"
-          size="xs"
-          title="Start a new session in a new window"
-        >
-          {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
-        </Button>
-      </div>
-    </div>
+    </NavigationContext.Provider>
   );
 };
 

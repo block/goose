@@ -818,6 +818,13 @@ const createChat = async (
     // Clean up BrowserViews
     cleanupBrowserViews(mainWindow);
 
+    // Clean up dock window if it exists
+    if ((mainWindow as any).dockWindow && !(mainWindow as any).dockWindow.isDestroyed()) {
+      console.log('[Main] Destroying dock window on main window close');
+      (mainWindow as any).dockWindow.destroy();
+      (mainWindow as any).dockWindow = null;
+    }
+
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
       try {
@@ -1116,21 +1123,16 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
     // Set the view on the window
     mainWindow.setBrowserView(view);
     
-    // Convert viewport coordinates to window coordinates
-    // The bounds from the renderer are relative to the viewport, but BrowserView needs window coordinates
-    const windowBounds = mainWindow.getBounds();
+    // The bounds from the renderer are already relative to the viewport
+    // BrowserView.setBounds() expects coordinates relative to the window's content area
+    // No coordinate transformation needed - just validate and constrain the bounds
     const contentBounds = mainWindow.getContentBounds();
     
-    // Calculate the title bar height and window frame offsets
-    const titleBarHeight = windowBounds.height - contentBounds.height;
-    const frameOffsetX = windowBounds.x - contentBounds.x;
-    
-    // Adjust bounds to be relative to the window content area
     const adjustedBounds = {
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
+      x: Math.max(0, Math.min(bounds.x, contentBounds.width - 100)),
+      y: Math.max(0, Math.min(bounds.y, contentBounds.height - 100)),
+      width: Math.max(100, Math.min(bounds.width, contentBounds.width - bounds.x)),
+      height: Math.max(100, Math.min(bounds.height, contentBounds.height - bounds.y)),
     };
     
     console.log('[Main] Adjusted bounds for BrowserView:', adjustedBounds);
@@ -1139,9 +1141,9 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
     // Load the URL
     await view.webContents.loadURL(url);
     
-    // Store view reference with a unique ID
-    const viewId = Date.now().toString();
-    if (!mainWindow.browserViews) {
+    // Store view reference with a truly unique ID
+    const viewId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${performance.now().toString(36)}`;
+    if (!(mainWindow as any).browserViews) {
       (mainWindow as any).browserViews = new Map();
     }
     (mainWindow as any).browserViews.set(viewId, view);
@@ -1166,16 +1168,23 @@ ipcMain.handle('update-browser-view-bounds', async (event, viewId: string, bound
     if (view) {
       console.log('[Main] Updating BrowserView bounds:', bounds);
       
-      // Use the same coordinate conversion as in create-browser-view
+      // Validate and constrain bounds to ensure proper containment
+      const contentBounds = mainWindow.getContentBounds();
       const adjustedBounds = {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
+        x: Math.max(0, Math.min(bounds.x, contentBounds.width - 100)),
+        y: Math.max(0, Math.min(bounds.y, contentBounds.height - 100)),
+        width: Math.max(100, Math.min(bounds.width, contentBounds.width - bounds.x)),
+        height: Math.max(100, Math.min(bounds.height, contentBounds.height - bounds.y)),
       };
       
-      view.setBounds(adjustedBounds);
-      return true;
+      // Only update if bounds are valid
+      if (adjustedBounds.width > 0 && adjustedBounds.height > 0) {
+        view.setBounds(adjustedBounds);
+        return true;
+      } else {
+        console.warn('[Main] Invalid bounds for BrowserView update:', adjustedBounds);
+        return false;
+      }
     }
     return false;
   } catch (error) {
@@ -1306,6 +1315,430 @@ ipcMain.handle('browser-view-navigation-state', async (event, viewId: string) =>
   } catch (error) {
     console.error('Error getting browser view navigation state:', error);
     return { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
+  }
+});
+
+// Handle creating screenshot backdrop for smooth dock interaction
+ipcMain.handle('create-iframe-backdrop', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return { success: false, error: 'No browser views found' };
+    }
+
+    const browserViews = (mainWindow as any).browserViews as Map<string, BrowserView>;
+    const backdropData = [];
+    
+    // Initialize storage for original bounds if it doesn't exist
+    if (!(mainWindow as any).browserViewBounds) {
+      (mainWindow as any).browserViewBounds = new Map();
+    }
+    
+    for (const [viewId, view] of browserViews.entries()) {
+      try {
+        // Get current bounds
+        const currentBounds = view.getBounds();
+        
+        // Store the bounds for restoration
+        (mainWindow as any).browserViewBounds.set(viewId, currentBounds);
+        
+        // Only create backdrop for visible BrowserViews
+        if (currentBounds.width > 100 && currentBounds.height > 100) {
+          try {
+            // Capture screenshot of the BrowserView
+            const screenshot = await view.webContents.capturePage();
+            const screenshotDataUrl = `data:image/png;base64,${screenshot.toPNG().toString('base64')}`;
+            
+            backdropData.push({
+              viewId,
+              screenshot: screenshotDataUrl,
+              bounds: currentBounds
+            });
+            
+            console.log(`[Main] Created screenshot backdrop for BrowserView: ${viewId}`);
+          } catch (screenshotError) {
+            console.warn(`[Main] Failed to capture screenshot for ${viewId}, skipping backdrop:`, screenshotError);
+          }
+          
+          // Hide the actual BrowserView
+          view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        }
+      } catch (error) {
+        console.error(`[Main] Error creating backdrop for BrowserView ${viewId}:`, error);
+      }
+    }
+    
+    return { success: true, backdropData };
+  } catch (error) {
+    console.error('Error creating screenshot backdrop:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle removing iframe backdrop and restoring BrowserViews
+ipcMain.handle('remove-iframe-backdrop', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const browserViews = (mainWindow as any).browserViews as Map<string, BrowserView>;
+    const storedBounds = (mainWindow as any).browserViewBounds as Map<string, any> || new Map();
+    
+    for (const [viewId, view] of browserViews.entries()) {
+      try {
+        // Restore the original bounds directly
+        const originalBounds = storedBounds.get(viewId);
+        if (originalBounds && originalBounds.width > 100 && originalBounds.height > 100) {
+          view.setBounds(originalBounds);
+          console.log(`[Main] Restored BrowserView: ${viewId} from backdrop to original bounds:`, originalBounds);
+        } else {
+          console.warn(`[Main] No valid stored bounds for BrowserView: ${viewId}, keeping hidden`);
+        }
+        
+      } catch (error) {
+        console.error(`[Main] Error restoring BrowserView ${viewId}:`, error);
+      }
+    }
+    
+    // Don't clear the stored bounds here - keep them for future use
+    console.log(`[Main] Restored ${browserViews.size} BrowserViews from screenshot backdrops`);
+    return true;
+  } catch (error) {
+    console.error('Error removing iframe backdrop:', error);
+    return false;
+  }
+});
+
+// Handle hiding browser views (legacy method - kept for compatibility)
+ipcMain.handle('hide-browser-views', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const browserViews = (mainWindow as any).browserViews as Map<string, BrowserView>;
+    
+    // Initialize storage for original bounds if it doesn't exist
+    if (!(mainWindow as any).browserViewBounds) {
+      (mainWindow as any).browserViewBounds = new Map();
+    }
+    
+    for (const [viewId, view] of browserViews.entries()) {
+      try {
+        // Store the current bounds before hiding
+        const currentBounds = view.getBounds();
+        (mainWindow as any).browserViewBounds.set(viewId, currentBounds);
+        
+        // Hide the BrowserView by setting bounds to zero
+        view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        console.log(`[Main] Hid BrowserView: ${viewId}, stored bounds:`, currentBounds);
+      } catch (error) {
+        console.error(`[Main] Error hiding BrowserView ${viewId}:`, error);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error hiding browser views:', error);
+    return false;
+  }
+});
+
+// Handle showing browser views (restore original bounds directly)
+ipcMain.handle('show-browser-views', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).browserViews) {
+      return false;
+    }
+
+    const browserViews = (mainWindow as any).browserViews as Map<string, BrowserView>;
+    const storedBounds = (mainWindow as any).browserViewBounds as Map<string, any> || new Map();
+    
+    for (const [viewId, view] of browserViews.entries()) {
+      try {
+        // Restore the original bounds directly
+        const originalBounds = storedBounds.get(viewId);
+        if (originalBounds && originalBounds.width > 100 && originalBounds.height > 100) {
+          view.setBounds(originalBounds);
+          console.log(`[Main] Restored BrowserView: ${viewId} to original bounds:`, originalBounds);
+        } else {
+          console.warn(`[Main] No valid stored bounds for BrowserView: ${viewId}, keeping hidden`);
+        }
+        
+      } catch (error) {
+        console.error(`[Main] Error showing BrowserView ${viewId}:`, error);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error showing browser views:', error);
+    return false;
+  }
+});
+
+// ========================================
+// Dock Window IPC Handlers
+// ========================================
+
+// Handle creating dock child window
+ipcMain.handle('create-dock-window', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) {
+      console.log('[Main] No main window found for dock creation');
+      return { success: false, error: 'No main window found' };
+    }
+
+    // Check if dock window already exists and is not destroyed
+    if ((mainWindow as any).dockWindow && !(mainWindow as any).dockWindow.isDestroyed()) {
+      console.log('[Main] Dock window already exists and is valid, returning existing window');
+      return { success: true, windowId: (mainWindow as any).dockWindow.id, existing: true };
+    }
+
+    // Clean up any destroyed dock window reference
+    if ((mainWindow as any).dockWindow && (mainWindow as any).dockWindow.isDestroyed()) {
+      console.log('[Main] Cleaning up destroyed dock window reference');
+      (mainWindow as any).dockWindow = null;
+    }
+
+    console.log('[Main] Creating new dock window...');
+
+    const mainBounds = mainWindow.getBounds();
+    
+    // Create dock window HTML content
+    const dockHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+          }
+          
+          .dock-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          }
+          
+          .dock-item {
+            width: 48px;
+            height: 48px;
+            margin: 8px 0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+          }
+          
+          .dock-item:hover {
+            transform: scale(1.1) translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+          }
+          
+          .dock-item.web-viewer {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          }
+          
+          .dock-item.file-viewer {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+          }
+          
+          .dock-item.app-installer {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+          }
+          
+          .dock-item.document-editor {
+            background: linear-gradient(135deg, #9ca3af, #4b5563);
+          }
+          
+          .dock-item.localhost {
+            background: linear-gradient(135deg, #1f2937, #000000);
+          }
+          
+          .dock-item::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+          }
+          
+          .dock-item:hover::after {
+            opacity: 1;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="dock-container">
+          <div class="dock-item web-viewer" onclick="window.electronAPI?.dockAddContainer('web-viewer')" title="Web Viewer">🌐</div>
+          <div class="dock-item file-viewer" onclick="window.electronAPI?.dockAddContainer('file')" title="File Viewer">📁</div>
+          <div class="dock-item app-installer" onclick="window.electronAPI?.dockAddContainer('app-installer')" title="App Installer">📦</div>
+          <div class="dock-item document-editor" onclick="window.electronAPI?.dockAddContainer('document-editor')" title="Document Editor">📝</div>
+          <div class="dock-item localhost" onclick="window.electronAPI?.dockAddContainer('localhost')" title="Localhost">⚡</div>
+        </div>
+        
+        <script>
+          const { ipcRenderer } = require('electron');
+          
+          // Set up the dock API
+          window.electronAPI = {
+            dockAddContainer: (containerType, filePath) => {
+              console.log('Dock: Adding container', containerType, filePath);
+              // Send message to main process
+              ipcRenderer.invoke('dock-add-container', containerType, filePath);
+            }
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    // Create the dock child window
+    const dockWindow = new BrowserWindow({
+      parent: mainWindow,
+      width: 80,
+      height: 320,
+      x: mainBounds.x + mainBounds.width - 100,
+      y: mainBounds.y + Math.floor(mainBounds.height / 2) - 160,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      closable: false,
+      show: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        webSecurity: true,
+      },
+    });
+
+    // Load the dock HTML
+    await dockWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(dockHtml)}`);
+
+    // Store reference to dock window
+    (mainWindow as any).dockWindow = dockWindow;
+
+    // Handle dock window position updates when main window moves
+    const updateDockPosition = () => {
+      if (dockWindow && !dockWindow.isDestroyed()) {
+        const newBounds = mainWindow.getBounds();
+        dockWindow.setPosition(
+          newBounds.x + newBounds.width - 100,
+          newBounds.y + Math.floor(newBounds.height / 2) - 160
+        );
+      }
+    };
+
+    mainWindow.on('move', updateDockPosition);
+    mainWindow.on('resize', updateDockPosition);
+
+    // Clean up when dock window is destroyed
+    dockWindow.on('closed', () => {
+      (mainWindow as any).dockWindow = null;
+      mainWindow.removeListener('move', updateDockPosition);
+      mainWindow.removeListener('resize', updateDockPosition);
+    });
+
+    console.log('[Main] Dock window created successfully');
+    return { success: true, windowId: dockWindow.id };
+
+  } catch (error) {
+    console.error('[Main] Error creating dock window:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle showing dock window
+ipcMain.handle('show-dock-window', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).dockWindow) {
+      return false;
+    }
+
+    const dockWindow = (mainWindow as any).dockWindow;
+    if (!dockWindow.isDestroyed()) {
+      dockWindow.show();
+      console.log('[Main] Dock window shown');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Main] Error showing dock window:', error);
+    return false;
+  }
+});
+
+// Handle hiding dock window
+ipcMain.handle('hide-dock-window', async (event) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || !(mainWindow as any).dockWindow) {
+      return false;
+    }
+
+    const dockWindow = (mainWindow as any).dockWindow;
+    if (!dockWindow.isDestroyed()) {
+      dockWindow.hide();
+      console.log('[Main] Dock window hidden');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Main] Error hiding dock window:', error);
+    return false;
+  }
+});
+
+// Handle dock container addition
+ipcMain.handle('dock-add-container', async (event, containerType, filePath) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) {
+      return false;
+    }
+
+    console.log('[Main] Dock add container:', containerType, filePath);
+    
+    // Send message to main window to add the container
+    mainWindow.webContents.send('add-container-from-dock', containerType, filePath);
+    
+    return true;
+  } catch (error) {
+    console.error('[Main] Error handling dock add container:', error);
+    return false;
   }
 });
 

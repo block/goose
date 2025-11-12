@@ -550,14 +550,8 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
 
   return (
     <div className="h-full flex flex-col bg-background-default rounded-lg border border-border-subtle">
-      {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-border-subtle bg-background-muted rounded-t-lg">
-        <Download size={16} className="text-primary" />
-        <h3 className="font-medium text-text-standard">App Installer</h3>
-      </div>
-
       {/* Install Form */}
-      <div className="p-4 border-b border-border-subtle">
+      <div className="p-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <GitBranch size={14} className="text-text-subtle" />
@@ -607,7 +601,7 @@ export function AppInstaller({ onAppInstalled }: AppInstallerProps) {
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-3">
+          <div className="px-4 pb-4 space-y-3">
             {installedApps.map((app) => (
               <div
                 key={app.id}

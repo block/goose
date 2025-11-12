@@ -430,7 +430,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   };
 
   return (
-    <div className="bg-background-muted overflow-hidden relative z-50">
+    <div className="bg-background-muted overflow-hidden relative z-[9998]">
       {/* Expanded Navigation Cards with Spring Animation */}
       <AnimatePresence initial={false}>
         {isExpanded && (

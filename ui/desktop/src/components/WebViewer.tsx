@@ -81,9 +81,10 @@ export function WebViewer({
   onUrlChange,
   allowAllSites = true,
 }: WebViewerProps) {
-  // Generate a unique ID for this BrowserView instance
-  const browserViewId = useRef(`webviewer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // Generate a truly unique ID for this BrowserView instance
+  const browserViewId = useRef(`webviewer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${performance.now().toString(36)}`);
   const containerRef = useRef<HTMLDivElement>(null);
+  const updateBoundsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Initialize from localStorage or use initialUrl
   const storageKey = allowAllSites ? 'goose-webviewer-url' : 'goose-sidecar-url';
@@ -110,37 +111,57 @@ export function WebViewer({
   const [pageTitle, setPageTitle] = useState('');
   const [browserViewCreated, setBrowserViewCreated] = useState(false);
 
-  // Create BrowserView on mount
+  // Create BrowserView on mount with timeout and retry logic
   useEffect(() => {
-    const createBrowserView = async () => {
+    const createBrowserView = async (retryCount = 0) => {
       if (!containerRef.current) return;
 
       try {
-        console.log('Attempting to create BrowserView with URL:', url);
-        console.log('Available electron APIs:', Object.keys(window.electron || {}));
+        console.log(`[WebViewer-${browserViewId.current}] Attempting to create BrowserView with URL:`, url, `(attempt ${retryCount + 1})`);
         
         const rect = containerRef.current.getBoundingClientRect();
-        console.log('Container bounds:', rect);
+        console.log(`[WebViewer-${browserViewId.current}] Container bounds:`, rect);
         
-        const result = await window.electron.createBrowserView(url, {
+        // BrowserView expects coordinates relative to the window content area
+        // getBoundingClientRect() returns viewport coordinates, so we need to adjust
+        const adjustedBounds = {
           x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        });
+          y: Math.round(rect.y), 
+          width: Math.round(Math.max(rect.width, 100)), // Minimum width
+          height: Math.round(Math.max(rect.height, 100)), // Minimum height
+        };
         
-        console.log('BrowserView creation result:', result);
+        console.log(`[WebViewer-${browserViewId.current}] Adjusted BrowserView bounds:`, adjustedBounds);
+        
+        // Add timeout to browser view creation
+        const createWithTimeout = Promise.race([
+          window.electron.createBrowserView(url, adjustedBounds),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Browser view creation timeout')), 10000)
+          )
+        ]);
+        
+        const result = await createWithTimeout as any;
+        
+        console.log(`[WebViewer-${browserViewId.current}] BrowserView creation result:`, result);
         
         if (result.success && result.viewId) {
           browserViewId.current = result.viewId;
           setBrowserViewCreated(true);
-          console.log('BrowserView created successfully:', result.viewId);
+          console.log(`[WebViewer-${browserViewId.current}] BrowserView created successfully:`, result.viewId);
         } else {
-          console.error('BrowserView creation failed:', result);
-          setError(`Failed to create browser view: ${result.error || 'Unknown error'}`);
+          throw new Error(result.error || 'Unknown error');
         }
       } catch (err) {
-        console.error('Error creating BrowserView:', err);
+        console.error(`[WebViewer-${browserViewId.current}] Error creating BrowserView:`, err);
+        
+        // Retry logic for transient failures
+        if (retryCount < 2 && (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED'))) {
+          console.log(`[WebViewer-${browserViewId.current}] Retrying browser view creation in 1 second...`);
+          setTimeout(() => createBrowserView(retryCount + 1), 1000);
+          return;
+        }
+        
         setError(`Failed to initialize browser view: ${err.message || 'Unknown error'}`);
       }
     };
@@ -169,35 +190,159 @@ export function WebViewer({
     };
   }, []);
 
-  // Update BrowserView bounds when container resizes
+  // Update BrowserView bounds when container resizes (throttled)
   useEffect(() => {
     if (!browserViewCreated || !containerRef.current) return;
 
-    const updateBounds = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        window.electron.updateBrowserViewBounds(browserViewId.current, {
-          x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        }).catch(console.error);
+    const throttledUpdateBounds = () => {
+      // Clear any pending update
+      if (updateBoundsTimeoutRef.current) {
+        clearTimeout(updateBoundsTimeoutRef.current);
       }
+      
+      // Schedule new update (throttled to max 60fps)
+      updateBoundsTimeoutRef.current = setTimeout(() => {
+        if (containerRef.current && browserViewId.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          
+          // Use exact container bounds to prevent clipping
+          const adjustedBounds = {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(Math.max(rect.width, 100)), // Minimum width
+            height: Math.round(Math.max(rect.height, 100)), // Minimum height
+          };
+          
+          // Validate bounds are positive and reasonable
+          if (adjustedBounds.width > 0 && adjustedBounds.height > 0 && 
+              adjustedBounds.x >= 0 && adjustedBounds.y >= 0) {
+            console.log(`[WebViewer-${browserViewId.current}] Updating BrowserView bounds:`, adjustedBounds);
+            window.electron.updateBrowserViewBounds(browserViewId.current, adjustedBounds).catch(console.error);
+          } else {
+            console.warn(`[WebViewer-${browserViewId.current}] Invalid bounds calculated:`, adjustedBounds);
+          }
+        }
+      }, 16); // ~60fps throttling
     };
 
     // Initial bounds update
-    updateBounds();
+    throttledUpdateBounds();
 
-    // Set up resize observer
-    const resizeObserver = new ResizeObserver(updateBounds);
+    // Set up resize observer for the container
+    const resizeObserver = new ResizeObserver(throttledUpdateBounds);
     resizeObserver.observe(containerRef.current);
 
-    // Also listen for window resize
-    window.addEventListener('resize', updateBounds);
+    // Listen for window resize and scroll events
+    window.addEventListener('resize', throttledUpdateBounds);
+    window.addEventListener('scroll', throttledUpdateBounds);
+    
+    // Use MutationObserver with broader scope to catch drag operations
+    const mutationObserver = new MutationObserver((mutations) => {
+      // Check if any mutations affect positioning
+      let shouldUpdate = false;
+      for (const mutation of mutations) {
+        // Check for style changes that might affect positioning
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          shouldUpdate = true;
+          break;
+        }
+        // Check for DOM structure changes that might affect layout
+        if (mutation.type === 'childList') {
+          shouldUpdate = true;
+          break;
+        }
+      }
+      if (shouldUpdate) {
+        throttledUpdateBounds();
+      }
+    });
+    
+    // Observe the container and walk up the DOM tree to catch drag operations
+    mutationObserver.observe(containerRef.current, {
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+    
+    // Also observe the parent container (walk up to find the bento container)
+    let currentParent = containerRef.current.parentElement;
+    while (currentParent) {
+      if (currentParent.classList.contains('relative') || 
+          currentParent.classList.contains('flex-1') ||
+          currentParent.getAttribute('data-container-type')) {
+        resizeObserver.observe(currentParent);
+        break;
+      }
+      currentParent = currentParent.parentElement;
+    }
+    
+    // Observe parent elements up to the bento box to catch drag/layout changes
+    let ancestorElement = containerRef.current.parentElement;
+    let depth = 0;
+    const maxDepth = 5; // Limit depth to avoid performance issues
+    
+    while (ancestorElement && depth < maxDepth) {
+      mutationObserver.observe(ancestorElement, {
+        childList: true,
+        attributes: true,
+        attributeFilter: ['style', 'class', 'transform']
+      });
+      
+      // Stop if we reach the bento container or main layout
+      if (ancestorElement.classList.contains('bento') || 
+          ancestorElement.classList.contains('enhanced-bento') ||
+          ancestorElement.getAttribute('data-container-type')) {
+        break;
+      }
+      
+      ancestorElement = ancestorElement.parentElement;
+      depth++;
+    }
+    
+    // Also use an interval as a fallback to ensure bounds stay in sync
+    const boundsCheckInterval = setInterval(() => {
+      if (containerRef.current && browserViewId.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        // Only update if position has actually changed
+        const currentBounds = {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(Math.max(rect.height, 100)),
+        };
+        
+        // Store last bounds to detect changes
+        if (!containerRef.current.dataset.lastBounds) {
+          containerRef.current.dataset.lastBounds = JSON.stringify(currentBounds);
+          return;
+        }
+        
+        const lastBounds = JSON.parse(containerRef.current.dataset.lastBounds);
+        if (currentBounds.x !== lastBounds.x || 
+            currentBounds.y !== lastBounds.y ||
+            currentBounds.width !== lastBounds.width ||
+            currentBounds.height !== lastBounds.height) {
+          
+          console.log(`[WebViewer-${browserViewId.current}] Position changed, updating bounds:`, currentBounds);
+          containerRef.current.dataset.lastBounds = JSON.stringify(currentBounds);
+          window.electron.updateBrowserViewBounds(browserViewId.current, currentBounds).catch(console.error);
+        }
+      }
+    }, 100); // Check every 100ms
 
     return () => {
+      // Clear any pending bounds update
+      if (updateBoundsTimeoutRef.current) {
+        clearTimeout(updateBoundsTimeoutRef.current);
+        updateBoundsTimeoutRef.current = null;
+      }
+      
+      // Clear the bounds check interval
+      clearInterval(boundsCheckInterval);
+      
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateBounds);
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', throttledUpdateBounds);
+      window.removeEventListener('scroll', throttledUpdateBounds);
     };
   }, [browserViewCreated]);
 
@@ -240,6 +385,8 @@ export function WebViewer({
 
     return () => clearInterval(interval);
   }, [browserViewCreated, actualUrl]);
+
+
 
   const navigateToUrl = async (targetUrl: string) => {
     if (!browserViewCreated) return;
@@ -341,9 +488,9 @@ export function WebViewer({
   const isLocalhost = isLocalhostUrl(actualUrl);
 
   return (
-    <div className="h-full flex flex-col bg-background-default rounded-lg border border-border-subtle">
+    <div className="h-full flex flex-col bg-background-default rounded-lg">
       {/* URL Bar and Controls */}
-      <div className="flex items-center gap-2 p-3 border-b border-border-subtle bg-background-muted rounded-t-lg">
+      <div className="flex items-center gap-2 p-3 bg-background-muted rounded-t-lg">
         {/* Navigation buttons */}
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -450,14 +597,8 @@ export function WebViewer({
           </Button>
         </div>
 
-        {/* Domain indicator and external link button */}
+        {/* External link button */}
         <div className="flex items-center gap-2">
-          {domain && (
-            <div className="text-xs text-text-subtle bg-background-default px-2 py-1 rounded border border-border-subtle">
-              {domain}
-            </div>
-          )}
-          
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" onClick={handleOpenInBrowser} className="p-1 h-8 w-8">
@@ -480,6 +621,10 @@ export function WebViewer({
       <div 
         ref={containerRef}
         className="flex-1 relative overflow-hidden bg-background-default rounded-b-lg"
+        style={{ 
+          isolation: 'isolate', // Create new stacking context
+          zIndex: 1 // Ensure it's below UI controls
+        }}
       >
         {!browserViewCreated && (
           <div className="absolute inset-0 bg-background-default flex items-center justify-center">

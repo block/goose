@@ -127,6 +127,20 @@ type ElectronAPI = {
   browserViewRefresh: (viewId: string) => Promise<boolean>;
   getBrowserViewNavigationState: (viewId: string) => Promise<{ canGoBack: boolean; canGoForward: boolean; url: string; title: string } | null>;
 
+  // BrowserView hide/show functions
+  hideBrowserViews: () => Promise<boolean>;
+  showBrowserViews: () => Promise<boolean>;
+
+  // Iframe backdrop functions for smooth dock interaction
+  createIframeBackdrop: () => Promise<{ success: boolean; backdropData?: any[]; error?: string }>;
+  removeIframeBackdrop: () => Promise<boolean>;
+
+  // Dock Window functions
+  createDockWindow: () => Promise<{ success: boolean; windowId?: number; error?: string }>;
+  showDockWindow: () => Promise<boolean>;
+  hideDockWindow: () => Promise<boolean>;
+  dockAddContainer: (containerType: string, filePath?: string) => Promise<boolean>;
+
   // App Installer functions
   cloneRepository: (gitUrl: string, appId: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
   analyzeProject: (projectPath: string) => Promise<{ success: boolean; name?: string; description?: string; projectType?: string; buildCommand?: string; startCommand?: string; port?: number; requiresInstall?: boolean; packageManager?: string; error?: string }>;
@@ -279,6 +293,20 @@ const electronAPI: ElectronAPI = {
   browserViewGoForward: (viewId: string) => ipcRenderer.invoke('browser-view-go-forward', viewId),
   browserViewRefresh: (viewId: string) => ipcRenderer.invoke('browser-view-refresh', viewId),
   getBrowserViewNavigationState: (viewId: string) => ipcRenderer.invoke('browser-view-navigation-state', viewId),
+
+  // BrowserView hide/show functions
+  hideBrowserViews: () => ipcRenderer.invoke('hide-browser-views'),
+  showBrowserViews: () => ipcRenderer.invoke('show-browser-views'),
+
+  // Iframe backdrop functions for smooth dock interaction
+  createIframeBackdrop: () => ipcRenderer.invoke('create-iframe-backdrop'),
+  removeIframeBackdrop: () => ipcRenderer.invoke('remove-iframe-backdrop'),
+
+  // Dock Window functions
+  createDockWindow: () => ipcRenderer.invoke('create-dock-window'),
+  showDockWindow: () => ipcRenderer.invoke('show-dock-window'),
+  hideDockWindow: () => ipcRenderer.invoke('hide-dock-window'),
+  dockAddContainer: (containerType: string, filePath?: string) => ipcRenderer.invoke('dock-add-container', containerType, filePath),
 
   // App Installer functions
   cloneRepository: (gitUrl: string, appId: string) => ipcRenderer.invoke('clone-repository', gitUrl, appId),
