@@ -1545,21 +1545,23 @@ ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x:
     console.log('[Main] Creating new child webviewer window:', actualViewerId);
 
     const mainBounds = mainWindow.getBounds();
+    const contentBounds = mainWindow.getContentBounds();
     
     // Convert relative bounds to absolute screen coordinates
+    // The bounds from React are relative to the content area, not the window frame
     const absoluteBounds = {
-      x: mainBounds.x + bounds.x,
-      y: mainBounds.y + bounds.y,
+      x: contentBounds.x + bounds.x,
+      y: contentBounds.y + bounds.y,
       width: Math.max(bounds.width, 300),
       height: Math.max(bounds.height, 200)
     };
 
-    // Constrain child window within main window bounds
+    // Constrain child window within main window content bounds
     const constrainedBounds = {
-      x: Math.max(mainBounds.x, Math.min(absoluteBounds.x, mainBounds.x + mainBounds.width - 300)),
-      y: Math.max(mainBounds.y, Math.min(absoluteBounds.y, mainBounds.y + mainBounds.height - 200)),
-      width: Math.min(absoluteBounds.width, mainBounds.width - (absoluteBounds.x - mainBounds.x)),
-      height: Math.min(absoluteBounds.height, mainBounds.height - (absoluteBounds.y - mainBounds.y))
+      x: Math.max(contentBounds.x, Math.min(absoluteBounds.x, contentBounds.x + contentBounds.width - 300)),
+      y: Math.max(contentBounds.y, Math.min(absoluteBounds.y, contentBounds.y + contentBounds.height - 200)),
+      width: Math.min(absoluteBounds.width, contentBounds.width - (absoluteBounds.x - contentBounds.x)),
+      height: Math.min(absoluteBounds.height, contentBounds.height - (absoluteBounds.y - contentBounds.y))
     };
 
     // Create child webviewer window
@@ -1721,20 +1723,29 @@ ipcMain.handle('update-child-webviewer-bounds', async (event, viewerId: string, 
 
     const mainBounds = mainWindow.getBounds();
     
+    // The bounds from React are already relative to the main window's content area
+    // We need to convert them to absolute screen coordinates by adding main window position
+    // BUT we also need to account for the window frame (title bar, etc.)
+    const contentBounds = mainWindow.getContentBounds();
+    const frameOffset = {
+      x: contentBounds.x - mainBounds.x,
+      y: contentBounds.y - mainBounds.y
+    };
+    
     // Convert relative bounds to absolute screen coordinates
     const absoluteBounds = {
-      x: mainBounds.x + bounds.x,
-      y: mainBounds.y + bounds.y,
+      x: contentBounds.x + bounds.x,
+      y: contentBounds.y + bounds.y,
       width: Math.max(bounds.width, 300),
       height: Math.max(bounds.height, 200)
     };
 
-    // Constrain child window within main window bounds
+    // Constrain child window within main window content bounds
     const constrainedBounds = {
-      x: Math.max(mainBounds.x, Math.min(absoluteBounds.x, mainBounds.x + mainBounds.width - 300)),
-      y: Math.max(mainBounds.y, Math.min(absoluteBounds.y, mainBounds.y + mainBounds.height - 200)),
-      width: Math.min(absoluteBounds.width, mainBounds.width - (absoluteBounds.x - mainBounds.x)),
-      height: Math.min(absoluteBounds.height, mainBounds.height - (absoluteBounds.y - mainBounds.y))
+      x: Math.max(contentBounds.x, Math.min(absoluteBounds.x, contentBounds.x + contentBounds.width - 300)),
+      y: Math.max(contentBounds.y, Math.min(absoluteBounds.y, contentBounds.y + contentBounds.height - 200)),
+      width: Math.min(absoluteBounds.width, contentBounds.width - (absoluteBounds.x - contentBounds.x)),
+      height: Math.min(absoluteBounds.height, contentBounds.height - (absoluteBounds.y - contentBounds.y))
     };
 
     childWindow.setBounds(constrainedBounds);
