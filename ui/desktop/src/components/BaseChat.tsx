@@ -65,6 +65,8 @@ import { Message } from '../types/message';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
+import { SidecarInvoker } from './Layout/SidecarInvoker';
+import { useSidecar } from './SidecarLayout';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -116,6 +118,32 @@ function BaseChatContent({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
   const { isCompacting, handleManualCompaction } = useContextManager();
+
+  // Hover state for sidecar dock
+  const [isHoveringChatInput, setIsHoveringChatInput] = React.useState(false);
+
+  // Sidecar functionality
+  const sidecar = useSidecar();
+
+  const handleShowLocalhost = () => {
+    console.log('Localhost viewer requested');
+    if (sidecar) {
+      sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer');
+    }
+  };
+
+  const handleShowFileViewer = (filePath: string) => {
+    console.log('File viewer requested for:', filePath);
+    if (sidecar) {
+      sidecar.showFileViewer(filePath);
+    }
+  };
+
+  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => {
+    console.log('Add container requested:', type, filePath);
+    // Dispatch event to be handled by MainPanelLayout
+    window.dispatchEvent(new CustomEvent('add-container', { detail: { type, filePath } }));
+  };
 
   // Timeout ref for debouncing auto-scroll
   const autoScrollTimeoutRef = useRef<number | null>(null);
@@ -498,32 +526,47 @@ function BaseChatContent({
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          <ChatInput
-            sessionId={chat.sessionId}
-            handleSubmit={handleSubmit}
-            chatState={chatState}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={input || ''}
-            setView={setView}
-            numTokens={sessionTokenCount}
-            inputTokens={sessionInputTokens || localInputTokens}
-            outputTokens={sessionOutputTokens || localOutputTokens}
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            setMessages={setMessages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipeConfig={recipeConfig}
-            recipeAccepted={recipeAccepted}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            autoSubmit={autoSubmit}
-            append={append}
-            {...customChatInputProps}
-          />
+          {/* Sidecar Invoker Dock - positioned above ChatInput */}
+          <div className="relative">
+            <SidecarInvoker 
+              onShowLocalhost={handleShowLocalhost}
+              onShowFileViewer={handleShowFileViewer}
+              onAddContainer={handleAddContainer}
+              isVisible={isHoveringChatInput}
+            />
+          </div>
+
+          <div
+            onMouseEnter={() => setIsHoveringChatInput(true)}
+            onMouseLeave={() => setIsHoveringChatInput(false)}
+          >
+            <ChatInput
+              sessionId={chat.sessionId}
+              handleSubmit={handleSubmit}
+              chatState={chatState}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              initialValue={input || ''}
+              setView={setView}
+              numTokens={sessionTokenCount}
+              inputTokens={sessionInputTokens || localInputTokens}
+              outputTokens={sessionOutputTokens || localOutputTokens}
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              setMessages={setMessages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              recipeConfig={recipeConfig}
+              recipeAccepted={recipeAccepted}
+              initialPrompt={initialPrompt}
+              toolCount={toolCount || 0}
+              autoSubmit={autoSubmit}
+              append={append}
+              {...customChatInputProps}
+            />
+          </div>
         </div>
       </MainPanelLayout>
 
