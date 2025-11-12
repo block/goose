@@ -73,7 +73,13 @@ pub async fn oauth_flow(
         }
     });
 
-    let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+
+    let auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+
+    // TODO(alexhancock) - look into configurable scopes?
+    let auth_server_url = auth_manager.get_authorization_url(&[]).await?;
+
+    let mut oauth_state = OAuthState::new(auth_server_url, None).await?;
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
     oauth_state
         .start_authorization(&[], redirect_uri.as_str(), Some("goose"))
