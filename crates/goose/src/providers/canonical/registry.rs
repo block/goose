@@ -36,7 +36,7 @@ impl CanonicalModelRegistry {
     /// Save registry to a JSON file
     pub fn to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut models: Vec<&CanonicalModel> = self.models.values().collect();
-        models.sort_by(|a, b| a.canonical_slug.cmp(&b.canonical_slug));
+        models.sort_by(|a, b| a.id.cmp(&b.id));
 
         let json = serde_json::to_string_pretty(&models)
             .context("Failed to serialize canonical models")?;
@@ -49,7 +49,7 @@ impl CanonicalModelRegistry {
 
     /// Register a canonical model
     pub fn register(&mut self, model: CanonicalModel) {
-        self.models.insert(model.canonical_slug.clone(), model);
+        self.models.insert(model.id.clone(), model);
     }
 
     /// Look up a canonical model by name

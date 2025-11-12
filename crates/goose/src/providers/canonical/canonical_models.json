@@ -1,3394 +1,1620 @@
 [
   {
-    "id": "anthropic/claude-3.5-haiku",
-    "canonical_slug": "anthropic/claude-3-5-haiku",
-    "name": "Anthropic: Claude 3.5 Haiku",
-    "created": 1730678400,
-    "description": "Claude 3.5 Haiku features offers enhanced capabilities in speed, coding accuracy, and tool use. Engineered to excel in real-time applications, it delivers quick response times that are essential for dynamic tasks such as chat interactions and immediate coding suggestions.\n\nThis makes it highly suitable for environments that demand both speed and precision, such as software development, customer service bots, and data management systems.\n\nThis model is currently pointing to [Claude 3.5 Haiku (2024-10-22)](/anthropic/claude-3-5-haiku-20241022).",
-    "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000008",
-      "completion": "0.000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.00000008",
-      "input_cache_write": "0.000001"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 8192,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "anthropic/claude-3.5-haiku-20241022",
-    "canonical_slug": "anthropic/claude-3-5-haiku-20241022",
-    "name": "Anthropic: Claude 3.5 Haiku (2024-10-22)",
-    "created": 1730678400,
-    "description": "Claude 3.5 Haiku features enhancements across all skill sets including coding, tool use, and reasoning. As the fastest model in the Anthropic lineup, it offers rapid response times suitable for applications that require high interactivity and low latency, such as user-facing chatbots and on-the-fly code completions. It also excels in specialized tasks like data extraction and real-time content moderation, making it a versatile tool for a broad range of industries.\n\nIt does not support image inputs.\n\nSee the launch announcement and benchmark results [here](https://www.anthropic.com/news/3-5-models-and-computer-use)",
-    "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000008",
-      "completion": "0.000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.00000008",
-      "input_cache_write": "0.000001"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "anthropic/claude-3.7-sonnet",
-    "canonical_slug": "anthropic/claude-3-7-sonnet-20250219",
-    "name": "Anthropic: Claude 3.7 Sonnet",
-    "created": 1740422110,
-    "description": "Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. \n\nClaude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
-    "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 64000,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
     "id": "anthropic/claude-3-haiku",
-    "canonical_slug": "anthropic/claude-3-haiku",
-    "name": "Anthropic: Claude 3 Haiku",
-    "created": 1710288000,
-    "description": "Claude 3 Haiku is Anthropic's fastest and most compact model for\nnear-instant responsiveness. Quick and accurate targeted performance.\n\nSee the launch announcement and benchmark results [here](https://www.anthropic.com/news/claude-3-haiku)\n\n#multimodal",
+    "name": "Claude 3 Haiku",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000025",
-      "completion": "0.00000125",
-      "request": "0",
-      "image": "0.0004",
-      "input_cache_read": "0.00000003",
-      "input_cache_write": "0.0000003"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000025",
+          "completion": "0.00000125",
+          "image": "0.0004",
+          "input_cache_read": "0.00000003",
+          "input_cache_write": "0.0000003"
+        }
+      }
     ]
   },
   {
     "id": "anthropic/claude-3-opus",
-    "canonical_slug": "anthropic/claude-3-opus",
-    "name": "Anthropic: Claude 3 Opus",
-    "created": 1709596800,
-    "description": "Claude 3 Opus is Anthropic's most powerful model for highly complex tasks. It boasts top-level performance, intelligence, fluency, and understanding.\n\nSee the launch announcement and benchmark results [here](https://www.anthropic.com/news/claude-3-family)\n\n#multimodal",
+    "name": "Claude 3 Opus",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.000075",
-      "request": "0",
-      "image": "0.024",
-      "input_cache_read": "0.0000015",
-      "input_cache_write": "0.00001875"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000015",
+          "completion": "0.000075",
+          "image": "0.024",
+          "input_cache_read": "0.0000015",
+          "input_cache_write": "0.00001875"
+        }
+      }
+    ]
+  },
+  {
+    "id": "anthropic/claude-3.5-haiku",
+    "name": "Claude 3.5 Haiku (2024-10-22)",
+    "context_length": 200000,
+    "max_completion_tokens": 8192,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000008",
+          "completion": "0.000004",
+          "input_cache_read": "0.00000008",
+          "input_cache_write": "0.000001"
+        }
+      }
     ]
   },
   {
     "id": "anthropic/claude-3.5-sonnet",
-    "canonical_slug": "anthropic/claude-3.5-sonnet",
-    "name": "Anthropic: Claude 3.5 Sonnet",
-    "created": 1729555200,
-    "description": "New Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
+    "name": "Claude 3.5 Sonnet",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 8192,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 8192,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000003",
+          "completion": "0.000015",
+          "image": "0.0048",
+          "input_cache_read": "0.0000003",
+          "input_cache_write": "0.00000375"
+        }
+      }
     ]
   },
   {
-    "id": "anthropic/claude-3.5-sonnet-20240620",
-    "canonical_slug": "anthropic/claude-3.5-sonnet-20240620",
-    "name": "Anthropic: Claude 3.5 Sonnet (2024-06-20)",
-    "created": 1718841600,
-    "description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\nFor the latest version (2024-10-23), check out [Claude 3.5 Sonnet](/anthropic/claude-3.5-sonnet).\n\n#multimodal",
+    "id": "anthropic/claude-3.7-sonnet",
+    "name": "Claude 3.7 Sonnet (thinking)",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000003",
+          "completion": "0.000015",
+          "image": "0.0048",
+          "input_cache_read": "0.0000003",
+          "input_cache_write": "0.00000375"
+        }
+      },
+      {
+        "variant": "thinking",
+        "pricing": {
+          "prompt": "0.000003",
+          "completion": "0.000015",
+          "image": "0.0048",
+          "input_cache_read": "0.0000003",
+          "input_cache_write": "0.00000375"
+        }
+      }
     ]
   },
   {
-    "id": "anthropic/claude-opus-4",
-    "canonical_slug": "anthropic/claude-4-opus-20250522",
-    "name": "Anthropic: Claude Opus 4",
-    "created": 1747931245,
-    "description": "Claude Opus 4 is benchmarked as the world’s best coding model, at time of release, bringing sustained performance on complex, long-running tasks and agent workflows. It sets new benchmarks in software engineering, achieving leading results on SWE-bench (72.5%) and Terminal-bench (43.2%). Opus 4 supports extended, agentic workflows, handling thousands of task steps continuously for hours without degradation. \n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-4)",
+    "id": "anthropic/claude-haiku",
+    "name": "Claude Haiku 4.5",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.000075",
-      "request": "0",
-      "image": "0.024",
-      "input_cache_read": "0.0000015",
-      "input_cache_write": "0.00001875"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 32000,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000001",
+          "completion": "0.000005",
+          "input_cache_read": "0.0000001",
+          "input_cache_write": "0.00000125"
+        }
+      }
     ]
   },
   {
-    "id": "anthropic/claude-sonnet-4",
-    "canonical_slug": "anthropic/claude-4-sonnet-20250522",
-    "name": "Anthropic: Claude Sonnet 4",
-    "created": 1747930371,
-    "description": "Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%), Sonnet 4 balances capability and computational efficiency, making it suitable for a broad range of applications from routine coding tasks to complex software development projects. Key enhancements include improved autonomous codebase navigation, reduced error rates in agent-driven workflows, and increased reliability in following intricate instructions. Sonnet 4 is optimized for practical everyday use, providing advanced reasoning capabilities while maintaining efficiency and responsiveness in diverse internal and external scenarios.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-4)",
+    "id": "anthropic/claude-opus",
+    "name": "Claude Opus 4.1",
+    "context_length": 200000,
+    "max_completion_tokens": 32000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000015",
+          "completion": "0.000075",
+          "image": "0.024",
+          "input_cache_read": "0.0000015",
+          "input_cache_write": "0.00001875"
+        }
+      }
+    ]
+  },
+  {
+    "id": "anthropic/claude-sonnet",
+    "name": "Claude Sonnet 4.5",
     "context_length": 1000000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.0048",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
-    },
-    "top_provider": {
-      "context_length": 1000000,
-      "max_completion_tokens": 64000,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000003",
+          "completion": "0.000015",
+          "input_cache_read": "0.0000003",
+          "input_cache_write": "0.00000375"
+        }
+      }
     ]
   },
   {
-    "id": "anthropic/claude-opus-4.1",
-    "canonical_slug": "anthropic/claude-4.1-opus-20250805",
-    "name": "Anthropic: Claude Opus 4.1",
-    "created": 1754411591,
-    "description": "Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks. It achieves 74.5% on SWE-bench Verified and shows notable gains in multi-file code refactoring, debugging precision, and detail-oriented reasoning. The model supports extended thinking up to 64K tokens and is optimized for tasks involving research, data analysis, and tool-assisted reasoning.",
-    "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.000075",
-      "request": "0",
-      "image": "0.024",
-      "input_cache_read": "0.0000015",
-      "input_cache_write": "0.00001875"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 32000,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "anthropic/claude-haiku-4.5",
-    "canonical_slug": "anthropic/claude-4.5-haiku-20251001",
-    "name": "Anthropic: Claude Haiku 4.5",
-    "created": 1760547638,
-    "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models. Matching Claude Sonnet 4’s performance across reasoning, coding, and computer-use tasks, Haiku 4.5 brings frontier-level capability to real-time and high-volume applications.\n\nIt introduces extended thinking to the Haiku line; enabling controllable reasoning depth, summarized or interleaved thought output, and tool-assisted workflows with full support for coding, bash, web search, and computer-use tools. Scoring >73% on SWE-bench Verified, Haiku 4.5 ranks among the world’s best coding models while maintaining exceptional responsiveness for sub-agents, parallelized execution, and scaled deployment.",
-    "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000001",
-      "completion": "0.000005",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.0000001",
-      "input_cache_write": "0.00000125"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 64000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "anthropic/claude-sonnet-4.5",
-    "canonical_slug": "anthropic/claude-4.5-sonnet-20250929",
-    "name": "Anthropic: Claude Sonnet 4.5",
-    "created": 1759161676,
-    "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows. It delivers state-of-the-art performance on coding benchmarks such as SWE-bench Verified, with improvements across system design, code security, and specification adherence. The model is designed for extended autonomous operation, maintaining task continuity across sessions and providing fact-based progress tracking.\n\nSonnet 4.5 also introduces stronger agentic capabilities, including improved tool orchestration, speculative parallel execution, and more efficient context and memory management. With enhanced context tracking and awareness of token usage across tool calls, it is particularly well-suited for multi-context and long-running workflows. Use cases span software engineering, cybersecurity, financial analysis, research agents, and other domains requiring sustained reasoning and tool use.",
-    "context_length": 1000000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Claude",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.0000003",
-      "input_cache_write": "0.00000375"
-    },
-    "top_provider": {
-      "context_length": 1000000,
-      "max_completion_tokens": 64000,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "google/gemini-2.0-flash-001",
-    "canonical_slug": "google/gemini-2.0-flash-001",
-    "name": "Google: Gemini 2.0 Flash",
-    "created": 1738769413,
-    "description": "Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It introduces notable enhancements in multimodal understanding, coding capabilities, complex instruction following, and function calling. These advancements come together to deliver more seamless and robust agentic experiences.",
+    "id": "google/gemini-2.0-flash",
+    "name": "Gemini 2.0 Flash",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0.0000258",
-      "input_cache_read": "0.000000025",
-      "input_cache_write": "0.0000001833"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 8192,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000004",
+          "image": "0.0000258",
+          "audio": "0.0000007",
+          "input_cache_read": "0.000000025",
+          "input_cache_write": "0.0000001833"
+        }
+      }
     ]
   },
   {
-    "id": "google/gemini-2.0-flash-exp:free",
-    "canonical_slug": "google/gemini-2.0-flash-exp",
-    "name": "Google: Gemini 2.0 Flash Experimental (free)",
-    "created": 1733937523,
-    "description": "Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It introduces notable enhancements in multimodal understanding, coding capabilities, complex instruction following, and function calling. These advancements come together to deliver more seamless and robust agentic experiences.",
+    "id": "google/gemini-2.0-flash-lite",
+    "name": "Gemini 2.0 Flash Lite",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ]
-  },
-  {
-    "id": "google/gemini-2.0-flash-lite-001",
-    "canonical_slug": "google/gemini-2.0-flash-lite-001",
-    "name": "Google: Gemini 2.0 Flash Lite",
-    "created": 1740506212,
-    "description": "Gemini 2.0 Flash Lite offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5), all at extremely economical token prices.",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.0000003",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 8192,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000000075",
+          "completion": "0.0000003"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-flash",
-    "canonical_slug": "google/gemini-2.5-flash",
-    "name": "Google: Gemini 2.5 Flash",
-    "created": 1750172488,
-    "description": "Gemini 2.5 Flash is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks. It includes built-in \"thinking\" capabilities, enabling it to provide responses with greater accuracy and nuanced context handling. \n\nAdditionally, Gemini 2.5 Flash is configurable through the \"max tokens for reasoning\" parameter, as described in the documentation (https://openrouter.ai/docs/use-cases/reasoning-tokens#max-tokens-for-reasoning).",
+    "name": "Gemini 2.5 Flash",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "file",
-        "image",
-        "text",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238",
-      "input_cache_read": "0.00000003",
-      "input_cache_write": "0.0000003833"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65535,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65535,
+    "input_modalities": [
+      "file",
+      "image",
+      "text",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000003",
+          "completion": "0.0000025",
+          "image": "0.001238",
+          "input_cache_read": "0.00000003",
+          "input_cache_write": "0.0000003833"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-flash-image",
-    "canonical_slug": "google/gemini-2.5-flash-image",
-    "name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
-    "created": 1759870431,
-    "description": "Gemini 2.5 Flash Image, a.k.a. \"Nano Banana,\" is now generally available. It is a state of the art image generation model with contextual understanding. It is capable of image generation, edits, and multi-turn conversations. Aspect ratios can be controlled with the [image_config API Parameter](https://openrouter.ai/docs/features/multimodal/image-generation#image-aspect-ratio-configuration)",
+    "name": "Gemini 2.5 Flash Image (Nano Banana)",
     "context_length": 32768,
-    "architecture": {
-      "modality": "text+image->text+image",
-      "input_modalities": [
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "image",
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238"
-    },
-    "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": 32768,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "temperature",
-      "top_p"
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "image",
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000003",
+          "completion": "0.0000025",
+          "image": "0.001238"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-flash-image-preview",
-    "canonical_slug": "google/gemini-2.5-flash-image-preview",
-    "name": "Google: Gemini 2.5 Flash Image Preview (Nano Banana)",
-    "created": 1756218977,
-    "description": "Gemini 2.5 Flash Image Preview, a.k.a. \"Nano Banana,\" is a state of the art image generation model with contextual understanding. It is capable of image generation, edits, and multi-turn conversations.",
+    "name": "Gemini 2.5 Flash Image Preview (Nano Banana)",
     "context_length": 32768,
-    "architecture": {
-      "modality": "text+image->text+image",
-      "input_modalities": [
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "image",
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238"
-    },
-    "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": 32768,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "temperature",
-      "top_p"
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "image",
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000003",
+          "completion": "0.0000025",
+          "image": "0.001238"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-flash-lite",
-    "canonical_slug": "google/gemini-2.5-flash-lite",
-    "name": "Google: Gemini 2.5 Flash Lite",
-    "created": 1753200276,
-    "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance across common benchmarks compared to earlier Flash models. By default, \"thinking\" (i.e. multi-pass reasoning) is disabled to prioritize speed, but developers can enable it via the [Reasoning API parameter](https://openrouter.ai/docs/use-cases/reasoning-tokens) to selectively trade off cost for intelligence. ",
+    "name": "Gemini 2.5 Flash Lite",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.00000001",
-      "input_cache_write": "0.0000001833"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65535,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65535,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000004",
+          "input_cache_read": "0.00000001",
+          "input_cache_write": "0.0000001833"
+        }
+      }
     ]
   },
   {
-    "id": "google/gemini-2.5-flash-lite-preview-06-17",
-    "canonical_slug": "google/gemini-2.5-flash-lite-preview-06-17",
-    "name": "Google: Gemini 2.5 Flash Lite Preview 06-17",
-    "created": 1750173831,
-    "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance across common benchmarks compared to earlier Flash models. By default, \"thinking\" (i.e. multi-pass reasoning) is disabled to prioritize speed, but developers can enable it via the [Reasoning API parameter](https://openrouter.ai/docs/use-cases/reasoning-tokens) to selectively trade off cost for intelligence. ",
+    "id": "google/gemini-2.5-flash-lite-preview-06",
+    "name": "Gemini 2.5 Flash Lite Preview 06-17",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "file",
-        "image",
-        "text",
-        "audio"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000025",
-      "input_cache_write": "0.0000001833"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65535,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65535,
+    "input_modalities": [
+      "file",
+      "image",
+      "text",
+      "audio"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000004",
+          "audio": "0.0000003",
+          "input_cache_read": "0.000000025",
+          "input_cache_write": "0.0000001833"
+        }
+      }
     ]
   },
   {
-    "id": "google/gemini-2.5-flash-lite-preview-09-2025",
-    "canonical_slug": "google/gemini-2.5-flash-lite-preview-09-2025",
-    "name": "Google: Gemini 2.5 Flash Lite Preview 09-2025",
-    "created": 1758819686,
-    "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance across common benchmarks compared to earlier Flash models. By default, \"thinking\" (i.e. multi-pass reasoning) is disabled to prioritize speed, but developers can enable it via the [Reasoning API parameter](https://openrouter.ai/docs/use-cases/reasoning-tokens) to selectively trade off cost for intelligence. ",
+    "id": "google/gemini-2.5-flash-lite-preview-09",
+    "name": "Gemini 2.5 Flash Lite Preview 09-2025",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000004"
+        }
+      }
     ]
   },
   {
-    "id": "google/gemini-2.5-flash-preview-09-2025",
-    "canonical_slug": "google/gemini-2.5-flash-preview-09-2025",
-    "name": "Google: Gemini 2.5 Flash Preview 09-2025",
-    "created": 1758820178,
-    "description": "Gemini 2.5 Flash Preview September 2025 Checkpoint is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks. It includes built-in \"thinking\" capabilities, enabling it to provide responses with greater accuracy and nuanced context handling. \n\nAdditionally, Gemini 2.5 Flash is configurable through the \"max tokens for reasoning\" parameter, as described in the documentation (https://openrouter.ai/docs/use-cases/reasoning-tokens#max-tokens-for-reasoning).",
+    "id": "google/gemini-2.5-flash-preview-09",
+    "name": "Gemini 2.5 Flash Preview 09-2025",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "file",
-        "text",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "request": "0",
-      "image": "0.001238",
-      "input_cache_read": "0.000000075",
-      "input_cache_write": "0.0000003833"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "image",
+      "file",
+      "text",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000003",
+          "completion": "0.0000025",
+          "image": "0.001238",
+          "audio": "0.000001",
+          "input_cache_read": "0.000000075",
+          "input_cache_write": "0.0000003833"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-pro",
-    "canonical_slug": "google/gemini-2.5-pro",
-    "name": "Google: Gemini 2.5 Pro",
-    "created": 1750169544,
-    "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+    "name": "Gemini 2.5 Pro",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00516",
-      "input_cache_read": "0.000000125",
-      "input_cache_write": "0.000001625"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ]
-  },
-  {
-    "id": "google/gemini-2.5-pro-preview-05-06",
-    "canonical_slug": "google/gemini-2.5-pro-preview-03-25",
-    "name": "Google: Gemini 2.5 Pro Preview 05-06",
-    "created": 1746578513,
-    "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file",
-        "audio",
-        "video"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00516",
-      "input_cache_read": "0.00000031",
-      "input_cache_write": "0.000001625"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65535,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000125",
+          "completion": "0.00001",
+          "image": "0.00516",
+          "input_cache_read": "0.000000125",
+          "input_cache_write": "0.000001625"
+        }
+      }
     ]
   },
   {
     "id": "google/gemini-2.5-pro-preview",
-    "canonical_slug": "google/gemini-2.5-pro-preview-06-05",
-    "name": "Google: Gemini 2.5 Pro Preview 06-05",
-    "created": 1749137257,
-    "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.\n",
+    "name": "Gemini 2.5 Pro Preview 06-05",
     "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "file",
-        "image",
-        "text",
-        "audio"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00516",
-      "input_cache_read": "0.00000031",
-      "input_cache_write": "0.000001625"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "file",
+      "image",
+      "text",
+      "audio"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000125",
+          "completion": "0.00001",
+          "image": "0.00516",
+          "input_cache_read": "0.00000031",
+          "input_cache_write": "0.000001625"
+        }
+      }
+    ]
+  },
+  {
+    "id": "google/gemini-2.5-pro-preview-05",
+    "name": "Gemini 2.5 Pro Preview 05-06",
+    "context_length": 1048576,
+    "max_completion_tokens": 65535,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000125",
+          "completion": "0.00001",
+          "image": "0.00516",
+          "input_cache_read": "0.00000031",
+          "input_cache_write": "0.000001625"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-2-27b-it",
-    "canonical_slug": "google/gemma-2-27b-it",
-    "name": "Google: Gemma 2 27B",
-    "created": 1720828800,
-    "description": "Gemma 2 27B by Google is an open model built from the same research and technology used to create the [Gemini models](/models?q=gemini).\n\nGemma models are well-suited for a variety of text generation tasks, including question answering, summarization, and reasoning.\n\nSee the [launch announcement](https://blog.google/technology/developers/google-gemma-2/) for more details. Usage of Gemma is subject to Google's [Gemma Terms of Use](https://ai.google.dev/gemma/terms).",
+    "name": "Gemma 2 27B",
     "context_length": 8192,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": "gemma"
-    },
-    "pricing": {
-      "prompt": "0.00000065",
-      "completion": "0.00000065",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 8192,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "top_p"
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000065",
+          "completion": "0.00000065"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-2-9b-it",
-    "canonical_slug": "google/gemma-2-9b-it",
-    "name": "Google: Gemma 2 9B",
-    "created": 1719532800,
-    "description": "Gemma 2 9B by Google is an advanced, open-source language model that sets a new standard for efficiency and performance in its size class.\n\nDesigned for a wide variety of tasks, it empowers developers and researchers to build innovative applications, while maintaining accessibility, safety, and cost-effectiveness.\n\nSee the [launch announcement](https://blog.google/technology/developers/google-gemma-2/) for more details. Usage of Gemma is subject to Google's [Gemma Terms of Use](https://ai.google.dev/gemma/terms).",
+    "name": "Gemma 2 9B",
     "context_length": 8192,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": "gemma"
-    },
-    "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.00000009",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 8192,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "repetition_penalty",
-      "temperature",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000003",
+          "completion": "0.00000009"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-3-12b-it",
-    "canonical_slug": "google/gemma-3-12b-it",
-    "name": "Google: Gemma 3 12B",
-    "created": 1741902625,
-    "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling. Gemma 3 12B is the second largest in the family of Gemma 3 models after [Gemma 3 27B](google/gemma-3-27b-it)",
+    "name": "Gemma 3 12B",
     "context_length": 131072,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": "gemma"
-    },
-    "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.0000001",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 131072,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 131072,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000003",
+          "completion": "0.0000001"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-3-27b-it",
-    "canonical_slug": "google/gemma-3-27b-it",
-    "name": "Google: Gemma 3 27B",
-    "created": 1741756359,
-    "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling. Gemma 3 27B is Google's latest open source model, successor to [Gemma 2](google/gemma-2-27b-it)",
+    "name": "Gemma 3 27B",
     "context_length": 131072,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": "gemma"
-    },
-    "pricing": {
-      "prompt": "0.00000009",
-      "completion": "0.00000016",
-      "request": "0",
-      "image": "0.0000256"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 16384,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000009",
+          "completion": "0.00000016",
+          "image": "0.0000256"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-3-4b-it",
-    "canonical_slug": "google/gemma-3-4b-it",
-    "name": "Google: Gemma 3 4B",
-    "created": 1741905510,
-    "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling.",
+    "name": "Gemma 3 4B",
     "context_length": 96000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Gemini",
-      "instruct_type": "gemma"
-    },
-    "pricing": {
-      "prompt": "0.00000001703012",
-      "completion": "0.0000000681536",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 96000,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ]
-  },
-  {
-    "id": "google/gemma-3n-e2b-it:free",
-    "canonical_slug": "google/gemma-3n-e2b-it",
-    "name": "Google: Gemma 3n 2B (free)",
-    "created": 1752074904,
-    "description": "Gemma 3n E2B IT is a multimodal, instruction-tuned model developed by Google DeepMind, designed to operate efficiently at an effective parameter size of 2B while leveraging a 6B architecture. Based on the MatFormer architecture, it supports nested submodels and modular composition via the Mix-and-Match framework. Gemma 3n models are optimized for low-resource deployment, offering 32K context length and strong multilingual and reasoning performance across common benchmarks. This variant is trained on a diverse corpus including code, math, web, and multimodal data.",
-    "context_length": 8192,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 8192,
-      "max_completion_tokens": 2048,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "top_p"
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Gemini",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000001703012",
+          "completion": "0.0000000681536"
+        }
+      }
     ]
   },
   {
     "id": "google/gemma-3n-e4b-it",
-    "canonical_slug": "google/gemma-3n-e4b-it",
-    "name": "Google: Gemma 3n 4B",
-    "created": 1747776824,
-    "description": "Gemma 3n E4B-it is optimized for efficient execution on mobile and low-resource devices, such as phones, laptops, and tablets. It supports multimodal inputs—including text, visual data, and audio—enabling diverse tasks such as text generation, speech recognition, translation, and image analysis. Leveraging innovations like Per-Layer Embedding (PLE) caching and the MatFormer architecture, Gemma 3n dynamically manages memory usage and computational load by selectively activating model parameters, significantly reducing runtime resource requirements.\n\nThis model supports a wide linguistic range (trained in over 140 languages) and features a flexible 32K token context window. Gemma 3n can selectively load parameters, optimizing memory and computational efficiency based on the task or device capabilities, making it well-suited for privacy-focused, offline-capable applications and on-device AI solutions. [Read more in the blog post](https://developers.googleblog.com/en/introducing-gemma-3n/)",
+    "name": "Gemma 3n 4B",
     "context_length": 32768,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000002",
-      "completion": "0.00000004",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Other",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000002",
+          "completion": "0.00000004"
+        }
+      }
     ]
   },
   {
     "id": "openai/chatgpt-4o-latest",
-    "canonical_slug": "openai/chatgpt-4o-latest",
-    "name": "OpenAI: ChatGPT-4o",
-    "created": 1723593600,
-    "description": "OpenAI ChatGPT 4o is continually updated by OpenAI to point to the current version of GPT-4o used by ChatGPT. It therefore differs slightly from the API version of [GPT-4o](/models/openai/gpt-4o) in that it has additional RLHF. It is intended for research and evaluation.\n\nOpenAI notes that this model is not suited for production use-cases as it may be removed or redirected to another model in the future.",
+    "name": "ChatGPT-4o",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000005",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.007225"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000005",
+          "completion": "0.000015",
+          "image": "0.007225"
+        }
+      }
     ]
   },
   {
     "id": "openai/codex-mini",
-    "canonical_slug": "openai/codex-mini",
-    "name": "OpenAI: Codex Mini",
-    "created": 1747409761,
-    "description": "codex-mini-latest is a fine-tuned version of o4-mini specifically for use in Codex CLI. For direct use in the API, we recommend starting with gpt-4.1.",
+    "name": "Codex Mini",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000015",
-      "completion": "0.000006",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000375"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000015",
+          "completion": "0.000006",
+          "input_cache_read": "0.000000375"
+        }
+      }
+    ]
+  },
+  {
+    "id": "openai/gpt",
+    "name": "GPT-4.1",
+    "context_length": 1047576,
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000002",
+          "completion": "0.000008",
+          "web_search": "0.01",
+          "input_cache_read": "0.0000005"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-3.5-turbo",
-    "canonical_slug": "openai/gpt-3.5-turbo",
-    "name": "OpenAI: GPT-3.5 Turbo",
-    "created": 1685232000,
-    "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
+    "name": "GPT-3.5 Turbo",
     "context_length": 16385,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000005",
-      "completion": "0.0000015",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 16385,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ]
-  },
-  {
-    "id": "openai/gpt-3.5-turbo-0613",
-    "canonical_slug": "openai/gpt-3.5-turbo-0613",
-    "name": "OpenAI: GPT-3.5 Turbo (older v0613)",
-    "created": 1706140800,
-    "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
-    "context_length": 4095,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000001",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 4095,
-      "max_completion_tokens": 4096,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000005",
+          "completion": "0.0000015"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-3.5-turbo-16k",
-    "canonical_slug": "openai/gpt-3.5-turbo-16k",
-    "name": "OpenAI: GPT-3.5 Turbo 16k",
-    "created": 1693180800,
-    "description": "This model offers four times the context length of gpt-3.5-turbo, allowing it to support approximately 20 pages of text in a single request at a higher cost. Training data: up to Sep 2021.",
+    "name": "GPT-3.5 Turbo 16k",
     "context_length": 16385,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000004",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 16385,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000003",
+          "completion": "0.000004"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-3.5-turbo-instruct",
-    "canonical_slug": "openai/gpt-3.5-turbo-instruct",
-    "name": "OpenAI: GPT-3.5 Turbo Instruct",
-    "created": 1695859200,
-    "description": "This model is a variant of GPT-3.5 Turbo tuned for instructional prompts and omitting chat-related optimizations. Training data: up to Sep 2021.",
+    "name": "GPT-3.5 Turbo Instruct",
     "context_length": 4095,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": "chatml"
-    },
-    "pricing": {
-      "prompt": "0.0000015",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 4095,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000015",
+          "completion": "0.000002"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4",
-    "canonical_slug": "openai/gpt-4",
-    "name": "OpenAI: GPT-4",
-    "created": 1685232000,
-    "description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
+    "name": "GPT-4 (older v0314)",
     "context_length": 8191,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00003",
-      "completion": "0.00006",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 8191,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ]
-  },
-  {
-    "id": "openai/gpt-4-0314",
-    "canonical_slug": "openai/gpt-4-0314",
-    "name": "OpenAI: GPT-4 (older v0314)",
-    "created": 1685232000,
-    "description": "GPT-4-0314 is the first version of GPT-4 released, with a context length of 8,192 tokens, and was supported until June 14. Training data: up to Sep 2021.",
-    "context_length": 8191,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00003",
-      "completion": "0.00006",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 8191,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00003",
+          "completion": "0.00006"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4-1106-preview",
-    "canonical_slug": "openai/gpt-4-1106-preview",
-    "name": "OpenAI: GPT-4 Turbo (older v1106)",
-    "created": 1699228800,
-    "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.\n\nTraining data: up to April 2023.",
+    "name": "GPT-4 Turbo (older v1106)",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00001",
+          "completion": "0.00003"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4-turbo",
-    "canonical_slug": "openai/gpt-4-turbo",
-    "name": "OpenAI: GPT-4 Turbo",
-    "created": 1712620800,
-    "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.\n\nTraining data: up to December 2023.",
+    "name": "GPT-4 Turbo",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003",
-      "request": "0",
-      "image": "0.01445"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00001",
+          "completion": "0.00003",
+          "image": "0.01445"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4-turbo-preview",
-    "canonical_slug": "openai/gpt-4-turbo-preview",
-    "name": "OpenAI: GPT-4 Turbo Preview",
-    "created": 1706140800,
-    "description": "The preview GPT-4 model with improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more. Training data: up to Dec 2023.\n\n**Note:** heavily rate limited by OpenAI while in preview.",
+    "name": "GPT-4 Turbo Preview",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00003",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ]
-  },
-  {
-    "id": "openai/gpt-4.1",
-    "canonical_slug": "openai/gpt-4.1-2025-04-14",
-    "name": "OpenAI: GPT-4.1",
-    "created": 1744651385,
-    "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning. It supports a 1 million token context window and outperforms GPT-4o and GPT-4.5 across coding (54.6% SWE-bench Verified), instruction compliance (87.4% IFEval), and multimodal understanding benchmarks. It is tuned for precise code diffs, agent reliability, and high recall in large document contexts, making it ideal for agents, IDE tooling, and enterprise knowledge retrieval.",
-    "context_length": 1047576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.0000005"
-    },
-    "top_provider": {
-      "context_length": 1047576,
-      "max_completion_tokens": 32768,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00001",
+          "completion": "0.00003"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4.1-mini",
-    "canonical_slug": "openai/gpt-4.1-mini-2025-04-14",
-    "name": "OpenAI: GPT-4.1 Mini",
-    "created": 1744651381,
-    "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost. It retains a 1 million token context window and scores 45.1% on hard instruction evals, 35.8% on MultiChallenge, and 84.1% on IFEval. Mini also shows strong coding ability (e.g., 31.6% on Aider’s polyglot diff benchmark) and vision understanding, making it suitable for interactive applications with tight performance constraints.",
+    "name": "GPT-4.1 Mini",
     "context_length": 1047576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.0000016",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.0000001"
-    },
-    "top_provider": {
-      "context_length": 1047576,
-      "max_completion_tokens": 32768,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000004",
+          "completion": "0.0000016",
+          "web_search": "0.01",
+          "input_cache_read": "0.0000001"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4.1-nano",
-    "canonical_slug": "openai/gpt-4.1-nano-2025-04-14",
-    "name": "OpenAI: GPT-4.1 Nano",
-    "created": 1744651369,
-    "description": "For tasks that demand low latency, GPT‑4.1 nano is the fastest and cheapest model in the GPT-4.1 series. It delivers exceptional performance at a small size with its 1 million token context window, and scores 80.1% on MMLU, 50.3% on GPQA, and 9.8% on Aider polyglot coding – even higher than GPT‑4o mini. It’s ideal for tasks like classification or autocompletion.",
+    "name": "GPT-4.1 Nano",
     "context_length": 1047576,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000025"
-    },
-    "top_provider": {
-      "context_length": 1047576,
-      "max_completion_tokens": 32768,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000004",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000025"
+        }
+      }
     ]
   },
   {
-    "id": "openai/gpt-4o:extended",
-    "canonical_slug": "openai/gpt-4o",
-    "name": "OpenAI: GPT-4o (extended)",
-    "created": 1715558400,
-    "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.\n\nFor benchmarking against other models, it was briefly called [\"im-also-a-good-gpt2-chatbot\"](https://twitter.com/LiamFedus/status/1790064963966370209)\n\n#multimodal",
+    "id": "openai/gpt-4o",
+    "name": "GPT-4o (2024-11-20)",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000006",
-      "completion": "0.000018",
-      "request": "0",
-      "image": "0.007225"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 64000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
-    ]
-  },
-  {
-    "id": "openai/gpt-4o-2024-05-13",
-    "canonical_slug": "openai/gpt-4o-2024-05-13",
-    "name": "OpenAI: GPT-4o (2024-05-13)",
-    "created": 1715558400,
-    "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.\n\nFor benchmarking against other models, it was briefly called [\"im-also-a-good-gpt2-chatbot\"](https://twitter.com/LiamFedus/status/1790064963966370209)\n\n#multimodal",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000005",
-      "completion": "0.000015",
-      "request": "0",
-      "image": "0.007225"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 4096,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
-    ]
-  },
-  {
-    "id": "openai/gpt-4o-2024-08-06",
-    "canonical_slug": "openai/gpt-4o-2024-08-06",
-    "name": "OpenAI: GPT-4o (2024-08-06)",
-    "created": 1722902400,
-    "description": "The 2024-08-06 version of GPT-4o offers improved performance in structured outputs, with the ability to supply a JSON schema in the respone_format. Read more [here](https://openai.com/index/introducing-structured-outputs-in-the-api/).\n\nGPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.\n\nFor benchmarking against other models, it was briefly called [\"im-also-a-good-gpt2-chatbot\"](https://twitter.com/LiamFedus/status/1790064963966370209)",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.003613",
-      "input_cache_read": "0.00000125"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
-    ]
-  },
-  {
-    "id": "openai/gpt-4o-2024-11-20",
-    "canonical_slug": "openai/gpt-4o-2024-11-20",
-    "name": "OpenAI: GPT-4o (2024-11-20)",
-    "created": 1732127594,
-    "description": "The 2024-11-20 version of GPT-4o offers a leveled-up creative writing ability with more natural, engaging, and tailored writing to improve relevance & readability. It’s also better at working with uploaded files, providing deeper insights & more thorough responses.\n\nGPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.003613",
-      "input_cache_read": "0.00000125"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000025",
+          "completion": "0.00001",
+          "image": "0.003613",
+          "input_cache_read": "0.00000125"
+        }
+      },
+      {
+        "variant": "extended",
+        "pricing": {
+          "prompt": "0.000006",
+          "completion": "0.000018",
+          "image": "0.007225"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4o-audio-preview",
-    "canonical_slug": "openai/gpt-4o-audio-preview",
-    "name": "OpenAI: GPT-4o Audio",
-    "created": 1755233061,
-    "description": "The gpt-4o-audio-preview model adds support for audio inputs as prompts. This enhancement allows the model to detect nuances within audio recordings and add depth to generated user experiences. Audio outputs are currently not supported. Audio tokens are priced at $40 per million input audio tokens.",
+    "name": "GPT-4o Audio",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "audio",
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000025",
+          "completion": "0.00001",
+          "audio": "0.00004"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4o-mini",
-    "canonical_slug": "openai/gpt-4o-mini",
-    "name": "OpenAI: GPT-4o-mini",
-    "created": 1721260800,
-    "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.\n\nAs their most advanced small model, it is many multiples more affordable than other recent frontier models, and more than 60% cheaper than [GPT-3.5 Turbo](/models/openai/gpt-3.5-turbo). It maintains SOTA intelligence, while being significantly more cost-effective.\n\nGPT-4o mini achieves an 82% score on MMLU and presently ranks higher than GPT-4 on chat preferences [common leaderboards](https://arena.lmsys.org/).\n\nCheck out the [launch announcement](https://openai.com/index/gpt-4o-mini-advancing-cost-efficient-intelligence/) to learn more.\n\n#multimodal",
+    "name": "GPT-4o-mini (2024-07-18)",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "request": "0",
-      "image": "0.000217",
-      "input_cache_read": "0.000000075"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
-    ]
-  },
-  {
-    "id": "openai/gpt-4o-mini-2024-07-18",
-    "canonical_slug": "openai/gpt-4o-mini-2024-07-18",
-    "name": "OpenAI: GPT-4o-mini (2024-07-18)",
-    "created": 1721260800,
-    "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.\n\nAs their most advanced small model, it is many multiples more affordable than other recent frontier models, and more than 60% cheaper than [GPT-3.5 Turbo](/models/openai/gpt-3.5-turbo). It maintains SOTA intelligence, while being significantly more cost-effective.\n\nGPT-4o mini achieves an 82% score on MMLU and presently ranks higher than GPT-4 on chat preferences [common leaderboards](https://arena.lmsys.org/).\n\nCheck out the [launch announcement](https://openai.com/index/gpt-4o-mini-advancing-cost-efficient-intelligence/) to learn more.\n\n#multimodal",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "request": "0",
-      "image": "0.007225",
-      "input_cache_read": "0.000000075"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p",
-      "web_search_options"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0.007225",
+          "input_cache_read": "0.000000075"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4o-mini-search-preview",
-    "canonical_slug": "openai/gpt-4o-mini-search-preview-2025-03-11",
-    "name": "OpenAI: GPT-4o-mini Search Preview",
-    "created": 1741818122,
-    "description": "GPT-4o mini Search Preview is a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.",
+    "name": "GPT-4o-mini Search Preview",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "request": "0.0275",
-      "image": "0.000217"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "structured_outputs",
-      "web_search_options"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0.000217",
+          "request": "0.0275"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-4o-search-preview",
-    "canonical_slug": "openai/gpt-4o-search-preview-2025-03-11",
-    "name": "OpenAI: GPT-4o Search Preview",
-    "created": 1741817949,
-    "description": "GPT-4o Search Previewis a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.",
+    "name": "GPT-4o Search Preview",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "request": "0.035",
-      "image": "0.003613"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "structured_outputs",
-      "web_search_options"
-    ]
-  },
-  {
-    "id": "openai/gpt-5",
-    "canonical_slug": "openai/gpt-5-2025-08-07",
-    "name": "OpenAI: GPT-5",
-    "created": 1754587413,
-    "description": "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience. It is optimized for complex tasks that require step-by-step reasoning, instruction following, and accuracy in high-stakes use cases. It supports test-time routing features and advanced prompt understanding, including user-specified intent like \"think hard about this.\" Improvements include reductions in hallucination, sycophancy, and better performance in coding, writing, and health-related tasks.",
-    "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000125"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000025",
+          "completion": "0.00001",
+          "image": "0.003613",
+          "request": "0.035"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-chat",
-    "canonical_slug": "openai/gpt-5-chat-2025-08-07",
-    "name": "OpenAI: GPT-5 Chat",
-    "created": 1754587837,
-    "description": "GPT-5 Chat is designed for advanced, natural, multimodal, and context-aware conversations for enterprise applications.",
+    "name": "GPT-5 Chat",
     "context_length": 128000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "file",
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000125"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs"
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000125",
+          "completion": "0.00001",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000125"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-codex",
-    "canonical_slug": "openai/gpt-5-codex",
-    "name": "OpenAI: GPT-5 Codex",
-    "created": 1758643403,
-    "description": "GPT-5-Codex is a specialized version of GPT-5 optimized for software engineering and coding workflows. It is designed for both interactive development sessions and long, independent execution of complex engineering tasks. The model supports building projects from scratch, feature development, debugging, large-scale refactoring, and code review. Compared to GPT-5, Codex is more steerable, adheres closely to developer instructions, and produces cleaner, higher-quality code outputs. Reasoning effort can be adjusted with the `reasoning.effort` parameter. Read the [docs here](https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level)\n\nCodex integrates into developer environments including the CLI, IDE extensions, GitHub, and cloud tasks. It adapts reasoning effort dynamically—providing fast responses for small tasks while sustaining extended multi-hour runs for large projects. The model is trained to perform structured code reviews, catching critical flaws by reasoning over dependencies and validating behavior against tests. It also supports multimodal inputs such as images or screenshots for UI development and integrates tool use for search, dependency installation, and environment setup. Codex is intended specifically for agentic coding applications.",
+    "name": "GPT-5 Codex",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000125",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000125"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000125",
+          "completion": "0.00001",
+          "input_cache_read": "0.000000125"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-image",
-    "canonical_slug": "openai/gpt-5-image",
-    "name": "OpenAI: GPT-5 Image",
-    "created": 1760447986,
-    "description": "[GPT-5](https://openrouter.ai/openai/gpt-5) Image combines OpenAI's most advanced language model with state-of-the-art image generation capabilities. It offers major improvements in reasoning, code quality, and user experience while incorporating GPT Image 1's superior instruction following, text rendering, and detailed image editing.",
+    "name": "GPT-5 Image",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text+image",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "image",
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00001",
-      "request": "0",
-      "image": "0.00001",
-      "input_cache_read": "0.00000125"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "image",
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00001",
+          "completion": "0.00001",
+          "image": "0.00001",
+          "web_search": "0.01",
+          "input_cache_read": "0.00000125"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-image-mini",
-    "canonical_slug": "openai/gpt-5-image-mini",
-    "name": "OpenAI: GPT-5 Image Mini",
-    "created": 1760624583,
-    "description": "GPT-5 Image Mini combines OpenAI's advanced language capabilities, powered by [GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini), with GPT Image 1 Mini for efficient image generation. This natively multimodal model features superior instruction following, text rendering, and detailed image editing with reduced latency and cost. It excels at high-quality visual creation while maintaining strong text understanding, making it ideal for applications that require both efficient image generation and text processing at scale.",
+    "name": "GPT-5 Image Mini",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text+image",
-      "input_modalities": [
-        "file",
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "image",
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0.0000025",
-      "input_cache_read": "0.00000025"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "image",
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000025",
+          "completion": "0.000002",
+          "image": "0.0000025",
+          "web_search": "0.01",
+          "input_cache_read": "0.00000025"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-mini",
-    "canonical_slug": "openai/gpt-5-mini-2025-08-07",
-    "name": "OpenAI: GPT-5 Mini",
-    "created": 1754587407,
-    "description": "GPT-5 Mini is a compact version of GPT-5, designed to handle lighter-weight reasoning tasks. It provides the same instruction-following and safety-tuning benefits as GPT-5, but with reduced latency and cost. GPT-5 Mini is the successor to OpenAI's o4-mini model.",
+    "name": "GPT-5 Mini",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000025",
-      "completion": "0.000002",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000025"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000025",
+          "completion": "0.000002",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000025"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-nano",
-    "canonical_slug": "openai/gpt-5-nano-2025-08-07",
-    "name": "OpenAI: GPT-5 Nano",
-    "created": 1754587402,
-    "description": "GPT-5-Nano is the smallest and fastest variant in the GPT-5 system, optimized for developer tools, rapid interactions, and ultra-low latency environments. While limited in reasoning depth compared to its larger counterparts, it retains key instruction-following and safety features. It is the successor to GPT-4.1-nano and offers a lightweight option for cost-sensitive or real-time applications.",
+    "name": "GPT-5 Nano",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000005",
-      "completion": "0.0000004",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000005"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000005",
+          "completion": "0.0000004",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000005"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-5-pro",
-    "canonical_slug": "openai/gpt-5-pro-2025-10-06",
-    "name": "OpenAI: GPT-5 Pro",
-    "created": 1759776663,
-    "description": "GPT-5 Pro is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience. It is optimized for complex tasks that require step-by-step reasoning, instruction following, and accuracy in high-stakes use cases. It supports test-time routing features and advanced prompt understanding, including user-specified intent like \"think hard about this.\" Improvements include reductions in hallucination, sycophancy, and better performance in coding, writing, and health-related tasks.",
+    "name": "GPT-5 Pro",
     "context_length": 400000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.00012",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000015",
+          "completion": "0.00012",
+          "web_search": "0.01"
+        }
+      }
     ]
   },
   {
-    "id": "openai/gpt-oss-120b:exacto",
-    "canonical_slug": "openai/gpt-oss-120b",
-    "name": "OpenAI: gpt-oss-120b (exacto)",
-    "created": 1754414231,
-    "description": "gpt-oss-120b is an open-weight, 117B-parameter Mixture-of-Experts (MoE) language model from OpenAI designed for high-reasoning, agentic, and general-purpose production use cases. It activates 5.1B parameters per forward pass and is optimized to run on a single H100 GPU with native MXFP4 quantization. The model supports configurable reasoning depth, full chain-of-thought access, and native tool use, including function calling, browsing, and structured output generation.",
+    "id": "openai/gpt-oss-120b",
+    "name": "gpt-oss-120b",
     "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000005",
-      "completion": "0.00000024",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000004",
+          "completion": "0.0000004"
+        }
+      },
+      {
+        "variant": "exacto",
+        "pricing": {
+          "prompt": "0.00000005",
+          "completion": "0.00000024"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-oss-20b",
-    "canonical_slug": "openai/gpt-oss-20b",
-    "name": "OpenAI: gpt-oss-20b",
-    "created": 1754414229,
-    "description": "gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license. It uses a Mixture-of-Experts (MoE) architecture with 3.6B active parameters per forward pass, optimized for lower-latency inference and deployability on consumer or single-GPU hardware. The model is trained in OpenAI’s Harmony response format and supports reasoning level configuration, fine-tuning, and agentic capabilities including function calling, tool use, and structured outputs.",
+    "name": "gpt-oss-20b",
     "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000003",
-      "completion": "0.00000014",
-      "request": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00000003",
+          "completion": "0.00000014"
+        }
+      }
     ]
   },
   {
     "id": "openai/gpt-oss-safeguard-20b",
-    "canonical_slug": "openai/gpt-oss-safeguard-20b",
-    "name": "OpenAI: gpt-oss-safeguard-20b",
-    "created": 1761752836,
-    "description": "gpt-oss-safeguard-20b is a safety reasoning model from OpenAI built upon gpt-oss-20b. This open-weight, 21B-parameter Mixture-of-Experts (MoE) model offers lower latency for safety tasks like content classification, LLM filtering, and trust & safety labeling.\n\nLearn more about this model in OpenAI's gpt-oss-safeguard [user guide](https://cookbook.openai.com/articles/gpt-oss-safeguard-guide).",
+    "name": "gpt-oss-safeguard-20b",
     "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.0000003",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.000000037"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000000075",
+          "completion": "0.0000003",
+          "input_cache_read": "0.000000037"
+        }
+      }
     ]
   },
   {
     "id": "openai/o1",
-    "canonical_slug": "openai/o1-2024-12-17",
-    "name": "OpenAI: o1",
-    "created": 1734459999,
-    "description": "The latest and strongest model family from OpenAI, o1 is designed to spend more time thinking before responding. The o1 model series is trained with large-scale reinforcement learning to reason using chain of thought. \n\nThe o1 models are optimized for math, science, programming, and other STEM-related tasks. They consistently exhibit PhD-level accuracy on benchmarks in physics, chemistry, and biology. Learn more in the [launch announcement](https://openai.com/o1).\n",
+    "name": "o1",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000015",
-      "completion": "0.00006",
-      "request": "0",
-      "image": "0.021675",
-      "input_cache_read": "0.0000075"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000015",
+          "completion": "0.00006",
+          "image": "0.021675",
+          "input_cache_read": "0.0000075"
+        }
+      }
     ]
   },
   {
     "id": "openai/o1-pro",
-    "canonical_slug": "openai/o1-pro",
-    "name": "OpenAI: o1-pro",
-    "created": 1742423211,
-    "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning. The o1-pro model uses more compute to think harder and provide consistently better answers.",
+    "name": "o1-pro",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "image",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00015",
-      "completion": "0.0006",
-      "request": "0",
-      "image": "0.21675"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00015",
+          "completion": "0.0006",
+          "image": "0.21675"
+        }
+      }
     ]
   },
   {
     "id": "openai/o3",
-    "canonical_slug": "openai/o3-2025-04-16",
-    "name": "OpenAI: o3",
-    "created": 1744823457,
-    "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following. Use it to think through multi-step problems that involve analysis across text, code, and images. ",
+    "name": "o3",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "request": "0",
-      "image": "0.00153",
-      "input_cache_read": "0.0000005"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000002",
+          "completion": "0.000008",
+          "image": "0.00153",
+          "web_search": "0.01",
+          "input_cache_read": "0.0000005"
+        }
+      }
     ]
   },
   {
     "id": "openai/o3-deep-research",
-    "canonical_slug": "openai/o3-deep-research-2025-06-26",
-    "name": "OpenAI: o3 Deep Research",
-    "created": 1760129661,
-    "description": "o3-deep-research is OpenAI's advanced model for deep research, designed to tackle complex, multi-step research tasks.\n\nNote: This model always uses the 'web_search' tool which adds additional cost.",
+    "name": "o3 Deep Research",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00001",
-      "completion": "0.00004",
-      "request": "0",
-      "image": "0.00765",
-      "input_cache_read": "0.0000025"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00001",
+          "completion": "0.00004",
+          "image": "0.00765",
+          "web_search": "0.01",
+          "input_cache_read": "0.0000025"
+        }
+      }
     ]
   },
   {
     "id": "openai/o3-mini",
-    "canonical_slug": "openai/o3-mini-2025-01-31",
-    "name": "OpenAI: o3 Mini",
-    "created": 1738351721,
-    "description": "OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding.\n\nThis model supports the `reasoning_effort` parameter, which can be set to \"high\", \"medium\", or \"low\" to control the thinking time of the model. The default is \"medium\". OpenRouter also offers the model slug `openai/o3-mini-high` to default the parameter to \"high\".\n\nThe model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
+    "name": "o3 Mini",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.00000055"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000011",
+          "completion": "0.0000044",
+          "input_cache_read": "0.00000055"
+        }
+      }
     ]
   },
   {
     "id": "openai/o3-mini-high",
-    "canonical_slug": "openai/o3-mini-high-2025-01-31",
-    "name": "OpenAI: o3 Mini High",
-    "created": 1739372611,
-    "description": "OpenAI o3-mini-high is the same model as [o3-mini](/openai/o3-mini) with reasoning_effort set to high. \n\no3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding. The model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
+    "name": "o3 Mini High",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": [
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0",
-      "input_cache_read": "0.00000055"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000011",
+          "completion": "0.0000044",
+          "input_cache_read": "0.00000055"
+        }
+      }
     ]
   },
   {
     "id": "openai/o3-pro",
-    "canonical_slug": "openai/o3-pro-2025-06-10",
-    "name": "OpenAI: o3 Pro",
-    "created": 1749598352,
-    "description": "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning. The o3-pro model uses more compute to think harder and provide consistently better answers.\n\nNote that BYOK is required for this model. Set up here: https://openrouter.ai/settings/integrations",
+    "name": "o3 Pro",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "text",
-        "file",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00002",
-      "completion": "0.00008",
-      "request": "0",
-      "image": "0.0153"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "text",
+      "file",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.00002",
+          "completion": "0.00008",
+          "image": "0.0153",
+          "web_search": "0.01"
+        }
+      }
     ]
   },
   {
     "id": "openai/o4-mini",
-    "canonical_slug": "openai/o4-mini-2025-04-16",
-    "name": "OpenAI: o4 Mini",
-    "created": 1744820942,
-    "description": "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities. It supports tool use and demonstrates competitive reasoning and coding performance across benchmarks like AIME (99.5% with Python) and SWE-bench, outperforming its predecessor o3-mini and even approaching o3 in some domains.\n\nDespite its smaller size, o4-mini exhibits high accuracy in STEM tasks, visual problem solving (e.g., MathVista, MMMU), and code editing. It is especially well-suited for high-throughput scenarios where latency or cost is critical. Thanks to its efficient architecture and refined reinforcement learning training, o4-mini can chain tools, generate structured outputs, and solve multi-step tasks with minimal delay—often in under a minute.",
+    "name": "o4 Mini",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0.0008415",
-      "input_cache_read": "0.000000275"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000011",
+          "completion": "0.0000044",
+          "image": "0.0008415",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000275"
+        }
+      }
     ]
   },
   {
     "id": "openai/o4-mini-deep-research",
-    "canonical_slug": "openai/o4-mini-deep-research-2025-06-26",
-    "name": "OpenAI: o4 Mini Deep Research",
-    "created": 1760129642,
-    "description": "o4-mini-deep-research is OpenAI's faster, more affordable deep research model—ideal for tackling complex, multi-step research tasks.\n\nNote: This model always uses the 'web_search' tool which adds additional cost.",
+    "name": "o4 Mini Deep Research",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "file",
-        "image",
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000008",
-      "request": "0",
-      "image": "0.00153",
-      "input_cache_read": "0.0000005"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.000002",
+          "completion": "0.000008",
+          "image": "0.00153",
+          "web_search": "0.01",
+          "input_cache_read": "0.0000005"
+        }
+      }
     ]
   },
   {
     "id": "openai/o4-mini-high",
-    "canonical_slug": "openai/o4-mini-high-2025-04-16",
-    "name": "OpenAI: o4 Mini High",
-    "created": 1744824212,
-    "description": "OpenAI o4-mini-high is the same model as [o4-mini](/openai/o4-mini) with reasoning_effort set to high. \n\nOpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities. It supports tool use and demonstrates competitive reasoning and coding performance across benchmarks like AIME (99.5% with Python) and SWE-bench, outperforming its predecessor o3-mini and even approaching o3 in some domains.\n\nDespite its smaller size, o4-mini exhibits high accuracy in STEM tasks, visual problem solving (e.g., MathVista, MMMU), and code editing. It is especially well-suited for high-throughput scenarios where latency or cost is critical. Thanks to its efficient architecture and refined reinforcement learning training, o4-mini can chain tools, generate structured outputs, and solve multi-step tasks with minimal delay—often in under a minute.",
+    "name": "o4 Mini High",
     "context_length": 200000,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": [
-        "image",
-        "text",
-        "file"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000011",
-      "completion": "0.0000044",
-      "request": "0",
-      "image": "0.0008415",
-      "input_cache_read": "0.000000275"
-    },
-    "top_provider": {
-      "context_length": 200000,
-      "max_completion_tokens": 100000,
-      "is_moderated": true
-    },
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "tool_choice",
-      "tools"
+    "max_completion_tokens": 100000,
+    "input_modalities": [
+      "image",
+      "text",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Other",
+    "variants": [
+      {
+        "variant": "",
+        "pricing": {
+          "prompt": "0.0000011",
+          "completion": "0.0000044",
+          "image": "0.0008415",
+          "web_search": "0.01",
+          "input_cache_read": "0.000000275"
+        }
+      }
     ]
   }
 ]
