@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical } from 'lucide-react';
+import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
@@ -61,7 +61,7 @@ const AnalogClock: React.FC = () => {
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <div className="relative w-32 h-32">
+      <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36">
         {/* Clock face */}
         <div className="absolute inset-0 rounded-full border-2 border-text-muted/20" />
         
@@ -129,6 +129,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [tileOrder, setTileOrder] = useState<string[]>([]);
+  
+  // Custom breakpoint for ultra-wide screens
+  const [isUltraWide, setIsUltraWide] = useState(false);
 
   // Update time every second for smooth clock animation
   useEffect(() => {
@@ -139,6 +142,18 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     updateTime();
     const interval = setInterval(updateTime, 1000); // Update every second
     return () => clearInterval(interval);
+  }, []);
+
+  // Handle ultra-wide breakpoint (2536px+)
+  useEffect(() => {
+    const checkUltraWide = () => {
+      setIsUltraWide(window.innerWidth >= 2536);
+    };
+    
+    checkUltraWide(); // Check on mount
+    window.addEventListener('resize', checkUltraWide);
+    
+    return () => window.removeEventListener('resize', checkUltraWide);
   }, []);
 
   // Fetch data when navigation expands
@@ -261,6 +276,22 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
         const total = extensionsList.length;
         return `${enabled} of ${total} enabled`;
       },
+    },
+    {
+      id: 'peers',
+      path: '/peers',
+      label: 'Peers',
+      icon: Users,
+      getTag: () => '3 online',
+      tagAlign: 'left',
+    },
+    {
+      id: 'channels',
+      path: '/channels',
+      label: 'Channels',
+      icon: Hash,
+      getTag: () => '7 active',
+      tagAlign: 'left',
     },
     {
       id: 'settings',
@@ -469,7 +500,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               }}
               className="pb-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5" style={{ gridTemplateColumns: isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined }}>
             {navItems.map((item, index) => {
               const isPulsing = pulsingItems.has(item.id);
               const isDragging = draggedItem === item.id;
@@ -504,7 +535,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                       overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
                       ${isPulsing ? 'animate-pulse' : ''}
-                      ${isLastTile && totalTiles === 10 ? 'sm:col-span-3 md:col-span-3 lg:col-span-1 sm:aspect-[3/1] md:aspect-[3/1] lg:aspect-square' : 'aspect-square'}
+                      aspect-square
                     `}
                     style={{
                       opacity: isDragging ? 0.5 : 1,
@@ -546,7 +577,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   className={`
                     relative cursor-move group
                     ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
-                    ${isLastTile && totalTiles === 10 ? 'sm:col-span-3 md:col-span-3 lg:col-span-1' : ''}
                   `}
                   style={{
                     opacity: isDragging ? 0.5 : 1,
@@ -569,7 +599,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                         ? 'bg-background-accent text-text-on-accent' 
                         : 'bg-background-default hover:bg-background-medium'
                       }
-                      ${isLastTile && totalTiles === 10 ? 'sm:aspect-[3/1] md:aspect-[3/1] lg:aspect-square' : 'aspect-square'}
+                      aspect-square
                     `}
                   >
                     {/* Drag handle indicator */}
