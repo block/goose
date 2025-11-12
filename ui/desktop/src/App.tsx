@@ -19,7 +19,7 @@ import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
-import Hub from './components/hub';
+import Hub from './components/Hub';
 import Pair, { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
