@@ -191,11 +191,12 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full mb-2 transition-all duration-300 ease-out ${
+      className={`absolute top-0 left-0 right-0 z-50 transition-all duration-300 ease-out ${
         isVisible 
           ? 'opacity-100 translate-y-0' 
           : 'opacity-0 -translate-y-2 pointer-events-none'
       }`}
+      style={{ transform: 'translateY(-100%)' }} // Position above the container
     >
       {/* Screenshot backdrops - positioned behind the dock */}
       {iframeBackdrops.map((backdrop) => (
