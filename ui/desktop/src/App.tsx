@@ -16,7 +16,7 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
-import { startAgent } from './api';
+import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -123,25 +123,10 @@ const PairRouteWrapper = ({
 
       (async () => {
         try {
-          const body: {
-            working_dir: string;
-            recipe_id?: string;
-            recipe_deeplink?: string;
-          } = {
-            working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-          };
-
-          if (recipeId) {
-            body.recipe_id = recipeId;
-          } else if (recipeDeeplinkFromConfig) {
-            body.recipe_deeplink = recipeDeeplinkFromConfig;
-          }
-
-          const newAgent = await startAgent({
-            body,
-            throwOnError: true,
+          const newSession = await createSession({
+            recipeId,
+            recipeDeeplink: recipeDeeplinkFromConfig,
           });
-          const newSession = newAgent.data;
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
