@@ -20,7 +20,7 @@ import { startAgent } from './api';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
-import Pair, { PairRouteState } from './components/pair';
+import { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -38,14 +38,9 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import { View, ViewOptions } from './utils/navigationUtils';
-import {
-  AgentState,
-  InitializationContext,
-  NoProviderOrModelError,
-  useAgent,
-} from './hooks/useAgent';
+import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
-import Pair2 from './components/Pair2';
+import Pair from './components/Pair';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -73,25 +68,16 @@ const PairRouteWrapper = ({
   chat,
   setChat,
   setIsGoosehintsModalOpen,
-  setAgentWaitingMessage,
-  setFatalError,
-  agentState,
-  loadCurrentChat,
   activeSessionId,
   setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-  setAgentWaitingMessage: (msg: string | null) => void;
-  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
-  agentState: AgentState;
-  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
-  const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
@@ -175,7 +161,7 @@ const PairRouteWrapper = ({
 
   // Update URL with session ID when on /pair route (for refresh support)
   useEffect(() => {
-    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+    if (sessionId && sessionId !== resumeSessionId) {
       setSearchParams((prev) => {
         prev.set('resumeSessionId', sessionId);
         return prev;
@@ -185,29 +171,16 @@ const PairRouteWrapper = ({
 
   // Update active session state when session ID changes
   useEffect(() => {
-    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+    if (sessionId && sessionId !== activeSessionId) {
       setActiveSessionId(sessionId);
     }
   }, [sessionId, activeSessionId, setActiveSessionId]);
 
-  return process.env.ALPHA ? (
-    <Pair2
+  return (
+    <Pair
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
-      initialMessage={initialMessage}
-    />
-  ) : (
-    <Pair
-      chat={chat}
-      setChat={setChat}
-      setView={setView}
-      agentState={agentState}
-      loadCurrentChat={loadCurrentChat}
-      setFatalError={setFatalError}
-      setAgentWaitingMessage={setAgentWaitingMessage}
-      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}
     />
   );
@@ -406,7 +379,7 @@ export function AppInner() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
-  const { agentState, loadCurrentChat, resetChat } = useAgent();
+  const { loadCurrentChat, resetChat } = useAgent();
   const resetChatIfNecessary = useCallback(() => {
     if (chat.messages.length > 0) {
       setSearchParams((prev) => {
@@ -709,10 +682,6 @@ export function AppInner() {
                 <PairRouteWrapper
                   chat={chat}
                   setChat={setChat}
-                  agentState={agentState}
-                  loadCurrentChat={loadCurrentChat}
-                  setFatalError={setFatalError}
-                  setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   activeSessionId={activeSessionId}
                   setActiveSessionId={setActiveSessionId}
