@@ -222,7 +222,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       <div className="flex justify-start pl-4">
         <div
           className={`transition-all duration-300 ease-out ${
-            isHovering 
+            isVisible 
               ? 'opacity-100 scale-100' 
               : 'opacity-80 scale-95'
           }`}
@@ -247,13 +247,13 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                       transition-all duration-200 ease-out
                       flex items-center justify-center
                       border border-white/20
-                      ${isHovering 
+                      ${isVisible 
                         ? 'animate-in slide-in-from-bottom-2 fade-in' 
                         : 'animate-out slide-out-to-bottom-2 fade-out'
                       }
                     `}
                     style={{
-                      animationDelay: isHovering ? `${index * 50}ms` : `${(dockApps.length - index - 1) * 30}ms`,
+                      animationDelay: isVisible ? `${index * 50}ms` : `${(dockApps.length - index - 1) * 30}ms`,
                       animationFillMode: 'both'
                     }}
                     title={app.name}
