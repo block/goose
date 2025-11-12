@@ -33,6 +33,7 @@ goose operates autonomously by default. Combined with the Developer extension's 
 
 In addition, these platform extensions provide core goose functionality. They are also always available and enabled by default:
 
+- Chat Recall: Search conversation content across all your session history
 - Extension Manager: Discover, enable, and disable extensions dynamically during sessions
 - [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
 
