@@ -24,6 +24,7 @@ import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
+import { substituteParameters } from '../utils/providerUtils';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -214,9 +215,16 @@ function BaseChatContent({
   };
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
+  // If we have a recipe prompt and user recipe values, substitute parameters
+  let recipePrompt = '';
+  if (messages.length === 0 && recipe?.prompt) {
+    recipePrompt = session?.user_recipe_values
+      ? substituteParameters(recipe.prompt, session.user_recipe_values)
+      : recipe.prompt;
+  }
+
   const initialPrompt =
-    (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') ||
-    (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
+    (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') || recipePrompt;
 
   if (sessionLoadError) {
     return (
