@@ -190,13 +190,6 @@ impl Scheduler {
 
         let local_tz = Local::now().timezone();
 
-        tracing::info!(
-            "Creating cron task for job '{}' cron: '{}' in timezone: {:?}",
-            job.id,
-            cron,
-            local_tz
-        );
-
         Job::new_async_tz(&cron, local_tz, move |_uuid, _l| {
             tracing::info!("Cron task triggered for job '{}'", job_for_task.id);
             let task_job_id = job_for_task.id.clone();
@@ -215,7 +208,6 @@ impl Scheduler {
                 };
 
                 if !should_execute {
-                    tracing::info!("Skipping paused job '{}'", task_job_id);
                     return;
                 }
 
@@ -731,15 +723,11 @@ async fn execute_job(
         }
     }
 
-    if let Err(e) = SessionManager::update_session(&session.id)
+    SessionManager::update_session(&session.id)
         .schedule_id(Some(job.id.clone()))
         .recipe(Some(recipe))
         .apply()
-        .await
-    {
-        tracing::error!("Failed to update session: {}", e);
-    }
-
+        .await?;
     Ok(session.id)
 }
 

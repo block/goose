@@ -33,9 +33,7 @@ import {
   EnvToggles,
   loadSettings,
   saveSettings,
-  SchedulingEngine,
   updateEnvironmentVariables,
-  updateSchedulingEngineEnvironment,
 } from './utils/settings';
 import * as crypto from 'crypto';
 // import electron from "electron";
@@ -502,38 +500,20 @@ const createChat = async (
   scheduledJobId?: string, // Scheduled job ID if applicable
   recipeId?: string
 ) => {
-  // Initialize variables for process and configuration
-  let port = 0;
-  let workingDir = '';
-  let goosedProcess: import('child_process').ChildProcess | null = null;
+  updateEnvironmentVariables(envToggles);
 
-  {
-    // Apply current environment settings before creating chat
-    updateEnvironmentVariables(envToggles);
+  const envVars = {
+    GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
+  };
+  const [port, workingDir, goosedProcess, errorLog] = await startGoosed(
+    app,
+    SERVER_SECRET,
+    dir || os.homedir(),
+    envVars
+  );
 
-    // Apply scheduling engine setting
-    const settings = loadSettings();
-    updateSchedulingEngineEnvironment(settings.schedulingEngine);
-
-    const envVars = {
-      GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
-      GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
-    };
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
-      app,
-      SERVER_SECRET,
-      dir,
-      envVars
-    );
-    port = newPort;
-    workingDir = newWorkingDir;
-    goosedProcess = newGoosedProcess;
-  }
-
-  // Create window config with loading state for recipe deeplinks
-  // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 940, // large enough to show the sidebar on launch
+    defaultWidth: 940,
     defaultHeight: 800,
   });
 
@@ -594,23 +574,21 @@ const createChat = async (
   );
   goosedClients.set(mainWindow.id, goosedClient);
 
-  console.log('[Main] Waiting for backend server to be ready...');
-  const serverReady = await checkServerStatus(goosedClient);
+  const serverReady = await checkServerStatus(goosedClient, errorLog);
   if (!serverReady) {
-    throw new Error('Backend server failed to start in time');
+    dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'Goose Failed to Start',
+      message: 'The backend server failed to start.',
+      detail: errorLog.join('\n'),
+      buttons: ['OK'],
+    });
+    app.quit();
   }
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
 
-  // Enable spellcheck / right and ctrl + click on mispelled word
-  //
-  // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
-  // all languages in the list of spell checked words, but it diminishes the times you
-  // get red squigglies back for mispelled english words. Given the rest of Goose only
-  // renders in english right now, this feels like the correct set of language codes
-  // for the moment.
-  //
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
   mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
@@ -1165,22 +1143,6 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
     return null;
   }
   return client.getConfig().baseUrl || null;
-});
-
-ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
-  try {
-    const settings = loadSettings();
-    settings.schedulingEngine = engine as SchedulingEngine;
-    saveSettings(settings);
-
-    // Update the environment variable immediately
-    updateSchedulingEngineEnvironment(settings.schedulingEngine);
-
-    return true;
-  } catch (error) {
-    console.error('Error setting scheduling engine:', error);
-    return false;
-  }
 });
 
 // Handle menu bar icon visibility
