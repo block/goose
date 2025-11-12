@@ -12,18 +12,13 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000025",
-          "completion": "0.00000125",
-          "image": "0.0004",
-          "input_cache_read": "0.00000003",
-          "input_cache_write": "0.0000003"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000025",
+      "completion": "0.00000125",
+      "image": "0.0004",
+      "input_cache_read": "0.00000003",
+      "input_cache_write": "0.0000003"
+    }
   },
   {
     "id": "anthropic/claude-3-opus",
@@ -38,18 +33,13 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000015",
-          "completion": "0.000075",
-          "image": "0.024",
-          "input_cache_read": "0.0000015",
-          "input_cache_write": "0.00001875"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000015",
+      "completion": "0.000075",
+      "image": "0.024",
+      "input_cache_read": "0.0000015",
+      "input_cache_write": "0.00001875"
+    }
   },
   {
     "id": "anthropic/claude-3.5-haiku",
@@ -65,17 +55,12 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000008",
-          "completion": "0.000004",
-          "input_cache_read": "0.00000008",
-          "input_cache_write": "0.000001"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000008",
+      "completion": "0.000004",
+      "input_cache_read": "0.00000008",
+      "input_cache_write": "0.000001"
+    }
   },
   {
     "id": "anthropic/claude-3.5-sonnet",
@@ -91,21 +76,38 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000003",
-          "completion": "0.000015",
-          "image": "0.0048",
-          "input_cache_read": "0.0000003",
-          "input_cache_write": "0.00000375"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000003",
+      "completion": "0.000015",
+      "image": "0.0048",
+      "input_cache_read": "0.0000003",
+      "input_cache_write": "0.00000375"
+    }
   },
   {
     "id": "anthropic/claude-3.7-sonnet",
+    "name": "Claude 3.7 Sonnet",
+    "context_length": 200000,
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "Claude",
+    "pricing": {
+      "prompt": "0.000003",
+      "completion": "0.000015",
+      "image": "0.0048",
+      "input_cache_read": "0.0000003",
+      "input_cache_write": "0.00000375"
+    }
+  },
+  {
+    "id": "anthropic/claude-3.7-sonnet:thinking",
     "name": "Claude 3.7 Sonnet (thinking)",
     "context_length": 200000,
     "max_completion_tokens": 64000,
@@ -118,28 +120,13 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000003",
-          "completion": "0.000015",
-          "image": "0.0048",
-          "input_cache_read": "0.0000003",
-          "input_cache_write": "0.00000375"
-        }
-      },
-      {
-        "variant": "thinking",
-        "pricing": {
-          "prompt": "0.000003",
-          "completion": "0.000015",
-          "image": "0.0048",
-          "input_cache_read": "0.0000003",
-          "input_cache_write": "0.00000375"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000003",
+      "completion": "0.000015",
+      "image": "0.0048",
+      "input_cache_read": "0.0000003",
+      "input_cache_write": "0.00000375"
+    }
   },
   {
     "id": "anthropic/claude-haiku",
@@ -154,17 +141,12 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000001",
-          "completion": "0.000005",
-          "input_cache_read": "0.0000001",
-          "input_cache_write": "0.00000125"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000001",
+      "completion": "0.000005",
+      "input_cache_read": "0.0000001",
+      "input_cache_write": "0.00000125"
+    }
   },
   {
     "id": "anthropic/claude-opus",
@@ -180,18 +162,13 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000015",
-          "completion": "0.000075",
-          "image": "0.024",
-          "input_cache_read": "0.0000015",
-          "input_cache_write": "0.00001875"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000015",
+      "completion": "0.000075",
+      "image": "0.024",
+      "input_cache_read": "0.0000015",
+      "input_cache_write": "0.00001875"
+    }
   },
   {
     "id": "anthropic/claude-sonnet",
@@ -207,17 +184,12 @@
       "text"
     ],
     "tokenizer": "Claude",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000003",
-          "completion": "0.000015",
-          "input_cache_read": "0.0000003",
-          "input_cache_write": "0.00000375"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000003",
+      "completion": "0.000015",
+      "input_cache_read": "0.0000003",
+      "input_cache_write": "0.00000375"
+    }
   },
   {
     "id": "google/gemini-2.0-flash",
@@ -234,19 +206,14 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000004",
-          "image": "0.0000258",
-          "audio": "0.0000007",
-          "input_cache_read": "0.000000025",
-          "input_cache_write": "0.0000001833"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000001",
+      "completion": "0.0000004",
+      "image": "0.0000258",
+      "audio": "0.0000007",
+      "input_cache_read": "0.000000025",
+      "input_cache_write": "0.0000001833"
+    }
   },
   {
     "id": "google/gemini-2.0-flash-lite",
@@ -263,15 +230,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000000075",
-          "completion": "0.0000003"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000000075",
+      "completion": "0.0000003"
+    }
   },
   {
     "id": "google/gemini-2.5-flash",
@@ -289,18 +251,13 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000003",
-          "completion": "0.0000025",
-          "image": "0.001238",
-          "input_cache_read": "0.00000003",
-          "input_cache_write": "0.0000003833"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000003",
+      "completion": "0.0000025",
+      "image": "0.001238",
+      "input_cache_read": "0.00000003",
+      "input_cache_write": "0.0000003833"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-image",
@@ -316,16 +273,11 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000003",
-          "completion": "0.0000025",
-          "image": "0.001238"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000003",
+      "completion": "0.0000025",
+      "image": "0.001238"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-image-preview",
@@ -341,16 +293,11 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000003",
-          "completion": "0.0000025",
-          "image": "0.001238"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000003",
+      "completion": "0.0000025",
+      "image": "0.001238"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-lite",
@@ -368,17 +315,12 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000004",
-          "input_cache_read": "0.00000001",
-          "input_cache_write": "0.0000001833"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000001",
+      "completion": "0.0000004",
+      "input_cache_read": "0.00000001",
+      "input_cache_write": "0.0000001833"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-lite-preview-06",
@@ -395,18 +337,13 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000004",
-          "audio": "0.0000003",
-          "input_cache_read": "0.000000025",
-          "input_cache_write": "0.0000001833"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000001",
+      "completion": "0.0000004",
+      "audio": "0.0000003",
+      "input_cache_read": "0.000000025",
+      "input_cache_write": "0.0000001833"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-lite-preview-09",
@@ -424,15 +361,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000004"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000001",
+      "completion": "0.0000004"
+    }
   },
   {
     "id": "google/gemini-2.5-flash-preview-09",
@@ -450,19 +382,14 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000003",
-          "completion": "0.0000025",
-          "image": "0.001238",
-          "audio": "0.000001",
-          "input_cache_read": "0.000000075",
-          "input_cache_write": "0.0000003833"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000003",
+      "completion": "0.0000025",
+      "image": "0.001238",
+      "audio": "0.000001",
+      "input_cache_read": "0.000000075",
+      "input_cache_write": "0.0000003833"
+    }
   },
   {
     "id": "google/gemini-2.5-pro",
@@ -480,18 +407,13 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000125",
-          "completion": "0.00001",
-          "image": "0.00516",
-          "input_cache_read": "0.000000125",
-          "input_cache_write": "0.000001625"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "image": "0.00516",
+      "input_cache_read": "0.000000125",
+      "input_cache_write": "0.000001625"
+    }
   },
   {
     "id": "google/gemini-2.5-pro-preview",
@@ -508,18 +430,13 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000125",
-          "completion": "0.00001",
-          "image": "0.00516",
-          "input_cache_read": "0.00000031",
-          "input_cache_write": "0.000001625"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "image": "0.00516",
+      "input_cache_read": "0.00000031",
+      "input_cache_write": "0.000001625"
+    }
   },
   {
     "id": "google/gemini-2.5-pro-preview-05",
@@ -537,18 +454,13 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000125",
-          "completion": "0.00001",
-          "image": "0.00516",
-          "input_cache_read": "0.00000031",
-          "input_cache_write": "0.000001625"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "image": "0.00516",
+      "input_cache_read": "0.00000031",
+      "input_cache_write": "0.000001625"
+    }
   },
   {
     "id": "google/gemma-2-27b-it",
@@ -562,15 +474,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000065",
-          "completion": "0.00000065"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000065",
+      "completion": "0.00000065"
+    }
   },
   {
     "id": "google/gemma-2-9b-it",
@@ -584,15 +491,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000003",
-          "completion": "0.00000009"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000003",
+      "completion": "0.00000009"
+    }
   },
   {
     "id": "google/gemma-3-12b-it",
@@ -607,15 +509,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000003",
-          "completion": "0.0000001"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000003",
+      "completion": "0.0000001"
+    }
   },
   {
     "id": "google/gemma-3-27b-it",
@@ -630,16 +527,11 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000009",
-          "completion": "0.00000016",
-          "image": "0.0000256"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000009",
+      "completion": "0.00000016",
+      "image": "0.0000256"
+    }
   },
   {
     "id": "google/gemma-3-4b-it",
@@ -654,15 +546,10 @@
       "text"
     ],
     "tokenizer": "Gemini",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000001703012",
-          "completion": "0.0000000681536"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000001703012",
+      "completion": "0.0000000681536"
+    }
   },
   {
     "id": "google/gemma-3n-e4b-it",
@@ -676,15 +563,10 @@
       "text"
     ],
     "tokenizer": "Other",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000002",
-          "completion": "0.00000004"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000002",
+      "completion": "0.00000004"
+    }
   },
   {
     "id": "openai/chatgpt-4o-latest",
@@ -699,16 +581,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000005",
-          "completion": "0.000015",
-          "image": "0.007225"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000005",
+      "completion": "0.000015",
+      "image": "0.007225"
+    }
   },
   {
     "id": "openai/codex-mini",
@@ -723,16 +600,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000015",
-          "completion": "0.000006",
-          "input_cache_read": "0.000000375"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000015",
+      "completion": "0.000006",
+      "input_cache_read": "0.000000375"
+    }
   },
   {
     "id": "openai/gpt",
@@ -748,17 +620,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000002",
-          "completion": "0.000008",
-          "web_search": "0.01",
-          "input_cache_read": "0.0000005"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000002",
+      "completion": "0.000008",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000005"
+    }
   },
   {
     "id": "openai/gpt-3.5-turbo",
@@ -772,15 +639,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000005",
-          "completion": "0.0000015"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000005",
+      "completion": "0.0000015"
+    }
   },
   {
     "id": "openai/gpt-3.5-turbo-16k",
@@ -794,15 +656,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000003",
-          "completion": "0.000004"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000003",
+      "completion": "0.000004"
+    }
   },
   {
     "id": "openai/gpt-3.5-turbo-instruct",
@@ -816,15 +673,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000015",
-          "completion": "0.000002"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000015",
+      "completion": "0.000002"
+    }
   },
   {
     "id": "openai/gpt-4",
@@ -838,15 +690,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00003",
-          "completion": "0.00006"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00003",
+      "completion": "0.00006"
+    }
   },
   {
     "id": "openai/gpt-4-1106-preview",
@@ -860,15 +707,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00001",
-          "completion": "0.00003"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00003"
+    }
   },
   {
     "id": "openai/gpt-4-turbo",
@@ -883,16 +725,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00001",
-          "completion": "0.00003",
-          "image": "0.01445"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00003",
+      "image": "0.01445"
+    }
   },
   {
     "id": "openai/gpt-4-turbo-preview",
@@ -906,15 +743,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00001",
-          "completion": "0.00003"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00003"
+    }
   },
   {
     "id": "openai/gpt-4.1-mini",
@@ -930,17 +762,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000004",
-          "completion": "0.0000016",
-          "web_search": "0.01",
-          "input_cache_read": "0.0000001"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000004",
+      "completion": "0.0000016",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000001"
+    }
   },
   {
     "id": "openai/gpt-4.1-nano",
@@ -956,17 +783,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000004",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000025"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000001",
+      "completion": "0.0000004",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000025"
+    }
   },
   {
     "id": "openai/gpt-4o",
@@ -982,25 +804,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000025",
-          "completion": "0.00001",
-          "image": "0.003613",
-          "input_cache_read": "0.00000125"
-        }
-      },
-      {
-        "variant": "extended",
-        "pricing": {
-          "prompt": "0.000006",
-          "completion": "0.000018",
-          "image": "0.007225"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000025",
+      "completion": "0.00001",
+      "image": "0.003613",
+      "input_cache_read": "0.00000125"
+    }
   },
   {
     "id": "openai/gpt-4o-audio-preview",
@@ -1015,20 +824,15 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000025",
-          "completion": "0.00001",
-          "audio": "0.00004"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000025",
+      "completion": "0.00001",
+      "audio": "0.00004"
+    }
   },
   {
     "id": "openai/gpt-4o-mini",
-    "name": "GPT-4o-mini (2024-07-18)",
+    "name": "GPT-4o-mini",
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
@@ -1040,17 +844,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000015",
-          "completion": "0.0000006",
-          "image": "0.007225",
-          "input_cache_read": "0.000000075"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000015",
+      "completion": "0.0000006",
+      "image": "0.000217",
+      "input_cache_read": "0.000000075"
+    }
   },
   {
     "id": "openai/gpt-4o-mini-search-preview",
@@ -1064,17 +863,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000015",
-          "completion": "0.0000006",
-          "image": "0.000217",
-          "request": "0.0275"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000015",
+      "completion": "0.0000006",
+      "image": "0.000217",
+      "request": "0.0275"
+    }
   },
   {
     "id": "openai/gpt-4o-search-preview",
@@ -1088,17 +882,32 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000025",
-          "completion": "0.00001",
-          "image": "0.003613",
-          "request": "0.035"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000025",
+      "completion": "0.00001",
+      "image": "0.003613",
+      "request": "0.035"
+    }
+  },
+  {
+    "id": "openai/gpt-4o:extended",
+    "name": "GPT-4o (extended)",
+    "context_length": 128000,
+    "max_completion_tokens": 64000,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "pricing": {
+      "prompt": "0.000006",
+      "completion": "0.000018",
+      "image": "0.007225"
+    }
   },
   {
     "id": "openai/gpt-5-chat",
@@ -1114,17 +923,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000125",
-          "completion": "0.00001",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000125"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000125"
+    }
   },
   {
     "id": "openai/gpt-5-codex",
@@ -1139,16 +943,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000125",
-          "completion": "0.00001",
-          "input_cache_read": "0.000000125"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000125",
+      "completion": "0.00001",
+      "input_cache_read": "0.000000125"
+    }
   },
   {
     "id": "openai/gpt-5-image",
@@ -1165,18 +964,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00001",
-          "completion": "0.00001",
-          "image": "0.00001",
-          "web_search": "0.01",
-          "input_cache_read": "0.00000125"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00001",
+      "image": "0.00001",
+      "web_search": "0.01",
+      "input_cache_read": "0.00000125"
+    }
   },
   {
     "id": "openai/gpt-5-image-mini",
@@ -1193,18 +987,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000025",
-          "completion": "0.000002",
-          "image": "0.0000025",
-          "web_search": "0.01",
-          "input_cache_read": "0.00000025"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000025",
+      "completion": "0.000002",
+      "image": "0.0000025",
+      "web_search": "0.01",
+      "input_cache_read": "0.00000025"
+    }
   },
   {
     "id": "openai/gpt-5-mini",
@@ -1220,17 +1009,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000025",
-          "completion": "0.000002",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000025"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000025",
+      "completion": "0.000002",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000025"
+    }
   },
   {
     "id": "openai/gpt-5-nano",
@@ -1246,17 +1030,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000005",
-          "completion": "0.0000004",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000005"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000005",
+      "completion": "0.0000004",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000005"
+    }
   },
   {
     "id": "openai/gpt-5-pro",
@@ -1272,16 +1051,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000015",
-          "completion": "0.00012",
-          "web_search": "0.01"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000015",
+      "completion": "0.00012",
+      "web_search": "0.01"
+    }
   },
   {
     "id": "openai/gpt-oss-120b",
@@ -1295,22 +1069,27 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000004",
-          "completion": "0.0000004"
-        }
-      },
-      {
-        "variant": "exacto",
-        "pricing": {
-          "prompt": "0.00000005",
-          "completion": "0.00000024"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000004",
+      "completion": "0.0000004"
+    }
+  },
+  {
+    "id": "openai/gpt-oss-120b:exacto",
+    "name": "gpt-oss-120b (exacto)",
+    "context_length": 131072,
+    "max_completion_tokens": null,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "pricing": {
+      "prompt": "0.00000005",
+      "completion": "0.00000024"
+    }
   },
   {
     "id": "openai/gpt-oss-20b",
@@ -1324,15 +1103,10 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00000003",
-          "completion": "0.00000014"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00000003",
+      "completion": "0.00000014"
+    }
   },
   {
     "id": "openai/gpt-oss-safeguard-20b",
@@ -1346,16 +1120,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000000075",
-          "completion": "0.0000003",
-          "input_cache_read": "0.000000037"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000000075",
+      "completion": "0.0000003",
+      "input_cache_read": "0.000000037"
+    }
   },
   {
     "id": "openai/o1",
@@ -1371,17 +1140,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000015",
-          "completion": "0.00006",
-          "image": "0.021675",
-          "input_cache_read": "0.0000075"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000015",
+      "completion": "0.00006",
+      "image": "0.021675",
+      "input_cache_read": "0.0000075"
+    }
   },
   {
     "id": "openai/o1-pro",
@@ -1397,16 +1161,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00015",
-          "completion": "0.0006",
-          "image": "0.21675"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00015",
+      "completion": "0.0006",
+      "image": "0.21675"
+    }
   },
   {
     "id": "openai/o3",
@@ -1422,18 +1181,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000002",
-          "completion": "0.000008",
-          "image": "0.00153",
-          "web_search": "0.01",
-          "input_cache_read": "0.0000005"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000002",
+      "completion": "0.000008",
+      "image": "0.00153",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000005"
+    }
   },
   {
     "id": "openai/o3-deep-research",
@@ -1449,18 +1203,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00001",
-          "completion": "0.00004",
-          "image": "0.00765",
-          "web_search": "0.01",
-          "input_cache_read": "0.0000025"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00004",
+      "image": "0.00765",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000025"
+    }
   },
   {
     "id": "openai/o3-mini",
@@ -1475,16 +1224,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000011",
-          "completion": "0.0000044",
-          "input_cache_read": "0.00000055"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000011",
+      "completion": "0.0000044",
+      "input_cache_read": "0.00000055"
+    }
   },
   {
     "id": "openai/o3-mini-high",
@@ -1499,16 +1243,11 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000011",
-          "completion": "0.0000044",
-          "input_cache_read": "0.00000055"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000011",
+      "completion": "0.0000044",
+      "input_cache_read": "0.00000055"
+    }
   },
   {
     "id": "openai/o3-pro",
@@ -1524,17 +1263,12 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.00002",
-          "completion": "0.00008",
-          "image": "0.0153",
-          "web_search": "0.01"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.00002",
+      "completion": "0.00008",
+      "image": "0.0153",
+      "web_search": "0.01"
+    }
   },
   {
     "id": "openai/o4-mini",
@@ -1550,18 +1284,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000011",
-          "completion": "0.0000044",
-          "image": "0.0008415",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000275"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000011",
+      "completion": "0.0000044",
+      "image": "0.0008415",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000275"
+    }
   },
   {
     "id": "openai/o4-mini-deep-research",
@@ -1577,18 +1306,13 @@
       "text"
     ],
     "tokenizer": "GPT",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.000002",
-          "completion": "0.000008",
-          "image": "0.00153",
-          "web_search": "0.01",
-          "input_cache_read": "0.0000005"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.000002",
+      "completion": "0.000008",
+      "image": "0.00153",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000005"
+    }
   },
   {
     "id": "openai/o4-mini-high",
@@ -1604,17 +1328,12 @@
       "text"
     ],
     "tokenizer": "Other",
-    "variants": [
-      {
-        "variant": "",
-        "pricing": {
-          "prompt": "0.0000011",
-          "completion": "0.0000044",
-          "image": "0.0008415",
-          "web_search": "0.01",
-          "input_cache_read": "0.000000275"
-        }
-      }
-    ]
+    "pricing": {
+      "prompt": "0.0000011",
+      "completion": "0.0000044",
+      "image": "0.0008415",
+      "web_search": "0.01",
+      "input_cache_read": "0.000000275"
+    }
   }
 ]

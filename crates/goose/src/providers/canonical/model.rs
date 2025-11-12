@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Pricing information for a model variant (all costs in USD per token as strings)
+/// Pricing information for a model (all costs in USD per token as strings)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pricing {
     /// Cost per prompt token
@@ -52,20 +52,10 @@ impl Pricing {
     }
 }
 
-/// A pricing variant for a model (e.g., base, extended, thinking)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelVariant {
-    /// Variant name (empty string "" for base model, or "extended", "thinking", etc.)
-    pub variant: String,
-
-    /// Pricing for this variant
-    pub pricing: Pricing,
-}
-
 /// Canonical representation of a model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalModel {
-    /// Model identifier (e.g., "anthropic/claude-3-5-sonnet")
+    /// Model identifier (e.g., "anthropic/claude-3-5-sonnet" or "openai/gpt-4o:extended")
     pub id: String,
 
     /// Human-readable name (e.g., "Claude 3.5 Sonnet")
@@ -89,26 +79,14 @@ pub struct CanonicalModel {
     /// Tokenizer type (e.g., "GPT", "Claude", "Gemini")
     pub tokenizer: String,
 
-    /// Pricing variants for this model (base variant has variant = "")
-    pub variants: Vec<ModelVariant>,
+    /// Pricing for this model
+    pub pricing: Pricing,
 }
 
 impl CanonicalModel {
-    /// Get the base variant (variant = "")
-    pub fn base_variant(&self) -> Option<&ModelVariant> {
-        self.variants.iter().find(|v| v.variant.is_empty())
-    }
-
-    /// Get a specific variant by name
-    pub fn get_variant(&self, variant: &str) -> Option<&ModelVariant> {
-        self.variants.iter().find(|v| v.variant == variant)
-    }
-
-    /// Check if the model supports prompt caching (any variant has cache pricing)
+    /// Check if the model supports prompt caching
     pub fn supports_cache(&self) -> bool {
-        self.variants.iter().any(|v| {
-            v.pricing.input_cache_read.is_some() || v.pricing.input_cache_write.is_some()
-        })
+        self.pricing.input_cache_read.is_some() || self.pricing.input_cache_write.is_some()
     }
 
     /// Check if the model supports vision/image inputs
@@ -121,19 +99,32 @@ impl CanonicalModel {
         self.id.split('/').next()
     }
 
-    /// Get the model name without the provider prefix
+    /// Get the model name without the provider prefix (may include variant like ":extended")
     pub fn model_name(&self) -> Option<&str> {
         self.id.split('/').nth(1)
     }
 
-    /// Get base variant prompt cost as f64 (cost per token)
-    pub fn prompt_cost(&self) -> Option<f64> {
-        self.base_variant().and_then(|v| v.pricing.prompt_cost())
+    /// Get the base model ID without variant (e.g., "anthropic/claude-3.7-sonnet:thinking" -> "anthropic/claude-3.7-sonnet")
+    pub fn base_model_id(&self) -> String {
+        if let Some(pos) = self.id.rfind(':') {
+            self.id[..pos].to_string()
+        } else {
+            self.id.clone()
+        }
     }
 
-    /// Get base variant completion cost as f64 (cost per token)
+    /// Get the variant suffix if present (e.g., "thinking" from "claude-3.7-sonnet:thinking")
+    pub fn variant(&self) -> Option<&str> {
+        self.id.split(':').nth(1)
+    }
+
+    /// Get prompt cost as f64 (cost per token)
+    pub fn prompt_cost(&self) -> Option<f64> {
+        self.pricing.prompt_cost()
+    }
+
+    /// Get completion cost as f64 (cost per token)
     pub fn completion_cost(&self) -> Option<f64> {
-        self.base_variant()
-            .and_then(|v| v.pricing.completion_cost())
+        self.pricing.completion_cost()
     }
 }
