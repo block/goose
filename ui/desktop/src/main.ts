@@ -1546,21 +1546,29 @@ ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x:
       height: Math.max(bounds.height, 200)
     };
 
+    // Constrain child window within main window bounds
+    const constrainedBounds = {
+      x: Math.max(mainBounds.x, Math.min(absoluteBounds.x, mainBounds.x + mainBounds.width - 300)),
+      y: Math.max(mainBounds.y, Math.min(absoluteBounds.y, mainBounds.y + mainBounds.height - 200)),
+      width: Math.min(absoluteBounds.width, mainBounds.width - (absoluteBounds.x - mainBounds.x)),
+      height: Math.min(absoluteBounds.height, mainBounds.height - (absoluteBounds.y - mainBounds.y))
+    };
+
     // Create child webviewer window
     const childWindow = new BrowserWindow({
       parent: mainWindow,
-      width: absoluteBounds.width,
-      height: absoluteBounds.height,
-      x: absoluteBounds.x,
-      y: absoluteBounds.y,
+      width: constrainedBounds.width,
+      height: constrainedBounds.height,
+      x: constrainedBounds.x,
+      y: constrainedBounds.y,
       frame: false,
       transparent: false,
       alwaysOnTop: false,
       skipTaskbar: true,
-      resizable: true,
+      resizable: false, // Prevent user from resizing
       minimizable: false,
       maximizable: false,
-      closable: true,
+      closable: false, // Prevent user from closing manually
       show: false,
       webPreferences: {
         nodeIntegration: false,
@@ -1712,8 +1720,16 @@ ipcMain.handle('update-child-webviewer-bounds', async (event, viewerId: string, 
       height: Math.max(bounds.height, 200)
     };
 
-    childWindow.setBounds(absoluteBounds);
-    console.log('[Main] Child webviewer window bounds updated:', viewerId, absoluteBounds);
+    // Constrain child window within main window bounds
+    const constrainedBounds = {
+      x: Math.max(mainBounds.x, Math.min(absoluteBounds.x, mainBounds.x + mainBounds.width - 300)),
+      y: Math.max(mainBounds.y, Math.min(absoluteBounds.y, mainBounds.y + mainBounds.height - 200)),
+      width: Math.min(absoluteBounds.width, mainBounds.width - (absoluteBounds.x - mainBounds.x)),
+      height: Math.min(absoluteBounds.height, mainBounds.height - (absoluteBounds.y - mainBounds.y))
+    };
+
+    childWindow.setBounds(constrainedBounds);
+    console.log('[Main] Child webviewer window bounds updated:', viewerId, constrainedBounds);
     return true;
   } catch (error) {
     console.error('[Main] Error updating child webviewer window bounds:', error);
