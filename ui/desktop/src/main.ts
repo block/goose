@@ -526,9 +526,8 @@ const createChat = async (
   if (recipeDeeplink && !recipe) {
     console.log('[Main] createChat: Decoding recipe from deeplink:', recipeDeeplink);
 
-    // Retry logic: the server might need a moment to start listening
     const maxRetries = 5;
-    const retryDelay = 100; // ms
+    const retryDelay = 100;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
