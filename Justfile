@@ -193,7 +193,7 @@ generate-openapi:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
     @echo "Generating frontend API..."
-    cd ui/desktop && npm run generate-api
+    cd ui/desktop && npx @hey-api/openapi-ts
 
 # make GUI with latest binary
 lint-ui:
@@ -202,17 +202,12 @@ lint-ui:
 # make GUI with latest binary
 make-ui:
     @just release-binary
-    cd ui/desktop && APPLE_IDENTITY="" APPLE_ID="" APPLE_ID_PASSWORD="" APPLE_APP_SPECIFIC_PASSWORD="" APPLE_TEAM_ID="" npm run bundle:default
-
-# make GUI with signing and notarization (requires Apple Developer credentials)
-make-ui-signed:
-    @just release-binary
     cd ui/desktop && npm run bundle:default
 
 # make GUI with latest binary and alpha features enabled
 make-ui-alpha:
     @just release-binary
-    cd ui/desktop && APPLE_IDENTITY="" APPLE_ID="" APPLE_ID_PASSWORD="" APPLE_APP_SPECIFIC_PASSWORD="" APPLE_TEAM_ID="" npm run bundle:alpha
+    cd ui/desktop && npm run bundle:alpha
 
 # make GUI with latest Windows binary
 make-ui-windows:
@@ -305,9 +300,12 @@ prepare-release version:
     # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
-    @just generate-openapi
+    @just set-openapi-version {{ version }}
     @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json
     @git commit --message "chore(release): release version {{ version }}"
+
+set-openapi-version version:
+    @jq '.info.version |= "{{ version }}"' ui/desktop/openapi.json > ui/desktop/openapi.json.tmp && mv ui/desktop/openapi.json.tmp ui/desktop/openapi.json
 
 # extract version from Cargo.toml
 get-tag-version:

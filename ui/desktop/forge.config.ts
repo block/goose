@@ -6,20 +6,6 @@ let cfg = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
   icon: 'src/images/icon',
-  // macOS signing configuration
-  osxSign: process.env.APPLE_IDENTITY ? {
-    identity: process.env.APPLE_IDENTITY,
-    'hardened-runtime': true,
-    entitlements: 'entitlements.plist',
-    'entitlements-inherit': 'entitlements.plist',
-    'signature-flags': 'library'
-  } : undefined,
-  // macOS notarization configuration
-  osxNotarize: process.env.APPLE_ID && (process.env.APPLE_APP_SPECIFIC_PASSWORD || process.env.APPLE_ID_PASSWORD) ? {
-    appleId: process.env.APPLE_ID,
-    appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD || process.env.APPLE_ID_PASSWORD,
-    teamId: process.env.APPLE_TEAM_ID,
-  } : undefined,
   // Windows specific configuration
   win32: {
     icon: 'src/images/icon.ico',
