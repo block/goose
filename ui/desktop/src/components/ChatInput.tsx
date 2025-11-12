@@ -35,6 +35,8 @@ import { getApiUrl } from '../config';
 import { useCustomCommands } from '../hooks/useCustomCommands';
 import { AddCustomCommandModal } from './AddCustomCommandModal';
 import { CustomCommand } from '../types/customCommands';
+import { SidecarInvoker } from './Layout/SidecarInvoker';
+import { useSidecar } from './SidecarLayout';
 
 interface QueuedMessage {
   id: string;
@@ -346,6 +348,29 @@ export default function ChatInput({
   // Add Custom Command Modal state
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+
+  // Sidecar functionality
+  const sidecar = useSidecar();
+
+  const handleShowLocalhost = () => {
+    console.log('Localhost viewer requested');
+    if (sidecar) {
+      sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer');
+    }
+  };
+
+  const handleShowFileViewer = (filePath: string) => {
+    console.log('File viewer requested for:', filePath);
+    if (sidecar) {
+      sidecar.showFileViewer(filePath);
+    }
+  };
+
+  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => {
+    console.log('Add container requested:', type, filePath);
+    // Dispatch event to be handled by MainPanelLayout
+    window.dispatchEvent(new CustomEvent('add-container', { detail: { type, filePath } }));
+  };
 
   // Load custom commands on mount
   useEffect(() => {
@@ -1581,6 +1606,15 @@ export default function ChatInput({
           className="border-b border-borderSubtle"
         />
       )}
+
+      {/* Sidecar Invoker Dock - positioned above the input */}
+      <SidecarInvoker 
+        onShowLocalhost={handleShowLocalhost}
+        onShowFileViewer={handleShowFileViewer}
+        onAddContainer={handleAddContainer}
+        isVisible={true}
+      />
+
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">

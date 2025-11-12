@@ -4,7 +4,7 @@ import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { SidebarProvider } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
-import { SidecarInvoker } from './SidecarInvoker';
+
 import { TopNavigation } from './TopNavigation';
 
 // Create context for navigation state
@@ -80,10 +80,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
-  // Show sidecar invoker on chat-related pages - now always show it since we support multiple sidecars
-  const shouldShowSidecarInvoker = 
-    (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair');
-
   return (
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded }}>
       <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
@@ -92,14 +88,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
-          {/* New hover-triggered sidecar invoker */}
-          <SidecarInvoker 
-            onShowLocalhost={handleShowLocalhost}
-            onShowFileViewer={handleShowFileViewer}
-            onAddContainer={handleAddContainer}
-            isVisible={shouldShowSidecarInvoker}
-          />
-
           {/* Main content without sidebar */}
           <div className="flex-1 overflow-hidden">
             <Outlet />

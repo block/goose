@@ -190,7 +190,10 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   ];
 
   return (
-    <>
+    <div
+      ref={containerRef}
+      className="relative w-full mb-2"
+    >
       {/* Screenshot backdrops - positioned behind the dock */}
       {iframeBackdrops.map((backdrop) => (
         <div
@@ -211,30 +214,20 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
         />
       ))}
 
-      <div
-        ref={containerRef}
-        className="fixed top-0 left-0 z-[99999] pointer-events-none"
-        style={{ width: isHovering ? '100px' : '20px', height: '100%' }}
-      >
-        {/* Hover detection zone */}
+      {/* Horizontal dock above chat input */}
+      <div className="flex justify-center">
         <div
-          className="absolute top-0 left-0 h-full pointer-events-auto"
-          style={{ width: isHovering ? '100px' : '20px' }}
+          className={`transition-all duration-300 ease-out ${
+            isHovering 
+              ? 'opacity-100 scale-100' 
+              : 'opacity-80 scale-95'
+          }`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-        {/* macOS-style dock - with smooth enter/exit animations */}
-        <div
-          className={`absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-auto transition-all duration-300 ease-out ${
-            isHovering 
-              ? 'opacity-100 translate-x-0 scale-100' 
-              : 'opacity-0 -translate-x-4 scale-95 pointer-events-none'
-          }`}
-          style={{ marginTop: '60px' }}
-        >
-          {/* Dock container with macOS styling */}
+          {/* Dock container with macOS styling - horizontal layout */}
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3 shadow-2xl">
-            <div className="flex flex-col space-y-2">
+            <div className="flex flex-row space-x-2">
               {dockApps.map((app, index) => (
                 <div
                   key={app.id}
@@ -244,15 +237,15 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                   <button
                     onClick={app.onClick}
                     className={`
-                      w-12 h-12 rounded-xl bg-gradient-to-br ${app.color} 
+                      w-10 h-10 rounded-xl bg-gradient-to-br ${app.color} 
                       shadow-lg hover:shadow-xl 
                       transform hover:scale-110 hover:-translate-y-1
                       transition-all duration-200 ease-out
                       flex items-center justify-center
                       border border-white/20
                       ${isHovering 
-                        ? 'animate-in slide-in-from-left-2 fade-in' 
-                        : 'animate-out slide-out-to-left-2 fade-out'
+                        ? 'animate-in slide-in-from-bottom-2 fade-in' 
+                        : 'animate-out slide-out-to-bottom-2 fade-out'
                       }
                     `}
                     style={{
@@ -261,14 +254,14 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                     }}
                     title={app.name}
                   >
-                    <app.icon className="w-6 h-6 text-white drop-shadow-sm" />
+                    <app.icon className="w-5 h-5 text-white drop-shadow-sm" />
                   </button>
 
                   {/* Tooltip */}
-                  <div className="absolute left-full ml-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                  <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <div className="bg-gray-900/90 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md whitespace-nowrap shadow-lg">
                       {app.description}
-                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900/90"></div>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900/90"></div>
                     </div>
                   </div>
 
@@ -281,6 +274,5 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
         </div>
       </div>
     </div>
-    </>
   );
 };
