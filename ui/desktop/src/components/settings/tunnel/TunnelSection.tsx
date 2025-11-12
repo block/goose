@@ -5,13 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { QRCodeSVG } from 'qrcode.react';
 import { Loader2, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
-import type { TunnelStatus } from '../../../utils/tunnel';
+import type { TunnelInfo } from '../../../utils/tunnel';
 
 export default function TunnelSection() {
-  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus>({
+  const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
     state: 'idle',
-    info: null,
-    auto_start: false,
   });
   const [showQRModal, setShowQRModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,34 +18,34 @@ export default function TunnelSection() {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    const loadTunnelStatus = async () => {
+    const loadTunnelInfo = async () => {
       try {
         const baseUrl = await window.electron.getGoosedHostPort();
         if (!baseUrl) throw new Error('goose server not available');
-        const status = await window.electron.getTunnelStatus(baseUrl);
-        setTunnelStatus(status);
+        const info = await window.electron.getTunnelStatus(baseUrl);
+        setTunnelInfo(info);
       } catch (err) {
         setError(errorMessage(err, 'Failed to load tunnel status'));
-        setTunnelStatus({ state: 'error', info: null, auto_start: false });
+        setTunnelInfo({ state: 'error' });
       }
     };
 
-    loadTunnelStatus();
+    loadTunnelInfo();
   }, []);
 
   const handleStartTunnel = async () => {
     setError(null);
-    setTunnelStatus((prev) => ({ ...prev, state: 'starting', info: null }));
+    setTunnelInfo({ state: 'starting' });
 
     try {
       const baseUrl = await window.electron.getGoosedHostPort();
       if (!baseUrl) throw new Error('goose server not available');
-      const tunnelInfo = await window.electron.startTunnel(baseUrl);
-      setTunnelStatus((prev) => ({ ...prev, state: 'running', info: tunnelInfo }));
+      const info = await window.electron.startTunnel(baseUrl);
+      setTunnelInfo(info);
       setShowQRModal(true);
     } catch (err) {
       setError(errorMessage(err, 'Failed to start tunnel'));
-      setTunnelStatus((prev) => ({ ...prev, state: 'error', info: null }));
+      setTunnelInfo({ state: 'error' });
     }
   };
 
@@ -56,15 +54,15 @@ export default function TunnelSection() {
       const baseUrl = await window.electron.getGoosedHostPort();
       if (!baseUrl) throw new Error('goose server not available');
       await window.electron.stopTunnel(baseUrl);
-      setTunnelStatus((prev) => ({ ...prev, state: 'idle', info: null }));
+      setTunnelInfo({ state: 'idle' });
       setShowQRModal(false);
     } catch (err) {
       setError(errorMessage(err, 'Failed to stop tunnel'));
       try {
         const baseUrl = await window.electron.getGoosedHostPort();
         if (!baseUrl) throw new Error('goose server not available');
-        const status = await window.electron.getTunnelStatus(baseUrl);
-        setTunnelStatus(status);
+        const info = await window.electron.getTunnelStatus(baseUrl);
+        setTunnelInfo(info);
       } catch (statusErr) {
         console.error('Failed to fetch tunnel status after error:', statusErr);
       }
@@ -87,11 +85,11 @@ export default function TunnelSection() {
   };
 
   const getQRCodeData = () => {
-    if (!tunnelStatus.info) return '';
+    if (!tunnelInfo.url || !tunnelInfo.secret) return '';
 
     const configJson = JSON.stringify({
-      url: tunnelStatus.info.url,
-      secret: tunnelStatus.info.secret,
+      url: tunnelInfo.url,
+      secret: tunnelInfo.secret,
     });
     const urlEncodedConfig = encodeURIComponent(configJson);
     return `goosechat://configure?data=${urlEncodedConfig}`;
@@ -117,25 +115,25 @@ export default function TunnelSection() {
             <div>
               <h3 className="text-text-default text-xs">Tunnel Status</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                {tunnelStatus.state === 'idle' && 'Tunnel is not running'}
-                {tunnelStatus.state === 'starting' && 'Starting tunnel...'}
-                {tunnelStatus.state === 'running' && 'Tunnel is active'}
-                {tunnelStatus.state === 'error' && 'Tunnel encountered an error'}
+                {tunnelInfo.state === 'idle' && 'Tunnel is not running'}
+                {tunnelInfo.state === 'starting' && 'Starting tunnel...'}
+                {tunnelInfo.state === 'running' && 'Tunnel is active'}
+                {tunnelInfo.state === 'error' && 'Tunnel encountered an error'}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {tunnelStatus.state === 'idle' && (
+              {tunnelInfo.state === 'idle' && (
                 <Button onClick={handleStartTunnel} variant="default" size="sm">
                   Start Tunnel
                 </Button>
               )}
-              {tunnelStatus.state === 'starting' && (
+              {tunnelInfo.state === 'starting' && (
                 <Button disabled variant="secondary" size="sm">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Starting...
                 </Button>
               )}
-              {tunnelStatus.state === 'running' && (
+              {tunnelInfo.state === 'running' && (
                 <>
                   <Button onClick={() => setShowQRModal(true)} variant="default" size="sm">
                     Show QR Code
@@ -145,7 +143,7 @@ export default function TunnelSection() {
                   </Button>
                 </>
               )}
-              {tunnelStatus.state === 'error' && (
+              {tunnelInfo.state === 'error' && (
                 <Button onClick={handleStartTunnel} variant="default" size="sm">
                   Retry
                 </Button>
@@ -153,13 +151,10 @@ export default function TunnelSection() {
             </div>
           </div>
 
-          {tunnelStatus.state === 'running' && tunnelStatus.info && (
+          {tunnelInfo.state === 'running' && tunnelInfo.url && (
             <div className="p-3 bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-800 rounded">
               <p className="text-xs text-green-800 dark:text-green-200">
-                <strong>URL:</strong> {tunnelStatus.info.url}
-              </p>
-              <p className="text-xs text-green-800 dark:text-green-200 mt-1">
-                <strong>Port:</strong> {tunnelStatus.info.port}
+                <strong>URL:</strong> {tunnelInfo.url}
               </p>
             </div>
           )}
@@ -172,7 +167,7 @@ export default function TunnelSection() {
             <DialogTitle>Remote Access Connection</DialogTitle>
           </DialogHeader>
 
-          {tunnelStatus.info && (
+          {tunnelInfo.url && tunnelInfo.secret && (
             <div className="py-4 space-y-4">
               <div className="flex justify-center">
                 <div className="p-4 bg-white rounded-lg">
@@ -204,13 +199,13 @@ export default function TunnelSection() {
                       <h3 className="text-xs font-medium mb-1 text-text-muted">Tunnel URL</h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
-                          {tunnelStatus.info.url}
+                          {tunnelInfo.url}
                         </code>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelStatus.info!.url, 'url')}
+                          onClick={() => copyToClipboard(tunnelInfo.url!, 'url')}
                         >
                           {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
@@ -221,13 +216,13 @@ export default function TunnelSection() {
                       <h3 className="text-xs font-medium mb-1 text-text-muted">Secret Key</h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
-                          {tunnelStatus.info.secret}
+                          {tunnelInfo.secret}
                         </code>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelStatus.info!.secret, 'secret')}
+                          onClick={() => copyToClipboard(tunnelInfo.secret!, 'secret')}
                         >
                           {copiedSecret ? (
                             <Check className="h-4 w-4" />

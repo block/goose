@@ -20,7 +20,7 @@ pub struct ErrorResponse {
     post,
     path = "/api/tunnel/start",
     responses(
-        (status = 200, description = "Tunnel started successfully", body = TunnelStatus),
+        (status = 200, description = "Tunnel started successfully", body = TunnelInfo),
         (status = 400, description = "Bad request", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
@@ -28,10 +28,7 @@ pub struct ErrorResponse {
 #[axum::debug_handler]
 pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
     match state.tunnel_manager.start().await {
-        Ok(_info) => {
-            let status = state.tunnel_manager.get_status().await;
-            (StatusCode::OK, Json(status)).into_response()
-        }
+        Ok(info) => (StatusCode::OK, Json(info)).into_response(),
         Err(e) => {
             tracing::error!("Failed to start tunnel: {}", e);
             (
@@ -61,19 +58,19 @@ pub async fn stop_tunnel(State(state): State<Arc<AppState>>) -> Response {
     StatusCode::OK.into_response()
 }
 
-/// Get tunnel status
+/// Get tunnel info
 ///
 /// Returns the current tunnel state and connection information if running.
 #[utoipa::path(
     get,
     path = "/api/tunnel/status",
     responses(
-        (status = 200, description = "Tunnel status", body = TunnelStatus)
+        (status = 200, description = "Tunnel info", body = TunnelInfo)
     )
 )]
 pub async fn get_tunnel_status(State(state): State<Arc<AppState>>) -> Response {
-    let status = state.tunnel_manager.get_status().await;
-    (StatusCode::OK, Json(status)).into_response()
+    let info = state.tunnel_manager.get_info().await;
+    (StatusCode::OK, Json(info)).into_response()
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

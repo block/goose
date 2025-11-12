@@ -5,13 +5,14 @@ use crate::configuration::Settings;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
+use utoipa::ToSchema;
 
 fn get_server_port() -> anyhow::Result<u16> {
     let settings = Settings::new()?;
     Ok(settings.port)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelState {
     #[default]
@@ -21,18 +22,15 @@ pub enum TunnelState {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct TunnelPids {
-    pub goosed: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TunnelInfo {
-    pub url: String,
-    pub hostname: String,
-    pub secret: String,
-    pub port: u16,
-    pub pids: TunnelPids,
+    pub state: TunnelState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hostname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -45,13 +43,6 @@ pub struct TunnelConfig {
     pub agent_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TunnelStatus {
-    pub state: TunnelState,
-    pub info: Option<TunnelInfo>,
-    pub auto_start: bool,
-}
-
 pub struct TunnelManager {
     state: Arc<RwLock<TunnelState>>,
     info: Arc<RwLock<Option<TunnelInfo>>>,
@@ -59,6 +50,12 @@ pub struct TunnelManager {
     lapstone_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+}
+
+impl Default for TunnelManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TunnelManager {
@@ -81,12 +78,14 @@ impl TunnelManager {
     pub async fn check_auto_start(&self) {
         self.load_config().await;
 
-        let status = self.get_status().await;
-        if status.auto_start && status.state == TunnelState::Idle {
+        let auto_start = self.config.read().await.auto_start;
+        let state = self.state.read().await.clone();
+
+        if auto_start && state == TunnelState::Idle {
             tracing::info!("Auto-starting tunnel");
             match self.start().await {
                 Ok(info) => {
-                    tracing::info!("Tunnel auto-started successfully: {}", info.url);
+                    tracing::info!("Tunnel auto-started successfully: {:?}", info.url);
                 }
                 Err(e) => {
                     tracing::error!("Failed to auto-start tunnel: {}", e);
@@ -95,14 +94,21 @@ impl TunnelManager {
         }
     }
 
-    pub async fn get_status(&self) -> TunnelStatus {
+    pub async fn get_info(&self) -> TunnelInfo {
         let state = self.state.read().await.clone();
         let info = self.info.read().await.clone();
-        let auto_start = self.config.read().await.auto_start;
-        TunnelStatus {
-            state,
-            info,
-            auto_start,
+
+        match info {
+            Some(mut tunnel_info) => {
+                tunnel_info.state = state;
+                tunnel_info
+            }
+            None => TunnelInfo {
+                state,
+                url: None,
+                hostname: None,
+                secret: None,
+            },
         }
     }
 

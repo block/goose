@@ -1,4 +1,4 @@
-use super::{TunnelInfo, TunnelPids};
+use super::TunnelInfo;
 use anyhow::{Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest;
@@ -12,6 +12,22 @@ use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use url::Url;
+
+/// Constant-time comparison using hash to prevent timing attacks
+fn secure_compare(a: &str, b: &str) -> bool {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher_a = DefaultHasher::new();
+    a.hash(&mut hasher_a);
+    let hash_a = hasher_a.finish();
+    
+    let mut hasher_b = DefaultHasher::new();
+    b.hash(&mut hasher_b);
+    let hash_b = hasher_b.finish();
+    
+    hash_a == hash_b
+}
 
 const WORKER_URL: &str = "https://cloudflare-tunnel-proxy.michael-neale.workers.dev";
 const IDLE_TIMEOUT_SECS: u64 = 300;
@@ -87,7 +103,7 @@ fn validate_and_build_request(
         .and_then(|h| h.get("x-secret-key").or_else(|| h.get("X-Secret-Key")))
         .ok_or_else(|| anyhow::anyhow!("Missing tunnel secret header"))?;
 
-    if incoming_secret != tunnel_secret {
+    if !secure_compare(incoming_secret, tunnel_secret) {
         anyhow::bail!("Invalid tunnel secret");
     }
 
@@ -572,11 +588,10 @@ pub async fn start(
         .to_string();
 
     Ok(TunnelInfo {
-        url: public_url,
-        hostname,
-        secret: tunnel_secret,
-        port,
-        pids: TunnelPids::default(),
+        state: super::TunnelState::Running,
+        url: Some(public_url),
+        hostname: Some(hostname),
+        secret: Some(tunnel_secret),
     })
 }
 

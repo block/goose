@@ -1,21 +1,10 @@
 import log from './logger';
 
 export interface TunnelInfo {
-  url: string;
-  hostname: string;
-  secret: string;
-  port: number;
-  pids: {
-    goosed: number;
-  };
-}
-
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error';
-
-export interface TunnelStatus {
-  state: TunnelState;
-  info: TunnelInfo | null;
-  auto_start: boolean;
+  state: 'idle' | 'starting' | 'running' | 'error';
+  url?: string;
+  hostname?: string;
+  secret?: string;
 }
 
 /**
@@ -37,14 +26,10 @@ export async function startTunnel(baseUrl: string, serverSecret: string): Promis
     throw new Error(`Failed to start tunnel: ${response.statusText} - ${errorText}`);
   }
 
-  const data: TunnelStatus = await response.json();
+  const info: TunnelInfo = await response.json();
 
-  if (!data.info) {
-    throw new Error('Tunnel started but no info returned');
-  }
-
-  log.info('Tunnel started successfully:', data.info);
-  return data.info;
+  log.info('Tunnel started successfully:', info);
+  return info;
 }
 
 /**
@@ -73,10 +58,10 @@ export async function stopTunnel(baseUrl: string, secret: string): Promise<void>
 }
 
 /**
- * Get tunnel status from Rust API
+ * Get tunnel info from Rust API
  * Note: Rust backend is the source of truth
  */
-export async function syncTunnelStatus(baseUrl: string, secret: string): Promise<TunnelStatus> {
+export async function syncTunnelStatus(baseUrl: string, secret: string): Promise<TunnelInfo> {
   const response = await fetch(`${baseUrl}/api/tunnel/status`, {
     headers: {
       'X-Secret-Key': secret,
