@@ -295,8 +295,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       scheduledJobId || undefined,
       undefined
     );
+    pendingDeepLink = null;
   }
-  pendingDeepLink = null;
 }
 
 let windowDeeplinkURL: string | null = null;
@@ -350,7 +350,6 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
-    pendingDeepLink = null;
   }
 });
 
