@@ -75,27 +75,11 @@ jobs:
           restore-keys: |
             windows-npm-cache-v1-${{ runner.os }}-node22-
 
-      # Cache Cargo registry and git dependencies
-      - name: Cache Cargo registry
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+      # Cache Rust dependencies for Windows cross-compilation
+      - name: Cache Rust dependencies  
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      # Cache compiled dependencies (target/release/deps)
-      - name: Cache Cargo build
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-build-release-
+          key: windows
 
       # 4) Build Rust for Windows using Docker (cross-compilation with enhanced caching)
       - name: Build Windows executable using Docker cross-compilation with enhanced caching
