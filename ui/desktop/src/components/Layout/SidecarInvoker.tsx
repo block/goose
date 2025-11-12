@@ -213,22 +213,22 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
 
       <div
         ref={containerRef}
-        className="fixed top-0 right-0 z-[99999] pointer-events-none"
+        className="fixed top-0 left-0 z-[99999] pointer-events-none"
         style={{ width: isHovering ? '100px' : '20px', height: '100%' }}
       >
         {/* Hover detection zone */}
         <div
-          className="absolute top-0 right-0 h-full pointer-events-auto"
+          className="absolute top-0 left-0 h-full pointer-events-auto"
           style={{ width: isHovering ? '100px' : '20px' }}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
         {/* macOS-style dock - with smooth enter/exit animations */}
         <div
-          className={`absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-auto transition-all duration-300 ease-out ${
+          className={`absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-auto transition-all duration-300 ease-out ${
             isHovering 
               ? 'opacity-100 translate-x-0 scale-100' 
-              : 'opacity-0 translate-x-4 scale-95 pointer-events-none'
+              : 'opacity-0 -translate-x-4 scale-95 pointer-events-none'
           }`}
           style={{ marginTop: '60px' }}
         >
@@ -251,8 +251,8 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                       flex items-center justify-center
                       border border-white/20
                       ${isHovering 
-                        ? 'animate-in slide-in-from-right-2 fade-in' 
-                        : 'animate-out slide-out-to-right-2 fade-out'
+                        ? 'animate-in slide-in-from-left-2 fade-in' 
+                        : 'animate-out slide-out-to-left-2 fade-out'
                       }
                     `}
                     style={{
@@ -265,10 +265,10 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
                   </button>
 
                   {/* Tooltip */}
-                  <div className="absolute right-full mr-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                  <div className="absolute left-full ml-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <div className="bg-gray-900/90 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md whitespace-nowrap shadow-lg">
                       {app.description}
-                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-l-gray-900/90"></div>
+                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900/90"></div>
                     </div>
                   </div>
 
