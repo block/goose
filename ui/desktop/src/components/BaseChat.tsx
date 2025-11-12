@@ -331,18 +331,17 @@ function BaseChatContent({
 
     // Inject webviewer context into the prompt if webviewers are active
     let messageWithContext = combinedTextFromInput;
-    // Temporarily disabled to fix infinite loop - will re-enable with better approach
-    // if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
-    //   try {
-    //     const contextInfo = webViewerContext.getWebViewerContext();
-    //     if (contextInfo.trim()) {
-    //       messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
-    //     }
-    //   } catch (error) {
-    //     console.warn('Error getting webviewer context:', error);
-    //     // Continue with original message if context fails
-    //   }
-    // }
+    if (webViewerContext?.getWebViewerContext && combinedTextFromInput.trim()) {
+      try {
+        const contextInfo = webViewerContext.getWebViewerContext();
+        if (contextInfo.trim()) {
+          messageWithContext = `${contextInfo}\n\n---\n\n${combinedTextFromInput}`;
+        }
+      } catch (error) {
+        console.warn('Error getting webviewer context:', error);
+        // Continue with original message if context fails
+      }
+    }
 
     engineHandleSubmit(messageWithContext);
   }, [recipeConfig, setHasStartedUsingRecipe, onMessageSubmit, engineHandleSubmit]);

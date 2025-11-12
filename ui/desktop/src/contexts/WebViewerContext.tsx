@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useRef, useCallback } from 'react';
 
 export interface WebViewerInfo {
   id: string;
@@ -12,7 +12,7 @@ export interface WebViewerInfo {
 }
 
 interface WebViewerContextType {
-  activeWebViewers: WebViewerInfo[];
+  getActiveWebViewers: () => WebViewerInfo[];
   registerWebViewer: (info: WebViewerInfo) => void;
   updateWebViewer: (id: string, updates: Partial<WebViewerInfo>) => void;
   unregisterWebViewer: (id: string) => void;
@@ -34,31 +34,42 @@ export const useWebViewerContextOptional = () => {
 };
 
 export const WebViewerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeWebViewers, setActiveWebViewers] = useState<WebViewerInfo[]>([]);
+  // Use ref instead of state to avoid triggering re-renders
+  const activeWebViewersRef = useRef<WebViewerInfo[]>([]);
+
+  const getActiveWebViewers = useCallback(() => {
+    return [...activeWebViewersRef.current]; // Return a copy to prevent external mutation
+  }, []);
 
   const registerWebViewer = useCallback((info: WebViewerInfo) => {
-    setActiveWebViewers(prev => {
-      // Remove any existing webviewer with the same ID
-      const filtered = prev.filter(viewer => viewer.id !== info.id);
-      return [...filtered, info];
-    });
+    // Remove any existing webviewer with the same ID
+    activeWebViewersRef.current = activeWebViewersRef.current.filter(viewer => viewer.id !== info.id);
+    // Add the new webviewer
+    activeWebViewersRef.current.push(info);
+    console.log('[WebViewerContext] Registered:', info.id, 'Total:', activeWebViewersRef.current.length);
   }, []);
 
   const updateWebViewer = useCallback((id: string, updates: Partial<WebViewerInfo>) => {
-    setActiveWebViewers(prev => 
-      prev.map(viewer => 
-        viewer.id === id 
-          ? { ...viewer, ...updates, lastUpdated: new Date() }
-          : viewer
-      )
-    );
+    const index = activeWebViewersRef.current.findIndex(viewer => viewer.id === id);
+    if (index !== -1) {
+      activeWebViewersRef.current[index] = {
+        ...activeWebViewersRef.current[index],
+        ...updates,
+        lastUpdated: new Date()
+      };
+      console.log('[WebViewerContext] Updated:', id);
+    }
   }, []);
 
   const unregisterWebViewer = useCallback((id: string) => {
-    setActiveWebViewers(prev => prev.filter(viewer => viewer.id !== id));
+    const initialLength = activeWebViewersRef.current.length;
+    activeWebViewersRef.current = activeWebViewersRef.current.filter(viewer => viewer.id !== id);
+    console.log('[WebViewerContext] Unregistered:', id, 'Removed:', initialLength - activeWebViewersRef.current.length);
   }, []);
 
   const getWebViewerContext = useCallback((): string => {
+    const activeWebViewers = activeWebViewersRef.current;
+    
     if (activeWebViewers.length === 0) {
       return '';
     }
@@ -136,18 +147,19 @@ export const WebViewerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     return contextParts.join('\n');
-  }, [activeWebViewers]);
+  }, []);
 
-  const value: WebViewerContextType = useMemo(() => ({
-    activeWebViewers,
+  // Create stable context value that doesn't change on every render
+  const contextValue = useRef<WebViewerContextType>({
+    getActiveWebViewers,
     registerWebViewer,
     updateWebViewer,
     unregisterWebViewer,
     getWebViewerContext,
-  }), [activeWebViewers, registerWebViewer, updateWebViewer, unregisterWebViewer, getWebViewerContext]);
+  });
 
   return (
-    <WebViewerContext.Provider value={value}>
+    <WebViewerContext.Provider value={contextValue.current}>
       {children}
     </WebViewerContext.Provider>
   );
