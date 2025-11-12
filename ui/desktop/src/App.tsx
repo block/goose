@@ -45,11 +45,9 @@ import { useNavigation } from './hooks/useNavigation';
 const HubRouteWrapper = ({
   setIsGoosehintsModalOpen,
   isExtensionsLoading,
-  resetChat,
 }: {
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   isExtensionsLoading: boolean;
-  resetChat: () => void;
 }) => {
   const setView = useNavigation();
 
@@ -58,7 +56,6 @@ const HubRouteWrapper = ({
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       isExtensionsLoading={isExtensionsLoading}
-      resetChat={resetChat}
     />
   );
 };
@@ -366,9 +363,7 @@ export function AppInner() {
 
   const navigate = useNavigate();
   const setView = useNavigation();
-
   const location = useLocation();
-  const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -382,16 +377,7 @@ export function AppInner() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
-  const { loadCurrentChat, resetChat } = useAgent();
-  const resetChatIfNecessary = useCallback(() => {
-    if (chat.messages.length > 0) {
-      setSearchParams((prev) => {
-        prev.delete('resumeSessionId');
-        return prev;
-      });
-      resetChat();
-    }
-  }, [chat.messages.length, setSearchParams, resetChat]);
+  const { loadCurrentChat } = useAgent();
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -425,7 +411,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
+  }, [loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -675,7 +661,6 @@ export function AppInner() {
                 <HubRouteWrapper
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   isExtensionsLoading={isExtensionsLoading}
-                  resetChat={resetChatIfNecessary}
                 />
               }
             />

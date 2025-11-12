@@ -35,7 +35,6 @@ export async function createSession(options?: {
 
 export async function startNewSession(
   initialText: string | undefined,
-  _resetChat: (() => void) | null,
   setView: setViewType,
   options?: {
     recipeId?: string;
