@@ -13,21 +13,9 @@ import {
 } from '../api';
 
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
+import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
-
-/**
- * Extracts a string error message from various error types
- */
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String(error.message);
-  }
-  return String(error);
-}
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -122,7 +110,7 @@ async function streamFromResponse(
     onFinish();
   } catch (error) {
     if (error instanceof Error && error.name !== 'AbortError') {
-      onFinish('Stream error: ' + getErrorMessage(error));
+      onFinish('Stream error: ' + errorMessage(error));
     }
   }
 }
@@ -213,7 +201,7 @@ export function useChatStream({
       } catch (error) {
         if (cancelled) return;
 
-        setSessionLoadError(getErrorMessage(error));
+        setSessionLoadError(errorMessage(error));
         setChatState(ChatState.Idle);
       }
     })();
@@ -260,7 +248,7 @@ export function useChatStream({
           // Silently handle abort
         } else {
           // Unexpected error during fetch setup (streamFromResponse handles its own errors)
-          onFinish('Submit error: ' + getErrorMessage(error));
+          onFinish('Submit error: ' + errorMessage(error));
         }
       }
     },
