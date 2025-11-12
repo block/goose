@@ -776,17 +776,114 @@ export function WebViewer({
       }
     }, intervalFrequency);
 
-    // Listen for mouse events that might indicate drag operations
-    const handleMouseMove = throttledUpdateBounds;
-    const handleMouseUp = immediateUpdateBounds;
+    // Enhanced drag detection and bounds tracking
+    let isDragging = false;
+    let dragUpdateInterval: NodeJS.Timeout | null = null;
     
+    const startDragTracking = () => {
+      if (isDragging) return;
+      isDragging = true;
+      
+      console.log(`[WebViewer-${childWindowId.current}] Started drag tracking`);
+      
+      // During drag, update bounds very frequently for smooth tracking
+      dragUpdateInterval = setInterval(() => {
+        if (containerRef.current && childWindowId.current) {
+          immediateUpdateBounds();
+        }
+      }, 16); // 60fps during drag
+    };
+    
+    const stopDragTracking = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      
+      console.log(`[WebViewer-${childWindowId.current}] Stopped drag tracking`);
+      
+      if (dragUpdateInterval) {
+        clearInterval(dragUpdateInterval);
+        dragUpdateInterval = null;
+      }
+      
+      // Final bounds update when drag ends
+      setTimeout(() => {
+        immediateUpdateBounds(true);
+      }, 50);
+    };
+    
+    // Listen for mouse events that might indicate drag operations
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if the mouse down is on or near our container
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const isNearContainer = (
+          e.clientX >= rect.left - 50 && e.clientX <= rect.right + 50 &&
+          e.clientY >= rect.top - 50 && e.clientY <= rect.bottom + 50
+        );
+        
+        if (isNearContainer) {
+          startDragTracking();
+        }
+      }
+    };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        // During active drag, update immediately
+        immediateUpdateBounds();
+      } else {
+        // Not dragging, use throttled updates
+        throttledUpdateBounds();
+      }
+    };
+    
+    const handleMouseUp = () => {
+      if (isDragging) {
+        stopDragTracking();
+      } else {
+        // Not in drag mode, just do a regular update
+        immediateUpdateBounds();
+      }
+    };
+    
+    // Global event listeners for comprehensive drag detection
+    document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     
     // Listen for touch events for mobile drag operations
-    const handleTouchMove = throttledUpdateBounds;
-    const handleTouchEnd = immediateUpdateBounds;
+    const handleTouchStart = (e: TouchEvent) => {
+      if (containerRef.current && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = containerRef.current.getBoundingClientRect();
+        const isNearContainer = (
+          touch.clientX >= rect.left - 50 && touch.clientX <= rect.right + 50 &&
+          touch.clientY >= rect.top - 50 && touch.clientY <= rect.bottom + 50
+        );
+        
+        if (isNearContainer) {
+          startDragTracking();
+        }
+      }
+    };
     
+    const handleTouchMove = () => {
+      if (isDragging) {
+        immediateUpdateBounds();
+      } else {
+        throttledUpdateBounds();
+      }
+    };
+    
+    const handleTouchEnd = () => {
+      if (isDragging) {
+        stopDragTracking();
+      } else {
+        immediateUpdateBounds();
+      }
+    };
+    
+    document.addEventListener('touchstart', handleTouchStart);
     document.addEventListener('touchmove', handleTouchMove);
     document.addEventListener('touchend', handleTouchEnd);
 
@@ -800,6 +897,11 @@ export function WebViewer({
       // Clear the bounds check interval
       clearInterval(boundsCheckInterval);
       
+      // Clear drag tracking interval if active
+      if (dragUpdateInterval) {
+        clearInterval(dragUpdateInterval);
+      }
+      
       // Disconnect observers
       resizeObserver.disconnect();
       mutationObserver.disconnect();
@@ -809,8 +911,10 @@ export function WebViewer({
       window.removeEventListener('scroll', throttledUpdateBounds);
       window.removeEventListener('focus', throttledUpdateBounds);
       window.removeEventListener('blur', throttledUpdateBounds);
+      document.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
