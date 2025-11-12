@@ -36,7 +36,6 @@ interface BaseChatProps {
   disableSearch?: boolean;
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
-  autoSubmit?: boolean;
   sessionId: string;
   initialMessage?: string;
 }
@@ -48,7 +47,6 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
-  autoSubmit = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -69,6 +67,18 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [hasSubmittedInitialMessage, setHasSubmittedInitialMessage] = useState(false);
+
+  useEffect(() => {
+    setSessionLoaded(false);
+    setHasSubmittedInitialMessage(false);
+  }, [sessionId]);
+
+  const handleSessionLoaded = useCallback(() => {
+    setSessionLoaded(true);
+  }, []);
+
   const {
     session,
     messages,
@@ -81,8 +91,16 @@ function BaseChatContent({
   } = useChatStream({
     sessionId,
     onStreamFinish,
-    initialMessage,
+    onSessionLoaded: handleSessionLoaded,
   });
+
+  // Handle auto-submission when session is loaded and we have an initial message
+  useEffect(() => {
+    if (sessionLoaded && initialMessage && !hasSubmittedInitialMessage) {
+      setHasSubmittedInitialMessage(true);
+      handleSubmit(initialMessage);
+    }
+  }, [sessionLoaded, initialMessage, hasSubmittedInitialMessage, handleSubmit]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -193,7 +211,6 @@ function BaseChatContent({
 
   const initialPrompt =
     initialMessage || (messages.length == 0 && recipe?.prompt ? recipe.prompt : '');
-  const shouldAutoSubmit = autoSubmit || !!initialMessage;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -306,7 +323,6 @@ function BaseChatContent({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
-            autoSubmit={shouldAutoSubmit}
             {...customChatInputProps}
           />
         </div>

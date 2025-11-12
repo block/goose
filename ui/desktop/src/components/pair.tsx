@@ -42,7 +42,6 @@ export default function Pair({
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const [hasProcessedInitialInput, setHasProcessedInitialInput] = useState(false);
-  const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
@@ -135,7 +134,6 @@ export default function Pair({
     setIsTransitioningFromHub(true);
     setHasProcessedInitialInput(true);
     setMessageToSubmit(initialMessage);
-    setShouldAutoSubmit(true);
   }, [agentState, initialMessage, hasProcessedInitialInput]);
 
   useEffect(() => {
@@ -148,7 +146,6 @@ export default function Pair({
 
   const handleMessageSubmit = (message: string) => {
     // Clean up any auto submit state:
-    setShouldAutoSubmit(false);
     setIsTransitioningFromHub(false);
     setMessageToSubmit(null);
     console.log('Message submitted:', message);
@@ -168,7 +165,6 @@ export default function Pair({
     <BaseChat
       chat={chat}
       loadingChat={loadingChat}
-      autoSubmit={shouldAutoSubmit}
       setChat={setChat}
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}

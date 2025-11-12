@@ -50,7 +50,7 @@ const log = {
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
-  initialMessage?: string;
+  onSessionLoaded?: () => void;
 }
 
 interface UseChatStreamReturn {
@@ -171,7 +171,7 @@ async function streamFromResponse(
 export function useChatStream({
   sessionId,
   onStreamFinish,
-  initialMessage,
+  onSessionLoaded,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -222,19 +222,32 @@ export function useChatStream({
   useEffect(() => {
     if (!sessionId) return;
 
+    const cached = resultsCache.get(sessionId);
+    if (cached) {
+      log.session('restoring-from-cache', sessionId, {
+        messageCount: cached.messages.length,
+      });
+      setSession(cached.session);
+      setMessagesAndLog(cached.messages, 'restore-from-cache');
+      setChatState(ChatState.Idle);
+      return;
+    }
+
+    log.session('loading-new-session', sessionId, { timestamp: Date.now() });
+
     // Reset state when sessionId changes
-    log.session('loading', sessionId);
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
     setChatState(ChatState.LoadingConversation);
 
-    let cancelled = false;
-
     log.state(ChatState.LoadingConversation, { reason: 'session load start' });
+
+    let cancelled = false;
 
     (async () => {
       try {
+        log.session('api-call-start', sessionId, { timestamp: Date.now() });
         const response = await resumeAgent({
           body: {
             session_id: sessionId,
@@ -242,12 +255,21 @@ export function useChatStream({
           },
           throwOnError: true,
         });
-        if (cancelled) return;
+        log.session('api-call-complete', sessionId, {
+          timestamp: Date.now(),
+          cancelled,
+        });
+
+        if (cancelled) {
+          log.session('cancelled-ignoring-result', sessionId);
+          return;
+        }
 
         const session = response.data;
         log.session('loaded', sessionId, {
           messageCount: session?.conversation?.length || 0,
           name: session?.name,
+          timestamp: Date.now(),
         });
 
         setSession(session);
@@ -255,6 +277,9 @@ export function useChatStream({
 
         log.state(ChatState.Idle, { reason: 'session load complete' });
         setChatState(ChatState.Idle);
+
+        // Notify parent that session is loaded
+        onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
 
@@ -267,12 +292,19 @@ export function useChatStream({
     })();
 
     return () => {
+      log.session('cleanup', sessionId, { timestamp: Date.now() });
       cancelled = true;
     };
-  }, [sessionId, setMessagesAndLog]);
+  }, [sessionId, setMessagesAndLog, onSessionLoaded]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
+      // Guard: Don't submit if session hasn't been loaded yet
+      if (!session || chatState === ChatState.LoadingConversation) {
+        log.error('submit-blocked', 'Session not loaded yet');
+        return;
+      }
+
       log.messages('user-submit', messagesRef.current.length + 1, {
         userMessageLength: userMessage.length,
       });
@@ -320,7 +352,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, setMessagesAndLog, onFinish]
+    [sessionId, session, chatState, setMessagesAndLog, onFinish]
   );
 
   const setRecipeUserParams = useCallback(
@@ -360,13 +392,6 @@ export function useChatStream({
       });
     }
   }, [session]);
-
-  useEffect(() => {
-    if (initialMessage && session && messages.length === 0 && chatState === ChatState.Idle) {
-      log.messages('auto-submit-initial', 0, { initialMessage: initialMessage.slice(0, 50) });
-      handleSubmit(initialMessage);
-    }
-  }, [initialMessage, session, messages.length, chatState, handleSubmit]);
 
   const stopStreaming = useCallback(() => {
     log.stream('stop-requested');

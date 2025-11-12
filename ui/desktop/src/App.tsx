@@ -94,7 +94,13 @@ const PairRouteWrapper = ({
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialMessage = routeState.initialMessage;
+
+  // Capture initialMessage in local state to survive route state being cleared by setSearchParams
+  const [capturedInitialMessage, setCapturedInitialMessage] = useState<string | undefined>(
+    undefined
+  );
+  const [lastSessionId, setLastSessionId] = useState<string | undefined>(undefined);
+
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   // Determine which session ID to use:
@@ -104,6 +110,36 @@ const PairRouteWrapper = ({
   // 4. From the existing chat state
   const sessionId =
     routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
+
+  // Use route state if available, otherwise use captured state
+  const initialMessage = routeState.initialMessage || capturedInitialMessage;
+
+  console.log('[PairRouteWrapper] routeState.initialMessage:', routeState.initialMessage);
+  console.log('[PairRouteWrapper] capturedInitialMessage:', capturedInitialMessage);
+  console.log('[PairRouteWrapper] final initialMessage:', initialMessage);
+  console.log('[PairRouteWrapper] sessionId:', sessionId, 'lastSessionId:', lastSessionId);
+
+  // Capture initialMessage from route state before it gets cleared
+  useEffect(() => {
+    if (routeState.initialMessage && !capturedInitialMessage) {
+      console.log('[PairRouteWrapper] Capturing initialMessage:', routeState.initialMessage);
+      setCapturedInitialMessage(routeState.initialMessage);
+    }
+  }, [routeState.initialMessage, capturedInitialMessage]);
+
+  // Clear captured initialMessage when sessionId actually changes to a different session
+  useEffect(() => {
+    if (sessionId !== lastSessionId) {
+      console.log('[PairRouteWrapper] Session changed from', lastSessionId, 'to', sessionId);
+      setLastSessionId(sessionId);
+
+      // Only clear if we don't have a new initialMessage from route state
+      if (!routeState.initialMessage) {
+        console.log('[PairRouteWrapper] Clearing capturedInitialMessage due to session change');
+        setCapturedInitialMessage(undefined);
+      }
+    }
+  }, [sessionId, lastSessionId, routeState.initialMessage]);
 
   // Update URL with session ID when on /pair route (for refresh support)
   useEffect(() => {

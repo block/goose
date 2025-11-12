@@ -87,7 +87,6 @@ interface ChatInputProps {
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
-  autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
 }
@@ -114,7 +113,6 @@ export default function ChatInput({
   recipeAccepted,
   initialPrompt,
   toolCount,
-  autoSubmit = false,
   append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
@@ -305,7 +303,6 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -931,13 +928,6 @@ export default function ChatInput({
       setLocalDroppedFiles,
     ]
   );
-
-  useEffect(() => {
-    if (!!autoSubmit && !didAutoSubmit) {
-      setDidAutoSubmit(true);
-      performSubmit(initialValue);
-    }
-  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter

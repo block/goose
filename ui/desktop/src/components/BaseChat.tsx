@@ -86,7 +86,6 @@ interface BaseChatProps {
   disableSearch?: boolean;
   showPopularTopics?: boolean;
   suppressEmptyState?: boolean;
-  autoSubmit?: boolean;
   loadingChat: boolean;
 }
 
@@ -106,7 +105,6 @@ function BaseChatContent({
   disableSearch = false,
   showPopularTopics = false,
   suppressEmptyState = false,
-  autoSubmit = false,
   loadingChat = false,
 }: BaseChatProps) {
   const location = useLocation();
@@ -461,7 +459,6 @@ function BaseChatContent({
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
-            autoSubmit={autoSubmit}
             append={append}
             {...customChatInputProps}
           />
