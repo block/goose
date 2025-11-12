@@ -78,17 +78,27 @@ impl AgentManager {
 
         let agent = Arc::new(Agent::new());
         agent.set_scheduler(Arc::clone(&self.scheduler)).await;
+
+        if let Some(provider) = &*self.default_provider.read().await {
+            agent.update_provider(Arc::clone(provider)).await?;
+        }
+
+        let provider = if let Some(provider) = &*self.default_provider.read().await {
+            let shared_provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::clone(provider))));
+            Some(shared_provider)
+        } else {
+            None
+        };
+
         agent
             .extension_manager
             .set_context(PlatformExtensionContext {
                 session_id: Some(session_id.clone()),
                 extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
                 tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+                provider,
             })
             .await;
-        if let Some(provider) = &*self.default_provider.read().await {
-            agent.update_provider(Arc::clone(provider)).await?;
-        }
 
         let mut sessions = self.sessions.write().await;
         if let Some(existing) = sessions.get(&session_id) {

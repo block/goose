@@ -1,3 +1,4 @@
+use crate::agents::advice_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::todo_extension;
@@ -76,6 +77,16 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            advice_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: advice_extension::EXTENSION_NAME,
+                description: "Expert advice via specialized subagent",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(advice_extension::AdviceClient::new(ctx).unwrap()),
+            },
+        );
+
         map
     },
 );
@@ -87,6 +98,7 @@ pub struct PlatformExtensionContext {
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub tool_route_manager:
         Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
+    pub provider: Option<crate::agents::types::SharedProvider>,
 }
 
 #[derive(Debug, Clone)]

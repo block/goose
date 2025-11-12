@@ -1,3 +1,4 @@
+pub(crate) mod advice_extension;
 mod agent;
 pub(crate) mod chatrecall_extension;
 pub mod extension;

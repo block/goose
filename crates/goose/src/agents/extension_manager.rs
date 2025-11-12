@@ -251,6 +251,7 @@ impl ExtensionManager {
                 session_id: None,
                 extension_manager: None,
                 tool_route_manager: None,
+                provider: Some(provider.clone()),
             }),
             provider,
         }

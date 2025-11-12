@@ -363,6 +363,10 @@ impl Agent {
         }
     }
 
+    pub fn get_shared_provider(&self) -> SharedProvider {
+        Arc::clone(&self.provider)
+    }
+
     /// Check if a tool is a frontend tool
     pub async fn is_frontend_tool(&self, name: &str) -> bool {
         self.frontend_tools.lock().await.contains_key(name)
