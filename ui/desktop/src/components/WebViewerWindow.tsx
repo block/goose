@@ -3,7 +3,7 @@ import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
-interface WebViewerProps {
+interface WebViewerWindowProps {
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
   allowAllSites?: boolean; // If false, restricts to localhost only
@@ -76,11 +76,11 @@ function getDomainFromUrl(url: string): string {
   }
 }
 
-export function WebViewer({
+export function WebViewerWindow({
   initialUrl = 'http://localhost:3000',
   onUrlChange,
   allowAllSites = true,
-}: WebViewerProps) {
+}: WebViewerWindowProps) {
   // Generate a unique ID for this child window instance
   const childWindowId = useRef(`webviewer-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,10 +118,10 @@ export function WebViewer({
       if (!containerRef.current) return;
 
       try {
-        console.log(`[WebViewer-${childWindowId.current}] Attempting to create child window with URL:`, url, `(attempt ${retryCount + 1})`);
+        console.log(`[WebViewerWindow-${childWindowId.current}] Attempting to create child window with URL:`, url, `(attempt ${retryCount + 1})`);
         
         const rect = containerRef.current.getBoundingClientRect();
-        console.log(`[WebViewer-${childWindowId.current}] Container bounds:`, rect);
+        console.log(`[WebViewerWindow-${childWindowId.current}] Container bounds:`, rect);
         
         // Child window expects coordinates relative to the main window
         // getBoundingClientRect() returns viewport coordinates, so we use them directly
@@ -132,7 +132,7 @@ export function WebViewer({
           height: Math.round(Math.max(rect.height, 200)), // Minimum height for child window
         };
         
-        console.log(`[WebViewer-${childWindowId.current}] Adjusted child window bounds:`, adjustedBounds);
+        console.log(`[WebViewerWindow-${childWindowId.current}] Adjusted child window bounds:`, adjustedBounds);
         
         // Add timeout to child window creation
         const createWithTimeout = Promise.race([
@@ -144,12 +144,12 @@ export function WebViewer({
         
         const result = await createWithTimeout as any;
         
-        console.log(`[WebViewer-${childWindowId.current}] Child window creation result:`, result);
+        console.log(`[WebViewerWindow-${childWindowId.current}] Child window creation result:`, result);
         
         if (result.success && result.viewerId) {
           childWindowId.current = result.viewerId;
           setChildWindowCreated(true);
-          console.log(`[WebViewer-${childWindowId.current}] Child window created successfully:`, result.viewerId);
+          console.log(`[WebViewerWindow-${childWindowId.current}] Child window created successfully:`, result.viewerId);
           
           // Show the child window if we're visible
           if (isVisible) {
@@ -159,11 +159,11 @@ export function WebViewer({
           throw new Error(result.error || 'Unknown error');
         }
       } catch (err) {
-        console.error(`[WebViewer-${childWindowId.current}] Error creating child window:`, err);
+        console.error(`[WebViewerWindow-${childWindowId.current}] Error creating child window:`, err);
         
         // Retry logic for transient failures
         if (retryCount < 2 && (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED'))) {
-          console.log(`[WebViewer-${childWindowId.current}] Retrying child window creation in 1 second...`);
+          console.log(`[WebViewerWindow-${childWindowId.current}] Retrying child window creation in 1 second...`);
           setTimeout(() => createChildWindow(retryCount + 1), 1000);
           return;
         }
@@ -187,7 +187,7 @@ export function WebViewer({
   // Cleanup child window on component unmount
   useEffect(() => {
     return () => {
-      console.log('WebViewer component unmounting, cleaning up child window:', childWindowId.current);
+      console.log('WebViewerWindow component unmounting, cleaning up child window:', childWindowId.current);
       if (childWindowId.current) {
         window.electron.destroyChildWebViewer(childWindowId.current).catch((err) => {
           console.error('Error destroying child window on unmount:', err);
@@ -222,10 +222,10 @@ export function WebViewer({
           // Validate bounds are positive and reasonable
           if (adjustedBounds.width > 0 && adjustedBounds.height > 0 && 
               adjustedBounds.x >= 0 && adjustedBounds.y >= 0) {
-            console.log(`[WebViewer-${childWindowId.current}] Updating child window bounds:`, adjustedBounds);
+            console.log(`[WebViewerWindow-${childWindowId.current}] Updating child window bounds:`, adjustedBounds);
             window.electron.updateChildWebViewerBounds(childWindowId.current, adjustedBounds).catch(console.error);
           } else {
-            console.warn(`[WebViewer-${childWindowId.current}] Invalid bounds calculated:`, adjustedBounds);
+            console.warn(`[WebViewerWindow-${childWindowId.current}] Invalid bounds calculated:`, adjustedBounds);
           }
         }
       }, 16); // ~60fps throttling
@@ -328,7 +328,7 @@ export function WebViewer({
             currentBounds.width !== lastBounds.width ||
             currentBounds.height !== lastBounds.height) {
           
-          console.log(`[WebViewer-${childWindowId.current}] Position changed, updating bounds:`, currentBounds);
+          console.log(`[WebViewerWindow-${childWindowId.current}] Position changed, updating bounds:`, currentBounds);
           containerRef.current.dataset.lastBounds = JSON.stringify(currentBounds);
           window.electron.updateChildWebViewerBounds(childWindowId.current, currentBounds).catch(console.error);
         }
@@ -724,4 +724,4 @@ export function WebViewer({
   );
 }
 
-export default WebViewer;
+export default WebViewerWindow;

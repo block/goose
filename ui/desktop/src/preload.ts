@@ -135,6 +135,18 @@ type ElectronAPI = {
   createIframeBackdrop: () => Promise<{ success: boolean; backdropData?: any[]; error?: string }>;
   removeIframeBackdrop: () => Promise<boolean>;
 
+  // Child WebViewer Window functions
+  createChildWebViewer: (url: string, bounds: { x: number; y: number; width: number; height: number }, viewerId?: string) => Promise<{ success: boolean; viewerId?: string; existing?: boolean; error?: string }>;
+  showChildWebViewer: (viewerId: string) => Promise<boolean>;
+  hideChildWebViewer: (viewerId: string) => Promise<boolean>;
+  updateChildWebViewerBounds: (viewerId: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
+  childWebViewerNavigate: (viewerId: string, url: string) => Promise<boolean>;
+  childWebViewerGoBack: (viewerId: string) => Promise<boolean>;
+  childWebViewerGoForward: (viewerId: string) => Promise<boolean>;
+  childWebViewerRefresh: (viewerId: string) => Promise<boolean>;
+  getChildWebViewerNavigationState: (viewerId: string) => Promise<{ canGoBack: boolean; canGoForward: boolean; isLoading: boolean; url: string; title: string } | null>;
+  destroyChildWebViewer: (viewerId: string) => Promise<boolean>;
+
   // Dock Window functions
   createDockWindow: () => Promise<{ success: boolean; windowId?: number; error?: string }>;
   showDockWindow: () => Promise<boolean>;
@@ -301,6 +313,20 @@ const electronAPI: ElectronAPI = {
   // Iframe backdrop functions for smooth dock interaction
   createIframeBackdrop: () => ipcRenderer.invoke('create-iframe-backdrop'),
   removeIframeBackdrop: () => ipcRenderer.invoke('remove-iframe-backdrop'),
+
+  // Child WebViewer Window functions
+  createChildWebViewer: (url: string, bounds: { x: number; y: number; width: number; height: number }, viewerId?: string) => 
+    ipcRenderer.invoke('create-child-webviewer', url, bounds, viewerId),
+  showChildWebViewer: (viewerId: string) => ipcRenderer.invoke('show-child-webviewer', viewerId),
+  hideChildWebViewer: (viewerId: string) => ipcRenderer.invoke('hide-child-webviewer', viewerId),
+  updateChildWebViewerBounds: (viewerId: string, bounds: { x: number; y: number; width: number; height: number }) => 
+    ipcRenderer.invoke('update-child-webviewer-bounds', viewerId, bounds),
+  childWebViewerNavigate: (viewerId: string, url: string) => ipcRenderer.invoke('child-webviewer-navigate', viewerId, url),
+  childWebViewerGoBack: (viewerId: string) => ipcRenderer.invoke('child-webviewer-go-back', viewerId),
+  childWebViewerGoForward: (viewerId: string) => ipcRenderer.invoke('child-webviewer-go-forward', viewerId),
+  childWebViewerRefresh: (viewerId: string) => ipcRenderer.invoke('child-webviewer-refresh', viewerId),
+  getChildWebViewerNavigationState: (viewerId: string) => ipcRenderer.invoke('child-webviewer-navigation-state', viewerId),
+  destroyChildWebViewer: (viewerId: string) => ipcRenderer.invoke('destroy-child-webviewer', viewerId),
 
   // Dock Window functions
   createDockWindow: () => ipcRenderer.invoke('create-dock-window'),

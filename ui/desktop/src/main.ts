@@ -818,6 +818,23 @@ const createChat = async (
     // Clean up BrowserViews
     cleanupBrowserViews(mainWindow);
 
+    // Clean up child webviewer windows
+    const childWindows = childWebViewerWindows.get(windowId);
+    if (childWindows) {
+      console.log('[Main] Cleaning up child webviewer windows for main window:', windowId);
+      for (const [viewerId, childWindow] of childWindows.entries()) {
+        try {
+          if (!childWindow.isDestroyed()) {
+            childWindow.destroy();
+          }
+          console.log('[Main] Cleaned up child webviewer window:', viewerId);
+        } catch (error) {
+          console.error('[Main] Error cleaning up child webviewer window:', viewerId, error);
+        }
+      }
+      childWebViewerWindows.delete(windowId);
+    }
+
     // Clean up dock window if it exists
     if ((mainWindow as any).dockWindow && !(mainWindow as any).dockWindow.isDestroyed()) {
       console.log('[Main] Destroying dock window on main window close');
@@ -1478,6 +1495,371 @@ ipcMain.handle('show-browser-views', async (event) => {
     return false;
   }
 });
+
+// ========================================
+// Child WebViewer Window IPC Handlers
+// ========================================
+
+// Track child webviewer windows per main window
+const childWebViewerWindows = new Map<number, Map<string, BrowserWindow>>(); // mainWindowId -> Map<viewerId, childWindow>
+
+// Handle creating child webviewer window
+ipcMain.handle('create-child-webviewer', async (event, url: string, bounds: { x: number; y: number; width: number; height: number }, viewerId?: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) {
+      console.log('[Main] No main window found for child webviewer creation');
+      return { success: false, error: 'No main window found' };
+    }
+
+    const mainWindowId = mainWindow.id;
+    const actualViewerId = viewerId || `webviewer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Initialize child windows map for this main window if needed
+    if (!childWebViewerWindows.has(mainWindowId)) {
+      childWebViewerWindows.set(mainWindowId, new Map());
+    }
+
+    const childWindows = childWebViewerWindows.get(mainWindowId)!;
+
+    // Check if child window already exists for this viewer ID
+    if (childWindows.has(actualViewerId)) {
+      const existingWindow = childWindows.get(actualViewerId)!;
+      if (!existingWindow.isDestroyed()) {
+        console.log('[Main] Child webviewer window already exists:', actualViewerId);
+        return { success: true, viewerId: actualViewerId, existing: true };
+      } else {
+        // Clean up destroyed window reference
+        childWindows.delete(actualViewerId);
+      }
+    }
+
+    console.log('[Main] Creating new child webviewer window:', actualViewerId);
+
+    const mainBounds = mainWindow.getBounds();
+    
+    // Convert relative bounds to absolute screen coordinates
+    const absoluteBounds = {
+      x: mainBounds.x + bounds.x,
+      y: mainBounds.y + bounds.y,
+      width: Math.max(bounds.width, 300),
+      height: Math.max(bounds.height, 200)
+    };
+
+    // Create child webviewer window
+    const childWindow = new BrowserWindow({
+      parent: mainWindow,
+      width: absoluteBounds.width,
+      height: absoluteBounds.height,
+      x: absoluteBounds.x,
+      y: absoluteBounds.y,
+      frame: false,
+      transparent: false,
+      alwaysOnTop: false,
+      skipTaskbar: true,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      closable: true,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        experimentalFeatures: true,
+        partition: 'persist:webviewer', // Separate partition for webviewer
+      },
+    });
+
+    // Load the URL
+    await childWindow.loadURL(url);
+
+    // Store reference to child window
+    childWindows.set(actualViewerId, childWindow);
+
+    // Handle child window position updates when main window moves
+    const updateChildPosition = () => {
+      if (childWindow && !childWindow.isDestroyed()) {
+        const newMainBounds = mainWindow.getBounds();
+        const currentChildBounds = childWindow.getBounds();
+        
+        // Calculate relative position within main window
+        const relativeX = currentChildBounds.x - mainBounds.x;
+        const relativeY = currentChildBounds.y - mainBounds.y;
+        
+        childWindow.setPosition(
+          newMainBounds.x + relativeX,
+          newMainBounds.y + relativeY
+        );
+      }
+    };
+
+    mainWindow.on('move', updateChildPosition);
+    mainWindow.on('resize', updateChildPosition);
+
+    // Clean up when child window is destroyed
+    childWindow.on('closed', () => {
+      childWindows.delete(actualViewerId);
+      mainWindow.removeListener('move', updateChildPosition);
+      mainWindow.removeListener('resize', updateChildPosition);
+      console.log('[Main] Child webviewer window closed:', actualViewerId);
+    });
+
+    // Handle navigation events
+    childWindow.webContents.on('did-start-loading', () => {
+      mainWindow.webContents.send('child-webviewer-loading', actualViewerId, true);
+    });
+
+    childWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.send('child-webviewer-loading', actualViewerId, false);
+      mainWindow.webContents.send('child-webviewer-navigation', actualViewerId, {
+        url: childWindow.webContents.getURL(),
+        title: childWindow.webContents.getTitle(),
+        canGoBack: childWindow.webContents.canGoBack(),
+        canGoForward: childWindow.webContents.canGoForward()
+      });
+    });
+
+    childWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      mainWindow.webContents.send('child-webviewer-error', actualViewerId, errorDescription);
+    });
+
+    childWindow.webContents.on('page-title-updated', (event, title) => {
+      mainWindow.webContents.send('child-webviewer-title', actualViewerId, title);
+    });
+
+    // Handle new window creation for links
+    childWindow.webContents.setWindowOpenHandler(({ url }) => {
+      // Open all links in external browser
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        shell.openExternal(url);
+        return { action: 'deny' };
+      }
+      return { action: 'allow' };
+    });
+
+    console.log('[Main] Child webviewer window created successfully:', actualViewerId);
+    return { success: true, viewerId: actualViewerId };
+
+  } catch (error) {
+    console.error('[Main] Error creating child webviewer window:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle showing child webviewer window
+ipcMain.handle('show-child-webviewer', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    childWindow.show();
+    console.log('[Main] Child webviewer window shown:', viewerId);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error showing child webviewer window:', error);
+    return false;
+  }
+});
+
+// Handle hiding child webviewer window
+ipcMain.handle('hide-child-webviewer', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    childWindow.hide();
+    console.log('[Main] Child webviewer window hidden:', viewerId);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error hiding child webviewer window:', error);
+    return false;
+  }
+});
+
+// Handle updating child webviewer window bounds
+ipcMain.handle('update-child-webviewer-bounds', async (event, viewerId: string, bounds: { x: number; y: number; width: number; height: number }) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    const mainBounds = mainWindow.getBounds();
+    
+    // Convert relative bounds to absolute screen coordinates
+    const absoluteBounds = {
+      x: mainBounds.x + bounds.x,
+      y: mainBounds.y + bounds.y,
+      width: Math.max(bounds.width, 300),
+      height: Math.max(bounds.height, 200)
+    };
+
+    childWindow.setBounds(absoluteBounds);
+    console.log('[Main] Child webviewer window bounds updated:', viewerId, absoluteBounds);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error updating child webviewer window bounds:', error);
+    return false;
+  }
+});
+
+// Handle child webviewer navigation
+ipcMain.handle('child-webviewer-navigate', async (event, viewerId: string, url: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    await childWindow.loadURL(url);
+    console.log('[Main] Child webviewer navigated to:', url);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error navigating child webviewer:', error);
+    return false;
+  }
+});
+
+// Handle child webviewer back navigation
+ipcMain.handle('child-webviewer-go-back', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    if (childWindow.webContents.canGoBack()) {
+      childWindow.webContents.goBack();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Main] Error going back in child webviewer:', error);
+    return false;
+  }
+});
+
+// Handle child webviewer forward navigation
+ipcMain.handle('child-webviewer-go-forward', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    if (childWindow.webContents.canGoForward()) {
+      childWindow.webContents.goForward();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Main] Error going forward in child webviewer:', error);
+    return false;
+  }
+});
+
+// Handle child webviewer refresh
+ipcMain.handle('child-webviewer-refresh', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return false;
+
+    childWindow.webContents.reload();
+    return true;
+  } catch (error) {
+    console.error('[Main] Error refreshing child webviewer:', error);
+    return false;
+  }
+});
+
+// Handle getting child webviewer navigation state
+ipcMain.handle('child-webviewer-navigation-state', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return null;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return null;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow || childWindow.isDestroyed()) return null;
+
+    return {
+      canGoBack: childWindow.webContents.canGoBack(),
+      canGoForward: childWindow.webContents.canGoForward(),
+      isLoading: childWindow.webContents.isLoading(),
+      url: childWindow.webContents.getURL(),
+      title: childWindow.webContents.getTitle()
+    };
+  } catch (error) {
+    console.error('[Main] Error getting child webviewer navigation state:', error);
+    return null;
+  }
+});
+
+// Handle destroying child webviewer window
+ipcMain.handle('destroy-child-webviewer', async (event, viewerId: string) => {
+  try {
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow) return false;
+
+    const childWindows = childWebViewerWindows.get(mainWindow.id);
+    if (!childWindows) return false;
+
+    const childWindow = childWindows.get(viewerId);
+    if (!childWindow) return false;
+
+    if (!childWindow.isDestroyed()) {
+      childWindow.destroy();
+    }
+    
+    childWindows.delete(viewerId);
+    console.log('[Main] Child webviewer window destroyed:', viewerId);
+    return true;
+  } catch (error) {
+    console.error('[Main] Error destroying child webviewer window:', error);
+    return false;
+  }
+});
+
+// Add cleanup for child webviewer windows to the existing window closed handler
+// This will be added to the createChat function's window.on('closed') handler
 
 // ========================================
 // Dock Window IPC Handlers
