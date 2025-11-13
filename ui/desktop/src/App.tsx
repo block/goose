@@ -39,6 +39,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
+import PeersView from './components/peers/PeersView';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
@@ -305,6 +306,11 @@ const ExtensionsRoute = () => {
       viewOptions={viewOptions}
     />
   );
+};
+
+const PeersRoute = () => {
+  const navigate = useNavigate();
+  return <PeersView onClose={() => navigate('/')} />;
 };
 
 export function AppInner() {
@@ -598,9 +604,10 @@ export function AppInner() {
             />
             <Route path="settings" element={<SettingsRoute />} />
             <Route path="extensions" element={<ExtensionsRoute />} />
+            <Route path="peers" element={<PeersRoute />} />
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
-            <Route path="recipes" element={<RecipesRoute />} />
+            <Route path="recipes" element={<RecipesView />} />
             <Route path="recipe-editor" element={<RecipeEditorRoute />} />
             <Route
               path="shared-session"
