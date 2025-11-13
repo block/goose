@@ -555,7 +555,7 @@ p > code.bg-inline-code {
   scrollbar-width: thin;
 }
 
-.assistant:has(+ .user) .goose-message {
+.assistant:has(+ .user):not(.in-chain) .goose-message {
   padding-bottom: 24px;
 }
 
