@@ -11,6 +11,7 @@ use url::Url;
 
 use rmcp::model::{Content, ErrorCode, ErrorData, Role};
 
+use super::config_protection;
 use super::editor_models::EditorModel;
 use super::lang;
 use super::shell::normalize_line_endings;
@@ -702,6 +703,19 @@ pub async fn text_editor_view(
 }
 
 pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Content>, ErrorData> {
+    // Protect goose configuration files from modification
+    if config_protection::is_goose_config_path(path) {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Access denied: Cannot modify goose configuration file '{}'. \
+                Configuration files can only be modified through the Settings UI or CLI.",
+                path.display()
+            ),
+            None,
+        ));
+    }
+
     // Normalize line endings based on platform
     let mut normalized_text = normalize_line_endings(file_text); // Make mutable
 
@@ -755,6 +769,19 @@ pub async fn text_editor_replace(
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
 ) -> Result<Vec<Content>, ErrorData> {
+    // Protect goose configuration files from modification
+    if config_protection::is_goose_config_path(path) {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Access denied: Cannot modify goose configuration file '{}'. \
+                Configuration files can only be modified through the Settings UI or CLI.",
+                path.display()
+            ),
+            None,
+        ));
+    }
+
     // Check if diff is provided
     if let Some(diff_content) = diff {
         // Validate it's a proper diff
@@ -924,6 +951,19 @@ pub async fn text_editor_insert(
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
 ) -> Result<Vec<Content>, ErrorData> {
+    // Protect goose configuration files from modification
+    if config_protection::is_goose_config_path(path) {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Access denied: Cannot modify goose configuration file '{}'. \
+                Configuration files can only be modified through the Settings UI or CLI.",
+                path.display()
+            ),
+            None,
+        ));
+    }
+
     // Check if file exists
     if !path.exists() {
         return Err(ErrorData::new(

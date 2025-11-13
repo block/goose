@@ -28,6 +28,8 @@ use tokio::{
     io::{AsyncBufReadExt, BufReader},
     sync::RwLock,
 };
+
+use super::config_protection;
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use tokio_util::sync::CancellationToken;
 
@@ -899,6 +901,16 @@ impl DeveloperServer {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
                 "Shell command cannot be empty".to_string(),
+                None,
+            ));
+        }
+
+        // Check if command attempts to modify goose configuration files
+        if config_protection::command_touches_config(command) {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Access denied: Cannot execute commands that modify goose configuration files. \
+                Configuration files can only be modified through the Settings UI or CLI.".to_string(),
                 None,
             ));
         }

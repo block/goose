@@ -1,4 +1,5 @@
 pub mod analyze;
+mod config_protection;
 mod editor_models;
 mod lang;
 mod shell;
