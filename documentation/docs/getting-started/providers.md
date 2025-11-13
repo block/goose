@@ -90,6 +90,11 @@ To configure your chosen provider or see available options, visit the `Models` t
     1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`. 
     2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window. 
     3. Depending on your provider, you'll need to input your API Key, API Host, or other optional [parameters](#available-providers). Click the `Submit` button to authenticate and begin your first session.
+
+    :::info Ollama Model Detection
+    For Ollama users, all locally installed models display automatically in the model selection dropdown.
+    :::
+    
     </TabItem>
   </Tabs>
   **To update your LLM provider and API key:** 
@@ -108,10 +113,6 @@ To configure your chosen provider or see available options, visit the `Models` t
   5. Choose from your configured providers in the dropdown, or select `Use other provider` to configure a new one
   6. Select a model from the available options, or choose `Use custom model` to enter a specific model name
   7. Click `Select model` to confirm your choice
-
-  :::info Ollama Model Detection
-  For Ollama users, all locally installed models display automatically in the model selection dropdown.
-  :::
 
   :::tip Shortcut
   For faster access, click your current model name at the bottom of the app and choose `Change Model`.
