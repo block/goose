@@ -49,7 +49,7 @@ impl SecurityManager {
         if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!(
                 counter.goose.prompt_injection_scanner_disabled = 1,
-                "🔓 Security scanning disabled"
+                "Security scanning disabled"
             );
             return Ok(vec![]);
         }
@@ -57,7 +57,7 @@ impl SecurityManager {
         let scanner = self.scanner.get_or_init(|| {
             tracing::info!(
                 counter.goose.prompt_injection_scanner_enabled = 1,
-                "🔓 Security scanner initialized and enabled"
+                "Security scanner initialized and enabled"
             );
             PromptInjectionScanner::new()
         });
@@ -96,9 +96,9 @@ impl SecurityManager {
                         threshold = config_threshold,
                         "{}",
                         if above_threshold {
-                            "🔒 Current tool call flagged as malicious after security analysis (above threshold)"
+                            "Current tool call flagged as malicious after security analysis (above threshold)"
                         } else {
-                            "🔒 Security finding below threshold - logged but not blocking execution"
+                            "Security finding below threshold - logged but not blocking execution"
                         }
                     );
                     if above_threshold {
