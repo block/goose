@@ -49,6 +49,7 @@ pub fn strip_version_suffix(model: &str) -> String {
     let patterns = [
         regex::Regex::new(r"-preview(-\d+)*$").unwrap(),  // -preview, -preview-09, -preview-05-20
         regex::Regex::new(r"-exp(-\d+)*$").unwrap(),      // -exp, -exp-1219, -exp-01-21
+        regex::Regex::new(r":exacto$").unwrap(),          // :exacto (OpenRouter provider suffix)
         regex::Regex::new(r"-\d{8}$").unwrap(),           // -20241022
         regex::Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // -2024-04-09
         regex::Regex::new(r"-v\d+(\.\d+)*$").unwrap(),    // -v1.5 (semantic versions with "v" prefix)

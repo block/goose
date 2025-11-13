@@ -11,6 +11,9 @@ use std::collections::HashMap;
 
 const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
 
+// Providers we want to include
+const ALLOWED_PROVIDERS: &[&str] = &["anthropic", "google", "openai"];
+
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Fetching models from OpenRouter API...");
@@ -43,20 +46,82 @@ async fn main() -> Result<()> {
     for model in &models {
         let id = model["id"].as_str().unwrap();
         let name = model["name"].as_str().unwrap_or(id);
+
+        // Skip OpenRouter-specific pricing variants (:free, :nitro)
+        // Keep :extended since it has different context length
+        // :exacto will be stripped to map to base model
+        if id.contains(":free") || id.contains(":nitro") {
+            continue;
+        }
+
         let canonical_id = canonical_name("openrouter", id);
 
+        // Filter to only allowed providers
+        let provider = canonical_id.split('/').next().unwrap_or("");
+        if !ALLOWED_PROVIDERS.contains(&provider) {
+            continue;
+        }
+
+        // Get pricing info for this model
+        let prompt_cost = model
+            .get("pricing")
+            .and_then(|p| p.get("prompt"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        let completion_cost = model
+            .get("pricing")
+            .and_then(|p| p.get("completion"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        let has_paid_pricing = prompt_cost > 0.0 || completion_cost > 0.0;
+
         // Check if we've seen this canonical ID before
-        if let Some(existing_name) = shortest_names.get(&canonical_id) {
-            if name.len() < existing_name.len() {
-                println!("  Updating {} to use shorter name: '{}' (len {}) -> '{}' (len {})",
-                    canonical_id, existing_name, existing_name.len(), name, name.len());
-                shortest_names.insert(canonical_id.clone(), name.to_string());
-                canonical_groups.insert(canonical_id, model);
+        if let Some(existing_model) = canonical_groups.get(&canonical_id) {
+            let existing_name = shortest_names.get(&canonical_id).unwrap();
+
+            // Get existing pricing info
+            let existing_prompt = existing_model
+                .get("pricing")
+                .and_then(|p| p.get("prompt"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            let existing_completion = existing_model
+                .get("pricing")
+                .and_then(|p| p.get("completion"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            let existing_has_paid = existing_prompt > 0.0 || existing_completion > 0.0;
+
+            // Prefer paid pricing over free, otherwise prefer shorter name
+            let should_replace = if has_paid_pricing != existing_has_paid {
+                has_paid_pricing  // Prefer the one with paid pricing
             } else {
-                println!("  Skipping duplicate {}: keeping shorter name '{}'", id, existing_name);
+                name.len() < existing_name.len()  // Both same pricing tier, prefer shorter name
+            };
+
+            if should_replace {
+                println!("  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
+                    canonical_id, existing_model["id"].as_str().unwrap(), existing_has_paid, id, has_paid_pricing);
+                // Keep the shorter name, but use the new model data (for pricing)
+                if name.len() >= existing_name.len() {
+                    // New model's name is longer or equal, keep the existing shorter name
+                    // (Don't update shortest_names)
+                } else {
+                    // New model's name is shorter, update it
+                    shortest_names.insert(canonical_id.clone(), name.to_string());
+                }
+                canonical_groups.insert(canonical_id, model);
             }
         } else {
-            println!("  Adding: {} (from {})", canonical_id, id);
+            println!("  Adding: {} (from {}, paid: {})", canonical_id, id, has_paid_pricing);
             shortest_names.insert(canonical_id.clone(), name.to_string());
             canonical_groups.insert(canonical_id, model);
         }
@@ -178,15 +243,19 @@ async fn main() -> Result<()> {
     }
 
     // Write to file
-    let output_path = "src/providers/canonical/data/canonical_models.json";
-    registry.to_file(output_path)?;
-    println!("\n✓ Wrote {} models to {}", registry.count(), output_path);
+    use std::path::PathBuf;
+
+    let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/providers/canonical/data/canonical_models.json");
+    registry.to_file(&output_path)?;
+    println!("\n✓ Wrote {} models to {}", registry.count(), output_path.display());
 
     // Also write a timestamped report
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let report_path = format!("src/providers/canonical/data/report_{}.json", timestamp);
+    let report_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("src/providers/canonical/data/report_{}.json", timestamp));
     registry.to_file(&report_path)?;
-    println!("✓ Wrote report to {}", report_path);
+    println!("✓ Wrote report to {}", report_path.display());
 
     Ok(())
 }

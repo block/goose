@@ -937,7 +937,7 @@
   },
   {
     "id": "openai/gpt-oss-120b",
-    "name": "OpenAI: gpt-oss-120b",
+    "name": "OpenAI: gpt-oss-120b (exacto)",
     "context_length": 131072,
     "input_modalities": [
       "text"

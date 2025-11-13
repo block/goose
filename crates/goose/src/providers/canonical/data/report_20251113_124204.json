@@ -948,6 +948,25 @@
     "tokenizer": "GPT",
     "supports_tools": true,
     "pricing": {
+      "prompt": 0.0,
+      "completion": 0.0,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "openai/gpt-oss-120b:exacto",
+    "name": "OpenAI: gpt-oss-120b (exacto)",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "tokenizer": "GPT",
+    "supports_tools": true,
+    "pricing": {
       "prompt": 5e-8,
       "completion": 2.4e-7,
       "request": 0.0,
