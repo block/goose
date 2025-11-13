@@ -203,7 +203,7 @@ async fn resume_agent(
 
     if payload.load_model_and_extensions {
         let agent = state
-            .get_agent_for_route(payload.session_id)
+            .get_agent_for_route(payload.session_id.clone())
             .await
             .map_err(|code| ErrorResponse {
                 message: "Failed to get agent for route".into(),
@@ -231,7 +231,7 @@ async fn resume_agent(
                 })?;
 
             agent
-                .update_provider(provider)
+                .update_provider(provider, &payload.session_id)
                 .await
                 .map_err(|e| ErrorResponse {
                     message: format!("Could not configure agent: {}", e),
@@ -423,10 +423,13 @@ async fn update_agent_provider(
         StatusCode::BAD_REQUEST
     })?;
 
-    agent.update_provider(new_provider).await.map_err(|e| {
-        tracing::error!("Failed to update provider: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    agent
+        .update_provider(new_provider, &payload.session_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update provider: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     Ok(StatusCode::OK)
 }

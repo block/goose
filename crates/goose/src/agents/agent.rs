@@ -889,8 +889,7 @@ impl Agent {
                     let mut autopilot = self.autopilot.lock().await;
                     if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
                         debug!("AutoPilot switching to {} role with model {}", role, model);
-                        self.update_provider(new_provider).await?;
-                        self.persist_provider_config(&session.id).await?;
+                        self.update_provider(new_provider, &session.id).await?;
 
                         yield AgentEvent::ModelChange {
                             model: model.clone(),
@@ -1202,15 +1201,17 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn update_provider(
+        &self,
+        provider: Arc<dyn Provider>,
+        session_id: &str,
+    ) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider), None).await
-    }
+        self.update_router_tool_selector(Some(provider.clone()), None)
+            .await?;
 
-    pub async fn persist_provider_config(&self, session_id: &str) -> Result<()> {
-        let provider = self.provider().await?;
         SessionManager::update_session(session_id)
             .provider_name(provider.get_name())
             .model_config(provider.get_model_config())

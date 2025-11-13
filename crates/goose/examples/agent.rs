@@ -18,7 +18,16 @@ async fn main() {
         .expect("Couldn't create provider");
 
     let agent = Agent::new();
-    let _ = agent.update_provider(provider).await;
+
+    let session = SessionManager::create_session(
+        PathBuf::default(),
+        "max-turn-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await
+    .expect("session manager creation failed");
+
+    let _ = agent.update_provider(provider, &session.id).await;
 
     let config = ExtensionConfig::stdio(
         "developer",
@@ -33,14 +42,6 @@ async fn main() {
     for extension in agent.list_extensions().await {
         println!("  {}", extension);
     }
-
-    let session = SessionManager::create_session(
-        PathBuf::default(),
-        "max-turn-test".to_string(),
-        SessionType::Hidden,
-    )
-    .await
-    .expect("session manager creation failed");
 
     let session_config = SessionConfig {
         id: session.id,

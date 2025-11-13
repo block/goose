@@ -116,14 +116,9 @@ fn get_agent_messages(
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
 
         agent
-            .update_provider(task_config.provider)
+            .update_provider(task_config.provider, &session.id)
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
-
-        agent
-            .persist_provider_config(&session.id)
-            .await
-            .map_err(|e| anyhow!("Failed to persist provider config for sub agent: {}", e))?;
 
         for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {

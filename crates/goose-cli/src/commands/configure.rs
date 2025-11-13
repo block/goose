@@ -20,6 +20,7 @@ use goose::config::{
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, providers};
+use goose::session::{SessionManager, SessionType};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 use serde_json::Value;
@@ -1409,7 +1410,6 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .collect();
     extensions.push("platform".to_string());
 
-    // Sort extensions alphabetically by name
     extensions.sort();
 
     let selected_extension_name = cliclack::select("Choose an extension to configure tools")
@@ -1421,8 +1421,6 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         )
         .interact()?;
 
-    // Fetch tools for the selected extension
-    // Load config and get provider/model
     let config = Config::global();
 
     let provider_name: String = config
@@ -1434,10 +1432,16 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
-    // Create the agent
+    let session = SessionManager::create_session(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        "Tool Permission Configuration".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config).await?;
-    agent.update_provider(new_provider).await?;
+    agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())

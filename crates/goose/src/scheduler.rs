@@ -1180,17 +1180,10 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    if let Err(e) = agent.update_provider(agent_provider).await {
+    if let Err(e) = agent.update_provider(agent_provider, &session.id).await {
         return Err(JobExecutionError {
             job_id: job.id.clone(),
             error: format!("Failed to set provider on agent: {}", e),
-        });
-    }
-
-    if let Err(e) = agent.persist_provider_config(&session.id).await {
-        return Err(JobExecutionError {
-            job_id: job.id.clone(),
-            error: format!("Failed to save provider config to session: {}", e),
         });
     }
 
