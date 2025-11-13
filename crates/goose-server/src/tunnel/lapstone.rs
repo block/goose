@@ -108,7 +108,7 @@ fn validate_and_build_request(
     }
 
     // Ed25519 signature validation (if configured)
-    if let Ok(public_key_hex) = std::env::var("GOOSE_TUNNEL_ED25519_PUBLIC_KEY") {
+    if let Ok(public_key_hex) = std::env::var("GOOSE_TUNNEL_PUBLIC_KEY_AUTH") {
         match super::ed25519::Ed25519Validator::new(&public_key_hex) {
             Ok(validator) => {
                 let sig_header = message

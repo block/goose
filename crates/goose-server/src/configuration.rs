@@ -9,8 +9,6 @@ pub struct Settings {
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
-    #[serde(default)]
-    pub tunnel_ed25519_public_key: Option<String>,
 }
 
 impl Settings {
@@ -85,7 +83,6 @@ mod tests {
         let server_settings = Settings {
             host: "127.0.0.1".to_string(),
             port: 3000,
-            tunnel_ed25519_public_key: None,
         };
         let addr = server_settings.socket_addr();
         assert_eq!(addr.to_string(), "127.0.0.1:3000");

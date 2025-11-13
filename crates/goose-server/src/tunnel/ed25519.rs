@@ -55,7 +55,7 @@ impl Ed25519Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
+    use ed25519_dalek::{Signer, SigningKey};
 
     #[test]
     fn test_signature_validation() {
