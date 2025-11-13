@@ -30,7 +30,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
+use crate::context_mgmt::{check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -794,7 +794,7 @@ impl Agent {
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         let needs_auto_compact = !is_manual_compact
-            && crate::context_mgmt::check_if_compaction_needed(
+            && check_if_compaction_needed(
                 self.provider().await?.as_ref(),
                 &conversation,
                 None,
@@ -835,7 +835,7 @@ impl Agent {
                     )
                 );
 
-                match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
+                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -1156,7 +1156,7 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self.provider().await?.as_ref(), &conversation, true).await {
+                            match compact_messages(self.provider().await?.as_ref(), &conversation, true).await {
                                 Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     Self::update_session_metrics(&session_config, &usage, true).await?;
