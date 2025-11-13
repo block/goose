@@ -58,7 +58,7 @@ use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
@@ -777,15 +777,35 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let is_manual_compact = user_message.content.iter().any(|c| {
-            if let MessageContent::Text(text) = c {
-                text.text.trim() == MANUAL_COMPACT_TRIGGER
-            } else {
-                false
-            }
-        });
+        let message_text = user_message.as_concat_text();
+        let is_manual_compact = message_text.trim() == MANUAL_COMPACT_TRIGGER;
 
-        SessionManager::add_message(&session_config.id, &user_message).await?;
+        let slash_command_recipe = if message_text.trim().starts_with('/') {
+            let command = message_text.trim().split_whitespace().next();
+            command.and_then(|cmd| crate::slash_commands::resolve_slash_command(cmd))
+        } else {
+            None
+        };
+
+        if let Some(recipe) = slash_command_recipe {
+            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let prompt_message = Message::user()
+                .with_text(prompt)
+                .with_visibility(false, true);
+            SessionManager::add_message(&session_config.id, &prompt_message).await?;
+            SessionManager::add_message(
+                &session_config.id,
+                &user_message.with_visibility(true, false),
+            )
+            .await?;
+        } else {
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
+
         let session = SessionManager::get_session(&session_config.id, true).await?;
 
         let conversation = session

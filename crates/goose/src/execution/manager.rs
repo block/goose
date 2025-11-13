@@ -59,8 +59,8 @@ impl AgentManager {
             .cloned()
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
-        Ok(Arc::clone(&self.scheduler))
+    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
+        Arc::clone(&self.scheduler)
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {

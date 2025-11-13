@@ -669,6 +669,11 @@ export type ScanRecipeResponse = {
     has_security_warnings: boolean;
 };
 
+export type ScheduleRecipeRequest = {
+    cron_schedule?: string | null;
+    id: string;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -740,6 +745,11 @@ export type SessionsQuery = {
 export type SetProviderRequest = {
     model: string;
     provider: string;
+};
+
+export type SetSlashCommandRequest = {
+    id: string;
+    slash_command?: string | null;
 };
 
 export type Settings = {
@@ -1937,6 +1947,56 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ScheduleRecipeData = {
+    body: ScheduleRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/schedule';
+};
+
+export type ScheduleRecipeErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ScheduleRecipeResponses = {
+    /**
+     * Recipe scheduled successfully
+     */
+    200: unknown;
+};
+
+export type SetRecipeSlashCommandData = {
+    body: SetSlashCommandRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/slash-command';
+};
+
+export type SetRecipeSlashCommandErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SetRecipeSlashCommandResponses = {
+    /**
+     * Slash command set successfully
+     */
+    200: unknown;
+};
 
 export type ReplyData = {
     body: ChatRequest;

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::rejection::JsonRejection;
@@ -8,8 +9,8 @@ use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
-use goose::recipe_deeplink;
 use goose::session::SessionManager;
+use goose::{recipe_deeplink, slash_commands};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -128,6 +129,12 @@ pub struct ListRecipeResponse {
 pub struct ScheduleRecipeRequest {
     id: String,
     cron_schedule: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SetSlashCommandRequest {
+    id: String,
+    slash_command: Option<String>,
 }
 
 #[utoipa::path(
@@ -290,12 +297,21 @@ async fn list_recipes(
     let scheduled_jobs = scheduler.list_scheduled_jobs().await;
     let schedule_map: HashMap<_, _> = scheduled_jobs
         .into_iter()
-        .map(|j| (j.source, j.cron))
+        .map(|j| (PathBuf::from(j.source), j.cron))
+        .collect();
+
+    let all_commands = slash_commands::list_commands();
+    let slash_map: HashMap<_, _> = all_commands
+        .into_iter()
+        .map(|sc| (PathBuf::from(sc.recipe_path), sc.command))
         .collect();
 
     for manifest in &mut manifests {
         if let Some(cron) = schedule_map.get(&manifest.file_path) {
             manifest.schedule_cron = Some(cron.clone());
+        }
+        if let Some(command) = slash_map.get(&manifest.file_path) {
+            manifest.slash_command = Some(command.clone());
         }
     }
 
@@ -358,6 +374,35 @@ async fn schedule_recipe(
         Ok(_) => Ok(StatusCode::OK),
         Err(e) => {
             tracing::error!("Failed to schedule recipe: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/recipes/slash-command",
+    request_body = SetSlashCommandRequest,
+    responses(
+        (status = 200, description = "Slash command set successfully"),
+        (status = 404, description = "Recipe not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn set_recipe_slash_command(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SetSlashCommandRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let file_path = match get_recipe_file_path_by_id(state.as_ref(), &request.id).await {
+        Ok(path) => path,
+        Err(err) => return Err(err.status),
+    };
+
+    match slash_commands::set_recipe_slash_command(file_path, request.slash_command) {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(e) => {
+            tracing::error!("Failed to set slash command: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -473,6 +518,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
         .route("/recipes/schedule", post(schedule_recipe))
+        .route("/recipes/slash-command", post(set_recipe_slash_command))
         .route("/recipes/save", post(save_recipe))
         .route("/recipes/parse", post(parse_recipe))
         .with_state(state)

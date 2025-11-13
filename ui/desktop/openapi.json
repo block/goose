@@ -1345,6 +1345,64 @@
         }
       }
     },
+    "/recipes/schedule": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "schedule_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe scheduled successfully"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/recipes/slash-command": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "set_recipe_slash_command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSlashCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Slash command set successfully"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/reply": {
       "post": {
         "tags": [
@@ -4162,6 +4220,21 @@
           }
         }
       },
+      "ScheduleRecipeRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "cron_schedule": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "ScheduledJob": {
         "type": "object",
         "required": [
@@ -4429,6 +4502,21 @@
           },
           "provider": {
             "type": "string"
+          }
+        }
+      },
+      "SetSlashCommandRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slash_command": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

@@ -269,6 +269,7 @@ impl Scheduler {
     pub async fn add_scheduled_job(
         &self,
         original_job_spec: ScheduledJob,
+        make_copy: bool,
     ) -> Result<(), SchedulerError> {
         {
             let jobs_guard = self.jobs.lock().await;
@@ -277,29 +278,30 @@ impl Scheduler {
             }
         }
 
-        let original_recipe_path = Path::new(&original_job_spec.source);
-        if !original_recipe_path.is_file() {
-            return Err(SchedulerError::RecipeLoadError(format!(
-                "Recipe file not found: {}",
-                original_job_spec.source
-            )));
-        }
-
-        let scheduled_recipes_dir = get_default_scheduled_recipes_dir()?;
-        let original_extension = original_recipe_path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("yaml");
-
-        let destination_filename = format!("{}.{}", original_job_spec.id, original_extension);
-        let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
-
-        fs::copy(original_recipe_path, &destination_recipe_path)?;
-
         let mut stored_job = original_job_spec;
-        stored_job.source = destination_recipe_path.to_string_lossy().into_owned();
-        stored_job.current_session_id = None;
-        stored_job.process_start_time = None;
+        if make_copy {
+            let original_recipe_path = Path::new(&stored_job.source);
+            if !original_recipe_path.is_file() {
+                return Err(SchedulerError::RecipeLoadError(format!(
+                    "Recipe file not found: {}",
+                    stored_job.source
+                )));
+            }
+
+            let scheduled_recipes_dir = get_default_scheduled_recipes_dir()?;
+            let original_extension = original_recipe_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("yaml");
+
+            let destination_filename = format!("{}.{}", stored_job.id, original_extension);
+            let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
+
+            fs::copy(original_recipe_path, &destination_recipe_path)?;
+            stored_job.source = destination_recipe_path.to_string_lossy().into_owned();
+            stored_job.current_session_id = None;
+            stored_job.process_start_time = None;
+        }
 
         let cron_task = self.create_cron_task(stored_job.clone())?;
 
@@ -349,12 +351,12 @@ impl Scheduler {
                         current_session_id: None,
                         process_start_time: None,
                     };
-                    self.add_scheduled_job(job).await
+                    self.add_scheduled_job(job, false).await
                 }
             }
             None => {
                 if let Some(job_id) = existing_job_id {
-                    self.remove_scheduled_job(&job_id).await
+                    self.remove_scheduled_job(&job_id, false).await
                 } else {
                     Ok(())
                 }
@@ -458,7 +460,11 @@ impl Scheduler {
             .collect()
     }
 
-    pub async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+    pub async fn remove_scheduled_job(
+        &self,
+        id: &str,
+        remove_recipe: bool,
+    ) -> Result<(), SchedulerError> {
         let (job_uuid, recipe_path) = {
             let mut jobs_guard = self.jobs.lock().await;
             match jobs_guard.remove(id) {
@@ -472,9 +478,11 @@ impl Scheduler {
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
 
-        let path = Path::new(&recipe_path);
-        if path.exists() {
-            fs::remove_file(path)?;
+        if remove_recipe {
+            let path = Path::new(&recipe_path);
+            if path.exists() {
+                fs::remove_file(path)?;
+            }
         }
 
         persist_jobs(&self.storage_path, &self.jobs).await?;
@@ -796,16 +804,32 @@ async fn execute_job(
 
 #[async_trait]
 impl SchedulerTrait for Scheduler {
-    async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
-        self.add_scheduled_job(job).await
+    async fn add_scheduled_job(
+        &self,
+        job: ScheduledJob,
+        make_copy: bool,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job(job, make_copy).await
+    }
+
+    async fn schedule_recipe(
+        &self,
+        recipe_path: PathBuf,
+        cron_schedule: Option<String>,
+    ) -> Result<(), SchedulerError> {
+        self.schedule_recipe(recipe_path, cron_schedule).await
     }
 
     async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
         self.list_scheduled_jobs().await
     }
 
-    async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
-        self.remove_scheduled_job(id).await
+    async fn remove_scheduled_job(
+        &self,
+        id: &str,
+        remove_recipe: bool,
+    ) -> Result<(), SchedulerError> {
+        self.remove_scheduled_job(id, remove_recipe).await
     }
 
     async fn pause_schedule(&self, id: &str) -> Result<(), SchedulerError> {
@@ -878,7 +902,7 @@ mod tests {
             process_start_time: None,
         };
 
-        scheduler.add_scheduled_job(job).await.unwrap();
+        scheduler.add_scheduled_job(job, true).await.unwrap();
         sleep(Duration::from_millis(1500)).await;
 
         let jobs = scheduler.list_scheduled_jobs().await;
@@ -903,7 +927,7 @@ mod tests {
             process_start_time: None,
         };
 
-        scheduler.add_scheduled_job(job).await.unwrap();
+        scheduler.add_scheduled_job(job, true).await.unwrap();
         scheduler.pause_schedule("paused_job").await.unwrap();
         sleep(Duration::from_millis(1500)).await;
 
