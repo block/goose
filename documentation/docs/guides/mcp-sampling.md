@@ -12,7 +12,7 @@ MCP Sampling can transform extensions from simple data providers into intelligen
 
 This feature is automatically enabled in goose—no configuration required! Any MCP server extension that supports sampling will automatically have access to goose's main configured LLM provider. This means:
 - goose users can get more targeted responses tailored to the extension's specific capabilities
-- Developers can add sampling support to their MCP servers to provide enhanced capabilities in goose
+- developers can add sampling support to their MCP servers to provide enhanced capabilities in goose
 
 :::info
 [MCP Sampling](https://modelcontextprotocol.io/specification/draft/client/sampling) is a feature in the Model Context Protocol.
