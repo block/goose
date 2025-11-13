@@ -67,8 +67,8 @@ When in doubt, deny.
     Add these settings to your [`config.yaml`](/docs/guides/config-files):
 
     ```yaml
-    security_prompt_enabled: true
-    security_prompt_threshold: 0.7  # Optional, default is 0.7
+    SECURITY_PROMPT_ENABLED: true
+    SECURITY_PROMPT_THRESHOLD: 0.7  # Optional, default is 0.7
     ```
 
   </TabItem>
