@@ -14,17 +14,17 @@ pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "The previous message contains a summary that was prepared because a context limit was reached.
-Do not mention that you read a summary or that conversation summarization occurred
+Do not mention that you read a summary or that conversation summarization occurred.
 Just continue the conversation naturally based on the summarized context";
 
 const TOOL_LOOP_CONTINUATION_TEXT: &str =
     "The previous message contains a summary that was prepared because a context limit was reached.
-Do not mention that you read a summary or that conversation summarization occurred
+Do not mention that you read a summary or that conversation summarization occurred.
 Continue calling tools as necessary to complete the task.";
 
 const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
     "The previous message contains a summary that was prepared at the user's request.
-Do not mention that you read a summary or that conversation summarization occurred
+Do not mention that you read a summary or that conversation summarization occurred.
 Just continue the conversation naturally based on the summarized context";
 
 #[derive(Serialize)]
