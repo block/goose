@@ -10,7 +10,7 @@ export default function Root({ children }: Props): JSX.Element {
     <>
       <div
         style={{
-          backgroundColor: 'var(--ifm-color-primary)',
+          backgroundColor: '#25c2a0',
           color: '#000',
           padding: '8px 16px',
           textAlign: 'center',
