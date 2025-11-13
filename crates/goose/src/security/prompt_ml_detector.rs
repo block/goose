@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::providers::gondola::GondolaProvider;
+use crate::security::gondola::GondolaProvider;
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 

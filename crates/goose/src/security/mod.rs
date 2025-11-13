@@ -1,3 +1,4 @@
+pub mod gondola;
 pub mod patterns;
 pub mod prompt_ml_detector;
 pub mod scanner;
