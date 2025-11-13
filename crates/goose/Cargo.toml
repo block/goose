@@ -100,18 +100,19 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
-zip = "0.6"
 sys-info = "0.9"
 
 oauth2 = "5.0.0"
+sysinfo = "0.37.2"
+zip = "0.6"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
 paste = "1.0.0"
 shellexpand = "3.1.1"
 indexmap = "2.12.0"
+libc = "0.2.177"
 ignore = "0.4.25"
 which = "8.0.0"
-
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
