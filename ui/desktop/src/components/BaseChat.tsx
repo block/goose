@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
@@ -97,6 +105,8 @@ function BaseChatContent({
     sessionLoadError,
     setRecipeUserParams,
     tokenState,
+    notifications,
+    appendMessage,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -205,19 +215,31 @@ function BaseChatContent({
     });
   };
 
+  const toolCallNotifications = useMemo(() => {
+    return notifications.reduce((map, notification) => {
+      const key = notification.request_id;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(notification);
+      return map;
+    }, new Map());
+  }, [notifications]);
+
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>
       <ProgressiveMessageList
         messages={messages}
         chat={chat}
-        // toolCallNotifications={toolCallNotifications}
-        // appendMessage={(newMessage) => {
-        //   const updatedMessages = [...messages, newMessage];
-        //   setMessages(updatedMessages);
-        // }}
-        isUserMessage={(m: Message) => m.role === 'user'}
+        toolCallNotifications={toolCallNotifications}
+        appendMessage={appendMessage}
+        isUserMessage={(m: Message) => {
+          const hasToolConfirmation = m.content.some(
+            (content) => content.type === 'toolConfirmationRequest'
+          );
+          return m.role === 'user' && !hasToolConfirmation;
+        }}
         isStreamingMessage={chatState !== ChatState.Idle}
-        // onMessageUpdate={onMessageUpdate}
         onRenderingComplete={handleRenderingComplete}
       />
     </>

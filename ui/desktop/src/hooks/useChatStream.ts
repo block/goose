@@ -17,6 +17,8 @@ import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
@@ -32,6 +34,8 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  notifications: NotificationEvent[];
+  appendMessage: (message: Message) => void;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -62,6 +66,7 @@ async function streamFromResponse(
   updateMessages: (messages: Message[]) => void,
   updateTokenState: (tokenState: TokenState) => void,
   updateChatState: (state: ChatState) => void,
+  updateNotifications: (notification: NotificationEvent) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let currentMessages = initialMessages;
@@ -73,10 +78,18 @@ async function streamFromResponse(
           const msg = event.message;
           currentMessages = pushMessage(currentMessages, msg);
 
-          if (getCompactingMessage(msg)) {
+          const hasToolConfirmation = msg.content.some(
+            (content) => content.type === 'toolConfirmationRequest'
+          );
+
+          if (hasToolConfirmation) {
+            updateChatState(ChatState.WaitingForUserInput);
+          } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
           } else if (getThinkingMessage(msg)) {
             updateChatState(ChatState.Thinking);
+          } else {
+            updateChatState(ChatState.Streaming);
           }
 
           updateTokenState(event.token_state);
@@ -101,7 +114,10 @@ async function streamFromResponse(
           updateMessages(event.conversation);
           break;
         }
-        case 'Notification':
+        case 'Notification': {
+          updateNotifications(event);
+          break;
+        }
         case 'Ping':
           break;
       }
@@ -133,6 +149,7 @@ export function useChatStream({
     accumulatedOutputTokens: 0,
     accumulatedTotalTokens: 0,
   });
+  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -145,6 +162,18 @@ export function useChatStream({
     setMessages(newMessages);
     messagesRef.current = newMessages;
   }, []);
+
+  const updateNotifications = useCallback((notification: NotificationEvent) => {
+    setNotifications((prev) => [...prev, notification]);
+  }, []);
+
+  const appendMessage = useCallback(
+    (message: Message) => {
+      const newMessages = [...messagesRef.current, message];
+      updateMessages(newMessages);
+    },
+    [updateMessages]
+  );
 
   const onFinish = useCallback(
     (error?: string): void => {
@@ -219,6 +248,7 @@ export function useChatStream({
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       updateMessages(currentMessages);
       setChatState(ChatState.Streaming);
+      setNotifications([]);
 
       abortControllerRef.current = new AbortController();
 
@@ -238,6 +268,7 @@ export function useChatStream({
           updateMessages,
           setTokenState,
           setChatState,
+          updateNotifications,
           onFinish
         );
       } catch (error) {
@@ -250,7 +281,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, chatState, updateMessages, onFinish]
+    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
   );
 
   const setRecipeUserParams = useCallback(
@@ -309,5 +340,7 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState,
+    notifications,
+    appendMessage,
   };
 }
