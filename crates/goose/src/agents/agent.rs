@@ -781,8 +781,8 @@ impl Agent {
         let is_manual_compact = message_text.trim() == MANUAL_COMPACT_TRIGGER;
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
-            let command = message_text.trim().split_whitespace().next();
-            command.and_then(|cmd| crate::slash_commands::resolve_slash_command(cmd))
+            let command = message_text.split_whitespace().next();
+            command.and_then(crate::slash_commands::resolve_slash_command)
         } else {
             None
         };
