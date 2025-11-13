@@ -643,7 +643,7 @@ impl CliSession {
 
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
-                        &Message::assistant().with_text("\nChat context cleared."),
+                        &Message::assistant().with_text("Chat context cleared.\n"),
                         self.debug,
                     );
 
