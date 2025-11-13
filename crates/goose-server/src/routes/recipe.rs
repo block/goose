@@ -39,7 +39,7 @@ fn clean_data_error(err: &axum::extract::rejection::JsonDataError) -> String {
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
     get_all_recipes_manifests, get_recipe_file_path_by_id, short_id_from_path, validate_recipe,
-    RecipeValidationError,
+    RecipeManifest, RecipeValidationError,
 };
 use crate::state::AppState;
 
@@ -114,14 +114,6 @@ pub struct ParseRecipeResponse {
     pub recipe: Recipe,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RecipeManifestResponse {
-    recipe: Recipe,
-    #[serde(rename = "lastModified")]
-    last_modified: String,
-    id: String,
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DeleteRecipeRequest {
     id: String,
@@ -129,7 +121,13 @@ pub struct DeleteRecipeRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ListRecipeResponse {
-    recipe_manifest_responses: Vec<RecipeManifestResponse>,
+    manifests: Vec<RecipeManifest>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ScheduleRecipeRequest {
+    id: String,
+    cron_schedule: Option<String>,
 }
 
 #[utoipa::path(
@@ -281,26 +279,27 @@ async fn scan_recipe(
 async fn list_recipes(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
-    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap_or_default();
-    let mut recipe_file_hash_map = HashMap::new();
-    let recipe_manifest_responses = recipe_manifest_with_paths
+    let mut manifests = get_all_recipes_manifests().unwrap_or_default();
+    let recipe_file_hash_map: HashMap<_, _> = manifests
         .iter()
-        .map(|recipe_manifest_with_path| {
-            let id = &recipe_manifest_with_path.id;
-            let file_path = recipe_manifest_with_path.file_path.clone();
-            recipe_file_hash_map.insert(id.clone(), file_path);
-            RecipeManifestResponse {
-                recipe: recipe_manifest_with_path.recipe.clone(),
-                id: id.clone(),
-                last_modified: recipe_manifest_with_path.last_modified.clone(),
-            }
-        })
-        .collect::<Vec<RecipeManifestResponse>>();
+        .map(|m| (m.id.clone(), m.file_path.clone()))
+        .collect();
     state.set_recipe_file_hash_map(recipe_file_hash_map).await;
 
-    Ok(Json(ListRecipeResponse {
-        recipe_manifest_responses,
-    }))
+    let scheduler = state.scheduler();
+    let scheduled_jobs = scheduler.list_scheduled_jobs().await;
+    let schedule_map: HashMap<_, _> = scheduled_jobs
+        .into_iter()
+        .map(|j| (j.source, j.cron))
+        .collect();
+
+    for manifest in &mut manifests {
+        if let Some(cron) = schedule_map.get(&manifest.file_path) {
+            manifest.schedule_cron = Some(cron.clone());
+        }
+    }
+
+    Ok(Json(ListRecipeResponse { manifests }))
 }
 
 #[utoipa::path(
@@ -329,6 +328,39 @@ async fn delete_recipe(
     }
 
     StatusCode::NO_CONTENT
+}
+
+#[utoipa::path(
+    post,
+    path = "/recipes/schedule",
+    request_body = ScheduleRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe scheduled successfully"),
+        (status = 404, description = "Recipe not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn schedule_recipe(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ScheduleRecipeRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let file_path = match get_recipe_file_path_by_id(state.as_ref(), &request.id).await {
+        Ok(path) => path,
+        Err(err) => return Err(err.status),
+    };
+
+    let scheduler = state.scheduler();
+    match scheduler
+        .schedule_recipe(file_path, request.cron_schedule)
+        .await
+    {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(e) => {
+            tracing::error!("Failed to schedule recipe: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[utoipa::path(
@@ -440,6 +472,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
+        .route("/recipes/schedule", post(schedule_recipe))
         .route("/recipes/save", post(save_recipe))
         .route("/recipes/parse", post(parse_recipe))
         .with_state(state)

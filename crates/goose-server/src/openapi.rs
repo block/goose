@@ -23,6 +23,7 @@ use goose::conversation::message::{
     ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
+use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -440,6 +441,7 @@ derive_utoipa!(Icon as IconSchema);
         ExtensionConfig,
         ConfigKey,
         Envs,
+        RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
         ToolInfo,
@@ -470,8 +472,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
-        super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
+        super::routes::recipe::ScheduleRecipeRequest,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
         super::routes::recipe::SaveRecipeResponse,

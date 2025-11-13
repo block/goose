@@ -8,7 +8,7 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import { deleteRecipe, RecipeManifestResponse, startAgent } from '../../api';
+import { deleteRecipe, RecipeManifest, startAgent } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink, Recipe } from '../../recipe';
@@ -17,11 +17,11 @@ import { useNavigation } from '../../hooks/useNavigation';
 
 export default function RecipesView() {
   const setView = useNavigation();
-  const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<RecipeManifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifest | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [showContent, setShowContent] = useState(false);
 
@@ -117,7 +117,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleDeleteRecipe = async (recipeManifest: RecipeManifestResponse) => {
+  const handleDeleteRecipe = async (recipeManifest: RecipeManifest) => {
     // TODO: Use Electron's dialog API for confirmation
     const result = await window.electron.showMessageBox({
       type: 'warning',
@@ -145,7 +145,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleEditRecipe = async (recipeManifest: RecipeManifestResponse) => {
+  const handleEditRecipe = async (recipeManifest: RecipeManifest) => {
     setSelectedRecipe(recipeManifest);
     setShowEditor(true);
   };
@@ -159,7 +159,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleCopyDeeplink = async (recipeManifest: RecipeManifestResponse) => {
+  const handleCopyDeeplink = async (recipeManifest: RecipeManifest) => {
     try {
       const deeplink = await generateDeepLink(recipeManifest.recipe);
       await navigator.clipboard.writeText(deeplink);
@@ -192,9 +192,9 @@ export default function RecipesView() {
   // Render a recipe item
   const RecipeItem = ({
     recipeManifestResponse,
-    recipeManifestResponse: { recipe, lastModified },
+    recipeManifestResponse: { recipe, last_modified: lastModified },
   }: {
-    recipeManifestResponse: RecipeManifestResponse;
+    recipeManifestResponse: RecipeManifest;
   }) => (
     <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted transition-all duration-150">
       <div className="flex justify-between items-start gap-4">
@@ -334,7 +334,7 @@ export default function RecipesView() {
 
     return (
       <div className="space-y-2">
-        {savedRecipes.map((recipeManifestResponse: RecipeManifestResponse) => (
+        {savedRecipes.map((recipeManifestResponse: RecipeManifest) => (
           <RecipeItem
             key={recipeManifestResponse.id}
             recipeManifestResponse={recipeManifestResponse}

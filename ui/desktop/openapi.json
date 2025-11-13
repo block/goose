@@ -3050,13 +3050,13 @@
       "ListRecipeResponse": {
         "type": "object",
         "required": [
-          "recipe_manifest_responses"
+          "manifests"
         ],
         "properties": {
-          "recipe_manifest_responses": {
+          "manifests": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RecipeManifestResponse"
+              "$ref": "#/components/schemas/RecipeManifest"
             }
           }
         }
@@ -3870,22 +3870,34 @@
           }
         }
       },
-      "RecipeManifestResponse": {
+      "RecipeManifest": {
         "type": "object",
         "required": [
+          "id",
           "recipe",
-          "lastModified",
-          "id"
+          "file_path",
+          "last_modified"
         ],
         "properties": {
+          "file_path": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
-          "lastModified": {
+          "last_modified": {
             "type": "string"
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          },
+          "schedule_cron": {
+            "type": "string",
+            "nullable": true
+          },
+          "slash_command": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

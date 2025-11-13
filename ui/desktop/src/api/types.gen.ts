@@ -322,7 +322,7 @@ export type KillJobResponse = {
 };
 
 export type ListRecipeResponse = {
-    recipe_manifest_responses: Array<RecipeManifestResponse>;
+    manifests: Array<RecipeManifest>;
 };
 
 export type ListSchedulesResponse = {
@@ -564,10 +564,13 @@ export type Recipe = {
     version?: string;
 };
 
-export type RecipeManifestResponse = {
+export type RecipeManifest = {
+    file_path: string;
     id: string;
-    lastModified: string;
+    last_modified: string;
     recipe: Recipe;
+    schedule_cron?: string | null;
+    slash_command?: string | null;
 };
 
 export type RecipeParameter = {

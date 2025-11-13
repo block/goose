@@ -318,6 +318,69 @@ impl Scheduler {
         Ok(())
     }
 
+    pub async fn schedule_recipe(
+        &self,
+        recipe_path: PathBuf,
+        cron_schedule: Option<String>,
+    ) -> Result<(), SchedulerError> {
+        let recipe_path_str = recipe_path.to_string_lossy().to_string();
+
+        let existing_job_id = {
+            let jobs_guard = self.jobs.lock().await;
+            jobs_guard
+                .iter()
+                .find(|(_, (_, job))| job.source == recipe_path_str)
+                .map(|(id, _)| id.clone())
+        };
+
+        match cron_schedule {
+            Some(cron) => {
+                if let Some(job_id) = existing_job_id {
+                    self.update_schedule(&job_id, cron).await
+                } else {
+                    let job_id = self.generate_unique_job_id(&recipe_path).await;
+                    let job = ScheduledJob {
+                        id: job_id,
+                        source: recipe_path_str,
+                        cron,
+                        last_run: None,
+                        currently_running: false,
+                        paused: false,
+                        current_session_id: None,
+                        process_start_time: None,
+                    };
+                    self.add_scheduled_job(job).await
+                }
+            }
+            None => {
+                if let Some(job_id) = existing_job_id {
+                    self.remove_scheduled_job(&job_id).await
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    async fn generate_unique_job_id(&self, path: &Path) -> String {
+        let base_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unnamed")
+            .to_string();
+
+        let jobs_guard = self.jobs.lock().await;
+        let mut id = base_id.clone();
+        let mut counter = 1;
+
+        while jobs_guard.contains_key(&id) {
+            id = format!("{}_{}", base_id, counter);
+            counter += 1;
+        }
+
+        id
+    }
+
     async fn load_jobs_from_storage(self: &Arc<Self>) {
         if !self.storage_path.exists() {
             return;
