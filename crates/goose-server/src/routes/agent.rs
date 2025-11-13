@@ -483,11 +483,42 @@ async fn agent_add_extension(
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
     if cfg!(target_os = "windows") {
+        use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
+        use winreg::RegKey;
+
         if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
             if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
-                let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe")
+                let mut node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe")
                     .exists()
                     || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+
+                // Also check Windows registry: HKEY_LOCAL_MACHINE\\SOFTWARE\\Node.js InstallPath
+                if !node_exists {
+                    // Try 64-bit view first, then 32-bit. Use open_subkey_with_flags to avoid WOW64 redirection issues.
+                    let install_path_from_reg: Option<String> = (|| {
+                        let hk_local_machine = RegKey::predef(HKEY_LOCAL_MACHINE);
+                        // Common keys to try
+                        let keys = vec!["SOFTWARE\\Node.js", "SOFTWARE\\WOW6432Node\\Node.js"];
+                        for k in keys.iter() {
+                            if let Ok(subkey) = hk_local_machine.open_subkey_with_flags(k, KEY_READ)
+                            {
+                                if let Ok(val) = subkey.get_value::<String, _>("InstallPath") {
+                                    if !val.trim().is_empty() {
+                                        return Some(val);
+                                    }
+                                }
+                            }
+                        }
+                        None
+                    })();
+
+                    if let Some(path_str) = install_path_from_reg {
+                        let node_path = std::path::Path::new(&path_str).join("node.exe");
+                        if node_path.exists() {
+                            node_exists = true;
+                        }
+                    }
+                }
 
                 if !node_exists {
                     let cmd_path = std::path::Path::new(&cmd);
@@ -497,7 +528,7 @@ async fn agent_add_extension(
                     let install_script = script_dir.join("install-node.cmd");
 
                     if install_script.exists() {
-                        eprintln!("Installing Node.js...");
+                        eprintln!("Node.js not found on the system, installing Node.js...");
                         let output = std::process::Command::new(&install_script)
                             .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
                             .output()
@@ -513,7 +544,7 @@ async fn agent_add_extension(
                         }
                     } else {
                         return Err(ErrorResponse::internal(format!(
-                            "Node.js not detected and no installer script not found at: {}",
+                            "Node.js not found on the system, and no installer script found at: {}",
                             install_script.display()
                         )));
                     }

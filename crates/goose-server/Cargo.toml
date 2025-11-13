@@ -40,6 +40,9 @@ tokio-util = "0.7.15"
 uuid = { version = "1.11", features = ["v4"] }
 serde_path_to_error = "0.1.20"
 
+[target.'cfg(windows)'.dependencies]
+winreg = { version = "0.55.0" }
+
 [[bin]]
 name = "goosed"
 path = "src/main.rs"
