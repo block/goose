@@ -109,6 +109,10 @@ To configure your chosen provider or see available options, visit the `Models` t
   6. Select a model from the available options, or choose `Use custom model` to enter a specific model name
   7. Click `Select model` to confirm your choice
 
+  :::info Ollama Model Detection
+  For Ollama users, all locally installed models display automatically in the model selection dropdown.
+  :::
+
   :::tip Shortcut
   For faster access, click your current model name at the bottom of the app and choose `Change Model`.
   :::
