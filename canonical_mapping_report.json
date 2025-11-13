@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-11-12T19:12:39.449555+00:00",
+  "timestamp": "2025-11-13T17:32:30.830102+00:00",
   "unmapped_models": [
     {
       "provider": "openai",
@@ -3555,6 +3555,376 @@
     }
   ],
   "all_mappings": {
+    "tetrate": [],
+    "openrouter": [
+      {
+        "provider_model": "anthropic/claude-3-haiku",
+        "canonical_model": "anthropic/claude-3-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3-opus",
+        "canonical_model": "anthropic/claude-3-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-haiku",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-haiku-20241022",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-sonnet",
+        "canonical_model": "anthropic/claude-3.5-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-sonnet-20240620",
+        "canonical_model": "anthropic/claude-3.5-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.7-sonnet",
+        "canonical_model": "anthropic/claude-3.7-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.7-sonnet:thinking",
+        "canonical_model": "anthropic/claude-3.7-sonnet:thinking",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-haiku-4.5",
+        "canonical_model": "anthropic/claude-haiku-4.5",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-opus-4",
+        "canonical_model": "anthropic/claude-opus-4",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-opus-4.1",
+        "canonical_model": "anthropic/claude-opus-4.1",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-sonnet-4",
+        "canonical_model": "anthropic/claude-sonnet-4",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-sonnet-4.5",
+        "canonical_model": "anthropic/claude-sonnet-4.5",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.0-flash-001",
+        "canonical_model": "google/gemini-2.0-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.0-flash-lite-001",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite-preview-06-17",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro-preview",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro-preview-05-06",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemma-3-27b-it",
+        "canonical_model": "google/gemma-3-27b-it",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/codex-mini",
+        "canonical_model": "openai/codex-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo-0613",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo-16k",
+        "canonical_model": "openai/gpt-3.5-turbo-16k",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4",
+        "canonical_model": "openai/gpt-4",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-0314",
+        "canonical_model": "openai/gpt-4",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-1106-preview",
+        "canonical_model": "openai/gpt-4",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-turbo",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-turbo-preview",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1",
+        "canonical_model": "openai/gpt-4.1",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1-mini",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1-nano",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-05-13",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-08-06",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-11-20",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-audio-preview",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-mini",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-mini-2024-07-18",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o:extended",
+        "canonical_model": "openai/gpt-4o:extended",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5",
+        "canonical_model": "openai/gpt-5",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-codex",
+        "canonical_model": "openai/gpt-5-codex",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-image",
+        "canonical_model": "openai/gpt-5-image",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-image-mini",
+        "canonical_model": "openai/gpt-5-image-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-mini",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-nano",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-pro",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-120b",
+        "canonical_model": "openai/gpt-oss-120b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-120b:exacto",
+        "canonical_model": "openai/gpt-oss-120b:exacto",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-20b",
+        "canonical_model": "openai/gpt-oss-20b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-safeguard-20b",
+        "canonical_model": "openai/gpt-oss-safeguard-20b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o1",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-deep-research",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-mini",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-mini-high",
+        "canonical_model": "openai/o3-mini-high",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-pro",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini-deep-research",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini-high",
+        "canonical_model": "openai/o4-mini-high",
+        "verified": true
+      }
+    ],
+    "anthropic": [
+      {
+        "provider_model": "claude-3-5-haiku-20241022",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-7-sonnet-20250219",
+        "canonical_model": "anthropic/claude-3.7-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-haiku-20240307",
+        "canonical_model": "anthropic/claude-3-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-opus-20240229",
+        "canonical_model": "anthropic/claude-3-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-haiku-4-5-20251001",
+        "canonical_model": "anthropic/claude-haiku-4.5",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-opus-4-1-20250805",
+        "canonical_model": "anthropic/claude-opus-4.1",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-opus-4-20250514",
+        "canonical_model": "anthropic/claude-opus-4",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-sonnet-4-20250514",
+        "canonical_model": "anthropic/claude-sonnet-4",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-sonnet-4-5-20250929",
+        "canonical_model": "anthropic/claude-sonnet-4.5",
+        "verified": true
+      }
+    ],
     "openai": [
       {
         "provider_model": "chatgpt-4o-latest",
@@ -3593,27 +3963,27 @@
       },
       {
         "provider_model": "gpt-4",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4",
         "verified": true
       },
       {
         "provider_model": "gpt-4-0125-preview",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4",
         "verified": true
       },
       {
         "provider_model": "gpt-4-0314",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4",
         "verified": true
       },
       {
         "provider_model": "gpt-4-0613",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4",
         "verified": true
       },
       {
         "provider_model": "gpt-4-1106-preview",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4",
         "verified": true
       },
       {
@@ -3633,12 +4003,12 @@
       },
       {
         "provider_model": "gpt-4.1",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4.1",
         "verified": true
       },
       {
         "provider_model": "gpt-4.1-2025-04-14",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-4.1",
         "verified": true
       },
       {
@@ -3733,12 +4103,12 @@
       },
       {
         "provider_model": "gpt-5",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-5",
         "verified": true
       },
       {
         "provider_model": "gpt-5-2025-08-07",
-        "canonical_model": "openai/gpt",
+        "canonical_model": "openai/gpt-5",
         "verified": true
       },
       {
@@ -3858,375 +4228,6 @@
       }
     ],
     "databricks": [],
-    "anthropic": [
-      {
-        "provider_model": "claude-3-5-haiku-20241022",
-        "canonical_model": "anthropic/claude-3.5-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-3-7-sonnet-20250219",
-        "canonical_model": "anthropic/claude-3.7-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-3-haiku-20240307",
-        "canonical_model": "anthropic/claude-3-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-3-opus-20240229",
-        "canonical_model": "anthropic/claude-3-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-haiku-4-5-20251001",
-        "canonical_model": "anthropic/claude-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-opus-4-1-20250805",
-        "canonical_model": "anthropic/claude-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-opus-4-20250514",
-        "canonical_model": "anthropic/claude-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-sonnet-4-20250514",
-        "canonical_model": "anthropic/claude-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "claude-sonnet-4-5-20250929",
-        "canonical_model": "anthropic/claude-sonnet",
-        "verified": true
-      }
-    ],
-    "openrouter": [
-      {
-        "provider_model": "anthropic/claude-3-haiku",
-        "canonical_model": "anthropic/claude-3-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3-opus",
-        "canonical_model": "anthropic/claude-3-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.5-haiku",
-        "canonical_model": "anthropic/claude-3.5-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.5-haiku-20241022",
-        "canonical_model": "anthropic/claude-3.5-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.5-sonnet",
-        "canonical_model": "anthropic/claude-3.5-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.5-sonnet-20240620",
-        "canonical_model": "anthropic/claude-3.5-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.7-sonnet",
-        "canonical_model": "anthropic/claude-3.7-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-3.7-sonnet:thinking",
-        "canonical_model": "anthropic/claude-3.7-sonnet:thinking",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-haiku-4.5",
-        "canonical_model": "anthropic/claude-haiku",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-opus-4",
-        "canonical_model": "anthropic/claude-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-opus-4.1",
-        "canonical_model": "anthropic/claude-opus",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-sonnet-4",
-        "canonical_model": "anthropic/claude-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "anthropic/claude-sonnet-4.5",
-        "canonical_model": "anthropic/claude-sonnet",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.0-flash-001",
-        "canonical_model": "google/gemini-2.0-flash",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.0-flash-lite-001",
-        "canonical_model": "google/gemini-2.0-flash-lite",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-flash",
-        "canonical_model": "google/gemini-2.5-flash",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-flash-lite",
-        "canonical_model": "google/gemini-2.5-flash-lite",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-flash-lite-preview-06-17",
-        "canonical_model": "google/gemini-2.5-flash-lite",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-flash-lite-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash-lite",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-flash-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-pro",
-        "canonical_model": "google/gemini-2.5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-pro-preview",
-        "canonical_model": "google/gemini-2.5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemini-2.5-pro-preview-05-06",
-        "canonical_model": "google/gemini-2.5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "google/gemma-3-27b-it",
-        "canonical_model": "google/gemma-3-27b-it",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/codex-mini",
-        "canonical_model": "openai/codex-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-3.5-turbo",
-        "canonical_model": "openai/gpt-3.5-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-3.5-turbo-0613",
-        "canonical_model": "openai/gpt-3.5-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-3.5-turbo-16k",
-        "canonical_model": "openai/gpt-3.5-turbo-16k",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4-0314",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4-1106-preview",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4-turbo",
-        "canonical_model": "openai/gpt-4-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4-turbo-preview",
-        "canonical_model": "openai/gpt-4-turbo",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4.1",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4.1-mini",
-        "canonical_model": "openai/gpt-4.1-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4.1-nano",
-        "canonical_model": "openai/gpt-4.1-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-2024-05-13",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-2024-08-06",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-2024-11-20",
-        "canonical_model": "openai/gpt-4o",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-audio-preview",
-        "canonical_model": "openai/gpt-4o-audio",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-mini",
-        "canonical_model": "openai/gpt-4o-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o-mini-2024-07-18",
-        "canonical_model": "openai/gpt-4o-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-4o:extended",
-        "canonical_model": "openai/gpt-4o:extended",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5",
-        "canonical_model": "openai/gpt",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-codex",
-        "canonical_model": "openai/gpt-5-codex",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-image",
-        "canonical_model": "openai/gpt-5-image",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-image-mini",
-        "canonical_model": "openai/gpt-5-image-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-mini",
-        "canonical_model": "openai/gpt-5-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-nano",
-        "canonical_model": "openai/gpt-5-nano",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-5-pro",
-        "canonical_model": "openai/gpt-5-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-oss-120b",
-        "canonical_model": "openai/gpt-oss-120b",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-oss-120b:exacto",
-        "canonical_model": "openai/gpt-oss-120b:exacto",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-oss-20b",
-        "canonical_model": "openai/gpt-oss-20b",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/gpt-oss-safeguard-20b",
-        "canonical_model": "openai/gpt-oss-safeguard-20b",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o1",
-        "canonical_model": "openai/o1",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o3",
-        "canonical_model": "openai/o3",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o3-deep-research",
-        "canonical_model": "openai/o3-deep-research",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o3-mini",
-        "canonical_model": "openai/o3-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o3-mini-high",
-        "canonical_model": "openai/o3-mini-high",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o3-pro",
-        "canonical_model": "openai/o3-pro",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o4-mini",
-        "canonical_model": "openai/o4-mini",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o4-mini-deep-research",
-        "canonical_model": "openai/o4-mini-deep-research",
-        "verified": true
-      },
-      {
-        "provider_model": "openai/o4-mini-high",
-        "canonical_model": "openai/o4-mini-high",
-        "verified": true
-      }
-    ],
     "google": [
       {
         "provider_model": "gemini-2.0-flash",
@@ -4343,71 +4344,74 @@
         "canonical_model": "google/gemma-3n-e4b-it",
         "verified": true
       }
-    ],
-    "tetrate": []
+    ]
   },
   "model_counts": {
-    "anthropic": 9,
     "databricks": 143,
-    "tetrate": 0,
     "openai": 625,
+    "anthropic": 9,
     "openrouter": 217,
+    "tetrate": 0,
     "google": 50
   },
   "canonical_models_used": [
-    "openai/o1",
-    "openai/o1-pro",
-    "openai/gpt-4-turbo",
-    "google/gemini-2.5-pro",
-    "openai/chatgpt-4o-latest",
-    "openai/o4-mini",
-    "anthropic/claude-haiku",
-    "openai/gpt-4.1-mini",
-    "openai/gpt-3.5-turbo-instruct",
-    "google/gemini-2.5-flash-lite",
-    "openai/gpt-oss-20b",
-    "openai/o3-mini",
-    "openai/o3-pro",
-    "openai/gpt-4o-audio",
-    "openai/gpt-oss-safeguard-20b",
-    "google/gemma-3-12b-it",
-    "anthropic/claude-3-opus",
-    "anthropic/claude-sonnet",
-    "anthropic/claude-opus",
-    "anthropic/claude-3.7-sonnet",
+    "openai/gpt-5-mini",
     "openai/o4-mini-deep-research",
-    "anthropic/claude-3.5-haiku",
-    "openai/gpt",
-    "openai/gpt-4o-search",
     "openai/gpt-4.1-nano",
-    "openai/gpt-3.5-turbo-16k",
-    "anthropic/claude-3.7-sonnet:thinking",
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-4o",
-    "anthropic/claude-3-haiku",
-    "openai/gpt-4o-mini",
-    "openai/o3",
-    "openai/gpt-5-nano",
-    "openai/gpt-5-image-mini",
-    "openai/codex-mini",
-    "openai/o3-mini-high",
     "openai/gpt-5-codex",
-    "google/gemma-3-27b-it",
-    "openai/gpt-oss-120b",
-    "google/gemma-3-4b-it",
-    "google/gemma-3n-e4b-it",
-    "openai/o4-mini-high",
-    "openai/o3-deep-research",
-    "google/gemini-2.0-flash-lite",
+    "google/gemini-2.0-flash",
     "openai/gpt-oss-120b:exacto",
+    "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-flash",
     "openai/gpt-5-pro",
-    "openai/gpt-4o:extended",
-    "openai/gpt-5-image",
-    "google/gemini-2.0-flash",
+    "openai/gpt-5-image-mini",
+    "openai/gpt-oss-120b",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-3-opus",
+    "anthropic/claude-opus-4",
     "openai/gpt-3.5-turbo",
+    "openai/gpt-4o-search",
+    "openai/gpt-4.1",
+    "openai/o3",
     "google/gemini-2.5-flash-image",
+    "openai/gpt-4-turbo",
+    "openai/o3-mini",
+    "openai/gpt-4o:extended",
+    "openai/codex-mini",
+    "openai/o1-pro",
+    "openai/gpt-3.5-turbo-16k",
+    "openai/gpt-4o-audio",
+    "openai/gpt-4o",
+    "google/gemma-3-12b-it",
+    "openai/gpt-3.5-turbo-instruct",
+    "openai/gpt-5-nano",
+    "openai/o1",
+    "openai/gpt-oss-safeguard-20b",
+    "openai/gpt-5-image",
+    "openai/gpt-4",
+    "google/gemma-3-27b-it",
+    "openai/gpt-4.1-mini",
+    "openai/chatgpt-4o-latest",
+    "openai/o4-mini",
+    "openai/gpt-oss-20b",
+    "google/gemma-3n-e4b-it",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-3.5-haiku",
+    "openai/o4-mini-high",
+    "google/gemini-2.0-flash-lite",
+    "openai/o3-mini-high",
+    "anthropic/claude-3-haiku",
+    "anthropic/claude-haiku-4.5",
+    "anthropic/claude-sonnet-4.5",
+    "openai/o3-pro",
+    "google/gemini-2.5-flash-lite",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemma-3-4b-it",
     "openai/gpt-4o-mini-search",
-    "openai/gpt-5-mini"
+    "openai/gpt-4o-mini",
+    "openai/o3-deep-research",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "openai/gpt-5"
   ]
 }
