@@ -252,6 +252,21 @@ reuse it. For things like automations or to test without doing official setup, y
 set the relevant env vars for that provider. For example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 or `DATABRICKS_HOST`. Refer to the provider details for more info on required keys.
 
+### Isolating Test Environments
+
+When testing changes or running multiple goose configurations, use `GOOSE_PATH_ROOT` to isolate your data:
+
+```bash
+# Test with a clean environment
+export GOOSE_PATH_ROOT="/tmp/goose-test"
+./target/debug/goose session
+
+# Or for a single command
+GOOSE_PATH_ROOT="/tmp/goose-dev" cargo run -p goose-cli -- session
+```
+
+This creates isolated `config/`, `data/`, and `state/` directories under the specified path, preventing your test sessions from affecting your main goose installation. See the [environment variables guide](./documentation/docs/guides/environment-variables.md#development--testing) for more details.
+
 ## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
 - Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.

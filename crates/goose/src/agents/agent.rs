@@ -39,7 +39,6 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
-use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -60,6 +59,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 
@@ -346,7 +346,6 @@ impl Agent {
         Ok(tool_futures)
     }
 
-    /// Set the scheduler service for this agent
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
@@ -413,6 +412,20 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if session.session_type == crate::session::SessionType::SubAgent
+            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
+                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+        {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Subagents cannot create other subagents".to_string(),
+                    None,
+                )),
+            );
+        }
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments

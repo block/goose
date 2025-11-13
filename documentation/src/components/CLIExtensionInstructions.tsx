@@ -16,6 +16,7 @@ interface CLIExtensionInstructionsProps {
   timeout?: number;
   envVars?: EnvVar[]; // For stdio: environment variables, for http: headers
   infoNote?: string;
+  commandNote?: React.ReactNode; // Note to display for command/URL step
 }
 
 export default function CLIExtensionInstructions({
@@ -27,6 +28,7 @@ export default function CLIExtensionInstructions({
   timeout = 300,
   envVars = [],
   infoNote,
+  commandNote,
 }: CLIExtensionInstructionsProps) {
   const hasEnvVars = envVars.length > 0;
   const isSSE = type === 'sse';
@@ -101,6 +103,14 @@ ${
           <ol start={4}>
             <li>Enter the {isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}.</li>
           </ol>
+          {commandNote && (
+            <>
+              <Admonition type="info">
+                {commandNote}
+              </Admonition>
+              <br />
+            </>
+          )}
           <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
@@ -123,6 +133,14 @@ ${
           <ol start={4}>
             <li>Enter the command to run when this extension is used.</li>
           </ol>
+          {commandNote && (
+            <>
+              <Admonition type="info">
+                {commandNote}
+              </Admonition>
+              <br />
+            </>
+          )}
           <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?

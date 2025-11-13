@@ -9,10 +9,19 @@ use std::sync::Arc;
 type ProviderConstructor =
     Arc<dyn Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
 
+#[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
     provider_type: ProviderType,
+}
+
+impl ProviderEntry {
+    pub async fn create_with_default_model(&self) -> Result<Arc<dyn Provider>> {
+        let default_model = &self.metadata.default_model;
+        let model_config = ModelConfig::new(default_model.as_str())?;
+        (self.constructor)(model_config).await
+    }
 }
 
 #[derive(Default)]

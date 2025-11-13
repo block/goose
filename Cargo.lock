@@ -2131,6 +2131,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_home"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f84e12ccf0a7ddc17a6c41c93326024c42920d7ee630d04950e6926645c0fe"
+
+[[package]]
 name = "env_logger"
 version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2610,7 +2616,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2685,6 +2691,7 @@ dependencies = [
  "utoipa",
  "uuid",
  "webbrowser 0.8.15",
+ "which 8.0.0",
  "winapi",
  "wiremock",
  "zip 0.6.6",
@@ -2692,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2715,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2767,7 +2774,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2833,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2870,7 +2877,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5562,9 +5569,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.8.3"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fdad1258f7259fdc0f2dfc266939c82c3b5d1fd72bcde274d600cdc27e60243"
+checksum = "e5947688160b56fb6c827e3c20a72c90392a1d7e9dec74749197aa1780ac42ca"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5590,9 +5597,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.8.3"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede0589a208cc7ce81d1be68aa7e74b917fcd03c81528408bab0457e187dcd9b"
+checksum = "01263441d3f8635c628e33856c468b96ebbce1af2d3699ea712ca71432d4ee7a"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
@@ -7872,6 +7879,17 @@ dependencies = [
  "either",
  "home",
  "rustix 0.38.44",
+ "winsafe",
+]
+
+[[package]]
+name = "which"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fabb953106c3c8eea8306e4393700d7657561cb43122571b172bbfb7c7ba1d"
+dependencies = [
+ "env_home",
+ "rustix 1.0.7",
  "winsafe",
 ]
 
