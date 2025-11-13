@@ -114,7 +114,10 @@ fn validate_and_build_request(
                 let sig_header = message
                     .headers
                     .as_ref()
-                    .and_then(|h| h.get("x-corp-signature").or_else(|| h.get("X-Corp-Signature")))
+                    .and_then(|h| {
+                        h.get("x-corp-signature")
+                            .or_else(|| h.get("X-Corp-Signature"))
+                    })
                     .ok_or_else(|| anyhow::anyhow!("Missing X-Corp-Signature header"))?;
 
                 validator.verify(
@@ -123,7 +126,6 @@ fn validate_and_build_request(
                     &message.path,
                     message.body.as_deref(),
                 )?;
-                tracing::info!("✓ Signature valid for {} {}", message.method, message.path);
             }
             Err(e) => {
                 anyhow::bail!("Failed to create Ed25519 validator: {}", e);
@@ -277,7 +279,6 @@ async fn handle_request(
     server_secret: String,
 ) -> Result<()> {
     let request_id = message.request_id.clone();
-    info!("→ {} {} [{}]", message.method, message.path, request_id);
 
     let client = reqwest::Client::new();
     let url = format!("http://127.0.0.1:{}{}", port, message.path);
@@ -370,7 +371,6 @@ async fn handle_request(
                 is_last_chunk: None,
             };
             send_response(ws_tx, tunnel_response).await?;
-            info!("← {} {} [{}]", status, message.path, request_id);
         }
     }
 

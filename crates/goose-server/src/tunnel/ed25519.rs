@@ -58,6 +58,7 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     #[test]
+    #[allow(clippy::zero_prefixed_literal)]
     fn test_signature_validation() {
         let signing_key = SigningKey::from_bytes(&[
             157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068,
