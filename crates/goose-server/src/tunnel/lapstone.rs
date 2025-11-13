@@ -100,7 +100,11 @@ fn validate_and_build_request(
     let incoming_secret = message
         .headers
         .as_ref()
-        .and_then(|h| h.get("x-secret-key").or_else(|| h.get("X-Secret-Key")))
+        .and_then(|h| {
+            h.iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("x-secret-key"))
+                .map(|(_, v)| v)
+        })
         .ok_or_else(|| anyhow::anyhow!("Missing tunnel secret header"))?;
 
     if !secure_compare(incoming_secret, tunnel_secret) {
@@ -115,8 +119,9 @@ fn validate_and_build_request(
                     .headers
                     .as_ref()
                     .and_then(|h| {
-                        h.get("x-corp-signature")
-                            .or_else(|| h.get("X-Corp-Signature"))
+                        h.iter()
+                            .find(|(k, _)| k.eq_ignore_ascii_case("x-corp-signature"))
+                            .map(|(_, v)| v)
                     })
                     .ok_or_else(|| anyhow::anyhow!("Missing X-Corp-Signature header"))?;
 
@@ -329,10 +334,16 @@ async fn handle_request(
     };
 
     let status = response.status().as_u16();
+    // Normalize header names to lowercase per RFC 7230 (HTTP headers are case-insensitive)
     let headers_map: HashMap<String, String> = response
         .headers()
         .iter()
-        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .map(|(k, v)| {
+            (
+                k.as_str().to_lowercase(),
+                v.to_str().unwrap_or("").to_string(),
+            )
+        })
         .collect();
 
     let is_streaming = headers_map

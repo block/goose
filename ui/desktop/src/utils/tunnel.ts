@@ -1,11 +1,10 @@
 import log from './logger';
 
-export interface TunnelInfo {
-  state: 'idle' | 'starting' | 'running' | 'error';
-  url?: string;
-  hostname?: string;
-  secret?: string;
-}
+export type TunnelInfo =
+  | { state: 'idle' }
+  | { state: 'starting' }
+  | { state: 'running'; url: string; hostname: string; secret: string }
+  | { state: 'error'; error: string };
 
 /**
  * Start the tunnel via Rust API and remember it

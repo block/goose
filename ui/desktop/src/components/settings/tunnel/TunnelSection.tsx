@@ -25,8 +25,9 @@ export default function TunnelSection() {
         const info = await window.electron.getTunnelStatus(baseUrl);
         setTunnelInfo(info);
       } catch (err) {
-        setError(errorMessage(err, 'Failed to load tunnel status'));
-        setTunnelInfo({ state: 'error' });
+        const errorMsg = errorMessage(err, 'Failed to load tunnel status');
+        setError(errorMsg);
+        setTunnelInfo({ state: 'error', error: errorMsg });
       }
     };
 
@@ -44,8 +45,9 @@ export default function TunnelSection() {
       setTunnelInfo(info);
       setShowQRModal(true);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to start tunnel'));
-      setTunnelInfo({ state: 'error' });
+      const errorMsg = errorMessage(err, 'Failed to start tunnel');
+      setError(errorMsg);
+      setTunnelInfo({ state: 'error', error: errorMsg });
     }
   };
 
@@ -85,7 +87,7 @@ export default function TunnelSection() {
   };
 
   const getQRCodeData = () => {
-    if (!tunnelInfo.url || !tunnelInfo.secret) return '';
+    if (tunnelInfo.state !== 'running') return '';
 
     const configJson = JSON.stringify({
       url: tunnelInfo.url,
@@ -151,7 +153,7 @@ export default function TunnelSection() {
             </div>
           </div>
 
-          {tunnelInfo.state === 'running' && tunnelInfo.url && (
+          {tunnelInfo.state === 'running' && (
             <div className="p-3 bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-800 rounded">
               <p className="text-xs text-green-800 dark:text-green-200">
                 <strong>URL:</strong> {tunnelInfo.url}
@@ -167,7 +169,7 @@ export default function TunnelSection() {
             <DialogTitle>Remote Access Connection</DialogTitle>
           </DialogHeader>
 
-          {tunnelInfo.url && tunnelInfo.secret && (
+          {tunnelInfo.state === 'running' && (
             <div className="py-4 space-y-4">
               <div className="flex justify-center">
                 <div className="p-4 bg-white rounded-lg">
@@ -205,7 +207,7 @@ export default function TunnelSection() {
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelInfo.url!, 'url')}
+                          onClick={() => copyToClipboard(tunnelInfo.url, 'url')}
                         >
                           {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
@@ -222,7 +224,7 @@ export default function TunnelSection() {
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelInfo.secret!, 'secret')}
+                          onClick={() => copyToClipboard(tunnelInfo.secret, 'secret')}
                         >
                           {copiedSecret ? (
                             <Check className="h-4 w-4" />
