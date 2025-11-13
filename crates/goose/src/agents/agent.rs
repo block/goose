@@ -1156,7 +1156,7 @@ impl Agent {
                                 )
                             );
 
-                            match compact_messages(self.provider().await?.as_ref(), &conversation, true).await {
+                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
                                 Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     Self::update_session_metrics(&session_config, &usage, true).await?;
