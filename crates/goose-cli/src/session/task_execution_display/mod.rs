@@ -49,6 +49,56 @@ fn process_output_for_display(output: &str) -> String {
     safe_truncate(&clean_output, OUTPUT_PREVIEW_LENGTH)
 }
 
+pub struct Session {
+    pub id: String,
+    pub name: String,
+    pub token_usage: usize,
+    pub max_token_limit: usize,
+    pub other_usage_metrics: usize,
+    pub messages_count: usize,
+    pub context_data_size: usize,
+    // Add other relevant session fields here
+}
+
+impl Session {
+    pub fn new(id: String, name: String, max_token_limit: usize) -> Self {
+        Self {
+            id,
+            name,
+            token_usage: 0,
+            max_token_limit,
+            other_usage_metrics: 0,
+            messages_count: 0,
+            context_data_size: 0,
+            // Initialize other fields as needed
+        }
+    }
+
+    pub fn add_tokens(&mut self, count: usize) {
+        self.token_usage += count;
+        // Possibly add checks against max_token_limit
+    }
+
+    pub fn add_message(&mut self) {
+        self.messages_count += 1;
+    }
+
+    pub fn reset_context_usage(&mut self) {
+        self.token_usage = 0;
+        self.other_usage_metrics = 0;
+        self.messages_count = 0;
+        self.context_data_size = 0;
+        // Reset other context/session related state if applicable
+    }
+
+    pub fn is_token_limit_reached(&self) -> bool {
+        self.token_usage >= self.max_token_limit
+    }
+
+    // Add more existing methods relevant to session management
+}
+
+
 pub fn format_task_execution_notification(
     data: &Value,
 ) -> Option<(String, Option<String>, Option<String>)> {

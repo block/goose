@@ -8,8 +8,31 @@ use regex::Regex;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-
+use crate::session::Session;
+use crate::ui;
+use anyhow::Result;
 const TRUNCATED_DESC_LENGTH: usize = 60;
+
+pub fn handle_command(command: &str, session: &mut Session) -> Result<()> {
+    if command.trim() == "/clear" {
+        // Reset the session context usage
+        session.reset_context_usage();
+
+        // Reset the UI progress bar to zero
+        ui::reset_progress_bar();
+
+        println!("Context cleared.");
+        return Ok(());
+    }
+
+    // Existing command handling code here...
+
+    println!("Command not recognized: {}", command);
+    Ok(())
+}
+
+
+
 
 pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
