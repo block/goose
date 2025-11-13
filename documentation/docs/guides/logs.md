@@ -51,21 +51,15 @@ Also see [Session Management](/docs/guides/sessions/session-management) for deta
 
 ## System Logs
 
-### Main System Log
+goose stores logs for its various components. CLI and server logs are automatically organized into date-based directories and cleaned up after two weeks to prevent excessive disk usage.
 
-The main system log locations:
-* Unix-like: `~/.local/state/goose/logs/goose.log`
-* Windows: `%APPDATA%\Block\goose\data\logs\goose.log`
-
-This log contains general application-level logging including:
-* Session file locations
-* Token usage statistics as well as token counts (input, output, total)
-* LLM information (model names, versions)
-
-When [prompt injection detection](/docs/guides/security/prompt-injection-detection) is enabled, logs also include:
+When [prompt injection detection](/docs/guides/security/prompt-injection-detection) is enabled, CLI and server logs also include:
 * Security findings with unique IDs (format: `SEC-{uuid}`)
 * User decisions (allow/deny) associated with finding IDs
 
+:::info
+Extensions may optionally log to subdirectories under `~/.local/state/goose/logs/`. The specific subdirectory structure is determined by each extension's implementation.
+:::
 
 ### Desktop Application Log
 
@@ -73,7 +67,7 @@ The desktop application maintains its own logs:
 * macOS: `~/Library/Application Support/Goose/logs/main.log`
 * Windows: `%APPDATA%\Block\goose\logs\main.log`
 
-The Desktop application follows platform conventions for its own operational logs and state data, but uses the standard goose [session records](#session-records) for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with goose.
+The desktop application follows platform conventions for its own operational logs and state data, but uses the standard goose [session records](#session-records) for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with goose.
 
 ### CLI Logs 
 
@@ -81,13 +75,15 @@ CLI logs are stored in:
 * Unix-like: `~/.local/state/goose/logs/cli/`
 * Windows: `%APPDATA%\Block\goose\data\logs\cli\`
 
+Logs are organized into date-based subdirectories (e.g., `cli/2025-11-13/`) and subdirectories older than two weeks are automatically deleted.
+
 CLI session logs contain:
 * Tool invocations and responses
 * Command execution details
 * Session identifiers
 * Timestamps
 
-Extension logs contain:
+CLI logs also capture extension-related activity, including:
 * Tool initialization
 * Tool capabilities and schemas
 * Extension-specific operations
@@ -101,6 +97,8 @@ Extension logs contain:
 Server logs are stored in:
 * Unix-like: `~/.local/state/goose/logs/server/`
 * Windows: `%APPDATA%\Block\goose\data\logs\server\`
+
+Logs are organized into date-based subdirectories (e.g., `server/2025-11-13/`) and subdirectories older than two weeks are automatically deleted.
 
 The Server logs contain information about the goose daemon (`goosed`), which is a local server process that runs on your computer. This server component manages communication between the CLI, extensions, and LLMs. 
 
@@ -122,3 +120,11 @@ Server logs include:
 * Request/response cycles
 * Error states and handling
 * Extension initialization sequences
+
+### LLM Request Logs
+
+LLM request logs capture the raw request and response data sent to language model providers:
+* Unix-like: `~/.local/state/goose/logs/llm_request.*.jsonl`
+* Windows: `%APPDATA%\Block\goose\data\logs\llm_request.*.jsonl`
+
+These logs use a numbered rotation system that keeps the 10 most recent completed requests (`llm_request.0.jsonl` through `llm_request.9.jsonl`). Each log contains the model configuration, input payload, response data, and token usage information.
