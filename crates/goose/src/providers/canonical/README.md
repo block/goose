@@ -44,13 +44,17 @@ JSON file containing canonical model definitions fetched from OpenRouter. Curren
 To refresh the canonical models from OpenRouter's API:
 
 ```bash
-cargo run --example fetch_canonical_models
+cargo run --example build_canonical_models
 ```
 
 This script:
 1. Fetches all models from OpenRouter's `/models` endpoint
-2. Filters to only allowed providers (anthropic, google, openai)
-3. Generates a new `canonical_models.json` file
+2. Transforms the data into our canonical format:
+   - Strips version suffixes while preserving model family versions
+   - Detects tool support from `supported_parameters`
+   - Converts pricing strings to numeric types
+3. Filters to only allowed providers (anthropic, google, openai)
+4. Generates a new `canonical_models.json` file
 
 The generated file will be written to:
 ```
@@ -135,14 +139,14 @@ This will:
 
 To add support for a new provider (e.g., "mistral"):
 
-1. Update the `ALLOWED_PROVIDERS` list in `examples/fetch_canonical_models.rs`:
+1. Update the `ALLOWED_PROVIDERS` list in `examples/build_canonical_models.rs`:
    ```rust
    const ALLOWED_PROVIDERS: &[&str] = &["anthropic", "google", "openai", "mistral"];
    ```
 
-2. Re-run the fetch script:
+2. Re-run the build script:
    ```bash
-   cargo run --example fetch_canonical_models
+   cargo run --example build_canonical_models
    ```
 
 ## Model Metadata Fields
