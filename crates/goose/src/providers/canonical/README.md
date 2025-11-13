@@ -56,9 +56,10 @@ This script:
 3. Filters to only allowed providers (anthropic, google, openai)
 4. Generates a new `canonical_models.json` file
 
-The generated file will be written to:
+The generated files will be written to:
 ```
-crates/goose/src/providers/canonical/canonical_models.json
+crates/goose/src/providers/canonical/data/canonical_models.json
+crates/goose/src/providers/canonical/data/report_YYYYMMDD_HHMMSS.json
 ```
 
 ## Usage

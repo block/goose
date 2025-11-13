@@ -18,26 +18,6 @@ pub struct Pricing {
     /// Cost per image
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image: Option<f64>,
-
-    /// Cost per audio token/unit
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audio: Option<f64>,
-
-    /// Cost for web search
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub web_search: Option<f64>,
-
-    /// Cost for internal reasoning tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub internal_reasoning: Option<f64>,
-
-    /// Cost for input cache reads
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_cache_read: Option<f64>,
-
-    /// Cost for input cache writes
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_cache_write: Option<f64>,
 }
 
 /// Canonical representation of a model
@@ -76,11 +56,6 @@ pub struct CanonicalModel {
 }
 
 impl CanonicalModel {
-    /// Check if the model supports prompt caching
-    pub fn supports_cache(&self) -> bool {
-        self.pricing.input_cache_read.is_some() || self.pricing.input_cache_write.is_some()
-    }
-
     /// Check if the model supports vision/image inputs
     pub fn supports_vision(&self) -> bool {
         self.input_modalities.contains(&"image".to_string())

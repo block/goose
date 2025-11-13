@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
+use super::canonical::{canonical_name, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -417,9 +418,16 @@ pub trait Provider: Send + Sync {
 
     /// Map a provider-specific model name to a canonical model ID
     /// Returns the canonical model ID (e.g., "anthropic/claude-3-5-sonnet") if a mapping exists
-    /// Default implementation returns None (no mapping configured)
-    async fn map_to_canonical_model(&self, _provider_model: &str) -> Result<Option<String>, ProviderError> {
-        Ok(None)
+    /// Default implementation uses the provider's name and canonical_name() function
+    async fn map_to_canonical_model(&self, provider_model: &str) -> Result<Option<String>, ProviderError> {
+        let canonical = canonical_name(self.get_name(), provider_model);
+
+        // Check if this canonical model exists in our registry
+        if CanonicalModelRegistry::bundled_contains(&canonical)? {
+            Ok(Some(canonical))
+        } else {
+            Ok(None)
+        }
     }
 
     fn supports_embeddings(&self) -> bool {

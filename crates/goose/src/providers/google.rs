@@ -1,5 +1,4 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::canonical::{canonical_name, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
@@ -147,16 +146,5 @@ impl Provider for GoogleProvider {
             .collect();
         models.sort();
         Ok(Some(models))
-    }
-
-    async fn map_to_canonical_model(&self, provider_model: &str) -> Result<Option<String>, ProviderError> {
-        let canonical = canonical_name("google", provider_model);
-
-        // Check if this canonical model exists in our registry
-        if CanonicalModelRegistry::bundled_contains(&canonical)? {
-            Ok(Some(canonical))
-        } else {
-            Ok(None)
-        }
     }
 }

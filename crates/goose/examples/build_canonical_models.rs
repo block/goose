@@ -9,15 +9,30 @@ use goose::providers::canonical::{canonical_name, CanonicalModel, CanonicalModel
 use serde_json::Value;
 use std::collections::HashMap;
 
-fn main() -> Result<()> {
-    println!("Building canonical models from OpenRouter...");
+const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
 
-    // Read the fetched OpenRouter models
-    let content = std::fs::read_to_string("/tmp/openrouter_models.json")
-        .context("Failed to read /tmp/openrouter_models.json")?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("Fetching models from OpenRouter API...");
 
-    let models: Vec<Value> = serde_json::from_str(&content)
-        .context("Failed to parse OpenRouter models")?;
+    // Fetch models from OpenRouter
+    let client = reqwest::Client::new();
+    let response = client
+        .get(OPENROUTER_API_URL)
+        .header("User-Agent", "goose/canonical-builder")
+        .send()
+        .await
+        .context("Failed to fetch from OpenRouter API")?;
+
+    let json: Value = response
+        .json()
+        .await
+        .context("Failed to parse OpenRouter response")?;
+
+    let models = json["data"]
+        .as_array()
+        .context("Expected 'data' array in OpenRouter response")?
+        .clone();
 
     println!("Processing {} models from OpenRouter...", models.len());
 
@@ -145,11 +160,6 @@ fn main() -> Result<()> {
                 .get("image")
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse().ok()),
-            audio: None, // Not in OpenRouter API
-            web_search: None, // Not in OpenRouter API
-            internal_reasoning: None, // Not in OpenRouter API
-            input_cache_read: None, // Not in OpenRouter API
-            input_cache_write: None, // Not in OpenRouter API
         };
 
         let canonical_model = CanonicalModel {
@@ -168,9 +178,15 @@ fn main() -> Result<()> {
     }
 
     // Write to file
-    let output_path = "src/providers/canonical/canonical_models.json";
+    let output_path = "src/providers/canonical/data/canonical_models.json";
     registry.to_file(output_path)?;
     println!("\n✓ Wrote {} models to {}", registry.count(), output_path);
+
+    // Also write a timestamped report
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let report_path = format!("src/providers/canonical/data/report_{}.json", timestamp);
+    registry.to_file(&report_path)?;
+    println!("✓ Wrote report to {}", report_path);
 
     Ok(())
 }

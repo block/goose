@@ -10,7 +10,6 @@ use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
-use super::canonical::{canonical_name, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
@@ -253,17 +252,6 @@ impl Provider for AnthropicProvider {
             .collect();
         models.sort();
         Ok(Some(models))
-    }
-
-    async fn map_to_canonical_model(&self, provider_model: &str) -> Result<Option<String>, ProviderError> {
-        let canonical = canonical_name("anthropic", provider_model);
-
-        // Check if this canonical model exists in our registry
-        if CanonicalModelRegistry::bundled_contains(&canonical)? {
-            Ok(Some(canonical))
-        } else {
-            Ok(None)
-        }
     }
 
     async fn stream(
