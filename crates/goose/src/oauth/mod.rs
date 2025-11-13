@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
 
-use crate::oauth::persist::{clear_credentials, load_cached_state, save_credentials};
+use crate::oauth::persist::create_token_store;
 
 mod persist;
 
@@ -32,18 +32,24 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
-    if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
-        if let Some(authorization_manager) = oauth_state.into_authorization_manager() {
-            if authorization_manager.refresh_token().await.is_ok() {
-                return Ok(authorization_manager);
-            }
+    let token_store = create_token_store(name);
+
+    // Try to create an AuthorizationManager with the existing token store
+    // If we have a valid token, refresh_token will succeed
+    if let Ok(auth_manager) =
+        AuthorizationManager::with_token_store(mcp_server_url, token_store.clone()).await
+    {
+        if auth_manager.refresh_token().await.is_ok() {
+            return Ok(auth_manager);
         }
 
-        if let Err(e) = clear_credentials(name) {
+        // Token is invalid or expired, clear it
+        if let Err(e) = token_store.clear().await {
             warn!("error clearing bad credentials: {}", e);
         }
     }
 
+    // Need to do full OAuth flow
     let (code_sender, code_receiver) = oneshot::channel::<CallbackParams>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
@@ -73,7 +79,9 @@ pub async fn oauth_flow(
         }
     });
 
-    let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+    // Use OAuthState with the token store for the authorization flow
+    let auth_manager = AuthorizationManager::with_token_store(mcp_server_url, token_store).await?;
+    let mut oauth_state = OAuthState::Unauthorized(auth_manager);
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
     oauth_state
         .start_authorization(&[], redirect_uri.as_str(), Some("goose"))
@@ -91,10 +99,7 @@ pub async fn oauth_flow(
     } = code_receiver.await?;
     oauth_state.handle_callback(&auth_code, &csrf_token).await?;
 
-    if let Err(e) = save_credentials(name, &oauth_state).await {
-        warn!("Failed to save credentials: {}", e);
-    }
-
+    // The token is automatically saved via the TokenStore during handle_callback
     let auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;

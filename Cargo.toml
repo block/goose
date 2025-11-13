@@ -15,7 +15,8 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.8.5", features = ["schemars", "auth"] }
+# rmcp = { version = "0.8.5", features = ["schemars", "auth"] }
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "alexhancock/token-store", features = ["schemars", "auth"] }
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]
