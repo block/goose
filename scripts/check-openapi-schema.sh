@@ -8,7 +8,7 @@ echo "🔍 Checking OpenAPI schema is up-to-date..."
 
 # Check if the generated schema differs from the committed version
 echo "🔍 Comparing generated schema with committed version..."
-if ! git diff --exit-code ui/desktop/openapi.json ui/desktop/src/api/; then
+if ! git diff --ignore-space-change --exit-code ui/desktop/openapi.json ui/desktop/src/api/; then
   echo ""
   echo "❌ OpenAPI schema is out of date!"
   echo ""

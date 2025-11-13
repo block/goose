@@ -1,25 +1,25 @@
 ---
-title: Goose Logging System
+title: goose Logging System
 sidebar_label: Logging System
 sidebar_position: 65
 ---
 
 
-Goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in the following locations:
+goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in the following locations:
 
 | **Type**            | **Unix-like (macOS, Linux)**              | **Windows**                              |
 |---------------------|----------------------------------------|---------------------------------------------|
 | **Command History** | `~/.config/goose/history.txt`          | `%APPDATA%\Block\goose\data\history.txt`    |
-| **Session Records** | `~/.local/share/goose/sessions/`       | `%APPDATA%\Block\goose\data\sessions\`      |
+| **Session Records** | `~/.local/share/goose/sessions/sessions.db` | `%APPDATA%\Block\goose\data\sessions\sessions.db` |
 | **System Logs**     | `~/.local/state/goose/logs/`           | `%APPDATA%\Block\goose\data\logs\`          |
 
 :::info Privacy
-Goose is a local application and all log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all data remains private and under your control.
+goose is a local application and all log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all data remains private and under your control.
 :::
 
 ## Command History
 
-Goose stores command history persistently across chat sessions, allowing Goose to recall previous commands.
+goose stores command history persistently across chat sessions, allowing goose to recall previous commands.
 
 Command history logs are stored in:
 
@@ -28,31 +28,26 @@ Command history logs are stored in:
 
 ## Session Records
 
-Goose maintains session records in `~/.local/share/goose/sessions/` that track the conversation history and interactions for each session. These files use the `.jsonl` format (JSON Lines), where each line is a valid JSON object representing a message or interaction.
+goose maintains session records that track the conversation history and interactions for each session. 
+Sessions are stored in an SQLite database at:
+- **Unix-like**: `~/.local/share/goose/sessions/sessions.db`
+- **Windows**: `%APPDATA%\Block\goose\data\sessions\sessions.db`
 
-Session files are named with the pattern `[session-id].jsonl` where the session ID matches the identifier used in the corresponding log files. For example, `ccK9OTmS.jsonl` corresponds to log files like `20250211_133920-ccK9OTmS.log`.
+:::info Session Storage Migration
+Prior to version 1.10.0, goose stored session records in individual `.jsonl` files under  `~/.local/share/goose/sessions/`.
+When you upgrade to v1.10.0 or later, your existing sessions are automatically imported into the database. Legacy `.jsonl` files remain on disk but are no longer managed by goose.
+:::
 
-Each session file contains a chronological record of:
-- User messages and commands  (commands are also stored persistently in `history.txt`)
-- Assistant (Goose) responses
-- Tool requests and their results
-- Timestamps for all interactions
-- Role information (user/assistant)
-- Message content and formatting
-- Tool call details including:
-  - Tool IDs
-  - Arguments passed
-  - Results returned
-  - Success/failure status
+This database contains all saved session data including:
+- Session metadata (ID, name, working directory, timestamps)
+- Conversation messages (user commands, assistant responses, role information)
+- Tool calls and results (IDs, arguments, responses, success/failure status)
+- Token usage statistics
+- Extension data and configuration
 
-Each line in a session file is a JSON object with the following key fields:
-- `role`: Identifies the source ("user" or "assistant")
-- `created`: Timestamp of the interaction
-- `content`: Array of interaction elements, which may include:
-  - Text messages
-  - Tool requests
-  - Tool responses
-  - Error messages
+Session IDs are named using `YYYYMMDD_<COUNT>` format, for example: `20250310_2`. goose CLI outputs the session ID at the start of each session. To get session IDs, use [`goose session list` command](/docs/guides/goose-cli-commands#session-list-options) to see all available sessions.
+
+Also see [Session Management](/docs/guides/sessions/session-management) for details about searching sessions.
 
 ## System Logs
 
@@ -78,7 +73,7 @@ The desktop application maintains its own logs:
 * macOS: `~/Library/Application Support/Goose/logs/main.log`
 * Windows: `%APPDATA%\Block\goose\logs\main.log`
 
-The Desktop application follows platform conventions for its own operational logs and state data, but uses the standard Goose [session records](#session-records) for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with Goose.
+The Desktop application follows platform conventions for its own operational logs and state data, but uses the standard goose [session records](#session-records) for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with goose.
 
 ### CLI Logs 
 
@@ -107,7 +102,7 @@ Server logs are stored in:
 * Unix-like: `~/.local/state/goose/logs/server/`
 * Windows: `%APPDATA%\Block\goose\data\logs\server\`
 
-The Server logs contain information about the Goose daemon (`goosed`), which is a local server process that runs on your computer. This server component manages communication between the CLI, extensions, and LLMs. 
+The Server logs contain information about the goose daemon (`goosed`), which is a local server process that runs on your computer. This server component manages communication between the CLI, extensions, and LLMs. 
 
 Server logs include:
 * Server initialization details
