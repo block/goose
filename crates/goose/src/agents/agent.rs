@@ -30,7 +30,9 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::{check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD};
+use crate::context_mgmt::{
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
