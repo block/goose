@@ -21,7 +21,7 @@ export default function Root({ children }: Props): JSX.Element {
           lineHeight: '1.3',
         }}
       >
-        Join our hackathon to build next-gen interfaces with goose and win prizes.{' '}
+        ✨ NO KEYBOARDS ALLOWED HACKATHON✨ : build next-gen interfaces with goose and win prizes.{' '}
         <a
           href="https://nokeyboardsallowed.dev"
           target="_blank"
