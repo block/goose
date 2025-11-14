@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { MatrixService, MatrixUser, MatrixRoom, GooseAIMessage } from '../services/MatrixService';
+import { MatrixService, MatrixUser, MatrixRoom, GooseAIMessage, GooseChatMessage, GooseInstance } from '../services/MatrixService';
 
 interface MatrixContextType {
   // Connection state
@@ -10,6 +10,7 @@ interface MatrixContextType {
   // Data
   friends: MatrixUser[];
   rooms: MatrixRoom[];
+  gooseInstances: GooseInstance[];
   
   // Actions
   login: (username: string, password: string) => Promise<void>;
@@ -24,9 +25,20 @@ interface MatrixContextType {
   removeAvatar: () => Promise<void>;
   setDisplayName: (displayName: string) => Promise<void>;
   
+  // Goose-to-Goose Communication
+  sendGooseMessage: (roomId: string, content: string, type?: GooseChatMessage['type'], options?: any) => Promise<string>;
+  sendTaskRequest: (roomId: string, taskDescription: string, taskType: string, options?: any) => Promise<string>;
+  sendTaskResponse: (roomId: string, taskId: string, response: string, status: 'completed' | 'failed', options?: any) => Promise<string>;
+  sendCollaborationInvite: (roomId: string, projectDescription: string, requiredCapabilities?: string[], metadata?: Record<string, any>) => Promise<string>;
+  acceptCollaborationInvite: (roomId: string, originalMessageId: string, capabilities?: string[], metadata?: Record<string, any>) => Promise<string>;
+  declineCollaborationInvite: (roomId: string, originalMessageId: string, reason?: string, metadata?: Record<string, any>) => Promise<string>;
+  createGooseCollaborationRoom: (name: string, inviteGooseIds?: string[], topic?: string) => Promise<string>;
+  announceCapabilities: (roomId: string, capabilities: string[], status?: 'idle' | 'busy' | 'working', currentTask?: string) => Promise<string>;
+  
   // Events
   onMessage: (callback: (data: any) => void) => () => void;
   onAIMessage: (callback: (message: GooseAIMessage) => void) => () => void;
+  onGooseMessage: (callback: (message: GooseChatMessage) => void) => () => void;
   onSessionMessage: (callback: (data: any) => void) => () => void;
   onPresenceChange: (callback: (data: any) => void) => () => void;
 }
@@ -44,6 +56,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
   const [currentUser, setCurrentUser] = useState<MatrixUser | null>(null);
   const [friends, setFriends] = useState<MatrixUser[]>([]);
   const [rooms, setRooms] = useState<MatrixRoom[]>([]);
+  const [gooseInstances, setGooseInstances] = useState<GooseInstance[]>([]);
 
   useEffect(() => {
     // Initialize Matrix service
@@ -128,6 +141,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     setCurrentUser(user);
     setFriends(matrixService.getFriends());
     setRooms(matrixService.getRooms());
+    setGooseInstances(matrixService.getGooseInstances());
   };
 
   const login = async (username: string, password: string) => {
@@ -195,12 +209,51 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return () => matrixService.off('presenceChange', callback);
   };
 
+  // Goose-to-Goose Communication methods
+  const sendGooseMessage = async (roomId: string, content: string, type?: GooseChatMessage['type'], options?: any) => {
+    return await matrixService.sendGooseMessage(roomId, content, type, options);
+  };
+
+  const sendTaskRequest = async (roomId: string, taskDescription: string, taskType: string, options?: any) => {
+    return await matrixService.sendTaskRequest(roomId, taskDescription, taskType, options);
+  };
+
+  const sendTaskResponse = async (roomId: string, taskId: string, response: string, status: 'completed' | 'failed', options?: any) => {
+    return await matrixService.sendTaskResponse(roomId, taskId, response, status, options);
+  };
+
+  const sendCollaborationInvite = async (roomId: string, projectDescription: string, requiredCapabilities?: string[], metadata?: Record<string, any>) => {
+    return await matrixService.sendCollaborationInvite(roomId, projectDescription, requiredCapabilities, metadata);
+  };
+
+  const acceptCollaborationInvite = async (roomId: string, originalMessageId: string, capabilities?: string[], metadata?: Record<string, any>) => {
+    return await matrixService.acceptCollaborationInvite(roomId, originalMessageId, capabilities, metadata);
+  };
+
+  const declineCollaborationInvite = async (roomId: string, originalMessageId: string, reason?: string, metadata?: Record<string, any>) => {
+    return await matrixService.declineCollaborationInvite(roomId, originalMessageId, reason, metadata);
+  };
+
+  const createGooseCollaborationRoom = async (name: string, inviteGooseIds?: string[], topic?: string) => {
+    return await matrixService.createGooseCollaborationRoom(name, inviteGooseIds, topic);
+  };
+
+  const announceCapabilities = async (roomId: string, capabilities: string[], status?: 'idle' | 'busy' | 'working', currentTask?: string) => {
+    return await matrixService.announceCapabilities(roomId, capabilities, status, currentTask);
+  };
+
+  const onGooseMessage = (callback: (message: GooseChatMessage) => void) => {
+    matrixService.on('gooseMessage', callback);
+    return () => matrixService.off('gooseMessage', callback);
+  };
+
   const contextValue: MatrixContextType = {
     isConnected,
     isReady,
     currentUser,
     friends,
     rooms,
+    gooseInstances,
     login,
     register,
     logout,
@@ -212,8 +265,19 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     setAvatar,
     removeAvatar,
     setDisplayName,
+    // Goose-to-Goose Communication
+    sendGooseMessage,
+    sendTaskRequest,
+    sendTaskResponse,
+    sendCollaborationInvite,
+    acceptCollaborationInvite,
+    declineCollaborationInvite,
+    createGooseCollaborationRoom,
+    announceCapabilities,
+    // Events
     onMessage,
     onAIMessage,
+    onGooseMessage,
     onSessionMessage,
     onPresenceChange,
   };

@@ -28,6 +28,42 @@ export interface GooseAIMessage {
   metadata?: Record<string, any>;
 }
 
+export interface GooseChatMessage {
+  type: 'goose.chat' | 'goose.command' | 'goose.task.request' | 'goose.task.response' | 'goose.collaboration.invite' | 'goose.collaboration.accept' | 'goose.collaboration.decline';
+  messageId: string;
+  content: string;
+  sender: string;
+  timestamp: Date;
+  roomId: string;
+  replyTo?: string; // Message ID this is replying to
+  metadata?: {
+    taskId?: string;
+    taskType?: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    capabilities?: string[]; // What this Goose can do
+    status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+    attachments?: Array<{
+      type: 'file' | 'image' | 'code' | 'log';
+      name: string;
+      url?: string;
+      content?: string;
+    }>;
+    [key: string]: any;
+  };
+}
+
+export interface GooseInstance {
+  userId: string;
+  displayName?: string;
+  avatarUrl?: string;
+  presence?: 'online' | 'offline' | 'unavailable';
+  capabilities?: string[]; // What this Goose can do (e.g., ['code', 'research', 'analysis'])
+  version?: string;
+  lastSeen?: Date;
+  status?: 'idle' | 'busy' | 'working';
+  currentTask?: string;
+}
+
 export interface MatrixConfig {
   homeserverUrl: string;
   accessToken?: string;
@@ -412,6 +448,26 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Generate a unique message ID
+   */
+  private generateMessageId(): string {
+    return `goose_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Check if a user is a Goose instance based on their display name or user ID
+   */
+  private isGooseInstance(userId: string, displayName?: string): boolean {
+    const gooseIndicators = ['goose', 'bot', 'ai', 'assistant'];
+    const userIdLower = userId.toLowerCase();
+    const displayNameLower = displayName?.toLowerCase() || '';
+    
+    return gooseIndicators.some(indicator => 
+      userIdLower.includes(indicator) || displayNameLower.includes(indicator)
+    );
+  }
+
+  /**
    * Handle incoming messages and emit appropriate events
    */
   private handleMessage(event: any, room: any): void {
@@ -431,7 +487,33 @@ export class MatrixService extends EventEmitter {
       event,
     };
     
-    // Check if this is a Goose AI message (using custom properties)
+    // Check if this is a structured Goose message (new format)
+    if (content['goose.message.type']) {
+      const gooseChatMessage: GooseChatMessage = {
+        type: content['goose.message.type'] as any,
+        messageId: content['goose.message.id'] || this.generateMessageId(),
+        content: content.body,
+        sender,
+        timestamp: new Date(content['goose.timestamp'] || event.getTs()),
+        roomId: room.roomId,
+        replyTo: content['goose.reply_to'],
+        metadata: {
+          taskId: content['goose.task.id'],
+          taskType: content['goose.task.type'],
+          priority: content['goose.priority'],
+          capabilities: content['goose.capabilities'],
+          status: content['goose.status'],
+          attachments: content['goose.attachments'],
+          ...content['goose.metadata'],
+        },
+      };
+      
+      console.log('🦆 Received Goose message:', gooseChatMessage.type, 'from:', sender);
+      this.emit('gooseMessage', gooseChatMessage);
+      return;
+    }
+    
+    // Check if this is a legacy Goose AI message (using custom properties)
     if (content['goose.type']) {
       const aiMessage: GooseAIMessage = {
         type: `ai.${content['goose.type']}` as any,
@@ -444,18 +526,37 @@ export class MatrixService extends EventEmitter {
       };
       
       this.emit('aiMessage', aiMessage);
-    } else {
-      // Regular message - emit both regular message event and check for session messages
-      this.emit('message', messageData);
+      return;
+    }
+    
+    // Check if sender appears to be a Goose instance (heuristic detection)
+    const senderUser = this.client?.getUser(sender);
+    if (this.isGooseInstance(sender, senderUser?.displayName)) {
+      // Treat as potential Goose message even without explicit markers
+      const gooseChatMessage: GooseChatMessage = {
+        type: 'goose.chat',
+        messageId: this.generateMessageId(),
+        content: content.body,
+        sender,
+        timestamp: new Date(event.getTs()),
+        roomId: room.roomId,
+        metadata: {},
+      };
       
-      // Also check if this is a session-related message and emit as session message
-      if (content.body) {
-        // Check for Goose session messages (from useSessionSharing)
-        if (content.body.includes('goose-session-message:') || 
-            content.body.includes('goose-session-invite:') || 
-            content.body.includes('goose-session-joined:')) {
-          this.emit('sessionMessage', messageData);
-        }
+      console.log('🦆 Detected potential Goose message from:', sender);
+      this.emit('gooseMessage', gooseChatMessage);
+    }
+    
+    // Always emit regular message event
+    this.emit('message', messageData);
+    
+    // Also check if this is a session-related message and emit as session message
+    if (content.body) {
+      // Check for Goose session messages (from useSessionSharing)
+      if (content.body.includes('goose-session-message:') || 
+          content.body.includes('goose-session-invite:') || 
+          content.body.includes('goose-session-joined:')) {
+        this.emit('sessionMessage', messageData);
       }
     }
   }
@@ -878,6 +979,244 @@ export class MatrixService extends EventEmitter {
       console.error('Failed to set display name:', error);
       throw new Error('Failed to update display name');
     }
+  }
+
+  // ===== GOOSE-TO-GOOSE COMMUNICATION METHODS =====
+
+  /**
+   * Send a Goose chat message to another Goose instance
+   */
+  async sendGooseMessage(
+    roomId: string, 
+    content: string, 
+    type: GooseChatMessage['type'] = 'goose.chat',
+    options?: {
+      replyTo?: string;
+      taskId?: string;
+      taskType?: string;
+      priority?: 'low' | 'medium' | 'high' | 'urgent';
+      capabilities?: string[];
+      status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+      attachments?: Array<{
+        type: 'file' | 'image' | 'code' | 'log';
+        name: string;
+        url?: string;
+        content?: string;
+      }>;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<string> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    const messageId = this.generateMessageId();
+    const timestamp = Date.now();
+
+    // Create the Matrix event content
+    const eventContent: any = {
+      msgtype: 'm.text',
+      body: content,
+      format: 'org.matrix.custom.html',
+      formatted_body: `<strong>🦆 Goose:</strong> ${content}`,
+      
+      // Goose message metadata
+      'goose.message.type': type,
+      'goose.message.id': messageId,
+      'goose.timestamp': timestamp,
+      'goose.version': '1.0',
+    };
+
+    // Add optional fields
+    if (options?.replyTo) eventContent['goose.reply_to'] = options.replyTo;
+    if (options?.taskId) eventContent['goose.task.id'] = options.taskId;
+    if (options?.taskType) eventContent['goose.task.type'] = options.taskType;
+    if (options?.priority) eventContent['goose.priority'] = options.priority;
+    if (options?.capabilities) eventContent['goose.capabilities'] = options.capabilities;
+    if (options?.status) eventContent['goose.status'] = options.status;
+    if (options?.attachments) eventContent['goose.attachments'] = options.attachments;
+    if (options?.metadata) eventContent['goose.metadata'] = options.metadata;
+
+    await this.client.sendEvent(roomId, 'm.room.message', eventContent);
+    
+    console.log('🦆 Sent Goose message:', type, 'to room:', roomId);
+    return messageId;
+  }
+
+  /**
+   * Send a task request to another Goose instance
+   */
+  async sendTaskRequest(
+    roomId: string,
+    taskDescription: string,
+    taskType: string,
+    options?: {
+      priority?: 'low' | 'medium' | 'high' | 'urgent';
+      deadline?: Date;
+      requiredCapabilities?: string[];
+      attachments?: Array<{
+        type: 'file' | 'image' | 'code' | 'log';
+        name: string;
+        url?: string;
+        content?: string;
+      }>;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<string> {
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    return this.sendGooseMessage(roomId, taskDescription, 'goose.task.request', {
+      taskId,
+      taskType,
+      priority: options?.priority || 'medium',
+      capabilities: options?.requiredCapabilities,
+      status: 'pending',
+      attachments: options?.attachments,
+      metadata: {
+        deadline: options?.deadline?.toISOString(),
+        ...options?.metadata,
+      },
+    });
+  }
+
+  /**
+   * Send a task response to another Goose instance
+   */
+  async sendTaskResponse(
+    roomId: string,
+    taskId: string,
+    response: string,
+    status: 'completed' | 'failed',
+    options?: {
+      attachments?: Array<{
+        type: 'file' | 'image' | 'code' | 'log';
+        name: string;
+        url?: string;
+        content?: string;
+      }>;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<string> {
+    return this.sendGooseMessage(roomId, response, 'goose.task.response', {
+      taskId,
+      status,
+      attachments: options?.attachments,
+      metadata: options?.metadata,
+    });
+  }
+
+  /**
+   * Send a collaboration invite to another Goose instance
+   */
+  async sendCollaborationInvite(
+    roomId: string,
+    projectDescription: string,
+    requiredCapabilities?: string[],
+    metadata?: Record<string, any>
+  ): Promise<string> {
+    return this.sendGooseMessage(roomId, projectDescription, 'goose.collaboration.invite', {
+      capabilities: requiredCapabilities,
+      metadata,
+    });
+  }
+
+  /**
+   * Accept a collaboration invite
+   */
+  async acceptCollaborationInvite(
+    roomId: string,
+    originalMessageId: string,
+    capabilities?: string[],
+    metadata?: Record<string, any>
+  ): Promise<string> {
+    return this.sendGooseMessage(roomId, 'Collaboration invite accepted! 🤝', 'goose.collaboration.accept', {
+      replyTo: originalMessageId,
+      capabilities,
+      metadata,
+    });
+  }
+
+  /**
+   * Decline a collaboration invite
+   */
+  async declineCollaborationInvite(
+    roomId: string,
+    originalMessageId: string,
+    reason?: string,
+    metadata?: Record<string, any>
+  ): Promise<string> {
+    const message = reason ? `Collaboration invite declined: ${reason}` : 'Collaboration invite declined.';
+    return this.sendGooseMessage(roomId, message, 'goose.collaboration.decline', {
+      replyTo: originalMessageId,
+      metadata,
+    });
+  }
+
+  /**
+   * Get Goose instances from friends list
+   */
+  getGooseInstances(): GooseInstance[] {
+    return this.getFriends()
+      .filter(friend => this.isGooseInstance(friend.userId, friend.displayName))
+      .map(friend => ({
+        userId: friend.userId,
+        displayName: friend.displayName,
+        avatarUrl: friend.avatarUrl,
+        presence: friend.presence,
+        capabilities: [], // TODO: Extract from user profile or recent messages
+        lastSeen: new Date(), // TODO: Get from presence data
+        status: 'idle', // TODO: Determine from recent activity
+      }));
+  }
+
+  /**
+   * Create a Goose collaboration room
+   */
+  async createGooseCollaborationRoom(
+    name: string, 
+    inviteGooseIds: string[] = [],
+    topic?: string
+  ): Promise<string> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    const room = await this.client.createRoom({
+      name: `🦆 ${name}`,
+      topic: topic || 'Goose-to-Goose Collaboration Room',
+      preset: 'private_chat',
+      invite: inviteGooseIds,
+    });
+
+    // Send a welcome message to the room
+    await this.sendGooseMessage(room.room_id, `Welcome to the collaboration room: ${name}! 🦆`, 'goose.chat', {
+      metadata: {
+        roomType: 'collaboration',
+        createdBy: this.config.userId,
+      },
+    });
+
+    return room.room_id;
+  }
+
+  /**
+   * Announce capabilities to a room
+   */
+  async announceCapabilities(
+    roomId: string,
+    capabilities: string[],
+    status: 'idle' | 'busy' | 'working' = 'idle',
+    currentTask?: string
+  ): Promise<string> {
+    const message = `🦆 Available capabilities: ${capabilities.join(', ')}`;
+    return this.sendGooseMessage(roomId, message, 'goose.chat', {
+      capabilities,
+      metadata: {
+        announcement: 'capabilities',
+        status,
+        currentTask,
+      },
+    });
   }
 }
 

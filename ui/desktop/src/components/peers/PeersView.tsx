@@ -18,6 +18,7 @@ import {
 import { useMatrix } from '../../contexts/MatrixContext';
 import { MatrixUser, matrixService } from '../../services/MatrixService';
 import MatrixAuth from './MatrixAuth';
+import GooseChat from '../GooseChat';
 
 // Helper function to handle avatar URLs (now handled by MatrixService)
 const convertMxcToHttp = (avatarUrl: string): string => {
@@ -853,22 +854,29 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 <p className="text-text-muted">Syncing with Matrix server...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
-                {friends.map((friend) => (
-                  <PeerCard
-                    key={friend.userId}
-                    peer={friend}
-                    onStartChat={handleStartChat}
-                    onRemovePeer={handleRemoveFriend}
-                  />
-                ))}
-                {/* Empty tiles */}
-                {Array.from({ length: calculateEmptyTiles(friends.length) }).map((_, index) => (
-                  <EmptyPeerTile
-                    key={`empty-${index}`}
-                    onAddFriend={() => setShowAddFriendModal(true)}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
+                  {friends.map((friend) => (
+                    <PeerCard
+                      key={friend.userId}
+                      peer={friend}
+                      onStartChat={handleStartChat}
+                      onRemovePeer={handleRemoveFriend}
+                    />
+                  ))}
+                  {/* Empty tiles */}
+                  {Array.from({ length: calculateEmptyTiles(friends.length) }).map((_, index) => (
+                    <EmptyPeerTile
+                      key={`empty-${index}`}
+                      onAddFriend={() => setShowAddFriendModal(true)}
+                    />
+                  ))}
+                </div>
+                
+                {/* Goose-to-Goose Communication Section */}
+                <div className="px-4">
+                  <GooseChat />
+                </div>
               </div>
             )}
           </div>
