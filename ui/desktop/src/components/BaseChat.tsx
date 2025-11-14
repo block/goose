@@ -41,7 +41,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { RecipeHeader } from './RecipeHeader';
@@ -65,6 +65,7 @@ import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { Message } from '../api';
+import { EditConversationBanner } from './EditConversationBanner';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -115,6 +116,7 @@ function BaseChatContent({
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
+  const [isEditingConversation, setIsEditingConversation] = useState(false);
 
   // Use shared chat engine
   const {
@@ -292,6 +294,15 @@ function BaseChatContent({
 
   return (
     <div className="h-full flex flex-col min-h-0">
+      {/* Edit Conversation Banner - outside MainPanelLayout to avoid overlap */}
+      {isEditingConversation && (
+        <div className="pt-[32px]">
+          <EditConversationBanner
+            onSave={() => setIsEditingConversation(false)}
+          />
+        </div>
+      )}
+      
       <MainPanelLayout
         backgroundColor={'bg-background-muted'}
         removeTopPadding={true}
@@ -354,6 +365,7 @@ function BaseChatContent({
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
+                      isEditingConversation={isEditingConversation}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -371,6 +383,7 @@ function BaseChatContent({
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
+                        isEditingConversation={isEditingConversation}
                       />
                     </SearchView>
                   )}
@@ -463,6 +476,8 @@ function BaseChatContent({
             toolCount={toolCount || 0}
             autoSubmit={autoSubmit}
             append={append}
+            isEditingConversation={isEditingConversation}
+            onEditingConversationChange={setIsEditingConversation}
             {...customChatInputProps}
           />
         </div>

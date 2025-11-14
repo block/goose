@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, ScrollText, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -90,6 +90,8 @@ interface ChatInputProps {
   autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
+  isEditingConversation?: boolean;
+  onEditingConversationChange?: (isEditing: boolean) => void;
 }
 
 export default function ChatInput({
@@ -117,11 +119,27 @@ export default function ChatInput({
   autoSubmit = false,
   append: _append,
   isExtensionsLoading = false,
+  isEditingConversation: externalIsEditingConversation,
+  onEditingConversationChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [internalIsEditingConversation, setInternalIsEditingConversation] = useState(false);
+  
+  // Use external state if provided, otherwise use internal state
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isEditingConversation = externalIsEditingConversation ?? internalIsEditingConversation;
+  const setIsEditingConversation = (value: boolean) => {
+    if (onEditingConversationChange) {
+      onEditingConversationChange(value);
+    } else {
+      setInternalIsEditingConversation(value);
+    }
+  };
+  
+  // isEditingConversation is used by parent component to show/hide the edit banner
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -477,6 +495,13 @@ export default function ChatInput({
           handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
+        showEditButton: true,
+        editButtonDisabled: false,
+        onEdit: () => {
+          window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+          setIsEditingConversation(true);
+        },
+        editIcon: <Settings size={12} />,
       });
     }
 

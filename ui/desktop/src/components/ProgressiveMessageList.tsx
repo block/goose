@@ -39,6 +39,7 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  isEditingConversation?: boolean; // Whether the conversation is being edited
 }
 
 export default function ProgressiveMessageList({
@@ -55,6 +56,7 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  isEditingConversation = false,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -209,7 +211,11 @@ export default function ProgressiveMessageList({
           >
             {isUser ? (
               !hasOnlyToolResponses(message) && (
-                <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                <UserMessage 
+                  message={message} 
+                  onMessageUpdate={onMessageUpdate}
+                  isEditingConversation={isEditingConversation}
+                />
               )
             ) : (
               <GooseMessage
@@ -244,6 +250,7 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,
+    isEditingConversation,
   ]);
 
   return (

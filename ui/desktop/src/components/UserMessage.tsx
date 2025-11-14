@@ -12,15 +12,17 @@ import { Button } from './ui/button';
 interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  isEditingConversation?: boolean;
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSelected, setIsSelected] = useState(true); // Default to checked
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -189,6 +191,22 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         ) : (
           // Normal message display
           <div className="message flex justify-end w-full">
+            {/* Checkbox for edit conversation mode - positioned next to message */}
+            {isEditingConversation && (
+              <div className="flex-shrink-0 pt-3 pr-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => setIsSelected(e.target.checked)}
+                  className="w-4 h-4 rounded border-2 border-border-default bg-background-default checked:bg-background-accent checked:border-background-accent focus:ring-0 focus:ring-offset-0 cursor-pointer transition-colors accent-background-accent"
+                  style={{
+                    accentColor: 'var(--background-accent)',
+                  }}
+                  aria-label="Select message"
+                />
+              </div>
+            )}
+            
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
                 <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
