@@ -76,7 +76,7 @@ jobs:
             windows-npm-cache-v1-${{ runner.os }}-node22-
 
       # Cache Rust dependencies for Windows cross-compilation
-      - name: Cache Rust dependencies  
+      - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: windows
