@@ -336,26 +336,11 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    #[cfg(test)]
-    {
-        let thread_id = std::thread::current().id();
-        let temp_base = std::env::temp_dir().join("goose_test");
-        let session_dir = temp_base
-            .join(format!("thread_{:?}", thread_id))
-            .join(SESSIONS_FOLDER);
-        if !session_dir.exists() {
-            fs::create_dir_all(&session_dir)?;
-        }
-        Ok(session_dir)
+    let session_dir = crate::config::paths::Paths::data_dir().join(SESSIONS_FOLDER);
+    if !session_dir.exists() {
+        fs::create_dir_all(&session_dir)?;
     }
-    #[cfg(not(test))]
-    {
-        let session_dir = crate::config::paths::Paths::data_dir().join(SESSIONS_FOLDER);
-        if !session_dir.exists() {
-            fs::create_dir_all(&session_dir)?;
-        }
-        Ok(session_dir)
-    }
+    Ok(session_dir)
 }
 
 fn role_to_string(role: &Role) -> &'static str {
