@@ -139,7 +139,14 @@ export default function Pair({
   // Load Matrix room history when in Matrix mode
   useEffect(() => {
     const loadMatrixHistory = async () => {
+      // Wait for regular chat to load first, then load Matrix history
       if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory || loadingChat) {
+        return;
+      }
+
+      // Also ensure we have a valid chat session before loading Matrix history
+      if (!chat.sessionId) {
+        console.log('📜 Waiting for chat session to initialize before loading Matrix history');
         return;
       }
 
@@ -170,18 +177,27 @@ export default function Pair({
             } : undefined,
           }));
 
-          // Update the chat with Matrix history
-          const updatedChat: ChatType = {
-            ...chat,
-            messages: gooseMessages,
-          };
+          // Merge Matrix history with existing chat messages (avoid duplicates)
+          setChat(prevChat => {
+            // Filter out any existing Matrix messages to avoid duplicates
+            const nonMatrixMessages = prevChat.messages.filter(msg => !msg.id.startsWith('matrix_'));
+            
+            // Combine and sort by timestamp
+            const allMessages = [...nonMatrixMessages, ...gooseMessages].sort((a, b) => a.created - b.created);
+            
+            console.log('📜 Merged Matrix history with existing chat:', {
+              existingMessages: nonMatrixMessages.length,
+              matrixMessages: gooseMessages.length,
+              totalMessages: allMessages.length
+            });
+
+            return {
+              ...prevChat,
+              messages: allMessages,
+            };
+          });
 
           console.log('📜 Loaded Matrix collaboration history:', gooseMessages.length, 'messages');
-          console.log('📜 Sample message structure:', gooseMessages[0]);
-          console.log('📜 All converted messages:', gooseMessages);
-          console.log('📜 Updated chat object:', updatedChat);
-          console.log('📜 Chat messages array length:', updatedChat.messages.length);
-          setChat(updatedChat);
         } else {
           console.log('📜 No previous messages found in Matrix room');
         }
@@ -202,8 +218,8 @@ export default function Pair({
     isReady,
     hasLoadedMatrixHistory,
     loadingChat,
+    chat.sessionId, // Add this dependency to wait for chat initialization
     getRoomHistoryAsGooseMessages,
-    chat,
     setChat,
   ]);
 
