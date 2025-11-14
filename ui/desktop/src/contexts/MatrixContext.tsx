@@ -38,7 +38,7 @@ interface MatrixContextType {
   getOrCreateDirectMessageRoom: (userId: string) => Promise<string>;
   
   // Events
-  onMessage: (callback: (data: any) => void) => () => void;
+  onMessage: ((callback: (data: any) => void) => () => void) & ((eventName: string, callback: (data: any) => void) => () => void);
   onAIMessage: (callback: (message: GooseAIMessage) => void) => () => void;
   onGooseMessage: (callback: (message: GooseChatMessage) => void) => () => void;
   onSessionMessage: (callback: (data: any) => void) => () => void;
@@ -191,9 +191,18 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     await matrixService.setDisplayName(displayName);
   };
 
-  const onMessage = (callback: (data: any) => void) => {
-    matrixService.on('message', callback);
-    return () => matrixService.off('message', callback);
+  const onMessage = (eventNameOrCallback: string | ((data: any) => void), callback?: (data: any) => void) => {
+    if (typeof eventNameOrCallback === 'string' && callback) {
+      // Support for specific event names like 'gooseSessionSync'
+      matrixService.on(eventNameOrCallback, callback);
+      return () => matrixService.off(eventNameOrCallback, callback);
+    } else if (typeof eventNameOrCallback === 'function') {
+      // Default behavior for 'message' event
+      matrixService.on('message', eventNameOrCallback);
+      return () => matrixService.off('message', eventNameOrCallback);
+    } else {
+      throw new Error('Invalid arguments for onMessage');
+    }
   };
 
   const onAIMessage = (callback: (message: GooseAIMessage) => void) => {

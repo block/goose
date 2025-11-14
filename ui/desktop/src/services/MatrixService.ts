@@ -495,8 +495,12 @@ export class MatrixService extends EventEmitter {
       senderInfo,
     };
     
+    let isGooseMessage = false;
+    let isSessionMessage = false;
+    
     // Check if this is a structured Goose message (new format)
     if (content['goose.message.type']) {
+      isGooseMessage = true;
       const gooseChatMessage: GooseChatMessage = {
         type: content['goose.message.type'] as any,
         messageId: content['goose.message.id'] || this.generateMessageId(),
@@ -517,14 +521,13 @@ export class MatrixService extends EventEmitter {
         },
       };
       
-      console.log('🦆 Received Goose message:', gooseChatMessage.type, 'from:', sender, isFromSelf ? '(self)' : '(other)');
+      console.log('🦆 Received structured Goose message:', gooseChatMessage.type, 'from:', sender, isFromSelf ? '(self)' : '(other)');
       this.emit('gooseMessage', gooseChatMessage);
-      
-      // Don't return early - let it also be processed as regular message
     }
     
     // Check if this is a legacy Goose AI message (using custom properties)
-    if (content['goose.type']) {
+    else if (content['goose.type']) {
+      isGooseMessage = true;
       const aiMessage: GooseAIMessage = {
         type: `ai.${content['goose.type']}` as any,
         sessionId: content['goose.session_id'] || room.roomId,
@@ -535,14 +538,13 @@ export class MatrixService extends EventEmitter {
         metadata: { ...content, isFromSelf },
       };
       
+      console.log('🦆 Received legacy Goose AI message:', aiMessage.type, 'from:', sender, isFromSelf ? '(self)' : '(other)');
       this.emit('aiMessage', aiMessage);
-      
-      // Don't return early for legacy messages either
     }
     
     // Check if sender appears to be a Goose instance (heuristic detection) - but not ourselves
-    const senderUser = this.client?.getUser(sender);
-    if (!isFromSelf && this.isGooseInstance(sender, senderUser?.displayName)) {
+    else if (!isFromSelf && this.isGooseInstance(sender, senderUser?.displayName)) {
+      isGooseMessage = true;
       // Treat as potential Goose message even without explicit markers
       const gooseChatMessage: GooseChatMessage = {
         type: 'goose.chat',
@@ -558,19 +560,34 @@ export class MatrixService extends EventEmitter {
       this.emit('gooseMessage', gooseChatMessage);
     }
     
-    // Always emit regular message event (but skip our own messages to avoid echo in regular chat)
-    if (!isFromSelf) {
-      this.emit('message', messageData);
-    }
-    
-    // Also check if this is a session-related message and emit as session message
+    // Check if this is a session-related message
     if (content.body && !isFromSelf) {
       // Check for Goose session messages (from useSessionSharing)
       if (content.body.includes('goose-session-message:') || 
           content.body.includes('goose-session-invite:') || 
           content.body.includes('goose-session-joined:')) {
+        isSessionMessage = true;
+        console.log('📝 Received session message from:', sender);
         this.emit('sessionMessage', messageData);
       }
+    }
+    
+    // Only emit regular message event if it's not already handled as a Goose message or session message
+    // This prevents duplicate rendering
+    if (!isFromSelf && !isGooseMessage && !isSessionMessage) {
+      console.log('💬 Received regular message from:', sender);
+      this.emit('message', messageData);
+    }
+    
+    // However, always emit for session messages in collaborative sessions
+    // (even if they're from Goose instances) to ensure proper synchronization
+    if (isSessionMessage) {
+      // Already emitted above
+    } else if (!isFromSelf && isGooseMessage) {
+      // For Goose messages that might also need to be treated as regular messages in collaborative sessions
+      // We'll emit a special event that useSessionSharing can listen to
+      console.log('🔄 Emitting Goose message as potential session sync from:', sender);
+      this.emit('gooseSessionSync', messageData);
     }
   }
 

@@ -208,10 +208,12 @@ export const useSessionSharing = ({
 
     const sessionCleanup = onSessionMessage(handleSessionMessage);
     const messageCleanup = onMessage(handleRegularMessage);
+    const gooseSessionCleanup = onMessage('gooseSessionSync', handleRegularMessage);
     
     return () => {
       sessionCleanup();
       messageCleanup();
+      gooseSessionCleanup();
     };
   }, [isConnected, sessionId, state.roomId, currentUser?.userId, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
 
