@@ -314,23 +314,18 @@ export default function Pair({
   // Load Matrix room history when in Matrix mode
   useEffect(() => {
     const loadMatrixHistory = async () => {
-      // Wait for regular chat to load first, then load Matrix history
-      if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory || loadingChat) {
+      // In Matrix mode, load history as soon as Matrix is ready, don't wait for regular chat
+      if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory) {
         return;
       }
 
-      // Also ensure we have a valid chat session before loading Matrix history
-      if (!chat.sessionId) {
-        console.log('📜 Waiting for chat session to initialize before loading Matrix history');
-        return;
-      }
-
+      // For Matrix mode, we don't need to wait for chat.sessionId since we're using the Matrix room as the session
       console.log('📜 Loading Matrix room history for collaboration:', matrixRoomId);
       setIsLoadingMatrixHistory(true);
 
       try {
         // Fetch room history from Matrix
-        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 50);
+        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 100); // Increased limit to get more history
         console.log('📜 Fetched', roomHistory.length, 'messages from Matrix room');
 
         if (roomHistory.length > 0) {
@@ -369,6 +364,7 @@ export default function Pair({
         setHasLoadedMatrixHistory(true);
       } catch (error) {
         console.error('❌ Failed to load Matrix room history:', error);
+        setHasLoadedMatrixHistory(true); // Set to true even on error to prevent infinite retries
       } finally {
         setIsLoadingMatrixHistory(false);
       }
@@ -381,14 +377,41 @@ export default function Pair({
     isConnected,
     isReady,
     hasLoadedMatrixHistory,
-    loadingChat,
-    chat.sessionId, // Add this dependency to wait for chat initialization
+    // Removed loadingChat and chat.sessionId dependencies for Matrix mode
     getRoomHistoryAsGooseMessages,
     addMessagesToChat,
   ]);
 
   // Matrix real-time messages are handled by useSessionSharing hook
   // No need for separate Matrix listeners since useSessionSharing processes session messages correctly
+
+  // Sync Goose responses to Matrix when they're added to the chat
+  useEffect(() => {
+    if (!isMatrixMode || !matrixRoomId || !sessionSharing.isShared) {
+      return;
+    }
+
+    // Find any new assistant messages that haven't been synced to Matrix yet
+    const lastMessage = chat.messages[chat.messages.length - 1];
+    
+    if (lastMessage && lastMessage.role === 'assistant') {
+      // Check if this message was generated locally (not from Matrix)
+      const isFromMatrix = lastMessage.id.startsWith('matrix_') || lastMessage.id.startsWith('shared-');
+      
+      if (!isFromMatrix) {
+        console.log('🤖 Syncing new Goose response to Matrix:', {
+          messageId: lastMessage.id,
+          role: lastMessage.role,
+          content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
+        });
+        
+        // Sync the assistant message to Matrix using sessionSharing
+        sessionSharing.syncMessage(lastMessage);
+      } else {
+        console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
+      }
+    }
+  }, [chat.messages, isMatrixMode, matrixRoomId, sessionSharing]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
