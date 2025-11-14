@@ -443,7 +443,14 @@ export default function Pair({
       };
       
       // Add to chat using centralized message management
-      addMessagesToChat([newMessage], 'matrix-realtime');
+      console.log('📨 Adding new Matrix message to chat:', {
+        messageId: newMessage.id,
+        sender: newMessage.sender?.displayName || newMessage.sender?.userId,
+        content: content?.substring(0, 50) + '...',
+        currentChatMessagesCount: chat.messages.length
+      });
+      
+      addMessagesToChat([newMessage], 'real-time-sync');
     };
 
     // Set up real-time listener
