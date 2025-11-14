@@ -326,7 +326,7 @@ export default function Pair({
       unsubscribeMessage();
       unsubscribeGooseMessage();
     };
-  }, [isMatrixMode, matrixRoomId, onMessage, onGooseMessage, setChat]);
+  }, [isMatrixMode, matrixRoomId, onMessage, onGooseMessage]); // Removed setChat from dependencies to prevent constant re-renders
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
