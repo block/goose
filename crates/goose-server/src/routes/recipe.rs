@@ -350,6 +350,13 @@ async fn save_recipe(
 ) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
     let request = deserialize_save_recipe_request(raw_json)?;
+    let has_security_warnings = request.recipe.check_for_security_warnings();
+    if has_security_warnings {
+        return Err(ErrorResponse {
+            message: "This recipe contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
     ensure_recipe_valid(&request.recipe)?;
 
     let file_path = match request.id.as_ref() {
