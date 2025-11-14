@@ -419,7 +419,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     // Estimate tiles that can fit in viewport
     // Assuming each tile is roughly 200px (including gaps) and viewport height minus headers
     const estimatedTileHeight = 200;
-    const headerHeight = 200; // Approximate height of header + user info sections
+    const headerHeight = 100; // Approximate height of user info section only
     const availableHeight = windowSize.height - headerHeight;
     
     // Calculate how many rows can fit
@@ -471,29 +471,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
 
   return (
     <div className="flex flex-col h-screen bg-background-muted">
-      {/* Header */}
-      <div className="flex items-center justify-start p-6 border-b border-border-default bg-background-default">
-        <div className="flex items-center gap-3">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowAddFriendModal(true)}
-            disabled={!isConnected}
-            className="p-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Add Friend"
-          >
-            <UserPlus className="w-5 h-5" />
-          </motion.button>
 
-          <button
-            onClick={() => setShowMatrixAuth(true)}
-            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
-            title="Matrix Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
 
       {/* Current User Info */}
       {currentUser && (
@@ -528,7 +506,16 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 )}
               </div>
             </div>
-            <StatusIndicator status={currentUser.presence} />
+            <div className="flex items-center gap-3">
+              <StatusIndicator status={currentUser.presence} />
+              <button
+                onClick={() => setShowMatrixAuth(true)}
+                className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+                title="Matrix Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
