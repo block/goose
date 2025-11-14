@@ -19,6 +19,7 @@ interface MatrixContextType {
   searchUsers: (query: string) => Promise<MatrixUser[]>;
   addFriend: (userId: string) => Promise<void>;
   createAISession: (name: string, inviteUserIds?: string[]) => Promise<string>;
+  joinRoom: (roomId: string) => Promise<void>;
   sendMessage: (roomId: string, message: string) => Promise<void>;
   sendAIPrompt: (roomId: string, prompt: string, sessionId: string, model?: string) => Promise<void>;
   setAvatar: (file: File) => Promise<string>;
@@ -43,6 +44,33 @@ interface MatrixContextType {
   onGooseMessage: (callback: (message: GooseChatMessage) => void) => () => void;
   onSessionMessage: (callback: (data: any) => void) => () => void;
   onPresenceChange: (callback: (data: any) => void) => () => void;
+  
+  // Room history
+  getRoomHistory: (roomId: string, limit?: number) => Promise<Array<{
+    messageId: string;
+    sender: string;
+    content: string;
+    timestamp: Date;
+    type: 'user' | 'assistant' | 'system';
+    isFromSelf: boolean;
+    senderInfo: {
+      userId: string;
+      displayName?: string;
+      avatarUrl?: string;
+    };
+    metadata?: Record<string, any>;
+  }>>;
+  getRoomHistoryAsGooseMessages: (roomId: string, limit?: number) => Promise<Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+    sender?: string;
+    metadata?: Record<string, any>;
+  }>>;
+
+  // Debug methods
+  debugGooseMessage: (roomId: string) => Promise<void>;
+  getDebugInfo: () => Record<string, any>;
 }
 
 const MatrixContext = createContext<MatrixContextType | null>(null);
@@ -171,6 +199,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return await matrixService.createAISession(name, inviteUserIds);
   };
 
+  const joinRoom = async (roomId: string) => {
+    await matrixService.joinRoom(roomId);
+    // Data will be updated via the membershipChange event
+  };
+
   const sendMessage = async (roomId: string, message: string) => {
     await matrixService.sendMessage(roomId, message);
   };
@@ -266,6 +299,24 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return () => matrixService.off('gooseMessage', callback);
   };
 
+  // Room history methods
+  const getRoomHistory = async (roomId: string, limit?: number) => {
+    return await matrixService.getRoomHistory(roomId, limit);
+  };
+
+  const getRoomHistoryAsGooseMessages = async (roomId: string, limit?: number) => {
+    return await matrixService.getRoomHistoryAsGooseMessages(roomId, limit);
+  };
+
+  // Debug methods
+  const debugGooseMessage = async (roomId: string) => {
+    return await matrixService.debugGooseMessage(roomId);
+  };
+
+  const getDebugInfo = () => {
+    return matrixService.getDebugInfo();
+  };
+
   const contextValue: MatrixContextType = {
     isConnected,
     isReady,
@@ -279,6 +330,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     searchUsers,
     addFriend,
     createAISession,
+    joinRoom,
     sendMessage,
     sendAIPrompt,
     setAvatar,
@@ -301,6 +353,12 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     onGooseMessage,
     onSessionMessage,
     onPresenceChange,
+    // Room history
+    getRoomHistory,
+    getRoomHistoryAsGooseMessages,
+    // Debug methods
+    debugGooseMessage,
+    getDebugInfo,
   };
 
   return (

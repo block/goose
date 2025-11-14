@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, X, Check, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { GooseChatMessage } from '../services/MatrixService';
 
@@ -14,10 +15,12 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
   const { 
     isConnected, 
     onGooseMessage,
+    joinRoom,
     acceptCollaborationInvite,
     declineCollaborationInvite 
   } = useMatrix();
   
+  const navigate = useNavigate();
   const [pendingInvites, setPendingInvites] = useState<GooseChatMessage[]>([]);
   const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(new Set());
 
@@ -27,7 +30,10 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
 
     const unsubscribe = onGooseMessage((message: GooseChatMessage) => {
       // Only show messages that are not from self
-      if (message.metadata?.isFromSelf) return;
+      if (message.metadata?.isFromSelf) {
+        console.log('💬 Ignoring message from self');
+        return;
+      }
 
       // Handle explicit collaboration invites
       if (message.type === 'goose.collaboration.invite') {
@@ -45,6 +51,14 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
       
       // Handle regular Goose chat messages as collaboration opportunities
       else if (message.type === 'goose.chat') {
+        // Skip messages that contain session data (these are ongoing collaborations, not new invites)
+        if (message.content.includes('goose-session-message:') || 
+            message.content.includes('goose-session-invite:') ||
+            message.content.includes('goose-session-joined:')) {
+          console.log('💬 Ignoring session-related message (not a new collaboration invite)');
+          return;
+        }
+        
         console.log('💬 Received Goose chat message - offering collaboration:', message);
         
         // Only show notifications for recent messages (within the last 5 minutes)
@@ -82,6 +96,11 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
     try {
       console.log('🤝 Accepting collaboration from notification:', invite);
       
+      // First, try to join the room
+      console.log('🚪 Joining room:', invite.roomId);
+      await joinRoom(invite.roomId);
+      console.log('✅ Successfully joined room:', invite.roomId);
+      
       // Handle explicit collaboration invites with session metadata
       if (invite.type === 'goose.collaboration.invite') {
         const sessionData = invite.metadata;
@@ -99,8 +118,22 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
           roomId: sessionData.roomId,
         });
         
-        // Show success notification
-        alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nYou can now collaborate in real-time!`);
+        // Navigate to the pair view (regular chat session) with Matrix integration
+        console.log('🧭 Navigating to pair view for Matrix collaboration:', invite.roomId);
+        navigate('/pair', { 
+          state: { 
+            matrixMode: true, 
+            matrixRoomId: invite.roomId,
+            matrixRecipientId: invite.sender,
+            resetChat: true,
+            disableAnimation: true
+          } 
+        });
+        
+        // Show success notification (but don't block navigation)
+        setTimeout(() => {
+          alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nYou can now collaborate in real-time!`);
+        }, 500);
       }
       
       // Handle regular chat messages as collaboration opportunities
@@ -116,8 +149,22 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         
         console.log('✅ Joined chat room for collaboration:', invite.roomId);
         
-        // Show success notification
-        alert(`Started collaborating with ${senderName}!\n\nYou're now in their chat room and can work together.`);
+        // Navigate to the pair view (regular chat session) with Matrix integration
+        console.log('🧭 Navigating to pair view for Matrix collaboration:', invite.roomId);
+        navigate('/pair', { 
+          state: { 
+            matrixMode: true, 
+            matrixRoomId: invite.roomId,
+            matrixRecipientId: invite.sender,
+            resetChat: true,
+            disableAnimation: true
+          } 
+        });
+        
+        // Show success notification (but don't block navigation)
+        setTimeout(() => {
+          alert(`Started collaborating with ${senderName}!\n\nYou're now in their chat room and can work together.`);
+        }, 500);
       }
       
       // Remove from pending invites
@@ -125,7 +172,23 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
       
     } catch (error) {
       console.error('❌ Failed to accept collaboration:', error);
-      alert('Failed to join collaboration. Please try again.');
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to join collaboration. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('not invited') || error.message.includes('private')) {
+          errorMessage = 'You are not invited to this room or it is private. Please ask the sender to invite you again.';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'The room could not be found. It may have been deleted.';
+        } else if (error.message.includes('Network error')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          errorMessage = `Failed to join: ${error.message}`;
+        }
+      }
+      
+      alert(errorMessage);
     }
   };
 

@@ -468,6 +468,36 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Check if a message appears to be from a Goose instance based on content patterns
+   */
+  private looksLikeGooseMessage(content: string): boolean {
+    // Look for common Goose patterns in message content
+    const goosePatterns = [
+      /🦆/,  // Goose emoji
+      /🤖/,  // Robot emoji
+      /\[GOOSE\]/i,
+      /\[AI\]/i,
+      /\[ASSISTANT\]/i,
+      /^(goose|ai|assistant):/i,  // Message starting with goose:, ai:, etc.
+      /@goose/i,  // @goose mentions
+      /collaborative.*session/i,
+      /task.*request/i,
+      /collaboration.*invite/i,
+    ];
+    
+    return goosePatterns.some(pattern => pattern.test(content));
+  }
+
+  /**
+   * Check if a message contains @goose mention
+   */
+  private containsGooseMention(content: string): boolean {
+    // Case-insensitive check for @goose mentions
+    const goosePattern = /@goose\b/i;
+    return goosePattern.test(content);
+  }
+
+  /**
    * Handle incoming messages and emit appropriate events
    */
   private handleMessage(event: any, room: any): void {
@@ -542,8 +572,11 @@ export class MatrixService extends EventEmitter {
       this.emit('aiMessage', aiMessage);
     }
     
-    // Check if sender appears to be a Goose instance (heuristic detection) - but not ourselves
-    else if (!isFromSelf && this.isGooseInstance(sender, senderUser?.displayName)) {
+    // Enhanced heuristic detection for Goose messages
+    else if (!isFromSelf && (
+      this.isGooseInstance(sender, senderUser?.displayName) || 
+      this.looksLikeGooseMessage(content.body || '')
+    )) {
       isGooseMessage = true;
       // Treat as potential Goose message even without explicit markers
       const gooseChatMessage: GooseChatMessage = {
@@ -553,14 +586,17 @@ export class MatrixService extends EventEmitter {
         sender,
         timestamp: new Date(event.getTs()),
         roomId: room.roomId,
-        metadata: { isFromSelf: false },
+        metadata: { 
+          isFromSelf: false,
+          detectionMethod: this.isGooseInstance(sender, senderUser?.displayName) ? 'username' : 'content',
+        },
       };
       
-      console.log('🦆 Detected potential Goose message from:', sender);
+      console.log('🦆 Detected potential Goose message from:', sender, '- detection method:', gooseChatMessage.metadata?.detectionMethod);
       this.emit('gooseMessage', gooseChatMessage);
     }
     
-    // Check if this is a session-related message
+    // Check if this is a session-related message or contains @goose mention
     if (content.body && !isFromSelf) {
       // Check for Goose session messages (from useSessionSharing)
       if (content.body.includes('goose-session-message:') || 
@@ -569,6 +605,15 @@ export class MatrixService extends EventEmitter {
         isSessionMessage = true;
         console.log('📝 Received session message from:', sender);
         this.emit('sessionMessage', messageData);
+      }
+      
+      // Check for @goose mentions
+      if (this.containsGooseMention(content.body)) {
+        console.log('🦆 Detected @goose mention in message from:', sender);
+        this.emit('gooseMention', {
+          ...messageData,
+          mentionedGoose: true,
+        });
       }
     }
     
@@ -599,10 +644,22 @@ export class MatrixService extends EventEmitter {
       throw new Error('Client not initialized');
     }
 
-    await this.client.sendEvent(roomId, 'm.room.message', {
+    // Check if this looks like a Goose message and add appropriate markers
+    const eventContent: any = {
       msgtype: 'm.text',
       body: message,
-    });
+    };
+
+    // If the message looks like it's from Goose, add minimal markers for better detection
+    if (this.looksLikeGooseMessage(message)) {
+      eventContent['goose.message.type'] = 'goose.chat';
+      eventContent['goose.message.id'] = this.generateMessageId();
+      eventContent['goose.timestamp'] = Date.now();
+      eventContent['goose.version'] = '1.0';
+      console.log('🦆 Sending message with Goose markers:', message.substring(0, 50) + '...');
+    }
+
+    await this.client.sendEvent(roomId, 'm.room.message', eventContent);
   }
 
   /**
@@ -675,6 +732,65 @@ export class MatrixService extends EventEmitter {
     }
 
     await this.client.invite(roomId, userId);
+  }
+
+  /**
+   * Join a Matrix room by room ID
+   */
+  async joinRoom(roomId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      console.log('🚪 Attempting to join room:', roomId);
+      
+      // Check if we're already in the room
+      const existingRoom = this.client.getRoom(roomId);
+      if (existingRoom && existingRoom.getMyMembership() === 'join') {
+        console.log('✅ Already joined room:', roomId);
+        return;
+      }
+
+      // Join the room
+      await this.client.joinRoom(roomId);
+      console.log('✅ Successfully joined room:', roomId);
+      
+      // Clear caches to refresh room data
+      this.cachedRooms = null;
+      this.cachedFriends = null;
+      
+      // Emit join event
+      this.emit('roomJoined', { roomId });
+      
+    } catch (error: any) {
+      console.error('❌ Failed to join room:', roomId, error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to join room';
+      
+      if (error.httpStatus === 403) {
+        if (error.data?.errcode === 'M_FORBIDDEN') {
+          errorMessage = 'You are not invited to this room or it is private.';
+        } else {
+          errorMessage = 'Access forbidden. You may not have permission to join this room.';
+        }
+      } else if (error.httpStatus === 404) {
+        errorMessage = 'Room not found. The room may have been deleted or the ID is incorrect.';
+      } else if (error.httpStatus === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (error.httpStatus >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.name === 'ConnectionError' || error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.data?.error) {
+        errorMessage = error.data.error;
+      }
+
+      const enhancedError = new Error(errorMessage);
+      this.emit('error', enhancedError);
+      throw enhancedError;
+    }
   }
 
   /**
@@ -1273,6 +1389,169 @@ export class MatrixService extends EventEmitter {
         currentTask,
       },
     });
+  }
+
+  /**
+   * Debug method to test Goose message detection and sending
+   */
+  async debugGooseMessage(roomId: string): Promise<void> {
+    console.log('🔍 DEBUG: Testing Goose message detection and sending');
+    console.log('🔍 DEBUG: Current user ID:', this.config.userId);
+    console.log('🔍 DEBUG: Target room ID:', roomId);
+    
+    // Send a test message with explicit Goose markers
+    const testMessage = '🦆 DEBUG: This is a test Goose message from ' + (this.getCurrentUser()?.displayName || 'Unknown User');
+    
+    try {
+      const messageId = await this.sendGooseMessage(roomId, testMessage, 'goose.chat', {
+        metadata: {
+          debug: true,
+          timestamp: new Date().toISOString(),
+          sender: this.config.userId,
+        },
+      });
+      
+      console.log('🔍 DEBUG: Successfully sent Goose message with ID:', messageId);
+    } catch (error) {
+      console.error('🔍 DEBUG: Failed to send Goose message:', error);
+    }
+  }
+
+  /**
+   * Get room message history
+   */
+  async getRoomHistory(roomId: string, limit: number = 50): Promise<Array<{
+    messageId: string;
+    sender: string;
+    content: string;
+    timestamp: Date;
+    type: 'user' | 'assistant' | 'system';
+    isFromSelf: boolean;
+    senderInfo: {
+      userId: string;
+      displayName?: string;
+      avatarUrl?: string;
+    };
+    metadata?: Record<string, any>;
+  }>> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      console.log('🔍 Fetching room history for:', roomId, 'limit:', limit);
+      
+      const room = this.client.getRoom(roomId);
+      if (!room) {
+        console.error('❌ Room not found:', roomId);
+        return [];
+      }
+
+      // Get timeline events from the room
+      const timeline = room.getLiveTimeline();
+      const events = timeline.getEvents();
+      
+      console.log('📜 Found', events.length, 'events in room timeline');
+      
+      // Filter and convert message events
+      const messages = events
+        .filter(event => event.getType() === 'm.room.message')
+        .slice(-limit) // Get the last N messages
+        .map(event => {
+          const content = event.getContent();
+          const sender = event.getSender();
+          const isFromSelf = sender === this.config.userId;
+          
+          // Get sender information
+          const senderMember = room.getMember(sender);
+          const senderUser = this.client?.getUser(sender);
+          
+          const senderInfo = {
+            userId: sender,
+            displayName: senderMember?.name || senderUser?.displayName || sender.split(':')[0].substring(1),
+            avatarUrl: senderMember?.getMxcAvatarUrl() || senderUser?.avatarUrl || null,
+          };
+
+          // Determine message type based on content and sender
+          let messageType: 'user' | 'assistant' | 'system' = 'user';
+          
+          // Check if this is a Goose/AI message
+          if (content['goose.message.type'] || content['goose.type'] || 
+              this.isGooseInstance(sender, senderInfo.displayName) ||
+              this.looksLikeGooseMessage(content.body || '')) {
+            messageType = 'assistant';
+          } else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
+            messageType = 'system';
+          }
+
+          return {
+            messageId: event.getId() || `msg_${event.getTs()}`,
+            sender,
+            content: content.body || '',
+            timestamp: new Date(event.getTs()),
+            type: messageType,
+            isFromSelf,
+            senderInfo,
+            metadata: {
+              eventType: event.getType(),
+              msgType: content.msgtype,
+              gooseType: content['goose.message.type'] || content['goose.type'],
+              gooseSessionId: content['goose.session_id'],
+              gooseTaskId: content['goose.task.id'],
+              originalEvent: event,
+            },
+          };
+        });
+
+      console.log('📜 Processed', messages.length, 'messages from room history');
+      return messages;
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch room history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Convert Matrix room history to Goose chat format
+   */
+  async getRoomHistoryAsGooseMessages(roomId: string, limit: number = 50): Promise<Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+    sender?: string;
+    metadata?: Record<string, any>;
+  }>> {
+    const history = await this.getRoomHistory(roomId, limit);
+    
+    return history.map(msg => ({
+      role: msg.type,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      sender: msg.senderInfo.displayName || msg.sender,
+      metadata: {
+        ...msg.metadata,
+        originalSender: msg.sender,
+        senderInfo: msg.senderInfo,
+        isFromSelf: msg.isFromSelf,
+      },
+    }));
+  }
+
+  /**
+   * Get debug information about the current Matrix state
+   */
+  getDebugInfo(): Record<string, any> {
+    return {
+      isConnected: this.isConnected,
+      syncState: this.syncState,
+      currentUserId: this.config.userId,
+      currentUser: this.getCurrentUser(),
+      friendsCount: this.getFriends().length,
+      roomsCount: this.getRooms().length,
+      gooseInstancesCount: this.getGooseInstances().length,
+      homeserver: this.config.homeserverUrl,
+    };
   }
 }
 

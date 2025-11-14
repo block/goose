@@ -34,6 +34,11 @@ export type ViewOptions = {
   initialMessage?: string;
   resetChat?: boolean;
   shareToken?: string;
+  // Matrix chat options
+  matrixRoomId?: string;
+  matrixRecipientId?: string;
+  matrixMode?: boolean;
+  useRegularChat?: boolean;
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {

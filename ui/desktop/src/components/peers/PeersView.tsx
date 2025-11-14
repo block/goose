@@ -20,7 +20,7 @@ import { MatrixUser, matrixService } from '../../services/MatrixService';
 import MatrixAuth from './MatrixAuth';
 import GooseChat from '../GooseChat';
 import MatrixChat from '../MatrixChat';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Helper function to handle avatar URLs (now handled by MatrixService)
 const convertMxcToHttp = (avatarUrl: string): string => {
@@ -167,7 +167,14 @@ const PeerCard: React.FC<{
   peer: MatrixUser; 
   onStartChat: (peer: MatrixUser) => void;
   onRemovePeer: (peer: MatrixUser) => void;
-}> = ({ peer, onStartChat, onRemovePeer }) => {
+  lastMessage?: {
+    content: string;
+    timestamp: Date;
+    isFromSelf: boolean;
+    isUnread: boolean;
+    messageId: string;
+  };
+}> = ({ peer, onStartChat, onRemovePeer, lastMessage }) => {
   const [showActions, setShowActions] = useState(false);
 
   const formatLastSeen = (lastActiveAgo?: number) => {
@@ -181,6 +188,20 @@ const PeerCard: React.FC<{
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
+  };
+
+  const formatMessageTime = (timestamp: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (minutes < 1) return 'now';
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    if (days < 7) return `${days}d`;
+    return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
   const isOnline = peer.presence === 'online';
@@ -293,6 +314,35 @@ const PeerCard: React.FC<{
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Message bubble (only if there's an unread message) */}
+      {lastMessage && lastMessage.isUnread && (
+        <div className="absolute inset-x-4 bottom-16 z-10">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-border-default">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-text-default mb-1">
+                  {lastMessage.isFromSelf ? 'You' : (peer.displayName || peer.userId.split(':')[0].substring(1))}
+                </p>
+                <p className="text-sm text-text-default break-words" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {lastMessage.content}
+                </p>
+                <p className="text-xs text-text-muted mt-1">
+                  {formatMessageTime(lastMessage.timestamp)}
+                </p>
+              </div>
+              {!lastMessage.isFromSelf && (
+                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Name and info at bottom */}
       <div className="mt-auto w-full">
@@ -661,32 +711,100 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     isReady, 
     currentUser, 
     friends, 
+    rooms,
     addFriend, 
     getOrCreateDirectMessageRoom,
     setAvatar,
-    removeAvatar
+    removeAvatar,
+    onMessage,
+    onGooseMessage
   } = useMatrix();
   
   const location = useLocation();
+  const navigate = useNavigate();
   
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
-  // Chat state
-  const [activeChatRoomId, setActiveChatRoomId] = useState<string | null>(null);
-  const [activeChatRecipientId, setActiveChatRecipientId] = useState<string | null>(null);
+  // Chat state - removed since we're using navigation instead of popup overlay
+  
+  // Last messages state
+  const [lastMessages, setLastMessages] = useState<Map<string, {
+    content: string;
+    timestamp: Date;
+    isFromSelf: boolean;
+    isUnread: boolean;
+    messageId: string;
+  }>>(new Map());
 
-  // Handle opening chat from notification or route state
+  // Track read message IDs per user
+  const [readMessageIds, setReadMessageIds] = useState<Map<string, Set<string>>>(new Map());
+
+  // Listen for incoming messages to update last message previews
   useEffect(() => {
-    const routeState = location.state as any;
-    if (routeState?.openChat && routeState?.roomId && routeState?.senderId) {
-      console.log('📱 Opening chat from notification:', routeState);
-      setActiveChatRoomId(routeState.roomId);
-      setActiveChatRecipientId(routeState.senderId);
-    }
-  }, [location.state]);
+    if (!isReady || !isConnected || !currentUser) return;
+
+    const handleIncomingMessage = (messageData: any) => {
+      const { sender, content, timestamp, roomId, isFromSelf } = messageData;
+      
+      // Only track messages from friends in DM rooms
+      const friend = friends.find(f => f.userId === sender);
+      if (!friend || isFromSelf) return;
+
+      // Check if this is a DM room with this friend
+      const dmRoom = rooms.find(room => 
+        room.roomId === roomId &&
+        room.isDirectMessage && 
+        room.members.some(member => member.userId === friend.userId)
+      );
+
+      if (dmRoom) {
+        const messageId = `${roomId}_${timestamp.getTime()}_${sender}`;
+        
+        // Get current read messages for this user
+        const currentReadMessages = readMessageIds.get(friend.userId) || new Set();
+        const isUnread = !currentReadMessages.has(messageId);
+
+        const lastMessage = {
+          content: content || 'New message',
+          timestamp: new Date(timestamp),
+          isFromSelf: false,
+          isUnread,
+          messageId,
+        };
+
+        console.log('📱 Updating last message for friend:', friend.displayName || friend.userId, 'unread:', isUnread);
+        
+        setLastMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.set(friend.userId, lastMessage);
+          return newMap;
+        });
+      }
+    };
+
+    // Listen for regular messages and Goose messages
+    const unsubscribeMessage = onMessage(handleIncomingMessage);
+    const unsubscribeGooseMessage = onGooseMessage((gooseMessage: any) => {
+      // Convert GooseMessage to the expected format
+      handleIncomingMessage({
+        sender: gooseMessage.sender,
+        content: gooseMessage.content,
+        timestamp: gooseMessage.timestamp,
+        roomId: gooseMessage.roomId,
+        isFromSelf: gooseMessage.metadata?.isFromSelf || false,
+      });
+    });
+
+    return () => {
+      unsubscribeMessage();
+      unsubscribeGooseMessage();
+    };
+  }, [isReady, isConnected, currentUser, friends, rooms, onMessage, onGooseMessage, readMessageIds]);
+
+  // Handle opening chat from notification or route state - removed since using navigation
 
   // Debug log for avatar modal state
   useEffect(() => {
@@ -735,23 +853,55 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     return emptyTilesNeeded;
   };
 
+  const markMessagesAsRead = (userId: string) => {
+    const lastMessage = lastMessages.get(userId);
+    if (lastMessage && lastMessage.isUnread) {
+      // Mark this message as read
+      setReadMessageIds(prev => {
+        const newMap = new Map(prev);
+        const userReadMessages = new Set(newMap.get(userId) || []);
+        userReadMessages.add(lastMessage.messageId);
+        newMap.set(userId, userReadMessages);
+        return newMap;
+      });
+
+      // Update the last message to mark it as read
+      setLastMessages(prev => {
+        const newMap = new Map(prev);
+        const updatedMessage = { ...lastMessage, isUnread: false };
+        newMap.set(userId, updatedMessage);
+        return newMap;
+      });
+
+      console.log('📱 Marked messages as read for:', userId);
+    }
+  };
+
   const handleStartChat = async (friend: MatrixUser) => {
     try {
       console.log('📱 Starting chat with friend:', friend);
       const roomId = await getOrCreateDirectMessageRoom(friend.userId);
       console.log('📱 Got/created DM room:', roomId);
       
-      setActiveChatRoomId(roomId);
-      setActiveChatRecipientId(friend.userId);
+      // Mark messages as read when opening chat
+      markMessagesAsRead(friend.userId);
+      
+      // Navigate to the pair view (regular chat session) with Matrix integration
+      navigate('/pair', { 
+        state: { 
+          matrixMode: true,
+          matrixRoomId: roomId,
+          matrixRecipientId: friend.userId,
+          resetChat: true,
+          disableAnimation: true
+        } 
+      });
     } catch (error) {
       console.error('Failed to create/get DM room:', error);
     }
   };
 
-  const handleCloseChat = () => {
-    setActiveChatRoomId(null);
-    setActiveChatRecipientId(null);
-  };
+  // handleCloseChat removed - using navigation instead of popup overlay
 
   const handleRemoveFriend = (friend: MatrixUser) => {
     // TODO: Implement remove friend functionality
@@ -887,6 +1037,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                       peer={friend}
                       onStartChat={handleStartChat}
                       onRemovePeer={handleRemoveFriend}
+                      lastMessage={lastMessages.get(friend.userId)}
                     />
                   ))}
                   {/* Empty tiles */}
@@ -939,31 +1090,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
         )}
       </AnimatePresence>
 
-      {/* Matrix Chat Overlay */}
-      <AnimatePresence>
-        {activeChatRoomId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-background-default rounded-2xl w-full max-w-4xl mx-4 h-[80vh] overflow-hidden shadow-2xl"
-            >
-              <MatrixChat
-                roomId={activeChatRoomId}
-                recipientId={activeChatRecipientId || undefined}
-                onBack={handleCloseChat}
-                className="h-full"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Matrix Chat Overlay removed - now using navigation to Hub with Matrix mode */}
     </div>
   );
 };

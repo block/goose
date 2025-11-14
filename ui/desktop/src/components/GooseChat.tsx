@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { GooseChatMessage } from '../services/MatrixService';
 
 const GooseChat: React.FC = () => {
+  const navigate = useNavigate();
   const { 
     isConnected, 
     gooseInstances, 
@@ -13,7 +15,9 @@ const GooseChat: React.FC = () => {
     createGooseCollaborationRoom,
     announceCapabilities,
     getOrCreateDirectMessageRoom,
-    onGooseMessage 
+    onGooseMessage,
+    debugGooseMessage,
+    getDebugInfo
   } = useMatrix();
   
   const [messages, setMessages] = useState<GooseChatMessage[]>([]);
@@ -85,34 +89,26 @@ const GooseChat: React.FC = () => {
     try {
       console.log('🤝 Accepting collaboration invite:', message);
       
-      // Extract session details from the message metadata
-      const sessionData = message.metadata;
-      if (!sessionData?.sessionId || !sessionData?.roomId) {
-        console.error('❌ Invalid collaboration invite - missing session data');
-        return;
-      }
-
       // Accept the collaboration invite via Matrix
       await acceptCollaborationInvite(message.roomId, message.messageId, ['ai-chat', 'collaboration']);
       
-      // Navigate to the collaborative session
-      // This would typically involve routing to the chat with the collaborative session active
-      console.log('✅ Accepted collaboration invite, joining session:', {
-        sessionId: sessionData.sessionId,
-        sessionTitle: sessionData.sessionTitle,
-        roomId: sessionData.roomId,
+      // Navigate to the main chat interface with the collaboration room
+      console.log('✅ Accepted collaboration invite, opening chat session for room:', message.roomId);
+      
+      // Navigate to the root route (/) which will render the MatrixChat in the main chat interface
+      navigate('/', { 
+        state: { 
+          matrixMode: true,
+          matrixRoomId: message.roomId,
+          matrixRecipientId: message.sender,
+          resetChat: true,
+          collaborationMode: true
+        } 
       });
-      
-      // TODO: Implement navigation to the collaborative chat session
-      // This might involve:
-      // 1. Setting the active chat session to the collaborative one
-      // 2. Navigating to the chat view
-      // 3. Showing the collaborative session UI
-      
-      alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nRoom ID: ${sessionData.roomId}`);
       
     } catch (error) {
       console.error('❌ Failed to accept collaboration:', error);
+      alert('Failed to join collaboration session. Please try again.');
     }
   };
 
@@ -257,7 +253,7 @@ const GooseChat: React.FC = () => {
       </div>
 
       {/* Collaboration Invite */}
-      <div className="mb-6">
+      <div className="mb-4">
         <label className="block text-sm font-medium mb-2">Send Collaboration Invite</label>
         <div className="flex gap-2">
           <input
@@ -275,6 +271,45 @@ const GooseChat: React.FC = () => {
             Invite
           </button>
         </div>
+      </div>
+
+      {/* Debug Section */}
+      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h3 className="text-lg font-medium mb-2 text-yellow-800">🔍 Debug Tools</h3>
+        <div className="flex gap-2 mb-2">
+          <button
+            onClick={async () => {
+              if (!selectedRoom) {
+                alert('Please select a room first');
+                return;
+              }
+              try {
+                await debugGooseMessage(selectedRoom);
+                alert('Debug message sent! Check console logs and the other Goose instance.');
+              } catch (error) {
+                console.error('Debug message failed:', error);
+                alert('Debug message failed: ' + error);
+              }
+            }}
+            disabled={!selectedRoom}
+            className="px-3 py-1 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600 disabled:opacity-50"
+          >
+            Send Debug Message
+          </button>
+          <button
+            onClick={() => {
+              const debugInfo = getDebugInfo();
+              console.log('🔍 DEBUG INFO:', debugInfo);
+              alert('Debug info logged to console. Check browser dev tools.');
+            }}
+            className="px-3 py-1 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600"
+          >
+            Log Debug Info
+          </button>
+        </div>
+        <p className="text-xs text-yellow-700">
+          Use these tools to test cross-user Goose communication. Send a debug message and check if it appears in other Goose instances.
+        </p>
       </div>
 
       {/* Messages */}

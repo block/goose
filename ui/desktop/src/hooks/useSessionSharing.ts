@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMatrix } from '../contexts/MatrixContext';
 import { MatrixUser } from '../services/MatrixService';
 import { Message } from '../types/message';
@@ -75,7 +75,10 @@ export const useSessionSharing = ({
     const handleSessionMessage = (data: any) => {
       const { content, sender, roomId } = data;
       
-      console.log('📨 Received session message:', { content, sender, roomId });
+      // Only log session messages that aren't the repetitive goose-session-message ones
+      if (!content.includes('goose-session-message:')) {
+        console.log('📨 Received session message:', { content: content?.substring(0, 50) + '...', sender, roomId });
+      }
       
       // Handle session invitation messages
       if (content.includes('goose-session-invite:')) {
@@ -155,6 +158,15 @@ export const useSessionSharing = ({
     const handleRegularMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;
       
+      // Only log debug info for messages that might be processed (reduce noise)
+      if (state.roomId && roomId === state.roomId && sender !== currentUser?.userId) {
+        console.log('🔍 Processing message in session room:', { 
+          content: content?.substring(0, 50) + '...', 
+          sender, 
+          roomId
+        });
+      }
+      
       // Only process messages from Matrix rooms that are part of our session
       if (state.roomId && roomId === state.roomId && sender !== currentUser?.userId) {
         console.log('💬 Regular message in session room:', { content, sender, roomId, senderInfo });
@@ -201,9 +213,10 @@ export const useSessionSharing = ({
           sender: senderData,
         };
         
-        console.log('💬 Converting regular Matrix message to Goose message with sender:', message);
+        console.log('💬 Converting regular Matrix message to Goose message');
         onMessageSync?.(message);
       }
+      // Removed debug logging for filtered messages to reduce console noise
     };
 
     const sessionCleanup = onSessionMessage(handleSessionMessage);
@@ -361,36 +374,73 @@ export const useSessionSharing = ({
     }));
   }, []);
 
-  // Sync a message to all session participants
+  // Use refs to avoid infinite loops in useCallback dependencies
+  const syncTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const lastSyncedContentRef = useRef<Map<string, string>>(new Map());
+
+  // Sync a message to all session participants (debounced to prevent streaming spam)
   const syncMessage = useCallback(async (message: Message | { id: string; role: string; content: string; timestamp: string }) => {
     if (!state.isShared || !state.roomId) return;
 
     try {
       let messageContent: string;
+      let messageId: string;
       
       // Handle both Message type and simple message object
       if ('content' in message && Array.isArray(message.content)) {
         // Standard Message type
         messageContent = message.content.map(c => c.type === 'text' ? c.text : '').join('');
+        messageId = message.id;
       } else if ('content' in message && typeof message.content === 'string') {
         // Simple message object from ChatInput
         messageContent = message.content;
+        messageId = message.id;
       } else {
         console.error('Invalid message format for sync:', message);
         return;
       }
 
-      const messageData = {
-        sessionId,
-        role: message.role,
-        content: messageContent,
-        timestamp: Date.now(),
-      };
+      // Skip if content hasn't changed (prevents duplicate syncing)
+      const lastContent = lastSyncedContentRef.current.get(messageId);
+      if (lastContent === messageContent) {
+        return;
+      }
 
-      await sendMessage(state.roomId, `goose-session-message:${JSON.stringify(messageData)}`);
-      console.log('✅ Message synced to collaborative session:', messageData);
+      // Clear any existing timeout for this message
+      const existingTimeout = syncTimeoutsRef.current.get(messageId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+
+      // Set up debounced sync (wait 1 second after last update before syncing)
+      const timeout = setTimeout(async () => {
+        try {
+          const messageData = {
+            sessionId,
+            role: message.role,
+            content: messageContent,
+            timestamp: Date.now(),
+          };
+
+          await sendMessage(state.roomId!, `goose-session-message:${JSON.stringify(messageData)}`);
+          
+          // Update last synced content
+          lastSyncedContentRef.current.set(messageId, messageContent);
+          
+          // Clean up timeout
+          syncTimeoutsRef.current.delete(messageId);
+          
+          console.log('✅ Message synced to collaborative session (final):', messageContent.substring(0, 50) + '...');
+        } catch (error) {
+          console.error('❌ Failed to sync message:', error);
+        }
+      }, 1000); // Wait 1 second after last update
+
+      // Store the timeout
+      syncTimeoutsRef.current.set(messageId, timeout);
+
     } catch (error) {
-      console.error('❌ Failed to sync message:', error);
+      console.error('❌ Failed to setup message sync:', error);
       setState(prev => ({ 
         ...prev, 
         error: error instanceof Error ? error.message : 'Failed to sync message' 
