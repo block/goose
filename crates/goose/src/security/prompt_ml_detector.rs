@@ -1,19 +1,24 @@
+//! Gondola-based prompt injection detector (Internal Square only).
+//!
+//! This module provides ML-based prompt injection detection using Gondola,
+//! Square's internal model hosting platform. It uses BERT-based models for
+//! classification.
+//!
+//! This implementation is only available when the `internal` feature is enabled.
+
 use crate::config::Config;
+use crate::security::detector::PromptInjectionDetector;
 use crate::security::gondola::GondolaProvider;
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use std::collections::HashMap;
 
-// TODO: Not sure if this is the right approach or if there's a better way
-pub const GONDOLA_KNOWN_MODELS: &[(&str, &str, &str)] = &[(
+// TODO: better not to hardcode - any suggestions on how to deal with this?
+const GONDOLA_KNOWN_MODELS: &[(&str, &str, &str)] = &[(
     "deberta-prompt-injection-v2",
     "gmv-zve9abhxe9s7fq1zep5dxd807",
     "text_input",
 )];
-
-pub struct MlDetector {
-    provider: GondolaProvider,
-    config: ModelConfig,
-}
 
 pub struct ModelConfig {
     pub model: String,
@@ -60,7 +65,12 @@ impl ModelConfig {
     }
 }
 
-impl MlDetector {
+pub struct GondolaDetector {
+    provider: GondolaProvider,
+    config: ModelConfig,
+}
+
+impl GondolaDetector {
     pub fn new(provider: GondolaProvider, config: ModelConfig) -> Self {
         Self { provider, config }
     }
@@ -72,12 +82,15 @@ impl MlDetector {
 
         Ok(Self::new(provider, config))
     }
+}
 
-    // TODO: truncation + whitespace elimination (leave for a follow-up PR)
-    pub async fn scan(&self, text: &str) -> Result<f32> {
+#[async_trait]
+impl PromptInjectionDetector for GondolaDetector {
+    async fn scan(&self, text: &str) -> Result<f32> {
         tracing::debug!(
             text_length = text.len(),
             text_preview = %text.chars().take(100).collect::<String>(),
+            detector = "gondola",
             "ML detection scanning text"
         );
 
@@ -117,9 +130,11 @@ impl MlDetector {
             prob_safe = %(exp_safe / sum),
             prob_malicious = %(exp_malicious / sum),
             confidence = %confidence,
-            "ML detection raw results"
+            detector = "gondola",
+            "ML detection results"
         );
 
         Ok(confidence)
     }
 }
+

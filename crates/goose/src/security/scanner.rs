@@ -1,8 +1,11 @@
 use crate::conversation::message::Message;
+use crate::security::detector::PromptInjectionDetector;
 use crate::security::patterns::{PatternMatch, PatternMatcher};
-use crate::security::prompt_ml_detector::MlDetector;
 use anyhow::Result;
 use rmcp::model::CallToolRequestParam;
+
+#[cfg(feature = "internal")]
+use crate::security::prompt_ml_detector::GondolaDetector;
 
 const USER_SCAN_LIMIT: usize = 10;
 
@@ -21,7 +24,7 @@ struct DetailedScanResult {
 
 pub struct PromptInjectionScanner {
     pattern_matcher: PatternMatcher,
-    ml_detector: Option<MlDetector>,
+    ml_detector: Option<Box<dyn PromptInjectionDetector>>,
 }
 
 impl PromptInjectionScanner {
@@ -32,12 +35,21 @@ impl PromptInjectionScanner {
         }
     }
 
+    #[cfg(feature = "internal")]
     pub fn with_ml_detection() -> Result<Self> {
-        let ml_detector = MlDetector::new_from_config()?;
+        let detector = GondolaDetector::new_from_config()?;
         Ok(Self {
             pattern_matcher: PatternMatcher::new(),
-            ml_detector: Some(ml_detector),
+            ml_detector: Some(Box::new(detector)),
         })
+    }
+
+    #[cfg(not(feature = "internal"))]
+    pub fn with_ml_detection() -> Result<Self> {
+        tracing::warn!(
+            "ML detection requested but not available in this build (requires 'internal' feature)"
+        );
+        Ok(Self::new())
     }
 
     pub fn get_threshold_from_config(&self) -> f32 {

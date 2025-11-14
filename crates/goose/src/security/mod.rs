@@ -1,8 +1,13 @@
-pub mod gondola;
+pub mod detector;
 pub mod patterns;
-pub mod prompt_ml_detector;
 pub mod scanner;
 pub mod security_inspector;
+
+#[cfg(feature = "internal")]
+pub mod gondola;
+
+#[cfg(feature = "internal")]
+pub mod prompt_ml_detector;
 
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -42,12 +47,18 @@ impl SecurityManager {
     }
 
     fn is_ml_scanning_enabled(&self) -> bool {
-        use crate::config::Config;
-        let config = Config::global();
-
-        config
-            .get_param::<bool>("SECURITY_PROMPT_ML_ENABLED")
-            .unwrap_or(false)
+        #[cfg(feature = "internal")]
+        {
+            use crate::config::Config;
+            let config = Config::global();
+            config
+                .get_param::<bool>("SECURITY_PROMPT_ML_ENABLED")
+                .unwrap_or(false)
+        }
+        #[cfg(not(feature = "internal"))]
+        {
+            false
+        }
     }
 
     pub async fn analyze_tool_requests(

@@ -1,11 +1,10 @@
 //! Gondola provider for ML model inference.
 //!
-//! Unlike other providers in this module that implement the `Provider` trait for generative
-//! LLM interactions (chat completions, streaming), this provider is designed for classification
-//! and inference tasks using BERT-based models. It provides access to Gondola's BatchInfer API
-//! for use cases like prompt injection detection.
+//! This is a generic HTTP client for Gondola's BatchInfer API. It can be used
+//! for any model hosted on Gondola, not just prompt injection detection.
 //!
-//! TODO: figure out if this is the right place for this.
+//! For prompt injection detection specifically, see `gondola_detector.rs` which
+//! implements the `PromptInjectionDetector` trait using this client.
 
 use crate::config::Config;
 use anyhow::{Context, Result};

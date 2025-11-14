@@ -400,3 +400,15 @@ build-test-tools:
 record-mcp-tests: build-test-tools
   GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
   git add crates/goose/tests/mcp_replays/
+
+release-binary-internal:
+    @echo "Building release version with internal features..."
+    cargo build --release --features internal
+    @just copy-binary
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+
+run-ui-internal:
+    @just release-binary-internal
+    @echo "Running UI with internal features..."
+    cd ui/desktop && npm install && npm run start-gui
