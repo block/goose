@@ -47,6 +47,32 @@ export const useSessionSharing = ({
   onParticipantLeave,
   initialRoomId,
 }: UseSessionSharingProps) => {
+  // Early return with disabled state if sessionId is null (Matrix mode)
+  if (!sessionId) {
+    console.log('🚫 useSessionSharing: Disabled (sessionId is null)');
+    return {
+      // State
+      isShared: false,
+      isSessionActive: false,
+      participants: [],
+      isHost: false,
+      pendingInvitations: [],
+      error: null,
+      canInvite: false,
+
+      // Actions (no-op functions)
+      inviteToSession: async () => { throw new Error('Session sharing is disabled'); },
+      joinSession: async () => { throw new Error('Session sharing is disabled'); },
+      leaveSession: () => {},
+      syncMessage: async () => {},
+      declineInvitation: () => {},
+      getAvailableFriends: () => [],
+      
+      // Utilities
+      clearError: () => {},
+    };
+  }
+
   const { 
     currentUser, 
     friends, 
