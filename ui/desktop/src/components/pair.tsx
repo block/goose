@@ -226,10 +226,12 @@ export default function Pair({
   // Listen for incoming Matrix messages in real-time when in Matrix mode
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId) {
+      console.log('👂 Skipping Matrix listeners:', { isMatrixMode, matrixRoomId });
       return;
     }
 
     console.log('👂 Setting up Matrix message listeners for room:', matrixRoomId);
+    console.log('👂 Matrix connection status:', { isConnected, isReady });
 
     // Handle regular messages
     const unsubscribeMessage = onMessage((messageData: any) => {
@@ -334,17 +336,19 @@ export default function Pair({
     setIsTransitioningFromHub(false);
     setMessageToSubmit(null);
     
-    console.log('💬 Message submitted:', message);
+    console.log('💬 Message submitted in Matrix mode:', { message, isMatrixMode, matrixRoomId });
     
     // If in Matrix mode, also send the message to Matrix room
     if (isMatrixMode && matrixRoomId && message.trim()) {
       try {
-        console.log('📤 Sending message to Matrix room:', matrixRoomId);
+        console.log('📤 Sending message to Matrix room:', matrixRoomId, 'Message:', message);
         await sendMessage(matrixRoomId, message);
         console.log('✅ Message sent to Matrix successfully');
       } catch (error) {
         console.error('❌ Failed to send message to Matrix:', error);
       }
+    } else {
+      console.log('📤 Not sending to Matrix:', { isMatrixMode, matrixRoomId, hasMessage: !!message.trim() });
     }
   };
 
