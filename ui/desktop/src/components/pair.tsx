@@ -12,6 +12,7 @@ import { ChatType } from '../types/chat';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { Message } from '../types/message';
+import { useSessionSharing } from '../hooks/useSessionSharing';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -65,9 +66,25 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady, onMessage, onSessionMessage, onGooseMessage } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady, onMessage, onGooseMessage } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
+
+  // Session sharing hook for Matrix collaboration
+  const sessionSharing = useSessionSharing({
+    sessionId: chat.sessionId || 'default',
+    sessionTitle: chat.title || `Matrix Collaboration ${matrixRoomId?.substring(0, 8) || 'Session'}`,
+    messages: chat.messages,
+    onMessageSync: (message) => {
+      // Handle synced messages from Matrix session participants
+      console.log('💬 Synced message from Matrix shared session:', message);
+      // Add the synced message to local chat
+      setChat(prevChat => ({
+        ...prevChat,
+        messages: [...prevChat.messages, message],
+      }));
+    },
+  });
 
   useEffect(() => {
     const initializeFromState = async () => {
@@ -241,26 +258,7 @@ export default function Pair({
       }));
     });
 
-    // Handle session messages (from useSessionSharing)
-    const unsubscribeSessionMessage = onSessionMessage((messageData: any) => {
-      console.log('📝 Received Matrix session message:', messageData);
-      
-      // Only process messages from the current Matrix room
-      if (messageData.roomId !== matrixRoomId) {
-        console.log('📝 Ignoring session message from different room:', messageData.roomId);
-        return;
-      }
-
-      // Don't process messages from self
-      if (messageData.isFromSelf) {
-        console.log('📝 Ignoring session message from self');
-        return;
-      }
-
-      // Session messages are handled by useSessionSharing, so we don't need to add them to chat here
-      // They will be processed and added through the normal Goose message flow
-      console.log('📝 Session message will be processed by useSessionSharing');
-    });
+    // Session messages are now handled by useSessionSharing hook, no need for manual handling here
 
     // Handle Goose messages (AI responses, etc.)
     const unsubscribeGooseMessage = onGooseMessage((gooseMessage: any) => {
@@ -308,10 +306,9 @@ export default function Pair({
     return () => {
       console.log('👂 Cleaning up Matrix message listeners');
       unsubscribeMessage();
-      unsubscribeSessionMessage();
       unsubscribeGooseMessage();
     };
-  }, [isMatrixMode, matrixRoomId, onMessage, onSessionMessage, onGooseMessage, setChat]);
+  }, [isMatrixMode, matrixRoomId, onMessage, onGooseMessage, setChat]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
