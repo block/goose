@@ -352,30 +352,39 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // Session sharing hook
+  // Check if we're in Matrix mode by looking at URL parameters
+  const isInMatrixMode = window.location.search.includes('matrixMode=true');
+  
+  // Session sharing hook - disabled in Matrix mode to prevent conflicts
   const sessionSharing = useSessionSharing({
-    sessionId: sessionId || 'default',
+    sessionId: isInMatrixMode ? null : (sessionId || 'default'), // Disable session sharing in Matrix mode
     sessionTitle: `Chat Session ${sessionId?.substring(0, 8) || 'Default'}`,
-    messages,
+    messages: isInMatrixMode ? [] : messages, // Don't sync messages in Matrix mode
     onMessageSync: (message) => {
       // Handle synced messages from session participants
-      console.log('💬 Synced message from shared session:', message);
-      // Add the synced message to local chat
-      if (append) {
-        append(message);
+      if (!isInMatrixMode) {
+        console.log('💬 Synced message from shared session:', message);
+        // Add the synced message to local chat
+        if (append) {
+          append(message);
+        }
       }
     },
     onParticipantJoin: (participant) => {
-      console.log('👥 Participant joined session:', participant);
+      if (!isInMatrixMode) {
+        console.log('👥 Participant joined session:', participant);
+      }
     },
     onParticipantLeave: (userId) => {
-      console.log('👋 Participant left session:', userId);
+      if (!isInMatrixMode) {
+        console.log('👋 Participant left session:', userId);
+      }
     },
   });
 
-  // Listen for AI responses to sync to Matrix
+  // Listen for AI responses to sync to Matrix (disabled in Matrix mode)
   useEffect(() => {
-    if (!sessionSharing.isSessionActive || !messages.length) return;
+    if (isInMatrixMode || !sessionSharing.isSessionActive || !messages.length) return;
 
     const lastMessage = messages[messages.length - 1];
     
@@ -398,7 +407,7 @@ export default function ChatInput({
         });
       }
     }
-  }, [messages, sessionSharing]);
+  }, [isInMatrixMode, messages, sessionSharing]);
 
 
 
