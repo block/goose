@@ -391,26 +391,19 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     <div className="flex flex-col h-screen bg-background-muted">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-border-default bg-background-default">
-        <div className="flex items-center gap-3">
-          <Users className="w-6 h-6 text-text-default" />
-          <h1 className="text-2xl font-semibold text-text-default">Friends</h1>
-          <span className="px-2 py-1 rounded-full bg-background-accent text-text-on-accent text-sm font-medium">
-            {friends.length}
-          </span>
-          {/* Connection Status */}
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <div className="flex items-center gap-1 text-green-600">
-                <Wifi className="w-4 h-4" />
-                <span className="text-xs">Connected</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 text-red-600">
-                <WifiOff className="w-4 h-4" />
-                <span className="text-xs">Disconnected</span>
-              </div>
-            )}
-          </div>
+        {/* Connection Status */}
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <div className="flex items-center gap-1 text-green-600">
+              <Wifi className="w-4 h-4" />
+              <span className="text-xs">Connected</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-red-600">
+              <WifiOff className="w-4 h-4" />
+              <span className="text-xs">Disconnected</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
