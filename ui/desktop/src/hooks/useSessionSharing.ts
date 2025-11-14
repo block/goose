@@ -70,6 +70,19 @@ export const useSessionSharing = ({
     error: null,
   });
   
+  // Update state when initialRoomId changes (for Matrix mode)
+  useEffect(() => {
+    if (initialRoomId && (!state.roomId || state.roomId !== initialRoomId)) {
+      console.log('🏠 useSessionSharing: Updating room ID from initialRoomId:', initialRoomId);
+      setState(prev => ({
+        ...prev,
+        roomId: initialRoomId,
+        isShared: true, // Mark as shared when we have a room ID
+        isHost: false, // In Matrix mode, we're joining an existing session
+      }));
+    }
+  }, [initialRoomId, state.roomId]);
+  
   // Log initial state setup for debugging
   useEffect(() => {
     console.log('🔧 useSessionSharing: Initial state setup:', {

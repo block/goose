@@ -136,17 +136,22 @@ export default function Pair({
               ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
               : existing.content;
             
-            // Only block if exact same content and very recent (within 2 seconds)
-            return existingText === contentText && 
-                   existing.role === msg.role && 
-                   Math.abs(existing.created - msg.created) <= 2;
+            // Only block if exact same content, same role, and very recent (within 2 seconds)
+            // Also check that it's not the same message ID to avoid blocking legitimate messages
+            const isSameContent = existingText === contentText;
+            const isSameRole = existing.role === msg.role;
+            const isVeryRecent = Math.abs(existing.created - msg.created) <= 2;
+            const isDifferentId = existing.id !== msg.id;
+            
+            return isSameContent && isSameRole && isVeryRecent && isDifferentId;
           });
           
           if (recentDuplicate) {
             console.log(`📝 Skipping very recent duplicate from ${source}:`, {
               content: contentText.substring(0, 50) + '...',
               role: msg.role,
-              timestamp: msg.created
+              timestamp: msg.created,
+              messageId: msg.id
             });
             return false;
           }
