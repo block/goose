@@ -342,13 +342,31 @@ export default function Pair({
         if (roomHistory.length > 0) {
           // Convert Matrix messages to Goose message format
           const gooseMessages: Message[] = roomHistory.map((msg, index) => {
+            // Detect if this is a Goose message and correct the role if needed
+            let messageRole = msg.role as 'user' | 'assistant';
+            
+            // Check if the message content indicates it's from Goose
+            const isGooseMessage = msg.content && (
+              msg.content.startsWith('🦆 Goose:') ||
+              msg.content.includes('🦆 Goose:') ||
+              msg.content.startsWith('🤖') ||
+              (msg.metadata?.senderInfo?.displayName && msg.metadata.senderInfo.displayName.toLowerCase().includes('goose')) ||
+              (msg.sender && msg.sender.toLowerCase().includes('goose'))
+            );
+            
+            // Override role if it's detected as a Goose message
+            if (isGooseMessage && messageRole === 'user') {
+              messageRole = 'assistant';
+              console.log('📜 Corrected role from user to assistant for Goose message in history:', msg.content.substring(0, 50) + '...');
+            }
+            
             // Create more stable ID based on content and timestamp to help with deduplication
             const contentHash = msg.content.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
-            const stableId = `matrix_${msg.timestamp.getTime()}_${msg.role}_${contentHash}`;
+            const stableId = `matrix_${msg.timestamp.getTime()}_${messageRole}_${contentHash}`;
             
             return {
               id: stableId,
-              role: msg.role as 'user' | 'assistant',
+              role: messageRole,
               created: Math.floor(msg.timestamp.getTime() / 1000),
               content: [
                 {
@@ -421,10 +439,26 @@ export default function Pair({
         roomId
       });
       
+      // Detect if this is a Goose message (assistant response)
+      const isGooseMessage = content && (
+        content.startsWith('🦆 Goose:') ||
+        content.includes('🦆 Goose:') ||
+        content.startsWith('🤖') ||
+        sender.toLowerCase().includes('goose') ||
+        (senderInfo?.displayName && senderInfo.displayName.toLowerCase().includes('goose'))
+      );
+      
+      // Determine the role based on message content and sender
+      let messageRole: 'user' | 'assistant' = 'user';
+      if (isGooseMessage) {
+        messageRole = 'assistant';
+        console.log('🦆 Detected Goose message from Matrix - treating as assistant message');
+      }
+      
       // Convert to Goose message format
       const newMessage: Message = {
-        id: `matrix_${Date.now()}_user_${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
+        id: `matrix_${Date.now()}_${messageRole}_${Math.random().toString(36).substr(2, 9)}`,
+        role: messageRole,
         created: Math.floor(Date.now() / 1000),
         content: [
           {
