@@ -20,6 +20,9 @@ interface MatrixContextType {
   createAISession: (name: string, inviteUserIds?: string[]) => Promise<string>;
   sendMessage: (roomId: string, message: string) => Promise<void>;
   sendAIPrompt: (roomId: string, prompt: string, sessionId: string, model?: string) => Promise<void>;
+  setAvatar: (file: File) => Promise<string>;
+  removeAvatar: () => Promise<void>;
+  setDisplayName: (displayName: string) => Promise<void>;
   
   // Events
   onMessage: (callback: (data: any) => void) => () => void;
@@ -83,6 +86,14 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       updateData();
     };
 
+    const handleAvatarUpdated = () => {
+      updateData();
+    };
+
+    const handleDisplayNameUpdated = () => {
+      updateData();
+    };
+
     // Add event listeners
     matrixService.on('connected', handleConnected);
     matrixService.on('ready', handleReady);
@@ -92,6 +103,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     matrixService.on('sync', handleSync);
     matrixService.on('membershipChange', handleMembershipChange);
     matrixService.on('presenceChange', handlePresenceChange);
+    matrixService.on('avatarUpdated', handleAvatarUpdated);
+    matrixService.on('displayNameUpdated', handleDisplayNameUpdated);
 
     // Cleanup
     return () => {
@@ -103,6 +116,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       matrixService.off('sync', handleSync);
       matrixService.off('membershipChange', handleMembershipChange);
       matrixService.off('presenceChange', handlePresenceChange);
+      matrixService.off('avatarUpdated', handleAvatarUpdated);
+      matrixService.off('displayNameUpdated', handleDisplayNameUpdated);
     };
   }, [matrixService]);
 
@@ -145,6 +160,18 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     await matrixService.sendAIPrompt(roomId, prompt, sessionId, model);
   };
 
+  const setAvatar = async (file: File) => {
+    return await matrixService.setAvatar(file);
+  };
+
+  const removeAvatar = async () => {
+    await matrixService.removeAvatar();
+  };
+
+  const setDisplayName = async (displayName: string) => {
+    await matrixService.setDisplayName(displayName);
+  };
+
   const onMessage = (callback: (data: any) => void) => {
     matrixService.on('message', callback);
     return () => matrixService.off('message', callback);
@@ -179,6 +206,9 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     createAISession,
     sendMessage,
     sendAIPrompt,
+    setAvatar,
+    removeAvatar,
+    setDisplayName,
     onMessage,
     onAIMessage,
     onSessionMessage,

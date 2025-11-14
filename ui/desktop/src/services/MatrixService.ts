@@ -630,6 +630,70 @@ export class MatrixService extends EventEmitter {
       presence: user?.presence,
     };
   }
+
+  /**
+   * Upload and set user avatar
+   */
+  async setAvatar(file: File): Promise<string> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      // Upload the file to Matrix media repository
+      const uploadResponse = await this.client.uploadContent(file, {
+        name: file.name,
+        type: file.type,
+      });
+
+      const avatarUrl = uploadResponse.content_uri;
+
+      // Set the avatar URL in the user's profile
+      await this.client.setAvatarUrl(avatarUrl);
+
+      // Emit avatar updated event
+      this.emit('avatarUpdated', avatarUrl);
+
+      return avatarUrl;
+    } catch (error) {
+      console.error('Failed to set avatar:', error);
+      throw new Error('Failed to upload and set avatar');
+    }
+  }
+
+  /**
+   * Remove user avatar
+   */
+  async removeAvatar(): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setAvatarUrl('');
+      this.emit('avatarUpdated', null);
+    } catch (error) {
+      console.error('Failed to remove avatar:', error);
+      throw new Error('Failed to remove avatar');
+    }
+  }
+
+  /**
+   * Update user display name
+   */
+  async setDisplayName(displayName: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setDisplayName(displayName);
+      this.emit('displayNameUpdated', displayName);
+    } catch (error) {
+      console.error('Failed to set display name:', error);
+      throw new Error('Failed to update display name');
+    }
+  }
 }
 
 // Export singleton instance

@@ -11,7 +11,9 @@ import {
   Settings,
   X,
   Wifi,
-  WifiOff
+  WifiOff,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import { MatrixUser } from '../../services/MatrixService';
@@ -383,6 +385,150 @@ const AddFriendModal: React.FC<{
   );
 };
 
+const AvatarUploadModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  currentAvatar?: string;
+  onUpload: (file: File) => Promise<void>;
+  onRemove: () => Promise<void>;
+}> = ({ isOpen, onClose, currentAvatar, onUpload, onRemove }) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      await onUpload(file);
+      onClose();
+    } catch (error) {
+      console.error('Failed to upload avatar:', error);
+      alert('Failed to upload avatar. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setIsUploading(true);
+    try {
+      await onRemove();
+      onClose();
+    } catch (error) {
+      console.error('Failed to remove avatar:', error);
+      alert('Failed to remove avatar. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-text-default">Update Avatar</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+            disabled={isUploading}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Current Avatar Preview */}
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-24 h-24 bg-background-accent rounded-full flex items-center justify-center overflow-hidden mb-4">
+            {currentAvatar ? (
+              <img src={currentAvatar} alt="Current avatar" className="w-full h-full object-cover" />
+            ) : (
+              <Camera className="w-8 h-8 text-text-on-accent" />
+            )}
+          </div>
+          <p className="text-sm text-text-muted text-center">
+            {currentAvatar ? 'Current avatar' : 'No avatar set'}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="w-full px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isUploading ? (
+              <div className="w-4 h-4 border-2 border-text-on-accent border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            {isUploading ? 'Uploading...' : 'Upload New Avatar'}
+          </button>
+
+          {currentAvatar && (
+            <button
+              onClick={handleRemove}
+              disabled={isUploading}
+              className="w-full px-4 py-3 rounded-lg border border-red-500 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Remove Avatar
+            </button>
+          )}
+
+          <button
+            onClick={onClose}
+            disabled={isUploading}
+            className="w-full px-4 py-3 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+        </div>
+
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        <p className="text-xs text-text-muted mt-4 text-center">
+          Supported formats: JPG, PNG, GIF. Max size: 5MB
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   const { 
     isConnected, 
@@ -390,11 +536,14 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     currentUser, 
     friends, 
     addFriend, 
-    createAISession 
+    createAISession,
+    setAvatar,
+    removeAvatar
   } = useMatrix();
   
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   // Show Matrix auth if not connected
@@ -464,6 +613,14 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleAvatarUpload = async (file: File) => {
+    await setAvatar(file);
+  };
+
+  const handleAvatarRemove = async () => {
+    await removeAvatar();
+  };
+
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
@@ -477,14 +634,24 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       {currentUser && (
         <div className="pt-14 pb-4 px-4 mb-0.5 bg-background-default rounded-2xl">
           <div className="flex items-end gap-3">
-            <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
-              {currentUser.avatarUrl ? (
-                <img src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-sm font-medium text-text-on-accent">
-                  {(currentUser.displayName || currentUser.userId).charAt(0).toUpperCase()}
-                </span>
-              )}
+            <div className="relative group">
+              <button
+                onClick={() => setShowAvatarModal(true)}
+                className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-background-accent hover:ring-offset-2 transition-all duration-200 group"
+                title="Change Avatar"
+              >
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm font-medium text-text-on-accent">
+                    {(currentUser.displayName || currentUser.userId).charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </button>
+              {/* Camera overlay on hover */}
+              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Camera className="w-3 h-3 text-white" />
+              </div>
             </div>
             <div className="flex-1">
               <p className="font-medium text-text-default">
@@ -575,6 +742,19 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
             isOpen={showAddFriendModal}
             onClose={() => setShowAddFriendModal(false)}
             onSendRequest={handleSendFriendRequest}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Avatar Upload Modal */}
+      <AnimatePresence>
+        {showAvatarModal && (
+          <AvatarUploadModal
+            isOpen={showAvatarModal}
+            onClose={() => setShowAvatarModal(false)}
+            currentAvatar={currentUser?.avatarUrl}
+            onUpload={handleAvatarUpload}
+            onRemove={handleAvatarRemove}
           />
         )}
       </AnimatePresence>
