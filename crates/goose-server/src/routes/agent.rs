@@ -482,7 +482,8 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    if cfg!(target_os = "windows") {
+    #[cfg(windows)]
+    {
         use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
         use winreg::RegKey;
 
