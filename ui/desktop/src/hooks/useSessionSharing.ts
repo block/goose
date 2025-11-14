@@ -73,7 +73,7 @@ export const useSessionSharing = ({
     if (!isConnected) return;
 
     const handleSessionMessage = (data: any) => {
-      const { content, sender, roomId } = data;
+      const { content, sender, roomId, senderInfo } = data;
       
       // Only log session messages that aren't the repetitive goose-session-message ones
       if (!content.includes('goose-session-message:')) {
@@ -136,7 +136,7 @@ export const useSessionSharing = ({
           
           // In Matrix collaboration, we want to process session messages from the current room only
           // We check both session ID match AND room ID match to avoid cross-contamination
-          const isMatrixRoom = sessionId.startsWith('!'); // Matrix room IDs start with !
+          const isMatrixRoom = sessionId && sessionId.startsWith('!'); // Matrix room IDs start with !
           const isFromCurrentRoom = !roomId || roomId === sessionId; // Either no roomId filter or matches current room
           const isSessionMatch = messageData.sessionId === sessionId;
           
