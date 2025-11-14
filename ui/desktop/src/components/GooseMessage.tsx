@@ -30,6 +30,7 @@ interface GooseMessageProps {
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  isEditingConversation?: boolean;
 }
 
 export default function GooseMessage({
@@ -41,9 +42,13 @@ export default function GooseMessage({
   append,
   appendMessage,
   isStreaming = false,
+  isEditingConversation = false,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const handledToolConfirmations = useRef<Set<string>>(new Set());
+
+  // Determine if message should be greyed out/struck through
+  const isDeselected = message.metadata?.agentVisible === false;
 
   let textContent = getTextContent(message);
 
@@ -127,8 +132,8 @@ export default function GooseMessage({
   ]);
 
   return (
-    <div className="goose-message flex w-[90%] justify-start min-w-0">
-      <div className="flex flex-col w-full min-w-0">
+    <div className={`goose-message flex w-[90%] justify-start min-w-0 ${isDeselected ? 'opacity-50' : ''}`}>
+      <div className={`flex flex-col w-full min-w-0 ${isDeselected ? 'line-through' : ''}`}>
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-textSubtle select-none">

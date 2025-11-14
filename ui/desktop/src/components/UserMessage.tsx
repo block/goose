@@ -13,16 +13,56 @@ interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   isEditingConversation?: boolean;
+  onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
+  messages?: Message[];
 }
 
-export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false }: UserMessageProps) {
+export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false, onMetadataUpdate, messages = [] }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSelected, setIsSelected] = useState(true); // Default to checked
+  
+  // Track checkbox state - start with the message's agentVisible value (default to true if not set)
+  const [isSelected, setIsSelected] = useState(message.metadata?.agentVisible !== false);
+
+  // Update local state if message metadata changes
+  useEffect(() => {
+    setIsSelected(message.metadata?.agentVisible !== false);
+  }, [message.metadata?.agentVisible]);
+
+  // Handle checkbox change
+  const handleCheckboxChange = useCallback((checked: boolean) => {
+    setIsSelected(checked);
+    
+    if (onMetadataUpdate && message.id) {
+      // Update this message
+      onMetadataUpdate(message.id, { agentVisible: checked });
+      
+      // Find all subsequent assistant messages until we hit another user message
+      if (messages.length > 0) {
+        const currentIndex = messages.findIndex(m => m.id === message.id);
+        if (currentIndex !== -1) {
+          for (let i = currentIndex + 1; i < messages.length; i++) {
+            const msg = messages[i];
+            // Stop when we hit another user message
+            if (msg.role === 'user') {
+              break;
+            }
+            // Update all assistant messages
+            if (msg.role === 'assistant' && msg.id) {
+              onMetadataUpdate(msg.id, { agentVisible: checked });
+            }
+          }
+        }
+      }
+    }
+  }, [onMetadataUpdate, message.id, messages]);
+
+  // Determine if message should be greyed out/struck through based on local state
+  const isDeselected = !isSelected;
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -197,7 +237,7 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={(e) => setIsSelected(e.target.checked)}
+                  onChange={(e) => handleCheckboxChange(e.target.checked)}
                   className="w-4 h-4 rounded border-2 border-border-default bg-background-default checked:bg-background-accent checked:border-background-accent focus:ring-0 focus:ring-offset-0 cursor-pointer transition-colors accent-background-accent"
                   style={{
                     accentColor: 'var(--background-accent)',
@@ -207,9 +247,9 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
               </div>
             )}
             
-            <div className="flex-col max-w-[85%] w-fit">
+            <div className={`flex-col max-w-[85%] w-fit ${isDeselected ? 'opacity-50' : ''}`}>
               <div className="flex flex-col group">
-                <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
+                <div className={`flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4 ${isDeselected ? 'line-through' : ''}`}>
                   <div ref={contentRef}>
                     <MarkdownContent
                       content={displayText}

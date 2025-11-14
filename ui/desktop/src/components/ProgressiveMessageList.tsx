@@ -40,6 +40,7 @@ interface ProgressiveMessageListProps {
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
   isEditingConversation?: boolean; // Whether the conversation is being edited
+  onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -57,6 +58,7 @@ export default function ProgressiveMessageList({
   onMessageUpdate,
   onRenderingComplete,
   isEditingConversation = false,
+  onMetadataUpdate,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -215,6 +217,8 @@ export default function ProgressiveMessageList({
                   message={message} 
                   onMessageUpdate={onMessageUpdate}
                   isEditingConversation={isEditingConversation}
+                  onMetadataUpdate={onMetadataUpdate}
+                  messages={messages}
                 />
               )
             ) : (
@@ -232,6 +236,7 @@ export default function ProgressiveMessageList({
                   index === messagesToRender.length - 1 &&
                   message.role === 'assistant'
                 }
+                isEditingConversation={isEditingConversation}
               />
             )}
           </div>
@@ -251,6 +256,7 @@ export default function ProgressiveMessageList({
     onMessageUpdate,
     toolCallChains,
     isEditingConversation,
+    onMetadataUpdate,
   ]);
 
   return (

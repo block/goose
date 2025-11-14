@@ -141,6 +141,7 @@ function BaseChatContent({
     isUserMessage,
     clearError,
     onMessageUpdate,
+    onMetadataUpdate,
   } = useChatEngine({
     chat,
     setChat,
@@ -366,6 +367,7 @@ function BaseChatContent({
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
                       isEditingConversation={isEditingConversation}
+                      onMetadataUpdate={onMetadataUpdate}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -384,6 +386,7 @@ function BaseChatContent({
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
                         isEditingConversation={isEditingConversation}
+                        onMetadataUpdate={onMetadataUpdate}
                       />
                     </SearchView>
                   )}

@@ -415,6 +415,26 @@ export const useChatEngine = ({
     [messages, setMessages, setPendingEdit]
   );
 
+  // Handle metadata updates
+  const onMetadataUpdate = useCallback(
+    (messageId: string, metadata: Partial<Message['metadata']>) => {
+      const updatedMessages = messages.map((msg) => {
+        if (msg.id === messageId) {
+          return {
+            ...msg,
+            metadata: {
+              ...msg.metadata,
+              ...metadata,
+            },
+          };
+        }
+        return msg;
+      });
+      setMessages(updatedMessages);
+    },
+    [messages, setMessages]
+  );
+
   // Listen for pending edit and append message after messages updated
   useEffect(() => {
     if (pendingEdit) {
@@ -469,5 +489,6 @@ export const useChatEngine = ({
 
     // New functions for message editing
     onMessageUpdate,
+    onMetadataUpdate,
   };
 };
