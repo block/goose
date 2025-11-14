@@ -12,7 +12,6 @@ import { ChatType } from '../types/chat';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { Message } from '../types/message';
-import { useSessionSharing } from '../hooks/useSessionSharing';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -240,49 +239,8 @@ export default function Pair({
     willUseMatrixRoomId: isMatrixMode && matrixRoomId
   });
   
-  // Stable message sync callback to prevent listener recreation
-  const handleMessageSync = useCallback((message: Message) => {
-    // Handle synced messages from Matrix session participants
-    console.log('💬 Synced message from Matrix shared session:', {
-      id: message.id,
-      role: message.role,
-      content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
-      created: message.created,
-      sender: message.sender?.displayName || message.sender?.userId || 'unknown'
-    });
-    console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
-    
-    // Only add real-time messages, not historical ones (avoid duplicates with history loading)
-    // Skip messages that are older than 30 seconds to avoid processing historical messages as real-time
-    const messageAge = Date.now() / 1000 - message.created;
-    const isRecentMessage = messageAge < 30; // Messages within last 30 seconds are considered real-time
-    
-    console.log('💬 Message age check:', { 
-      messageAge, 
-      isRecentMessage, 
-      messageId: message.id,
-      currentTime: Date.now() / 1000,
-      messageTime: message.created
-    });
-    
-    if (isRecentMessage) {
-      console.log('✅ Processing real-time message:', message.id);
-      // Use centralized message management for real-time messages
-      addMessagesToChat([message], 'real-time-sync');
-    } else {
-      console.log('💬 Skipping old message (likely from history):', message.id);
-    }
-  }, [effectiveSessionId, isMatrixMode, matrixRoomId, addMessagesToChat]);
-  
-  // Initialize session sharing with Matrix room info if available
-  const sessionSharing = useSessionSharing({
-    sessionId: effectiveSessionId,
-    sessionTitle: chat.title || `Matrix Collaboration ${matrixRoomId?.substring(0, 8) || 'Session'}`,
-    messages: chat.messages,
-    // Pass Matrix room ID to session sharing so it knows which room to listen to
-    initialRoomId: isMatrixMode ? matrixRoomId : undefined,
-    onMessageSync: handleMessageSync,
-  });
+  // For Matrix mode, we use periodic refresh instead of complex real-time sync
+  // This is simpler and more reliable than trying to sync individual messages
 
   useEffect(() => {
     const initializeFromState = async () => {
@@ -428,12 +386,83 @@ export default function Pair({
     addMessagesToChat,
   ]);
 
-  // Matrix real-time messages are handled by useSessionSharing hook
-  // No need for separate Matrix listeners since useSessionSharing processes session messages correctly
+  // Periodic Matrix room refresh for real-time sync
+  useEffect(() => {
+    if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady) {
+      return;
+    }
+
+    console.log('🔄 Setting up periodic Matrix room refresh for real-time sync');
+
+    const refreshRoomMessages = async () => {
+      try {
+        console.log('🔄 Refreshing Matrix room messages...');
+        
+        // Fetch the latest room history
+        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 100);
+        console.log('🔄 Fetched', roomHistory.length, 'messages from Matrix room for refresh');
+
+        if (roomHistory.length > 0) {
+          // Convert all Matrix messages to Goose message format
+          const gooseMessages: Message[] = roomHistory.map((msg) => {
+            // Create stable ID based on content and timestamp
+            const contentHash = msg.content.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
+            const stableId = `matrix_${msg.timestamp.getTime()}_${msg.role}_${contentHash}`;
+            
+            return {
+              id: stableId,
+              role: msg.role as 'user' | 'assistant',
+              created: Math.floor(msg.timestamp.getTime() / 1000),
+              content: [
+                {
+                  type: 'text' as const,
+                  text: msg.content,
+                }
+              ],
+              sender: msg.metadata?.senderInfo ? {
+                userId: msg.metadata.senderInfo.userId,
+                displayName: msg.metadata.senderInfo.displayName,
+                avatarUrl: msg.metadata.senderInfo.avatarUrl,
+              } : undefined,
+            };
+          });
+
+          // Replace all messages with the fresh room state
+          console.log('🔄 Updating chat with fresh Matrix room state:', gooseMessages.length, 'messages');
+          
+          setChat(prevChat => ({
+            ...prevChat,
+            messages: gooseMessages.sort((a, b) => a.created - b.created),
+          }));
+        }
+      } catch (error) {
+        console.error('❌ Failed to refresh Matrix room messages:', error);
+      }
+    };
+
+    // Initial refresh after a short delay
+    const initialTimeout = setTimeout(refreshRoomMessages, 2000);
+    
+    // Set up periodic refresh every 3 seconds
+    const refreshInterval = setInterval(refreshRoomMessages, 3000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(refreshInterval);
+      console.log('🔄 Cleaned up Matrix room refresh interval');
+    };
+  }, [
+    isMatrixMode,
+    matrixRoomId,
+    isConnected,
+    isReady,
+    getRoomHistoryAsGooseMessages,
+    setChat,
+  ]);
 
   // Sync Goose responses to Matrix when they're added to the chat
   useEffect(() => {
-    if (!isMatrixMode || !matrixRoomId || !sessionSharing.isShared) {
+    if (!isMatrixMode || !matrixRoomId) {
       return;
     }
 
@@ -442,7 +471,7 @@ export default function Pair({
     
     if (lastMessage && lastMessage.role === 'assistant') {
       // Check if this message was generated locally (not from Matrix)
-      const isFromMatrix = lastMessage.id.startsWith('matrix_') || lastMessage.id.startsWith('shared-');
+      const isFromMatrix = lastMessage.id.startsWith('matrix_');
       
       if (!isFromMatrix) {
         console.log('🤖 Syncing new Goose response to Matrix:', {
@@ -451,13 +480,30 @@ export default function Pair({
           content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
         });
         
-        // Sync the assistant message to Matrix using sessionSharing
-        sessionSharing.syncMessage(lastMessage);
+        // Send the assistant response to Matrix as a session message
+        const messageContent = Array.isArray(lastMessage.content) 
+          ? lastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
+          : '';
+        
+        const messageData = {
+          sessionId: effectiveSessionId,
+          role: lastMessage.role,
+          content: messageContent,
+          timestamp: Date.now(),
+        };
+
+        sendMessage(matrixRoomId, `goose-session-message:${JSON.stringify(messageData)}`)
+          .then(() => {
+            console.log('✅ Goose response synced to Matrix successfully');
+          })
+          .catch((error) => {
+            console.error('❌ Failed to sync Goose response to Matrix:', error);
+          });
       } else {
         console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
       }
     }
-  }, [chat.messages, isMatrixMode, matrixRoomId, sessionSharing]);
+  }, [chat.messages, isMatrixMode, matrixRoomId, effectiveSessionId, sendMessage]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
@@ -510,10 +556,10 @@ export default function Pair({
     (window as any).testMatrixListeners = () => {
       console.log('🔍 DIAGNOSTIC: Testing Matrix message listeners');
       console.log('🔍 Matrix connection state:', { isConnected, isReady });
-      console.log('🔍 Session sharing state:', {
-        isShared: sessionSharing.isShared,
+      console.log('🔍 Matrix room state:', {
         roomId: matrixRoomId,
-        effectiveSessionId
+        effectiveSessionId,
+        currentMessagesCount: chat.messages.length
       });
       
       // Test if Matrix service is receiving events
@@ -537,7 +583,7 @@ export default function Pair({
     return () => {
       delete (window as any).testMatrixListeners;
     };
-  }, [isMatrixMode, matrixRoomId, isConnected, isReady, sessionSharing, effectiveSessionId, onMessage, onSessionMessage]);
+  }, [isMatrixMode, matrixRoomId, isConnected, isReady, effectiveSessionId, onMessage, onSessionMessage, chat.messages.length]);
 
   return (
     <BaseChat
