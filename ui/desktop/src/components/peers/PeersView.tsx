@@ -3,19 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
   UserPlus, 
-  Search, 
+  Search,
   MoreVertical, 
-  MessageCircle, 
   Phone, 
   Video,
-  UserCheck,
   UserX,
   Settings,
   X,
-  Circle,
-  CheckCircle,
-  Clock,
-  AlertCircle,
   Wifi,
   WifiOff
 } from 'lucide-react';
@@ -401,10 +395,8 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     createAISession 
   } = useMatrix();
   
-  const [searchQuery, setSearchQuery] = useState('');
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
-  const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
 
   // Show Matrix auth if not connected
   useEffect(() => {
@@ -412,16 +404,6 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       setShowMatrixAuth(true);
     }
   }, [isConnected, showMatrixAuth]);
-
-  // Filter friends based on search query
-  const filteredFriends = friends.filter(friend =>
-    (friend.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-    friend.userId.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Group friends by status
-  const onlineFriends = filteredFriends.filter(friend => friend.presence === 'online');
-  const offlineFriends = filteredFriends.filter(friend => friend.presence !== 'online');
 
   // Calculate empty tiles to fill the grid (aim for multiples of 6 for visual balance)
   const calculateEmptyTiles = (friendsCount: number) => {
@@ -527,20 +509,6 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex flex-col">
-          {/* Search */}
-          <div className="p-6 bg-background-default border-b border-border-default">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input
-                type="text"
-                placeholder="Search friends..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
-              />
-            </div>
-          </div>
-
           {/* Friends List */}
           <div className="flex-1 overflow-y-auto">
             {!isConnected ? (
@@ -563,86 +531,37 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
                 <p className="text-text-muted">Syncing with Matrix server...</p>
               </div>
-            ) : filteredFriends.length === 0 ? (
+            ) : friends.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-default mb-2">
-                  {searchQuery ? 'No friends found' : 'No friends yet'}
-                </h3>
+                <h3 className="text-lg font-medium text-text-default mb-2">No friends yet</h3>
                 <p className="text-text-muted mb-6">
-                  {searchQuery 
-                    ? 'Try adjusting your search terms'
-                    : 'Add friends to start collaborative AI chat sessions'
-                  }
+                  Add friends to start collaborative AI chat sessions
                 </p>
-                {!searchQuery && (
-                  <button
-                    onClick={() => setShowAddFriendModal(true)}
-                    className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
-                  >
-                    Add Your First Friend
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowAddFriendModal(true)}
+                  className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                >
+                  Add Your First Friend
+                </button>
               </div>
             ) : (
-              <div className="space-y-2">
-                {/* Online Friends */}
-                {onlineFriends.length > 0 && (
-                  <>
-                    <div className="px-6 py-4 bg-background-default">
-                      <h2 className="text-sm font-medium text-text-muted flex items-center gap-2">
-                        <Circle className="w-2 h-2 fill-green-500 text-green-500" />
-                        Online ({onlineFriends.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
-                      {onlineFriends.map((friend) => (
-                        <PeerCard
-                          key={friend.userId}
-                          peer={friend}
-                          onStartChat={handleStartChat}
-                          onRemovePeer={handleRemoveFriend}
-                        />
-                      ))}
-                      {/* Empty tiles for online section */}
-                      {Array.from({ length: calculateEmptyTiles(onlineFriends.length) }).map((_, index) => (
-                        <EmptyPeerTile
-                          key={`online-empty-${index}`}
-                          onAddFriend={() => setShowAddFriendModal(true)}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Offline Friends */}
-                {offlineFriends.length > 0 && (
-                  <>
-                    <div className="px-6 py-4 bg-background-default">
-                      <h2 className="text-sm font-medium text-text-muted flex items-center gap-2">
-                        <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
-                        Offline ({offlineFriends.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
-                      {offlineFriends.map((friend) => (
-                        <PeerCard
-                          key={friend.userId}
-                          peer={friend}
-                          onStartChat={handleStartChat}
-                          onRemovePeer={handleRemoveFriend}
-                        />
-                      ))}
-                      {/* Empty tiles for offline section */}
-                      {Array.from({ length: calculateEmptyTiles(offlineFriends.length) }).map((_, index) => (
-                        <EmptyPeerTile
-                          key={`offline-empty-${index}`}
-                          onAddFriend={() => setShowAddFriendModal(true)}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
+                {friends.map((friend) => (
+                  <PeerCard
+                    key={friend.userId}
+                    peer={friend}
+                    onStartChat={handleStartChat}
+                    onRemovePeer={handleRemoveFriend}
+                  />
+                ))}
+                {/* Empty tiles */}
+                {Array.from({ length: calculateEmptyTiles(friends.length) }).map((_, index) => (
+                  <EmptyPeerTile
+                    key={`empty-${index}`}
+                    onAddFriend={() => setShowAddFriendModal(true)}
+                  />
+                ))}
               </div>
             )}
           </div>
