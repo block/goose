@@ -665,21 +665,14 @@ export class MatrixService extends EventEmitter {
       throw new Error('Client not initialized');
     }
 
-    // Check if this looks like a Goose message and add appropriate markers
+    // Send as a regular message without any Goose markers
+    // This method is for user messages, not Goose messages
     const eventContent: any = {
       msgtype: 'm.text',
       body: message,
     };
 
-    // If the message looks like it's from Goose, add minimal markers for better detection
-    if (this.looksLikeGooseMessage(message)) {
-      eventContent['goose.message.type'] = 'goose.chat';
-      eventContent['goose.message.id'] = this.generateMessageId();
-      eventContent['goose.timestamp'] = Date.now();
-      eventContent['goose.version'] = '1.0';
-      console.log('🦆 Sending message with Goose markers:', message.substring(0, 50) + '...');
-    }
-
+    console.log('💬 Sending regular user message to room:', roomId, 'Message:', message.substring(0, 50) + '...');
     await this.client.sendEvent(roomId, 'm.room.message', eventContent);
   }
 

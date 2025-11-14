@@ -355,21 +355,24 @@ export default function ChatInput({
   // Check if we're in Matrix mode by looking at URL parameters
   const isInMatrixMode = window.location.search.includes('matrixMode=true');
   
-  // Session sharing hook - disabled in Matrix mode to prevent conflicts
+  // Extract Matrix room ID from URL parameters if in Matrix mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const matrixRoomId = urlParams.get('matrixRoomId');
+  
+  // Session sharing hook - use Matrix room ID as sessionId in Matrix mode
   const sessionSharing = useSessionSharing({
-    sessionId: isInMatrixMode ? null : (sessionId || 'default'), // Disable session sharing in Matrix mode
-    sessionTitle: `Chat Session ${sessionId?.substring(0, 8) || 'Default'}`,
-    messages: isInMatrixMode ? [] : messages, // Don't sync messages in Matrix mode
+    sessionId: isInMatrixMode && matrixRoomId ? matrixRoomId : (sessionId || 'default'),
+    sessionTitle: isInMatrixMode && matrixRoomId ? `Matrix Room ${matrixRoomId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'Default'}`,
+    messages: messages, // Always sync messages
     onMessageSync: (message) => {
       // Handle synced messages from session participants
-      if (!isInMatrixMode) {
-        console.log('💬 Synced message from shared session:', message);
-        // Add the synced message to local chat
-        if (append) {
-          append(message);
-        }
+      console.log('💬 Synced message from shared session:', message);
+      // Add the synced message to local chat
+      if (append) {
+        append(message);
       }
     },
+    initialRoomId: isInMatrixMode && matrixRoomId ? matrixRoomId : undefined, // Pass Matrix room ID for Matrix mode
     onParticipantJoin: (participant) => {
       if (!isInMatrixMode) {
         console.log('👥 Participant joined session:', participant);
@@ -382,15 +385,15 @@ export default function ChatInput({
     },
   });
 
-  // Listen for AI responses to sync to Matrix (disabled in Matrix mode)
+  // Listen for AI responses to sync to Matrix
   useEffect(() => {
-    if (isInMatrixMode || !sessionSharing.isSessionActive || !messages.length) return;
+    if (!sessionSharing.isSessionActive || !messages.length) return;
 
     const lastMessage = messages[messages.length - 1];
     
     // Check if the last message is an AI response (assistant role) and not already synced
     if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.id?.startsWith('shared-') && !lastMessage.id?.startsWith('matrix-')) {
-      console.log('🤖 Syncing AI response to Matrix:', lastMessage);
+      console.log('🤖 Syncing AI response to session:', lastMessage);
       
       // Extract text content from the message
       const textContent = lastMessage.content
@@ -407,7 +410,7 @@ export default function ChatInput({
         });
       }
     }
-  }, [isInMatrixMode, messages, sessionSharing]);
+  }, [messages, sessionSharing]);
 
 
 
