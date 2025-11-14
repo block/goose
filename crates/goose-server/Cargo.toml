@@ -39,6 +39,7 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "m
 tokio-util = "0.7.15"
 uuid = { version = "1.11", features = ["v4"] }
 serde_path_to_error = "0.1.20"
+winreg = { version = "0.55.0", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
