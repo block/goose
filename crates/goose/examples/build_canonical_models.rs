@@ -10,15 +10,12 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
-
-// Providers we want to include
 const ALLOWED_PROVIDERS: &[&str] = &["anthropic", "google", "openai"];
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Fetching models from OpenRouter API...");
 
-    // Fetch models from OpenRouter
     let client = reqwest::Client::new();
     let response = client
         .get(OPENROUTER_API_URL)
@@ -49,20 +46,17 @@ async fn main() -> Result<()> {
 
         // Skip OpenRouter-specific pricing variants (:free, :nitro)
         // Keep :extended since it has different context length
-        // :exacto will be stripped to map to base model
         if id.contains(":free") || id.contains(":nitro") {
             continue;
         }
 
         let canonical_id = canonical_name("openrouter", id);
 
-        // Filter to only allowed providers
         let provider = canonical_id.split('/').next().unwrap_or("");
         if !ALLOWED_PROVIDERS.contains(&provider) {
             continue;
         }
 
-        // Get pricing info for this model
         let prompt_cost = model
             .get("pricing")
             .and_then(|p| p.get("prompt"))
@@ -79,11 +73,9 @@ async fn main() -> Result<()> {
 
         let has_paid_pricing = prompt_cost > 0.0 || completion_cost > 0.0;
 
-        // Check if we've seen this canonical ID before
         if let Some(existing_model) = canonical_groups.get(&canonical_id) {
             let existing_name = shortest_names.get(&canonical_id).unwrap();
 
-            // Get existing pricing info
             let existing_prompt = existing_model
                 .get("pricing")
                 .and_then(|p| p.get("prompt"))
@@ -100,7 +92,6 @@ async fn main() -> Result<()> {
 
             let existing_has_paid = existing_prompt > 0.0 || existing_completion > 0.0;
 
-            // Prefer paid pricing over free, otherwise prefer shorter name
             let should_replace = if has_paid_pricing != existing_has_paid {
                 has_paid_pricing  // Prefer the one with paid pricing
             } else {
@@ -110,12 +101,8 @@ async fn main() -> Result<()> {
             if should_replace {
                 println!("  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
                     canonical_id, existing_model["id"].as_str().unwrap(), existing_has_paid, id, has_paid_pricing);
-                // Keep the shorter name, but use the new model data (for pricing)
                 if name.len() >= existing_name.len() {
-                    // New model's name is longer or equal, keep the existing shorter name
-                    // (Don't update shortest_names)
                 } else {
-                    // New model's name is shorter, update it
                     shortest_names.insert(canonical_id.clone(), name.to_string());
                 }
                 canonical_groups.insert(canonical_id, model);
@@ -133,17 +120,14 @@ async fn main() -> Result<()> {
     for (canonical_id, model) in canonical_groups.iter() {
         let name = shortest_names.get(canonical_id).unwrap();
 
-        // Parse context length
         let context_length = model["context_length"].as_u64().unwrap_or(128_000) as usize;
 
-        // Parse max completion tokens (if available)
         let max_completion_tokens = model
             .get("top_provider")
             .and_then(|tp| tp.get("max_completion_tokens"))
             .and_then(|v| v.as_u64())
             .map(|v| v as usize);
 
-        // Parse modalities
         let input_modalities: Vec<String> = model
             .get("supported_parameters")
             .and_then(|v| v.as_array())
@@ -171,7 +155,6 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                // Check if model has file support
                 if model.get("architecture").and_then(|a| a.get("multimodality")).is_some() {
                     if !mods.contains(&"file".to_string()) {
                         mods.push("file".to_string());
@@ -183,7 +166,6 @@ async fn main() -> Result<()> {
 
         let output_modalities = vec!["text".to_string()];
 
-        // Determine tokenizer based on provider
         let tokenizer = if canonical_id.starts_with("anthropic/") {
             "Claude"
         } else if canonical_id.starts_with("openai/") {
@@ -195,7 +177,6 @@ async fn main() -> Result<()> {
         }
         .to_string();
 
-        // Check if model supports tool calling
         let supports_tools = model
             .get("supported_parameters")
             .and_then(|v| v.as_array())
@@ -206,7 +187,6 @@ async fn main() -> Result<()> {
             })
             .unwrap_or(false);
 
-        // Parse pricing (convert strings to f64)
         let pricing_obj = model.get("pricing").unwrap();
         let pricing = Pricing {
             prompt: pricing_obj
@@ -242,7 +222,6 @@ async fn main() -> Result<()> {
         registry.register(canonical_model);
     }
 
-    // Write to file
     use std::path::PathBuf;
 
     let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

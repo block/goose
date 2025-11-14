@@ -81,13 +81,11 @@ impl MappingReport {
         fetched_models: Vec<String>,
         mappings: Vec<ModelMapping>,
     ) {
-        // Build a map of provider model -> canonical model
         let mapping_map: HashMap<String, String> = mappings
             .iter()
             .map(|m| (m.provider_model.clone(), m.canonical_model.clone()))
             .collect();
 
-        // Find unmapped models
         for model in &fetched_models {
             if !mapping_map.contains_key(model) {
                 self.unmapped_models.push(ProviderModelPair {
@@ -97,7 +95,6 @@ impl MappingReport {
             }
         }
 
-        // Track canonical models used and build flat mapping list
         for (model, canonical) in &mapping_map {
             self.canonical_models_used.insert(canonical.clone());
             self.mapped_models.push(MappingEntry {
@@ -107,7 +104,6 @@ impl MappingReport {
             });
         }
 
-        // Store mappings and counts
         self.all_mappings.insert(provider_name.to_string(), mappings);
         self.model_counts.insert(provider_name.to_string(), fetched_models.len());
     }
@@ -118,7 +114,6 @@ impl MappingReport {
         println!("{}", "=".repeat(80));
         println!("\nGenerated: {}\n", self.timestamp);
 
-        // Print model counts per provider
         println!("Models Checked Per Provider:");
         println!("{}", "-".repeat(80));
         let mut providers: Vec<_> = self.model_counts.iter().collect();
@@ -133,7 +128,6 @@ impl MappingReport {
                      provider, count, mapped, unmapped);
         }
 
-        // Print unmapped models
         println!("\n{}", "=".repeat(80));
         println!("UNMAPPED MODELS ({})", self.unmapped_models.len());
         println!("{}", "=".repeat(80));
@@ -162,7 +156,6 @@ impl MappingReport {
             }
         }
 
-        // Print canonical models used
         println!("\n{}", "=".repeat(80));
         println!("CANONICAL MODELS REFERENCED ({})", self.canonical_models_used.len());
         println!("{}", "=".repeat(80));
@@ -184,8 +177,6 @@ impl MappingReport {
         println!("CHANGES SINCE PREVIOUS RUN");
         println!("{}", "=".repeat(80));
 
-        // Build lookup maps for current and previous mappings
-        // Key: (provider, model), Value: canonical model
         let mut prev_map: HashMap<(String, String), String> = HashMap::new();
         for entry in &previous.mapped_models {
             prev_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
@@ -196,20 +187,16 @@ impl MappingReport {
             curr_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
         }
 
-        // Find changes
         let mut changed_mappings = Vec::new();
         let mut added_mappings = Vec::new();
         let mut removed_mappings = Vec::new();
 
-        // Check current mappings against previous
         for (key @ (provider, model), canonical) in &curr_map {
             match prev_map.get(key) {
                 Some(prev_canonical) if prev_canonical != canonical => {
-                    // Mapping changed
                     changed_mappings.push((provider.clone(), model.clone(), prev_canonical.clone(), canonical.clone()));
                 }
                 None => {
-                    // New mapping
                     added_mappings.push((provider.clone(), model.clone(), canonical.clone()));
                 }
                 _ => {
@@ -218,14 +205,12 @@ impl MappingReport {
             }
         }
 
-        // Check for removed mappings
         for (key @ (provider, model), canonical) in &prev_map {
             if !curr_map.contains_key(key) {
                 removed_mappings.push((provider.clone(), model.clone(), canonical.clone()));
             }
         }
 
-        // Print changes
         if changed_mappings.is_empty() && added_mappings.is_empty() && removed_mappings.is_empty() {
             println!("\nNo changes in model mappings.");
         } else {
@@ -282,7 +267,6 @@ async fn check_provider(
 ) -> Result<(Vec<String>, Vec<ModelMapping>)> {
     println!("Checking provider: {}", provider_name);
 
-    // Create provider instance (using a default model for initialization)
     let provider = match create_with_named_model(provider_name, model_for_init).await {
         Ok(p) => p,
         Err(e) => {
@@ -292,7 +276,6 @@ async fn check_provider(
         }
     };
 
-    // Fetch supported models
     let fetched_models = match provider.fetch_supported_models().await {
         Ok(Some(models)) => {
             println!("  ✓ Fetched {} models", models.len());
@@ -309,7 +292,6 @@ async fn check_provider(
         }
     };
 
-    // Map each fetched model to canonical model
     let mut mappings = Vec::new();
     for model in &fetched_models {
         match provider.map_to_canonical_model(model).await {
@@ -346,17 +328,14 @@ async fn main() -> Result<()> {
 
     let mut report = MappingReport::new();
 
-    // Check each provider
     for (provider_name, default_model) in providers {
         let (fetched, mappings) = check_provider(provider_name, default_model).await?;
         report.add_provider_results(provider_name, fetched, mappings);
         println!();
     }
 
-    // Print summary
     report.print_summary();
 
-    // Parse command line arguments
     let args: Vec<String> = std::env::args().collect();
     let output_path = if args.len() > 2 && args[1] == "--output" {
         PathBuf::from(&args[2])
@@ -365,14 +344,12 @@ async fn main() -> Result<()> {
             .join("src/providers/canonical/data/canonical_mapping_report.json")
     };
 
-    // Try to compare with previous run
     if output_path.exists() {
         if let Ok(previous) = MappingReport::load_from_file(&output_path) {
             report.compare_with_previous(&previous);
         }
     }
 
-    // Save report
     report.save_to_file(&output_path)?;
     println!("\n✓ Report saved to: {}", output_path.display());
 
