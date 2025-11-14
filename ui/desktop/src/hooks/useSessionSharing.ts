@@ -85,11 +85,11 @@ export const useSessionSharing = ({
 
   // Force update the session ID to match Matrix room when in Matrix mode
   useEffect(() => {
-    if (initialRoomId && sessionId.startsWith('!') && sessionId !== state.sessionId) {
-      console.log('🔄 useSessionSharing: Updating sessionId to match Matrix room:', sessionId);
+    if (initialRoomId && initialRoomId.startsWith('!') && sessionId !== initialRoomId) {
+      console.log('🔄 useSessionSharing: Updating sessionId to match Matrix room:', initialRoomId);
       setState(prev => ({
         ...prev,
-        sessionId: sessionId,
+        sessionId: initialRoomId, // Use the Matrix room ID as the session ID
         roomId: initialRoomId,
         isShared: true,
         isHost: false,
@@ -208,7 +208,9 @@ export const useSessionSharing = ({
           const isFromCurrentRoom = !roomId || roomId === sessionId; // Either no roomId filter or matches current room
           const isSessionMatch = messageData.sessionId === sessionId;
           
-          const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : isSessionMatch;
+          // For Matrix rooms, prioritize room ID matching over session ID matching
+          // This handles cases where messages have regular session IDs but are sent in Matrix rooms
+          const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : (isSessionMatch || isFromCurrentRoom);
           
           console.log('🔍 Session message processing check:', {
             messageSessionId: messageData.sessionId,
