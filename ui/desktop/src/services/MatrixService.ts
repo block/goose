@@ -379,18 +379,29 @@ export class MatrixService extends EventEmitter {
   private setupEventListeners(): void {
     if (!this.client) return;
 
+    console.log('🔧 MatrixService: Setting up event listeners');
+
     this.client.on('sync', (state, prevState, data) => {
+      console.log('🔄 MatrixService sync state:', state, '(was:', prevState, ')');
       this.syncState = state;
       this.emit('sync', { state, prevState, data });
       
       if (state === 'PREPARED') {
         // Clear all caches when sync is prepared to get fresh data
         this.clearAllCaches();
+        console.log('✅ MatrixService: Sync prepared, emitting ready event');
         this.emit('ready');
       }
     });
 
     this.client.on('Room.timeline', (event, room, toStartOfTimeline) => {
+      console.log('🔍 MatrixService: Room.timeline event:', {
+        eventType: event.getType(),
+        roomId: room.roomId,
+        sender: event.getSender(),
+        toStartOfTimeline
+      });
+      
       if (event.getType() === 'm.room.message') {
         this.handleMessage(event, room);
       }
@@ -504,6 +515,16 @@ export class MatrixService extends EventEmitter {
     const content = event.getContent();
     const sender = event.getSender();
     const isFromSelf = sender === this.config.userId;
+    
+    // Debug: Log all incoming messages for troubleshooting
+    console.log('🔍 MatrixService.handleMessage called:', {
+      roomId: room.roomId,
+      sender,
+      isFromSelf,
+      contentBody: content.body?.substring(0, 100) + '...',
+      eventType: event.getType(),
+      timestamp: new Date(event.getTs())
+    });
     
     // Get sender information
     const senderUser = this.client?.getUser(sender);
