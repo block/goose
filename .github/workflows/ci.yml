@@ -89,6 +89,8 @@ jobs:
       - name: Lint
         run: |
           source ./bin/activate-hermit
+          # use the non-hermit rust toolchain because the rust-cache action does not
+          # play nicely with hermit-managed rust
           hermit uninstall rustup
           export CARGO_INCREMENTAL=0
           ./scripts/clippy-lint.sh
