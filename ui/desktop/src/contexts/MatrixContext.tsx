@@ -122,7 +122,10 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
   }, [matrixService]);
 
   const updateData = () => {
-    setCurrentUser(matrixService.getCurrentUser());
+    console.log('MatrixContext - updateData called');
+    const user = matrixService.getCurrentUser();
+    console.log('MatrixContext - updated currentUser:', user);
+    setCurrentUser(user);
     setFriends(matrixService.getFriends());
     setRooms(matrixService.getRooms());
   };
@@ -144,7 +147,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
   };
 
   const addFriend = async (userId: string) => {
-    await matrixService.createDirectMessage(userId);
+    await matrixService.addFriend(userId);
     // Data will be updated via the membershipChange event
   };
 

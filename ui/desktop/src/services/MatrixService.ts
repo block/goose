@@ -41,6 +41,9 @@ export class MatrixService extends EventEmitter {
   private config: MatrixConfig;
   private syncState: 'PREPARED' | 'SYNCING' | 'ERROR' | 'STOPPED' = 'STOPPED';
   private readonly STORAGE_KEY = 'goose-matrix-credentials';
+  private cachedCurrentUser: MatrixUser | null = null;
+  private cachedFriends: MatrixUser[] | null = null;
+  private cachedRooms: MatrixRoom[] | null = null;
 
   constructor(config: MatrixConfig) {
     super();
@@ -325,6 +328,16 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Clear all caches
+   */
+  private clearAllCaches(): void {
+    console.log('MatrixService - clearing all caches');
+    this.cachedCurrentUser = null;
+    this.cachedFriends = null;
+    this.cachedRooms = null;
+  }
+
+  /**
    * Setup event listeners for Matrix events
    */
   private setupEventListeners(): void {
@@ -335,6 +348,8 @@ export class MatrixService extends EventEmitter {
       this.emit('sync', { state, prevState, data });
       
       if (state === 'PREPARED') {
+        // Clear all caches when sync is prepared to get fresh data
+        this.clearAllCaches();
         this.emit('ready');
       }
     });
@@ -346,11 +361,53 @@ export class MatrixService extends EventEmitter {
     });
 
     this.client.on('RoomMember.membership', (event, member) => {
+      // Clear caches when membership changes (affects friends and rooms)
+      this.cachedFriends = null;
+      this.cachedRooms = null;
+      
+      // Clear current user cache if our own membership changes
+      if (member.userId === this.config.userId) {
+        this.cachedCurrentUser = null;
+      }
+      
       this.emit('membershipChange', { event, member });
     });
 
     this.client.on('User.presence', (event, user) => {
+      // Clear friends cache when any user's presence changes (affects friend presence)
+      this.cachedFriends = null;
+      
+      // Clear current user cache if our own presence changes
+      if (user.userId === this.config.userId) {
+        this.cachedCurrentUser = null;
+      }
+      
       this.emit('presenceChange', { event, user });
+    });
+
+    // Listen for user profile updates
+    this.client.on('User.avatarUrl', (event, user) => {
+      if (user.userId === this.config.userId) {
+        console.log('User.avatarUrl event - clearing current user cache for:', user.userId);
+        this.cachedCurrentUser = null;
+      } else {
+        // Clear friends cache if any friend's avatar changes
+        console.log('User.avatarUrl event - clearing friends cache for friend:', user.userId);
+        this.cachedFriends = null;
+        this.cachedRooms = null;
+      }
+    });
+
+    this.client.on('User.displayName', (event, user) => {
+      if (user.userId === this.config.userId) {
+        console.log('User.displayName event - clearing current user cache for:', user.userId);
+        this.cachedCurrentUser = null;
+      } else {
+        // Clear friends cache if any friend's display name changes
+        console.log('User.displayName event - clearing friends cache for friend:', user.userId);
+        this.cachedFriends = null;
+        this.cachedRooms = null;
+      }
     });
   }
 
@@ -495,25 +552,49 @@ export class MatrixService extends EventEmitter {
   getRooms(): MatrixRoom[] {
     if (!this.client) return [];
 
-    return this.client.getRooms().map(room => ({
+    // Return cached rooms if available
+    if (this.cachedRooms) {
+      console.log('getRooms - returning cached rooms:', this.cachedRooms.length);
+      return this.cachedRooms;
+    }
+
+    console.log('getRooms - fetching fresh room data');
+    
+    this.cachedRooms = this.client.getRooms().map(room => ({
       roomId: room.roomId,
       name: room.name,
       topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic,
-      members: room.getMembers().map(member => ({
-        userId: member.userId,
-        displayName: member.name,
-        avatarUrl: member.getAvatarUrl(this.config.homeserverUrl, 32, 32, 'crop'),
-        presence: this.client?.getUser(member.userId)?.presence,
-      })),
+      members: room.getMembers().map(member => {
+        // Get MXC avatar URL and ensure it's stable
+        const mxcAvatarUrl = member.getMxcAvatarUrl();
+        
+        return {
+          userId: member.userId,
+          displayName: member.name,
+          avatarUrl: mxcAvatarUrl || null, // Ensure null instead of undefined
+          presence: this.client?.getUser(member.userId)?.presence,
+        };
+      }),
       isDirectMessage: room.getMembers().length === 2,
       lastActivity: new Date(room.getLastActiveTimestamp()),
     }));
+
+    console.log('getRooms - cached new room data:', this.cachedRooms.length);
+    return this.cachedRooms;
   }
 
   /**
    * Get friends (users in direct message rooms)
    */
   getFriends(): MatrixUser[] {
+    // Return cached friends if available
+    if (this.cachedFriends) {
+      console.log('getFriends - returning cached friends:', this.cachedFriends.length);
+      return this.cachedFriends;
+    }
+
+    console.log('getFriends - fetching fresh friend data');
+    
     const friends = new Map<string, MatrixUser>();
     
     this.getRooms()
@@ -526,7 +607,10 @@ export class MatrixService extends EventEmitter {
         });
       });
 
-    return Array.from(friends.values());
+    this.cachedFriends = Array.from(friends.values());
+    
+    console.log('getFriends - cached new friend data:', this.cachedFriends.length);
+    return this.cachedFriends;
   }
 
   /**
@@ -551,9 +635,9 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
-   * Create a direct message room with a user
+   * Add a friend by creating a direct message room
    */
-  async createDirectMessage(userId: string): Promise<string> {
+  async addFriend(userId: string): Promise<string> {
     if (!this.client) {
       throw new Error('Client not initialized');
     }
@@ -565,6 +649,13 @@ export class MatrixService extends EventEmitter {
     });
 
     return room.room_id;
+  }
+
+  /**
+   * Create a direct message room with a user
+   */
+  async createDirectMessage(userId: string): Promise<string> {
+    return this.addFriend(userId);
   }
 
   /**
@@ -617,16 +708,92 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Get media as blob URL for authenticated access
+   */
+  async getAuthenticatedMediaBlob(mxcUrl: string): Promise<string | null> {
+    if (!this.client || !mxcUrl || !mxcUrl.startsWith('mxc://')) {
+      return null;
+    }
+
+    try {
+      console.log('getAuthenticatedMediaBlob - fetching:', mxcUrl);
+      
+      // Use the Matrix client's authenticated HTTP client to fetch the media
+      const httpUrl = this.client.mxcUrlToHttp(mxcUrl, 64, 64, 'crop', true);
+      if (!httpUrl) {
+        console.error('Failed to convert MXC URL to HTTP URL');
+        return null;
+      }
+
+      console.log('getAuthenticatedMediaBlob - HTTP URL:', httpUrl);
+
+      // Get the access token and make an authenticated request
+      const accessToken = this.client.getAccessToken();
+      if (!accessToken) {
+        console.error('No access token available');
+        return null;
+      }
+
+      // Fetch with authentication header
+      const response = await fetch(httpUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch media:', response.status, response.statusText);
+        return null;
+      }
+
+      // Convert to blob and create object URL
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      console.log('getAuthenticatedMediaBlob - created blob URL:', blobUrl);
+      return blobUrl;
+    } catch (error) {
+      console.error('Failed to get authenticated media blob:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get current user info
    */
   getCurrentUser(): MatrixUser | null {
     if (!this.client || !this.config.userId) return null;
 
+    // Return cached user if available and stable
+    if (this.cachedCurrentUser) {
+      console.log('getCurrentUser - returning cached user:', this.cachedCurrentUser);
+      return this.cachedCurrentUser;
+    }
+
     const user = this.client.getUser(this.config.userId);
+    
+    // Debug logging
+    console.log('getCurrentUser - raw user object:', user);
+    console.log('getCurrentUser - raw avatarUrl:', user?.avatarUrl);
+    
+    // Only cache if we have valid data
+    if (user && user.avatarUrl !== undefined) {
+      this.cachedCurrentUser = {
+        userId: this.config.userId,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl, // Keep MXC URL as-is
+        presence: user.presence,
+      };
+      
+      console.log('getCurrentUser - cached new user data:', this.cachedCurrentUser);
+      return this.cachedCurrentUser;
+    }
+    
+    // Fallback for when user data is not yet available
     return {
       userId: this.config.userId,
       displayName: user?.displayName,
-      avatarUrl: user?.avatarUrl,
+      avatarUrl: null, // Use null instead of undefined to prevent flickering
       presence: user?.presence,
     };
   }
@@ -640,6 +807,8 @@ export class MatrixService extends EventEmitter {
     }
 
     try {
+      console.log('setAvatar - uploading file:', file.name, file.type);
+      
       // Upload the file to Matrix media repository
       const uploadResponse = await this.client.uploadContent(file, {
         name: file.name,
@@ -647,9 +816,17 @@ export class MatrixService extends EventEmitter {
       });
 
       const avatarUrl = uploadResponse.content_uri;
+      console.log('setAvatar - upload response MXC URL:', avatarUrl);
 
       // Set the avatar URL in the user's profile
       await this.client.setAvatarUrl(avatarUrl);
+      console.log('setAvatar - avatar URL set on profile');
+
+      // Clear cache to force refresh
+      this.cachedCurrentUser = null;
+
+      // Wait a moment for the change to propagate
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Emit avatar updated event
       this.emit('avatarUpdated', avatarUrl);
@@ -671,6 +848,10 @@ export class MatrixService extends EventEmitter {
 
     try {
       await this.client.setAvatarUrl('');
+      
+      // Clear cache to force refresh
+      this.cachedCurrentUser = null;
+      
       this.emit('avatarUpdated', null);
     } catch (error) {
       console.error('Failed to remove avatar:', error);
@@ -688,6 +869,10 @@ export class MatrixService extends EventEmitter {
 
     try {
       await this.client.setDisplayName(displayName);
+      
+      // Clear cache to force refresh
+      this.cachedCurrentUser = null;
+      
       this.emit('displayNameUpdated', displayName);
     } catch (error) {
       console.error('Failed to set display name:', error);

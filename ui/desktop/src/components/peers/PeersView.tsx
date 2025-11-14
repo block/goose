@@ -16,8 +16,128 @@ import {
   Upload
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
-import { MatrixUser } from '../../services/MatrixService';
+import { MatrixUser, matrixService } from '../../services/MatrixService';
 import MatrixAuth from './MatrixAuth';
+
+// Helper function to handle avatar URLs (now handled by MatrixService)
+const convertMxcToHttp = (avatarUrl: string): string => {
+  // The MatrixService now handles MXC URL conversion using the Matrix client's built-in method
+  // So we just return the URL as-is
+  return avatarUrl;
+};
+
+// Component that displays avatar with authenticated fetching and fallback to initials
+const AvatarImage: React.FC<{
+  avatarUrl?: string;
+  displayName?: string;
+  className?: string;
+  onError?: () => void;
+}> = ({ avatarUrl, displayName, className, onError }) => {
+  const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+  const [showInitials, setShowInitials] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const blobUrlRef = React.useRef<string | null>(null);
+
+  // Fetch authenticated blob when avatarUrl changes
+  React.useEffect(() => {
+    console.log('AvatarImage useEffect - avatarUrl changed:', avatarUrl);
+    
+    if (!avatarUrl || !avatarUrl.startsWith('mxc://')) {
+      // If it's not an MXC URL, use it directly
+      console.log('AvatarImage - using non-MXC URL directly:', avatarUrl);
+      setBlobUrl(avatarUrl || null);
+      setShowInitials(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setShowInitials(false);
+    
+    // Clean up previous blob URL
+    if (blobUrlRef.current && blobUrlRef.current.startsWith('blob:')) {
+      console.log('AvatarImage - cleaning up previous blob URL:', blobUrlRef.current);
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setBlobUrl(null);
+
+    console.log('AvatarImage - fetching authenticated blob for:', avatarUrl);
+
+    // Fetch authenticated blob
+    matrixService.getAuthenticatedMediaBlob(avatarUrl)
+      .then((url) => {
+        if (url) {
+          console.log('AvatarImage - blob URL created successfully:', url);
+          blobUrlRef.current = url;
+          setBlobUrl(url);
+        } else {
+          console.log('AvatarImage - failed to get authenticated blob for:', avatarUrl);
+          setShowInitials(true);
+          onError?.();
+        }
+      })
+      .catch((error) => {
+        console.error('AvatarImage - error getting authenticated blob:', error);
+        setShowInitials(true);
+        onError?.();
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    // Cleanup function
+    return () => {
+      if (blobUrlRef.current && blobUrlRef.current.startsWith('blob:')) {
+        console.log('AvatarImage - cleanup: revoking blob URL:', blobUrlRef.current);
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [avatarUrl, onError]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (blobUrlRef.current && blobUrlRef.current.startsWith('blob:')) {
+        console.log('AvatarImage - unmount cleanup: revoking blob URL:', blobUrlRef.current);
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleImageError = () => {
+    console.log('AvatarImage - image failed to load blob URL:', blobUrl, 'for avatar:', avatarUrl);
+    setShowInitials(true);
+    onError?.();
+  };
+
+  const handleImageLoad = () => {
+    console.log('AvatarImage - image loaded successfully from blob URL:', blobUrl, 'for avatar:', avatarUrl);
+    setShowInitials(false);
+  };
+
+  if (!avatarUrl || showInitials || isLoading || !blobUrl) {
+    const displayText = isLoading ? '...' : (displayName || 'U').charAt(0).toUpperCase();
+    console.log('AvatarImage - showing initials:', displayText, 'state:', { avatarUrl, showInitials, isLoading, blobUrl });
+    return (
+      <span className="text-lg font-medium text-text-on-accent">
+        {displayText}
+      </span>
+    );
+  }
+
+  console.log('AvatarImage - rendering image with blob URL:', blobUrl, 'for avatar:', avatarUrl);
+  return (
+    <img
+      src={blobUrl}
+      alt={displayName}
+      className={className}
+      onLoad={handleImageLoad}
+      onError={handleImageError}
+    />
+  );
+};
 
 interface PeersViewProps {
   onClose?: () => void;
@@ -84,13 +204,12 @@ const PeerCard: React.FC<{
       {/* Avatar in top left */}
       <div className="relative w-fit">
         <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
-          {peer.avatarUrl ? (
-            <img src={peer.avatarUrl} alt={peer.displayName} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-lg font-medium text-text-on-accent">
-              {(peer.displayName || peer.userId).charAt(0).toUpperCase()}
-            </span>
-          )}
+          <AvatarImage
+            avatarUrl={peer.avatarUrl}
+            displayName={peer.displayName}
+            className="w-full h-full object-cover"
+            onError={() => console.log('Peer avatar fallback to initials for:', peer.userId)}
+          />
         </div>
         {/* Status dot */}
         <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default ${
@@ -344,13 +463,12 @@ const AddFriendModal: React.FC<{
                   className="flex items-center gap-3 p-3 rounded-lg border border-border-default hover:bg-background-medium transition-colors"
                 >
                   <div className="w-10 h-10 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
-                    {user.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-sm font-medium text-text-on-accent">
-                        {(user.displayName || user.userId).charAt(0).toUpperCase()}
-                      </span>
-                    )}
+                    <AvatarImage
+                      avatarUrl={user.avatarUrl}
+                      displayName={user.displayName}
+                      className="w-full h-full object-cover"
+                      onError={() => console.log('Search result avatar fallback to initials for:', user.userId)}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-text-default truncate">
@@ -468,7 +586,12 @@ const AvatarUploadModal: React.FC<{
         <div className="flex flex-col items-center mb-6">
           <div className="w-24 h-24 bg-background-accent rounded-full flex items-center justify-center overflow-hidden mb-4">
             {currentAvatar ? (
-              <img src={currentAvatar} alt="Current avatar" className="w-full h-full object-cover" />
+              <AvatarImage
+                avatarUrl={currentAvatar}
+                displayName="Current avatar"
+                className="w-full h-full object-cover"
+                onError={() => console.log('Avatar upload modal - current avatar failed to load')}
+              />
             ) : (
               <Camera className="w-8 h-8 text-text-on-accent" />
             )}
@@ -546,6 +669,11 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
+  // Debug log for avatar modal state
+  useEffect(() => {
+    console.log('showAvatarModal changed:', showAvatarModal);
+  }, [showAvatarModal]);
+
   // Show Matrix auth if not connected
   useEffect(() => {
     if (!isConnected && !showMatrixAuth) {
@@ -621,6 +749,23 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     await removeAvatar();
   };
 
+  // Debug logs
+  console.log('PeersView render - isConnected:', isConnected, 'currentUser:', currentUser, 'showMatrixAuth:', showMatrixAuth);
+  console.log('PeersView render - friends:', friends);
+  
+  // Debug avatar URLs
+  if (currentUser?.avatarUrl) {
+    console.log('Current user avatar URL:', currentUser.avatarUrl);
+    console.log('Converted avatar URL:', convertMxcToHttp(currentUser.avatarUrl));
+  }
+  
+  // Debug friend avatars
+  friends.forEach(friend => {
+    if (friend.avatarUrl) {
+      console.log(`Friend ${friend.displayName || friend.userId} avatar URL:`, friend.avatarUrl);
+    }
+  });
+
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
@@ -634,25 +779,20 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       {currentUser && (
         <div className="pt-14 pb-4 px-4 mb-0.5 bg-background-default rounded-2xl">
           <div className="flex items-end gap-3">
-            <div className="relative group">
-              <button
-                onClick={() => setShowAvatarModal(true)}
-                className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-background-accent hover:ring-offset-2 transition-all duration-200 group"
-                title="Change Avatar"
-              >
-                {currentUser.avatarUrl ? (
-                  <img src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-sm font-medium text-text-on-accent">
-                    {(currentUser.displayName || currentUser.userId).charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </button>
-              {/* Camera overlay on hover */}
-              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <Camera className="w-3 h-3 text-white" />
-              </div>
-            </div>
+            <button
+              onClick={() => {
+                console.log('Avatar clicked!');
+                setShowAvatarModal(true);
+              }}
+              className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-background-accent hover:ring-offset-2 transition-all duration-200 cursor-pointer"
+              title="Change Avatar"
+            >
+              <AvatarImage
+                avatarUrl={currentUser.avatarUrl}
+                displayName={currentUser.displayName}
+                className="w-full h-full object-cover"
+              />
+            </button>
             <div className="flex-1">
               <p className="font-medium text-text-default">
                 {currentUser.displayName || currentUser.userId.split(':')[0].substring(1)}
