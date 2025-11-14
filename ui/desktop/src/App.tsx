@@ -38,6 +38,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import { MatrixProvider } from './contexts/MatrixContext';
 import { matrixService } from './services/MatrixService';
 import CollaborationInviteNotification from './components/CollaborationInviteNotification';
+import MessageNotification from './components/MessageNotification';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
@@ -359,6 +360,20 @@ export function AppInner() {
     }
   }, [chat.messages.length, setSearchParams, resetChat]);
 
+  // Handle opening chat from message notifications
+  const handleOpenChat = useCallback((roomId: string, senderId: string) => {
+    console.log('📱 Opening chat for room:', roomId, 'sender:', senderId);
+    
+    // Navigate to peers view with chat parameters
+    navigate('/peers', { 
+      state: { 
+        openChat: true, 
+        roomId, 
+        senderId 
+      } 
+    });
+  }, [navigate]);
+
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
     try {
@@ -633,6 +648,7 @@ export function AppInner() {
         />
       )}
       <CollaborationInviteNotification />
+      <MessageNotification onOpenChat={handleOpenChat} />
     </>
   );
 }

@@ -19,6 +19,8 @@ import { useMatrix } from '../../contexts/MatrixContext';
 import { MatrixUser, matrixService } from '../../services/MatrixService';
 import MatrixAuth from './MatrixAuth';
 import GooseChat from '../GooseChat';
+import MatrixChat from '../MatrixChat';
+import { useLocation } from 'react-router-dom';
 
 // Helper function to handle avatar URLs (now handled by MatrixService)
 const convertMxcToHttp = (avatarUrl: string): string => {
@@ -660,15 +662,31 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     currentUser, 
     friends, 
     addFriend, 
-    createAISession,
+    getOrCreateDirectMessageRoom,
     setAvatar,
     removeAvatar
   } = useMatrix();
+  
+  const location = useLocation();
   
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  
+  // Chat state
+  const [activeChatRoomId, setActiveChatRoomId] = useState<string | null>(null);
+  const [activeChatRecipientId, setActiveChatRecipientId] = useState<string | null>(null);
+
+  // Handle opening chat from notification or route state
+  useEffect(() => {
+    const routeState = location.state as any;
+    if (routeState?.openChat && routeState?.roomId && routeState?.senderId) {
+      console.log('📱 Opening chat from notification:', routeState);
+      setActiveChatRoomId(routeState.roomId);
+      setActiveChatRecipientId(routeState.senderId);
+    }
+  }, [location.state]);
 
   // Debug log for avatar modal state
   useEffect(() => {
@@ -719,13 +737,20 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
 
   const handleStartChat = async (friend: MatrixUser) => {
     try {
-      const sessionName = `Chat with ${friend.displayName || friend.userId}`;
-      const roomId = await createAISession(sessionName, [friend.userId]);
-      console.log('Created AI session:', roomId);
-      // TODO: Navigate to chat with this room
+      console.log('📱 Starting chat with friend:', friend);
+      const roomId = await getOrCreateDirectMessageRoom(friend.userId);
+      console.log('📱 Got/created DM room:', roomId);
+      
+      setActiveChatRoomId(roomId);
+      setActiveChatRecipientId(friend.userId);
     } catch (error) {
-      console.error('Failed to create AI session:', error);
+      console.error('Failed to create/get DM room:', error);
     }
+  };
+
+  const handleCloseChat = () => {
+    setActiveChatRoomId(null);
+    setActiveChatRecipientId(null);
   };
 
   const handleRemoveFriend = (friend: MatrixUser) => {
@@ -911,6 +936,32 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       <AnimatePresence>
         {showMatrixAuth && (
           <MatrixAuth onClose={() => setShowMatrixAuth(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Matrix Chat Overlay */}
+      <AnimatePresence>
+        {activeChatRoomId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-background-default rounded-2xl w-full max-w-4xl mx-4 h-[80vh] overflow-hidden shadow-2xl"
+            >
+              <MatrixChat
+                roomId={activeChatRoomId}
+                recipientId={activeChatRecipientId || undefined}
+                onBack={handleCloseChat}
+                className="h-full"
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
