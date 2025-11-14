@@ -191,7 +191,7 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
-    let session = SessionManager::get_session(&payload.session_id, true)
+    let session = SessionManager::get_session(&payload.session_id, false)
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
@@ -222,27 +222,18 @@ async fn resume_agent(
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 })?;
 
-            let model_name = session
-                .model_config
-                .as_ref()
-                .map(|mc| mc.model_name.clone())
-                .or_else(|| config.get_goose_model().ok())
-                .ok_or_else(|| ErrorResponse {
-                    message: "Could not configure agent: missing model".into(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?;
-
-            let model_config = if session
-                .model_config
-                .as_ref()
-                .is_some_and(|mc| mc.model_name == model_name)
-            {
-                session.model_config.clone().unwrap()
-            } else {
-                ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
-                    message: format!("Could not configure agent: invalid model {}", e),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?
+            let model_config = match session.model_config.clone() {
+                Some(saved_config) => saved_config,
+                None => {
+                    let model_name = config.get_goose_model().map_err(|_| ErrorResponse {
+                        message: "Could not configure agent: missing model".into(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?;
+                    ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
+                        message: format!("Could not configure agent: invalid model {}", e),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?
+                }
             };
 
             let provider =
