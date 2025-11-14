@@ -78,14 +78,12 @@ jobs:
         if: matrix.use-cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
-      # Cache Cargo artifacts for cross-platform builds
       - name: Cache Cargo artifacts (Linux/macOS)
         if: matrix.use-cross
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
-      # Cache Cargo artifacts for Windows builds
       - name: Cache Cargo artifacts (Windows)
         if: matrix.use-docker
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
