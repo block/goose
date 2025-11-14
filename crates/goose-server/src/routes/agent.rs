@@ -15,7 +15,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
-use goose::providers::{create, create_with_named_model};
+use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::session_manager::SessionType;
@@ -213,22 +213,45 @@ async fn resume_agent(
         let config = Config::global();
 
         let provider_result = async {
-            let provider_name: String = config.get_goose_provider().map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing provider".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
+            let provider_name = session
+                .provider_name
+                .clone()
+                .or_else(|| config.get_goose_provider().ok())
+                .ok_or_else(|| ErrorResponse {
+                    message: "Could not configure agent: missing provider".into(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })?;
 
-            let model: String = config.get_goose_model().map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing model".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-
-            let provider = create_with_named_model(&provider_name, &model)
-                .await
-                .map_err(|_| ErrorResponse {
+            let model_name = session
+                .model_config
+                .as_ref()
+                .map(|mc| mc.model_name.clone())
+                .or_else(|| config.get_goose_model().ok())
+                .ok_or_else(|| ErrorResponse {
                     message: "Could not configure agent: missing model".into(),
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 })?;
+
+            let model_config = if session
+                .model_config
+                .as_ref()
+                .is_some_and(|mc| mc.model_name == model_name)
+            {
+                session.model_config.clone().unwrap()
+            } else {
+                ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
+                    message: format!("Could not configure agent: invalid model {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })?
+            };
+
+            let provider =
+                create(&provider_name, model_config)
+                    .await
+                    .map_err(|e| ErrorResponse {
+                        message: format!("Could not create provider: {}", e),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?;
 
             agent
                 .update_provider(provider, &payload.session_id)
