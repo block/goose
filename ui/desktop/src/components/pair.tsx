@@ -100,28 +100,56 @@ export default function Pair({
         }
         
         // Check 3: Content + timestamp + role match (for messages with different IDs but same content)
-        const contentText = Array.isArray(msg.content) 
-          ? msg.content.map(c => c.type === 'text' ? c.text : '').join('')
-          : msg.content;
-        
-        const contentDuplicate = existingMessages.some(existing => {
-          const existingText = Array.isArray(existing.content)
-            ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
-            : existing.content;
+        // Only apply strict content matching for historical sources, be more lenient for real-time
+        if (source === 'matrix-history') {
+          const contentText = Array.isArray(msg.content) 
+            ? msg.content.map(c => c.type === 'text' ? c.text : '').join('')
+            : msg.content;
           
-          // Match if same content, role, and timestamp within 5 seconds
-          return existingText === contentText && 
-                 existing.role === msg.role && 
-                 Math.abs(existing.created - msg.created) <= 5;
-        });
-        
-        if (contentDuplicate) {
-          console.log(`📝 Skipping duplicate message from ${source} (content match):`, {
-            content: contentText.substring(0, 50) + '...',
-            role: msg.role,
-            timestamp: msg.created
+          const contentDuplicate = existingMessages.some(existing => {
+            const existingText = Array.isArray(existing.content)
+              ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
+              : existing.content;
+            
+            // Match if same content, role, and timestamp within 10 seconds (only for history)
+            return existingText === contentText && 
+                   existing.role === msg.role && 
+                   Math.abs(existing.created - msg.created) <= 10;
           });
-          return false;
+          
+          if (contentDuplicate) {
+            console.log(`📝 Skipping duplicate message from ${source} (content match):`, {
+              content: contentText.substring(0, 50) + '...',
+              role: msg.role,
+              timestamp: msg.created
+            });
+            return false;
+          }
+        } else {
+          // For real-time messages, only check for very recent duplicates with exact content
+          const contentText = Array.isArray(msg.content) 
+            ? msg.content.map(c => c.type === 'text' ? c.text : '').join('')
+            : msg.content;
+          
+          const recentDuplicate = existingMessages.some(existing => {
+            const existingText = Array.isArray(existing.content)
+              ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
+              : existing.content;
+            
+            // Only block if exact same content and very recent (within 2 seconds)
+            return existingText === contentText && 
+                   existing.role === msg.role && 
+                   Math.abs(existing.created - msg.created) <= 2;
+          });
+          
+          if (recentDuplicate) {
+            console.log(`📝 Skipping very recent duplicate from ${source}:`, {
+              content: contentText.substring(0, 50) + '...',
+              role: msg.role,
+              timestamp: msg.created
+            });
+            return false;
+          }
         }
         
         return true;
@@ -175,7 +203,13 @@ export default function Pair({
     messages: chat.messages,
     onMessageSync: (message) => {
       // Handle synced messages from Matrix session participants
-      console.log('💬 Synced message from Matrix shared session:', message);
+      console.log('💬 Synced message from Matrix shared session:', {
+        id: message.id,
+        role: message.role,
+        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+        created: message.created,
+        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+      });
       console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
       
       // Only add real-time messages, not historical ones (avoid duplicates with history loading)
@@ -183,9 +217,16 @@ export default function Pair({
       const messageAge = Date.now() / 1000 - message.created;
       const isRecentMessage = messageAge < 30; // Messages within last 30 seconds are considered real-time
       
-      console.log('💬 Message age check:', { messageAge, isRecentMessage, messageId: message.id });
+      console.log('💬 Message age check:', { 
+        messageAge, 
+        isRecentMessage, 
+        messageId: message.id,
+        currentTime: Date.now() / 1000,
+        messageTime: message.created
+      });
       
       if (isRecentMessage) {
+        console.log('✅ Processing real-time message:', message.id);
         // Use centralized message management for real-time messages
         addMessagesToChat([message], 'real-time-sync');
       } else {
