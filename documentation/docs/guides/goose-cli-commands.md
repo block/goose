@@ -105,7 +105,7 @@ Start or resume interactive chat sessions.
 - **`-r, --resume`**: Resume a previous session
 - **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
-- **`--max-tool-repetitions <NUMBER>`**: Set the maximum number times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
+- **`--max-tool-repetitions <NUMBER>`**: Set the maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
 **Extension Options:**
