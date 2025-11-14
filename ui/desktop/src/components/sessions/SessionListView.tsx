@@ -532,33 +532,34 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}
         >
-          <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={handleEditClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Edit session name"
-            >
-              <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
-              title="Delete session"
-            >
-              <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
-            </button>
-            <button
-              onClick={handleExportClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Export session"
-            >
-              <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-            </button>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <button
+                onClick={handleEditClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Edit session name"
+              >
+                <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+                title="Delete session"
+              >
+                <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
+              </button>
+              <button
+                onClick={handleExportClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Export session"
+              >
+                <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-16 break-words">{session.name}</h3>
-
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
               <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
