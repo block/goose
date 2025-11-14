@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
