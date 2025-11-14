@@ -127,10 +127,9 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         });
         navigate(`/pair?${searchParams.toString()}`);
         
-        // Show success notification (but don't block navigation)
-        setTimeout(() => {
-          alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nYou can now collaborate in real-time!`);
-        }, 500);
+        // Add a system message to show the collaboration was accepted
+        // This will be visible in the chat interface
+        console.log('✅ Collaboration invite accepted - system message will be visible in chat');
       }
       
       // Handle regular chat messages as collaboration opportunities

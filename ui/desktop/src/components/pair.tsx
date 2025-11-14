@@ -89,11 +89,38 @@ export default function Pair({
       // Handle synced messages from Matrix session participants
       console.log('💬 Synced message from Matrix shared session:', message);
       console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
-      // Add the synced message to local chat
-      setChat(prevChat => ({
-        ...prevChat,
-        messages: [...prevChat.messages, message],
-      }));
+      
+      // Only add real-time messages, not historical ones (avoid duplicates with history loading)
+      // Skip messages that are older than 30 seconds to avoid processing historical messages as real-time
+      const messageAge = Date.now() / 1000 - message.created;
+      const isRecentMessage = messageAge < 30; // Messages within last 30 seconds are considered real-time
+      
+      console.log('💬 Message age check:', { messageAge, isRecentMessage, messageId: message.id });
+      
+      if (isRecentMessage) {
+        // Check for duplicates before adding
+        setChat(prevChat => {
+          const isDuplicate = prevChat.messages.some(existingMsg => 
+            existingMsg.id === message.id || 
+            (existingMsg.created === message.created && 
+             existingMsg.role === message.role && 
+             JSON.stringify(existingMsg.content) === JSON.stringify(message.content))
+          );
+          
+          if (isDuplicate) {
+            console.log('💬 Skipping duplicate message:', message.id);
+            return prevChat;
+          }
+          
+          console.log('💬 Adding new real-time message:', message.id);
+          return {
+            ...prevChat,
+            messages: [...prevChat.messages, message],
+          };
+        });
+      } else {
+        console.log('💬 Skipping old message (likely from history):', message.id);
+      }
     },
   });
 
