@@ -24,7 +24,7 @@ import { MatrixUser } from '../../services/MatrixService';
 import MatrixAuth from './MatrixAuth';
 
 interface PeersViewProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 const StatusIndicator: React.FC<{ status?: string }> = ({ status }) => {
@@ -419,10 +419,10 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowAddFriendModal(true)}
             disabled={!isConnected}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Add Friend"
           >
-            <UserPlus className="w-4 h-4" />
-            Add Friend
+            <UserPlus className="w-5 h-5" />
           </motion.button>
 
           <button
@@ -431,13 +431,6 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
             title="Matrix Settings"
           >
             <Settings className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
-          >
-            <X className="w-5 h-5" />
           </button>
         </div>
       </div>
