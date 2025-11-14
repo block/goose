@@ -125,46 +125,49 @@ export default function Pair({
             });
             return false;
           }
-        } else {
-          // For real-time messages, only check for very recent duplicates with exact content
+        } else if (source === 'real-time-sync') {
+          // For real-time sync messages, be very lenient - only block exact duplicates with same ID prefix
           const contentText = Array.isArray(msg.content) 
             ? msg.content.map(c => c.type === 'text' ? c.text : '').join('')
             : msg.content;
           
-          const recentDuplicate = existingMessages.some(existing => {
+          // Only block if we have the exact same message from the same source (same ID prefix)
+          const exactDuplicate = existingMessages.some(existing => {
+            // Check if both messages are from the same source type
+            const newIsFromMatrix = msg.id.startsWith('matrix_') || msg.id.startsWith('shared-');
+            const existingIsFromMatrix = existing.id.startsWith('matrix_') || existing.id.startsWith('shared-');
+            
+            // Only compare messages from the same source type
+            if (newIsFromMatrix !== existingIsFromMatrix) {
+              return false;
+            }
+            
             const existingText = Array.isArray(existing.content)
               ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
               : existing.content;
             
-            // Only block if exact same content, same role, and very recent (within 2 seconds)
-            // Also check that it's not the same message ID to avoid blocking legitimate messages
+            // Only block if exact same content, role, and from same source type
             const isSameContent = existingText === contentText;
             const isSameRole = existing.role === msg.role;
-            const isVeryRecent = Math.abs(existing.created - msg.created) <= 2;
-            const isDifferentId = existing.id !== msg.id;
+            const isSameSourceType = newIsFromMatrix === existingIsFromMatrix;
             
-            const wouldBlock = isSameContent && isSameRole && isVeryRecent && isDifferentId;
+            const wouldBlock = isSameContent && isSameRole && isSameSourceType;
             
             if (wouldBlock) {
-              console.log(`🔍 DEDUP: Found potential duplicate for ${source}:`, {
+              console.log(`🔍 DEDUP: Found exact duplicate for ${source} (same source type):`, {
                 newMessage: {
                   id: msg.id,
                   content: contentText.substring(0, 30) + '...',
                   role: msg.role,
-                  timestamp: msg.created
+                  timestamp: msg.created,
+                  isFromMatrix: newIsFromMatrix
                 },
                 existingMessage: {
                   id: existing.id,
                   content: existingText.substring(0, 30) + '...',
                   role: existing.role,
-                  timestamp: existing.created
-                },
-                checks: {
-                  isSameContent,
-                  isSameRole,
-                  isVeryRecent,
-                  isDifferentId,
-                  timeDiff: Math.abs(existing.created - msg.created)
+                  timestamp: existing.created,
+                  isFromMatrix: existingIsFromMatrix
                 }
               });
             }
@@ -172,8 +175,8 @@ export default function Pair({
             return wouldBlock;
           });
           
-          if (recentDuplicate) {
-            console.log(`📝 Skipping very recent duplicate from ${source}:`, {
+          if (exactDuplicate) {
+            console.log(`📝 Skipping exact duplicate from ${source}:`, {
               content: contentText.substring(0, 50) + '...',
               role: msg.role,
               timestamp: msg.created,

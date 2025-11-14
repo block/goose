@@ -82,6 +82,20 @@ export const useSessionSharing = ({
       }));
     }
   }, [initialRoomId, state.roomId]);
+
+  // Force update the session ID to match Matrix room when in Matrix mode
+  useEffect(() => {
+    if (initialRoomId && sessionId.startsWith('!') && sessionId !== state.sessionId) {
+      console.log('🔄 useSessionSharing: Updating sessionId to match Matrix room:', sessionId);
+      setState(prev => ({
+        ...prev,
+        sessionId: sessionId,
+        roomId: initialRoomId,
+        isShared: true,
+        isHost: false,
+      }));
+    }
+  }, [sessionId, initialRoomId, state.sessionId]);
   
   // Log initial state setup for debugging
   useEffect(() => {
