@@ -15,92 +15,26 @@ import {
   Circle,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
-
-// Types for our peer system
-interface Peer {
-  id: string;
-  username: string;
-  displayName: string;
-  avatar?: string;
-  status: 'online' | 'away' | 'busy' | 'offline';
-  lastSeen?: Date;
-  isBlocked?: boolean;
-  publicKey?: string; // For Signal integration later
-}
-
-interface PendingRequest {
-  id: string;
-  username: string;
-  displayName: string;
-  avatar?: string;
-  type: 'incoming' | 'outgoing';
-  timestamp: Date;
-}
+import { useMatrix } from '../../contexts/MatrixContext';
+import { MatrixUser } from '../../services/MatrixService';
+import MatrixAuth from './MatrixAuth';
 
 interface PeersViewProps {
   onClose: () => void;
 }
 
-// Mock data for development
-const mockPeers: Peer[] = [
-  {
-    id: '1',
-    username: 'alice_dev',
-    displayName: 'Alice Johnson',
-    status: 'online',
-    lastSeen: new Date(),
-  },
-  {
-    id: '2',
-    username: 'bob_designer',
-    displayName: 'Bob Smith',
-    status: 'away',
-    lastSeen: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-  },
-  {
-    id: '3',
-    username: 'charlie_pm',
-    displayName: 'Charlie Brown',
-    status: 'busy',
-    lastSeen: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-  },
-  {
-    id: '4',
-    username: 'diana_qa',
-    displayName: 'Diana Prince',
-    status: 'offline',
-    lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-  },
-];
-
-const mockPendingRequests: PendingRequest[] = [
-  {
-    id: '1',
-    username: 'eve_new',
-    displayName: 'Eve Wilson',
-    type: 'incoming',
-    timestamp: new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-  },
-  {
-    id: '2',
-    username: 'frank_dev',
-    displayName: 'Frank Miller',
-    type: 'outgoing',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
-  },
-];
-
-const StatusIndicator: React.FC<{ status: Peer['status'] }> = ({ status }) => {
+const StatusIndicator: React.FC<{ status?: string }> = ({ status }) => {
   const statusConfig = {
     online: { color: 'bg-green-500', label: 'Online' },
-    away: { color: 'bg-yellow-500', label: 'Away' },
-    busy: { color: 'bg-red-500', label: 'Busy' },
+    unavailable: { color: 'bg-yellow-500', label: 'Away' },
     offline: { color: 'bg-gray-400', label: 'Offline' },
   };
 
-  const config = statusConfig[status];
+  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.offline;
   
   return (
     <div className="flex items-center gap-2">
@@ -111,18 +45,18 @@ const StatusIndicator: React.FC<{ status: Peer['status'] }> = ({ status }) => {
 };
 
 const PeerCard: React.FC<{ 
-  peer: Peer; 
-  onStartChat: (peer: Peer) => void;
-  onRemovePeer: (peer: Peer) => void;
+  peer: MatrixUser; 
+  onStartChat: (peer: MatrixUser) => void;
+  onRemovePeer: (peer: MatrixUser) => void;
 }> = ({ peer, onStartChat, onRemovePeer }) => {
   const [showActions, setShowActions] = useState(false);
 
-  const formatLastSeen = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const formatLastSeen = (lastActiveAgo?: number) => {
+    if (!lastActiveAgo) return 'Unknown';
+    
+    const minutes = Math.floor(lastActiveAgo / (1000 * 60));
+    const hours = Math.floor(lastActiveAgo / (1000 * 60 * 60));
+    const days = Math.floor(lastActiveAgo / (1000 * 60 * 60 * 24));
 
     if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes}m ago`;
@@ -139,28 +73,33 @@ const PeerCard: React.FC<{
       {/* Avatar and Info */}
       <div className="flex items-start gap-3">
         <div className="relative">
-          <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center">
-            <span className="text-lg font-medium text-text-on-accent">
-              {peer.displayName.charAt(0).toUpperCase()}
-            </span>
+          <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
+            {peer.avatarUrl ? (
+              <img src={peer.avatarUrl} alt={peer.displayName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-medium text-text-on-accent">
+                {(peer.displayName || peer.userId).charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
           {/* Status dot */}
           <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default ${
-            peer.status === 'online' ? 'bg-green-500' :
-            peer.status === 'away' ? 'bg-yellow-500' :
-            peer.status === 'busy' ? 'bg-red-500' : 'bg-gray-400'
+            peer.presence === 'online' ? 'bg-green-500' :
+            peer.presence === 'unavailable' ? 'bg-yellow-500' : 'bg-gray-400'
           }`} />
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-text-default truncate">{peer.displayName}</h3>
-          <p className="text-sm text-text-muted truncate">@{peer.username}</p>
+          <h3 className="font-medium text-text-default truncate">
+            {peer.displayName || peer.userId.split(':')[0].substring(1)}
+          </h3>
+          <p className="text-sm text-text-muted truncate">{peer.userId}</p>
           <div className="mt-1">
-            <StatusIndicator status={peer.status} />
+            <StatusIndicator status={peer.presence} />
           </div>
-          {peer.status !== 'online' && peer.lastSeen && (
+          {peer.presence !== 'online' && peer.lastActiveAgo && (
             <p className="text-xs text-text-muted mt-1">
-              Last seen {formatLastSeen(peer.lastSeen)}
+              Last seen {formatLastSeen(peer.lastActiveAgo)}
             </p>
           )}
         </div>
@@ -236,102 +175,47 @@ const PeerCard: React.FC<{
   );
 };
 
-const PendingRequestCard: React.FC<{ 
-  request: PendingRequest;
-  onAccept: (request: PendingRequest) => void;
-  onDecline: (request: PendingRequest) => void;
-  onCancel: (request: PendingRequest) => void;
-}> = ({ request, onAccept, onDecline, onCancel }) => {
-  const formatTimestamp = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    return `${hours}h ago`;
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-background-default rounded-xl p-4 border border-border-default"
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-background-accent rounded-full flex items-center justify-center">
-          <span className="text-sm font-medium text-text-on-accent">
-            {request.displayName.charAt(0).toUpperCase()}
-          </span>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-text-default truncate">{request.displayName}</h4>
-          <p className="text-sm text-text-muted truncate">@{request.username}</p>
-          <p className="text-xs text-text-muted mt-1">
-            {request.type === 'incoming' ? 'Wants to be friends' : 'Friend request sent'} • {formatTimestamp(request.timestamp)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {request.type === 'incoming' ? (
-            <>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => onAccept(request)}
-                className="p-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
-                title="Accept request"
-              >
-                <UserCheck className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => onDecline(request)}
-                className="p-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                title="Decline request"
-              >
-                <UserX className="w-4 h-4" />
-              </motion.button>
-            </>
-          ) : (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onCancel(request)}
-              className="p-2 rounded-lg hover:bg-background-medium transition-colors"
-              title="Cancel request"
-            >
-              <X className="w-4 h-4" />
-            </motion.button>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
 const AddFriendModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSendRequest: (username: string) => void;
+  onSendRequest: (userId: string) => void;
 }> = ({ isOpen, onClose, onSendRequest }) => {
-  const [username, setUsername] = useState('');
+  const { searchUsers } = useMatrix();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<MatrixUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim()) return;
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
 
+    setIsSearching(true);
+    try {
+      const results = await searchUsers(searchQuery.trim());
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddFriend = async (userId: string) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onSendRequest(username.trim());
-    setUsername('');
-    setIsLoading(false);
-    onClose();
+    try {
+      await onSendRequest(userId);
+      onClose();
+    } catch (error) {
+      console.error('Failed to add friend:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSearch();
   };
 
   if (!isOpen) return null;
@@ -348,7 +232,7 @@ const AddFriendModal: React.FC<{
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4"
+        className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -361,110 +245,147 @@ const AddFriendModal: React.FC<{
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
+        <form onSubmit={handleSubmit} className="mb-4">
+          <div className="mb-4">
             <label className="block text-sm font-medium text-text-default mb-2">
-              Username
+              Search Users
             </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username (e.g., alice_dev)"
-              className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
-              disabled={isLoading}
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Enter username or display name"
+                className="flex-1 px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
+                disabled={isSearching || isLoading}
+              />
+              <button
+                type="submit"
+                disabled={!searchQuery.trim() || isSearching || isLoading}
+                className="px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSearching ? 'Searching...' : 'Search'}
+              </button>
+            </div>
             <p className="text-xs text-text-muted mt-2">
-              Enter the exact username of the person you want to add as a friend.
+              Search for users by their display name or Matrix ID (e.g., @user:matrix.org)
             </p>
           </div>
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 rounded-lg border border-border-default hover:bg-background-medium transition-colors"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!username.trim() || isLoading}
-              className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Sending...' : 'Send Request'}
-            </button>
-          </div>
         </form>
+
+        {/* Search Results */}
+        <div className="flex-1 overflow-y-auto">
+          {searchResults.length > 0 ? (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-text-muted mb-2">Search Results</h3>
+              {searchResults.map((user) => (
+                <div
+                  key={user.userId}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border-default hover:bg-background-medium transition-colors"
+                >
+                  <div className="w-10 h-10 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-medium text-text-on-accent">
+                        {(user.displayName || user.userId).charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-text-default truncate">
+                      {user.displayName || user.userId.split(':')[0].substring(1)}
+                    </h4>
+                    <p className="text-sm text-text-muted truncate">{user.userId}</p>
+                  </div>
+                  <button
+                    onClick={() => handleAddFriend(user.userId)}
+                    disabled={isLoading}
+                    className="px-3 py-1 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : searchQuery && !isSearching ? (
+            <div className="text-center py-8">
+              <Users className="w-8 h-8 text-text-muted mx-auto mb-2" />
+              <p className="text-text-muted">No users found for "{searchQuery}"</p>
+            </div>
+          ) : !searchQuery ? (
+            <div className="text-center py-8">
+              <Search className="w-8 h-8 text-text-muted mx-auto mb-2" />
+              <p className="text-text-muted">Search for users to add as friends</p>
+            </div>
+          ) : null}
+        </div>
       </motion.div>
     </motion.div>
   );
 };
 
 const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
-  const [peers, setPeers] = useState<Peer[]>(mockPeers);
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>(mockPendingRequests);
+  const { 
+    isConnected, 
+    isReady, 
+    currentUser, 
+    friends, 
+    addFriend, 
+    createAISession 
+  } = useMatrix();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
 
-  // Filter peers based on search query
-  const filteredPeers = peers.filter(peer =>
-    peer.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    peer.username.toLowerCase().includes(searchQuery.toLowerCase())
+  // Show Matrix auth if not connected
+  useEffect(() => {
+    if (!isConnected && !showMatrixAuth) {
+      setShowMatrixAuth(true);
+    }
+  }, [isConnected, showMatrixAuth]);
+
+  // Filter friends based on search query
+  const filteredFriends = friends.filter(friend =>
+    (friend.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+    friend.userId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Group peers by status
-  const onlinePeers = filteredPeers.filter(peer => peer.status === 'online');
-  const offlinePeers = filteredPeers.filter(peer => peer.status !== 'online');
+  // Group friends by status
+  const onlineFriends = filteredFriends.filter(friend => friend.presence === 'online');
+  const offlineFriends = filteredFriends.filter(friend => friend.presence !== 'online');
 
-  const handleStartChat = (peer: Peer) => {
-    // TODO: Implement P2P chat session creation
-    console.log('Starting chat with:', peer);
-    // This will eventually create a shared AI chat session
+  const handleStartChat = async (friend: MatrixUser) => {
+    try {
+      const sessionName = `Chat with ${friend.displayName || friend.userId}`;
+      const roomId = await createAISession(sessionName, [friend.userId]);
+      console.log('Created AI session:', roomId);
+      // TODO: Navigate to chat with this room
+    } catch (error) {
+      console.error('Failed to create AI session:', error);
+    }
   };
 
-  const handleRemovePeer = (peer: Peer) => {
-    setPeers(prev => prev.filter(p => p.id !== peer.id));
+  const handleRemoveFriend = (friend: MatrixUser) => {
+    // TODO: Implement remove friend functionality
+    console.log('Remove friend:', friend);
   };
 
-  const handleAcceptRequest = (request: PendingRequest) => {
-    // Add to friends list
-    const newPeer: Peer = {
-      id: Date.now().toString(),
-      username: request.username,
-      displayName: request.displayName,
-      status: 'online', // Assume they're online when accepted
-      lastSeen: new Date(),
-    };
-    setPeers(prev => [...prev, newPeer]);
-    
-    // Remove from pending requests
-    setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+  const handleSendFriendRequest = async (userId: string) => {
+    try {
+      await addFriend(userId);
+    } catch (error) {
+      console.error('Failed to send friend request:', error);
+      throw error;
+    }
   };
 
-  const handleDeclineRequest = (request: PendingRequest) => {
-    setPendingRequests(prev => prev.filter(r => r.id !== request.id));
-  };
-
-  const handleCancelRequest = (request: PendingRequest) => {
-    setPendingRequests(prev => prev.filter(r => r.id !== request.id));
-  };
-
-  const handleSendFriendRequest = (username: string) => {
-    const newRequest: PendingRequest = {
-      id: Date.now().toString(),
-      username,
-      displayName: username.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      type: 'outgoing',
-      timestamp: new Date(),
-    };
-    setPendingRequests(prev => [...prev, newRequest]);
-  };
-
-  const incomingRequests = pendingRequests.filter(r => r.type === 'incoming');
-  const outgoingRequests = pendingRequests.filter(r => r.type === 'outgoing');
+  // Show Matrix authentication modal
+  if (showMatrixAuth) {
+    return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background-muted">
@@ -474,8 +395,22 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
           <Users className="w-6 h-6 text-text-default" />
           <h1 className="text-2xl font-semibold text-text-default">Friends</h1>
           <span className="px-2 py-1 rounded-full bg-background-accent text-text-on-accent text-sm font-medium">
-            {peers.length}
+            {friends.length}
           </span>
+          {/* Connection Status */}
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <div className="flex items-center gap-1 text-green-600">
+                <Wifi className="w-4 h-4" />
+                <span className="text-xs">Connected</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-red-600">
+                <WifiOff className="w-4 h-4" />
+                <span className="text-xs">Disconnected</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -483,11 +418,20 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowAddFriendModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+            disabled={!isConnected}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserPlus className="w-4 h-4" />
             Add Friend
           </motion.button>
+
+          <button
+            onClick={() => setShowMatrixAuth(true)}
+            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+            title="Matrix Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
 
           <button
             onClick={onClose}
@@ -498,168 +442,126 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border-default bg-background-default">
-        <button
-          onClick={() => setActiveTab('friends')}
-          className={`flex-1 px-6 py-3 text-sm font-medium transition-colors relative ${
-            activeTab === 'friends'
-              ? 'text-text-default border-b-2 border-background-accent'
-              : 'text-text-muted hover:text-text-default'
-          }`}
-        >
-          Friends ({peers.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={`flex-1 px-6 py-3 text-sm font-medium transition-colors relative ${
-            activeTab === 'requests'
-              ? 'text-text-default border-b-2 border-background-accent'
-              : 'text-text-muted hover:text-text-default'
-          }`}
-        >
-          Requests ({pendingRequests.length})
-          {pendingRequests.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-          )}
-        </button>
-      </div>
+      {/* Current User Info */}
+      {currentUser && (
+        <div className="p-4 bg-background-default border-b border-border-default">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
+              {currentUser.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-medium text-text-on-accent">
+                  {(currentUser.displayName || currentUser.userId).charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="font-medium text-text-default">
+                {currentUser.displayName || currentUser.userId.split(':')[0].substring(1)}
+              </p>
+              <p className="text-xs text-text-muted">{currentUser.userId}</p>
+            </div>
+            <StatusIndicator status={currentUser.presence} />
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'friends' ? (
-          <div className="h-full flex flex-col">
-            {/* Search */}
-            <div className="p-6 bg-background-default border-b border-border-default">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input
-                  type="text"
-                  placeholder="Search friends..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
-                />
-              </div>
-            </div>
-
-            {/* Friends List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {filteredPeers.length === 0 ? (
-                <div className="text-center py-12">
-                  <Users className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-text-default mb-2">
-                    {searchQuery ? 'No friends found' : 'No friends yet'}
-                  </h3>
-                  <p className="text-text-muted mb-6">
-                    {searchQuery 
-                      ? 'Try adjusting your search terms'
-                      : 'Add friends to start collaborative AI chat sessions'
-                    }
-                  </p>
-                  {!searchQuery && (
-                    <button
-                      onClick={() => setShowAddFriendModal(true)}
-                      className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
-                    >
-                      Add Your First Friend
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Online Friends */}
-                  {onlinePeers.length > 0 && (
-                    <div>
-                      <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                        <Circle className="w-2 h-2 fill-green-500 text-green-500" />
-                        Online ({onlinePeers.length})
-                      </h2>
-                      <div className="space-y-3">
-                        {onlinePeers.map((peer) => (
-                          <PeerCard
-                            key={peer.id}
-                            peer={peer}
-                            onStartChat={handleStartChat}
-                            onRemovePeer={handleRemovePeer}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Offline Friends */}
-                  {offlinePeers.length > 0 && (
-                    <div>
-                      <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                        <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
-                        Offline ({offlinePeers.length})
-                      </h2>
-                      <div className="space-y-3">
-                        {offlinePeers.map((peer) => (
-                          <PeerCard
-                            key={peer.id}
-                            peer={peer}
-                            onStartChat={handleStartChat}
-                            onRemovePeer={handleRemovePeer}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+        <div className="h-full flex flex-col">
+          {/* Search */}
+          <div className="p-6 bg-background-default border-b border-border-default">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <input
+                type="text"
+                placeholder="Search friends..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
+              />
             </div>
           </div>
-        ) : (
-          /* Requests Tab */
-          <div className="h-full overflow-y-auto p-6 space-y-6">
-            {pendingRequests.length === 0 ? (
+
+          {/* Friends List */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {!isConnected ? (
               <div className="text-center py-12">
-                <AlertCircle className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-default mb-2">No pending requests</h3>
-                <p className="text-text-muted">
-                  Friend requests will appear here when you receive them or send them.
+                <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Not Connected</h3>
+                <p className="text-text-muted mb-6">
+                  Connect to Matrix to see your friends and start collaborative AI sessions.
                 </p>
+                <button
+                  onClick={() => setShowMatrixAuth(true)}
+                  className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                >
+                  Connect to Matrix
+                </button>
+              </div>
+            ) : !isReady ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
+                <p className="text-text-muted">Syncing with Matrix server...</p>
+              </div>
+            ) : filteredFriends.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">
+                  {searchQuery ? 'No friends found' : 'No friends yet'}
+                </h3>
+                <p className="text-text-muted mb-6">
+                  {searchQuery 
+                    ? 'Try adjusting your search terms'
+                    : 'Add friends to start collaborative AI chat sessions'
+                  }
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={() => setShowAddFriendModal(true)}
+                    className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                  >
+                    Add Your First Friend
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                {/* Incoming Requests */}
-                {incomingRequests.length > 0 && (
+                {/* Online Friends */}
+                {onlineFriends.length > 0 && (
                   <div>
                     <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Incoming Requests ({incomingRequests.length})
+                      <Circle className="w-2 h-2 fill-green-500 text-green-500" />
+                      Online ({onlineFriends.length})
                     </h2>
                     <div className="space-y-3">
-                      {incomingRequests.map((request) => (
-                        <PendingRequestCard
-                          key={request.id}
-                          request={request}
-                          onAccept={handleAcceptRequest}
-                          onDecline={handleDeclineRequest}
-                          onCancel={handleCancelRequest}
+                      {onlineFriends.map((friend) => (
+                        <PeerCard
+                          key={friend.userId}
+                          peer={friend}
+                          onStartChat={handleStartChat}
+                          onRemovePeer={handleRemoveFriend}
                         />
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Outgoing Requests */}
-                {outgoingRequests.length > 0 && (
+                {/* Offline Friends */}
+                {offlineFriends.length > 0 && (
                   <div>
                     <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Sent Requests ({outgoingRequests.length})
+                      <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
+                      Offline ({offlineFriends.length})
                     </h2>
                     <div className="space-y-3">
-                      {outgoingRequests.map((request) => (
-                        <PendingRequestCard
-                          key={request.id}
-                          request={request}
-                          onAccept={handleAcceptRequest}
-                          onDecline={handleDeclineRequest}
-                          onCancel={handleCancelRequest}
+                      {offlineFriends.map((friend) => (
+                        <PeerCard
+                          key={friend.userId}
+                          peer={friend}
+                          onStartChat={handleStartChat}
+                          onRemovePeer={handleRemoveFriend}
                         />
                       ))}
                     </div>
@@ -668,7 +570,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
               </>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Add Friend Modal */}
@@ -679,6 +581,13 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
             onClose={() => setShowAddFriendModal(false)}
             onSendRequest={handleSendFriendRequest}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Matrix Auth Modal */}
+      <AnimatePresence>
+        {showMatrixAuth && (
+          <MatrixAuth onClose={() => setShowMatrixAuth(false)} />
         )}
       </AnimatePresence>
     </div>

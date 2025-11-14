@@ -35,6 +35,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, ConfigProvider } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
+import { MatrixProvider } from './contexts/MatrixContext';
+import { matrixService } from './services/MatrixService';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
@@ -638,10 +640,12 @@ export default function App() {
     <ConfigProvider>
       <DraftProvider>
         <ModelAndProviderProvider>
-          <HashRouter>
-            <AppInner />
-          </HashRouter>
-          <AnnouncementModal />
+          <MatrixProvider matrixService={matrixService}>
+            <HashRouter>
+              <AppInner />
+            </HashRouter>
+            <AnnouncementModal />
+          </MatrixProvider>
         </ModelAndProviderProvider>
       </DraftProvider>
     </ConfigProvider>
