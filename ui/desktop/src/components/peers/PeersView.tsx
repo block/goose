@@ -75,12 +75,13 @@ const PeerCard: React.FC<{
       onClick={() => onStartChat(peer)}
       className={`
         relative cursor-pointer group
-        bg-background-default rounded-2xl
+        bg-background-default
         px-6 py-6
         transition-colors duration-200
         hover:bg-background-medium
         aspect-square
         flex flex-col justify-between
+        rounded-2xl
         ${isOnline ? 'ring-1 ring-green-200 bg-green-50/30' : ''}
       `}
     >
@@ -203,7 +204,7 @@ const EmptyPeerTile: React.FC<{ onAddFriend: () => void }> = ({ onAddFriend }) =
       onClick={onAddFriend}
       className="
         relative cursor-pointer group
-        bg-background-default rounded-2xl
+        bg-background-default
         px-6 py-6
         transition-all duration-200
         hover:bg-background-medium
@@ -211,6 +212,7 @@ const EmptyPeerTile: React.FC<{ onAddFriend: () => void }> = ({ onAddFriend }) =
         flex flex-col items-center justify-center
         border-2 border-dashed border-border-default
         hover:border-background-accent
+        rounded-2xl
       "
     >
       {/* Plus icon - hidden by default, shown on hover */}
@@ -540,7 +542,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
           </div>
 
           {/* Friends List */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto">
             {!isConnected ? (
               <div className="text-center py-12">
                 <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
@@ -583,15 +585,17 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 )}
               </div>
             ) : (
-              <>
+              <div className="space-y-2">
                 {/* Online Friends */}
                 {onlineFriends.length > 0 && (
-                  <div>
-                    <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                      <Circle className="w-2 h-2 fill-green-500 text-green-500" />
-                      Online ({onlineFriends.length})
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <>
+                    <div className="px-6 py-4 bg-background-default">
+                      <h2 className="text-sm font-medium text-text-muted flex items-center gap-2">
+                        <Circle className="w-2 h-2 fill-green-500 text-green-500" />
+                        Online ({onlineFriends.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                       {onlineFriends.map((friend) => (
                         <PeerCard
                           key={friend.userId}
@@ -608,17 +612,19 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                         />
                       ))}
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Offline Friends */}
                 {offlineFriends.length > 0 && (
-                  <div>
-                    <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-                      <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
-                      Offline ({offlineFriends.length})
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <>
+                    <div className="px-6 py-4 bg-background-default">
+                      <h2 className="text-sm font-medium text-text-muted flex items-center gap-2">
+                        <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
+                        Offline ({offlineFriends.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                       {offlineFriends.map((friend) => (
                         <PeerCard
                           key={friend.userId}
@@ -635,9 +641,9 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                         />
                       ))}
                     </div>
-                  </div>
+                  </>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
