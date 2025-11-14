@@ -54,6 +54,7 @@ export const useSessionSharing = ({
     onMessage,
     onAIMessage,
     onSessionMessage,
+    sendCollaborationInvite,
     isConnected 
   } = useMatrix();
 
@@ -229,12 +230,32 @@ export const useSessionSharing = ({
         console.log('✅ Invited friend to existing session room');
       }
 
-      // Send a welcome message to the session room
-      const welcomeMessage = `🎉 ${currentUser.displayName || currentUser.userId} invited you to collaborate on: ${sessionTitle}`;
-      console.log('📤 Sending welcome message to session room...');
-      await sendMessage(roomId, welcomeMessage);
+      // Send a Goose collaboration invite instead of a simple welcome message
+      console.log('📤 Sending Goose collaboration invite...');
+      
+      // Use the sendCollaborationInvite from the Matrix context
+      if (sendCollaborationInvite) {
+        await sendCollaborationInvite(
+          roomId, 
+          `Collaborative AI Session: ${sessionTitle}`,
+          ['ai-chat', 'collaboration', 'real-time-sync'],
+          {
+            sessionId,
+            sessionTitle,
+            roomId,
+            inviterName: currentUser.displayName || currentUser.userId,
+            timestamp: new Date().toISOString(),
+          }
+        );
+        console.log('✅ Sent structured Goose collaboration invite');
+      } else {
+        // Fallback to regular message if Goose communication not available
+        const welcomeMessage = `🎉 ${currentUser.displayName || currentUser.userId} invited you to collaborate on: ${sessionTitle}`;
+        await sendMessage(roomId, welcomeMessage);
+        console.log('✅ Sent fallback welcome message');
+      }
 
-      console.log(`✅ Successfully invited ${friendUserId} to session room and sent welcome message`);
+      console.log(`✅ Successfully invited ${friendUserId} to session room and sent invite`);
       
       // Show success feedback
       setState(prev => ({ 
@@ -251,7 +272,7 @@ export const useSessionSharing = ({
       }));
       throw error;
     }
-  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, friends.length]);
+  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, sendCollaborationInvite, friends.length]);
 
   // Join a shared session
   const joinSession = useCallback(async (invitation: SessionInvitation) => {

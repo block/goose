@@ -37,6 +37,7 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 import { MatrixProvider } from './contexts/MatrixContext';
 import { matrixService } from './services/MatrixService';
+import CollaborationInviteNotification from './components/CollaborationInviteNotification';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
@@ -631,6 +632,7 @@ export function AppInner() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
+      <CollaborationInviteNotification />
     </>
   );
 }

@@ -81,13 +81,38 @@ const GooseChat: React.FC = () => {
     }
   };
 
-  const handleAcceptCollaboration = async (messageId: string) => {
-    if (!selectedRoom) return;
-
+  const handleAcceptCollaboration = async (message: GooseChatMessage) => {
     try {
-      await acceptCollaborationInvite(selectedRoom, messageId, ['coding', 'analysis']);
+      console.log('🤝 Accepting collaboration invite:', message);
+      
+      // Extract session details from the message metadata
+      const sessionData = message.metadata;
+      if (!sessionData?.sessionId || !sessionData?.roomId) {
+        console.error('❌ Invalid collaboration invite - missing session data');
+        return;
+      }
+
+      // Accept the collaboration invite via Matrix
+      await acceptCollaborationInvite(message.roomId, message.messageId, ['ai-chat', 'collaboration']);
+      
+      // Navigate to the collaborative session
+      // This would typically involve routing to the chat with the collaborative session active
+      console.log('✅ Accepted collaboration invite, joining session:', {
+        sessionId: sessionData.sessionId,
+        sessionTitle: sessionData.sessionTitle,
+        roomId: sessionData.roomId,
+      });
+      
+      // TODO: Implement navigation to the collaborative chat session
+      // This might involve:
+      // 1. Setting the active chat session to the collaborative one
+      // 2. Navigating to the chat view
+      // 3. Showing the collaborative session UI
+      
+      alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nRoom ID: ${sessionData.roomId}`);
+      
     } catch (error) {
-      console.error('Failed to accept collaboration:', error);
+      console.error('❌ Failed to accept collaboration:', error);
     }
   };
 
@@ -296,15 +321,15 @@ const GooseChat: React.FC = () => {
                   {message.type === 'goose.collaboration.invite' && !isFromSelf && (
                     <div className="mt-2 flex gap-2">
                       <button
-                        onClick={() => handleAcceptCollaboration(message.messageId)}
+                        onClick={() => handleAcceptCollaboration(message)}
                         className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
                       >
-                        Accept Collaboration
+                        Join AI Session
                       </button>
                       <button
                         onClick={() => {
-                          // TODO: Implement decline functionality
                           console.log('Decline collaboration:', message.messageId);
+                          // TODO: Send decline message back
                         }}
                         className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
                       >
