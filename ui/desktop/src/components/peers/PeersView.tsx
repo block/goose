@@ -204,8 +204,6 @@ const EmptyPeerTile: React.FC<{ onAddFriend: () => void }> = ({ onAddFriend }) =
         hover:bg-background-medium
         aspect-square
         flex flex-col items-center justify-center
-        border-2 border-dashed border-border-default
-        hover:border-background-accent
         rounded-2xl
       "
     >
