@@ -72,6 +72,9 @@ export default function Pair({
   
   // Track all message IDs to prevent duplicates across all sources
   const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+  
+  // Track if we've already initialized the chat to prevent reloads from clearing Matrix messages
+  const [hasInitializedChat, setHasInitializedChat] = useState(false);
 
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
@@ -154,19 +157,42 @@ export default function Pair({
 
   useEffect(() => {
     const initializeFromState = async () => {
+      console.log('🔄 initializeFromState called with:', { 
+        agentState, 
+        resumeSessionId, 
+        isMatrixMode, 
+        hasInitializedChat,
+        currentChatMessagesCount: chat.messages?.length || 0 
+      });
+      
+      // Skip initialization if we're in Matrix mode and have already initialized
+      if (isMatrixMode && hasInitializedChat && chat.messages.length > 0) {
+        console.log('⚠️ Skipping chat reload in Matrix mode - already initialized with messages');
+        return;
+      }
+      
       setLoadingChat(true);
       try {
-        const chat = await loadCurrentChat({
+        const loadedChat = await loadCurrentChat({
           resumeSessionId,
           setAgentWaitingMessage,
         });
-        setChat(chat);
+        
+        console.log('📥 loadCurrentChat returned:', { 
+          sessionId: loadedChat.sessionId, 
+          messagesCount: loadedChat.messages?.length || 0,
+          isMatrixMode 
+        });
+        
+        setChat(loadedChat);
+        setHasInitializedChat(true);
+        
         setSearchParams((prev) => {
-          prev.set('resumeSessionId', chat.sessionId);
+          prev.set('resumeSessionId', loadedChat.sessionId);
           return prev;
         });
       } catch (error) {
-        console.log(error);
+        console.log('❌ loadCurrentChat error:', error);
         setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
       } finally {
         setLoadingChat(false);
