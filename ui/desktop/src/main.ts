@@ -51,6 +51,7 @@ import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { initMcpUIProxy } from './proxy';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -1716,6 +1717,8 @@ const focusWindow = () => {
 async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
+
+  await initMcpUIProxy(MAIN_WINDOW_VITE_DEV_SERVER_URL);
 
   registerUpdateIpcHandlers();
 
