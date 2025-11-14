@@ -1,3 +1,4 @@
+use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
@@ -336,10 +337,12 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let session_dir = crate::config::paths::Paths::data_dir().join(SESSIONS_FOLDER);
+    let session_dir = Paths::data_dir().join(SESSIONS_FOLDER);
+
     if !session_dir.exists() {
         fs::create_dir_all(&session_dir)?;
     }
+
     Ok(session_dir)
 }
 
