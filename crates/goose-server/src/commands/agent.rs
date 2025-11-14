@@ -49,7 +49,7 @@ pub async fn run() -> Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = crate::routes::configure(app_state)
+    let app = crate::routes::configure(app_state.clone())
         .layer(middleware::from_fn_with_state(
             secret_key.clone(),
             check_token,
@@ -58,6 +58,13 @@ pub async fn run() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);
+
+    let tunnel_manager = app_state.tunnel_manager.clone();
+    tokio::spawn(async move {
+        // Give time for GUI to render before doing autostart
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+        tunnel_manager.check_auto_start().await;
+    });
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

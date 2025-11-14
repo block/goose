@@ -5,6 +5,7 @@ mod logging;
 mod openapi;
 mod routes;
 mod state;
+mod tunnel;
 
 use clap::{Parser, Subcommand};
 
