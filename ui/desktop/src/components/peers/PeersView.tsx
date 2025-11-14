@@ -397,6 +397,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   // Show Matrix auth if not connected
   useEffect(() => {
@@ -405,11 +406,39 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
-  // Calculate empty tiles to fill the grid (aim for multiples of 6 for visual balance)
+  // Handle window resize for responsive empty tiles
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate empty tiles to fill the entire viewport
   const calculateEmptyTiles = (friendsCount: number) => {
-    if (friendsCount === 0) return 0; // Don't show empty tiles if no friends
-    const remainder = friendsCount % 6;
-    return remainder === 0 ? 0 : 6 - remainder;
+    // Estimate tiles that can fit in viewport
+    // Assuming each tile is roughly 200px (including gaps) and viewport height minus headers
+    const estimatedTileHeight = 200;
+    const headerHeight = 200; // Approximate height of header + user info sections
+    const availableHeight = windowSize.height - headerHeight;
+    
+    // Calculate how many rows can fit
+    const rowsInViewport = Math.floor(availableHeight / estimatedTileHeight);
+    
+    // Calculate tiles per row based on current screen width
+    const screenWidth = windowSize.width;
+    let tilesPerRow = 6; // xl default
+    if (screenWidth < 640) tilesPerRow = 2; // sm
+    else if (screenWidth < 768) tilesPerRow = 3; // md  
+    else if (screenWidth < 1024) tilesPerRow = 4; // lg
+    else if (screenWidth < 1280) tilesPerRow = 5; // xl
+    
+    const totalTilesInViewport = Math.max(rowsInViewport * tilesPerRow, 12); // Minimum 12 tiles (2 rows)
+    const emptyTilesNeeded = Math.max(0, totalTilesInViewport - friendsCount);
+    
+    return emptyTilesNeeded;
   };
 
   const handleStartChat = async (friend: MatrixUser) => {
@@ -530,20 +559,6 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
                 <p className="text-text-muted">Syncing with Matrix server...</p>
-              </div>
-            ) : friends.length === 0 ? (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-default mb-2">No friends yet</h3>
-                <p className="text-text-muted mb-6">
-                  Add friends to start collaborative AI chat sessions
-                </p>
-                <button
-                  onClick={() => setShowAddFriendModal(true)}
-                  className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
-                >
-                  Add Your First Friend
-                </button>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
