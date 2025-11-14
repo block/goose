@@ -197,10 +197,13 @@ export default function Pair({
     chatSessionId: chat.sessionId
   });
   
+  // Initialize session sharing with Matrix room info if available
   const sessionSharing = useSessionSharing({
     sessionId: effectiveSessionId,
     sessionTitle: chat.title || `Matrix Collaboration ${matrixRoomId?.substring(0, 8) || 'Session'}`,
     messages: chat.messages,
+    // Pass Matrix room ID to session sharing so it knows which room to listen to
+    initialRoomId: isMatrixMode ? matrixRoomId : undefined,
     onMessageSync: (message) => {
       // Handle synced messages from Matrix session participants
       console.log('💬 Synced message from Matrix shared session:', {

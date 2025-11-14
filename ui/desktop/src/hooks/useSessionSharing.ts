@@ -35,6 +35,7 @@ interface UseSessionSharingProps {
   onMessageSync?: (message: Message) => void;
   onParticipantJoin?: (participant: SessionParticipant) => void;
   onParticipantLeave?: (userId: string) => void;
+  initialRoomId?: string; // Matrix room ID to listen to for real-time messages
 }
 
 export const useSessionSharing = ({
@@ -44,6 +45,7 @@ export const useSessionSharing = ({
   onMessageSync,
   onParticipantJoin,
   onParticipantLeave,
+  initialRoomId,
 }: UseSessionSharingProps) => {
   const { 
     currentUser, 
@@ -59,14 +61,24 @@ export const useSessionSharing = ({
   } = useMatrix();
 
   const [state, setState] = useState<SharedSessionState>({
-    isShared: false,
+    isShared: !!initialRoomId, // If we have an initial room ID, we're already in a shared session
     sessionId,
     participants: [],
     isHost: false,
-    roomId: null,
+    roomId: initialRoomId || null, // Set the initial room ID if provided
     pendingInvitations: [],
     error: null,
   });
+  
+  // Log initial state setup for debugging
+  useEffect(() => {
+    console.log('🔧 useSessionSharing: Initial state setup:', {
+      sessionId,
+      initialRoomId,
+      isShared: !!initialRoomId,
+      roomId: initialRoomId || null
+    });
+  }, [sessionId, initialRoomId]);
 
   // Use refs to avoid stale closures in event handlers
   const stateRef = useRef(state);
