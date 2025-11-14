@@ -193,6 +193,52 @@ const PeerCard: React.FC<{
   );
 };
 
+const EmptyPeerTile: React.FC<{ onAddFriend: () => void }> = ({ onAddFriend }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onAddFriend}
+      className="
+        relative cursor-pointer group
+        bg-background-default rounded-2xl
+        px-6 py-6
+        transition-all duration-200
+        hover:bg-background-medium
+        aspect-square
+        flex flex-col items-center justify-center
+        border-2 border-dashed border-border-default
+        hover:border-background-accent
+      "
+    >
+      {/* Plus icon - hidden by default, shown on hover */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        whileHover={{ opacity: 1, scale: 1 }}
+        className="opacity-0 group-hover:opacity-100 transition-all duration-200"
+      >
+        <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center mb-3">
+          <UserPlus className="w-6 h-6 text-text-on-accent" />
+        </div>
+        <p className="text-sm font-medium text-text-default text-center">
+          Add Friend
+        </p>
+      </motion.div>
+      
+      {/* Subtle hint when not hovering */}
+      <motion.div
+        className="opacity-100 group-hover:opacity-0 transition-all duration-200 absolute inset-0 flex items-center justify-center"
+      >
+        <div className="w-8 h-8 rounded-full border-2 border-dashed border-text-muted/30 flex items-center justify-center">
+          <div className="w-1 h-1 bg-text-muted/30 rounded-full" />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const AddFriendModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -375,6 +421,13 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   const onlineFriends = filteredFriends.filter(friend => friend.presence === 'online');
   const offlineFriends = filteredFriends.filter(friend => friend.presence !== 'online');
 
+  // Calculate empty tiles to fill the grid (aim for multiples of 6 for visual balance)
+  const calculateEmptyTiles = (friendsCount: number) => {
+    if (friendsCount === 0) return 0; // Don't show empty tiles if no friends
+    const remainder = friendsCount % 6;
+    return remainder === 0 ? 0 : 6 - remainder;
+  };
+
   const handleStartChat = async (friend: MatrixUser) => {
     try {
       const sessionName = `Chat with ${friend.displayName || friend.userId}`;
@@ -547,6 +600,13 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                           onRemovePeer={handleRemoveFriend}
                         />
                       ))}
+                      {/* Empty tiles for online section */}
+                      {Array.from({ length: calculateEmptyTiles(onlineFriends.length) }).map((_, index) => (
+                        <EmptyPeerTile
+                          key={`online-empty-${index}`}
+                          onAddFriend={() => setShowAddFriendModal(true)}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -565,6 +625,13 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                           peer={friend}
                           onStartChat={handleStartChat}
                           onRemovePeer={handleRemoveFriend}
+                        />
+                      ))}
+                      {/* Empty tiles for offline section */}
+                      {Array.from({ length: calculateEmptyTiles(offlineFriends.length) }).map((_, index) => (
+                        <EmptyPeerTile
+                          key={`offline-empty-${index}`}
+                          onAddFriend={() => setShowAddFriendModal(true)}
                         />
                       ))}
                     </div>
