@@ -65,7 +65,7 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, sendGooseMessage, isConnected, isReady, onMessage, onSessionMessage } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, sendGooseMessage, isConnected, isReady, onMessage, onSessionMessage, currentUser } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
   
@@ -393,78 +393,74 @@ export default function Pair({
     addMessagesToChat,
   ]);
 
-  // Periodic Matrix room refresh for real-time sync
+  // Matrix real-time message listener (replaces periodic refresh)
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady) {
       return;
     }
 
-    console.log('🔄 Setting up periodic Matrix room refresh for real-time sync');
+    console.log('🔄 Setting up Matrix real-time message listeners');
 
-    const refreshRoomMessages = async () => {
-      try {
-        console.log('🔄 Refreshing Matrix room messages...');
-        
-        // Fetch the latest room history
-        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 100);
-        console.log('🔄 Fetched', roomHistory.length, 'messages from Matrix room for refresh');
-
-        if (roomHistory.length > 0) {
-          // Convert all Matrix messages to Goose message format
-          const gooseMessages: Message[] = roomHistory.map((msg) => {
-            // Create stable ID based on content and timestamp
-            const contentHash = msg.content.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
-            const stableId = `matrix_${msg.timestamp.getTime()}_${msg.role}_${contentHash}`;
-            
-            return {
-              id: stableId,
-              role: msg.role as 'user' | 'assistant',
-              created: Math.floor(msg.timestamp.getTime() / 1000),
-              content: [
-                {
-                  type: 'text' as const,
-                  text: msg.content,
-                }
-              ],
-              sender: msg.metadata?.senderInfo ? {
-                userId: msg.metadata.senderInfo.userId,
-                displayName: msg.metadata.senderInfo.displayName,
-                avatarUrl: msg.metadata.senderInfo.avatarUrl,
-              } : undefined,
-            };
-          });
-
-          // Replace all messages with the fresh room state
-          console.log('🔄 Updating chat with fresh Matrix room state:', gooseMessages.length, 'messages');
-          
-          setChat(prevChat => ({
-            ...prevChat,
-            messages: gooseMessages.sort((a, b) => a.created - b.created),
-          }));
-        }
-      } catch (error) {
-        console.error('❌ Failed to refresh Matrix room messages:', error);
+    // Listen for new messages in real-time
+    const handleNewMessage = (data: any) => {
+      const { content, sender, roomId, senderInfo } = data;
+      
+      // Only process messages from our Matrix room
+      if (roomId !== matrixRoomId) {
+        return;
       }
+      
+      // Skip messages from ourselves
+      if (sender === currentUser?.userId) {
+        return;
+      }
+      
+      console.log('📨 New Matrix message received:', {
+        sender,
+        content: content?.substring(0, 50) + '...',
+        roomId
+      });
+      
+      // Convert to Goose message format
+      const newMessage: Message = {
+        id: `matrix_${Date.now()}_user_${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        created: Math.floor(Date.now() / 1000),
+        content: [
+          {
+            type: 'text' as const,
+            text: content,
+          }
+        ],
+        sender: senderInfo ? {
+          userId: senderInfo.userId,
+          displayName: senderInfo.displayName,
+          avatarUrl: senderInfo.avatarUrl,
+        } : {
+          userId: sender,
+          displayName: sender.split(':')[0].substring(1),
+        },
+      };
+      
+      // Add to chat using centralized message management
+      addMessagesToChat([newMessage], 'matrix-realtime');
     };
 
-    // Initial refresh after a short delay
-    const initialTimeout = setTimeout(refreshRoomMessages, 2000);
-    
-    // Set up periodic refresh every 3 seconds
-    const refreshInterval = setInterval(refreshRoomMessages, 3000);
+    // Set up real-time listener
+    const cleanup = onMessage(handleNewMessage);
 
     return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(refreshInterval);
-      console.log('🔄 Cleaned up Matrix room refresh interval');
+      cleanup();
+      console.log('🔄 Cleaned up Matrix real-time listeners');
     };
   }, [
     isMatrixMode,
     matrixRoomId,
     isConnected,
     isReady,
-    getRoomHistoryAsGooseMessages,
-    setChat,
+    currentUser,
+    onMessage,
+    addMessagesToChat,
   ]);
 
   // Sync Goose responses to Matrix when they're added to the chat (with debouncing)
