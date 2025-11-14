@@ -106,6 +106,12 @@ export const useSessionSharing = ({
     }
 
     console.log('🔧 useSessionSharing: Setting up Matrix message listeners for session:', sessionId);
+    console.log('🔧 useSessionSharing: Current state when setting up listeners:', {
+      sessionId,
+      roomId: stateRef.current.roomId,
+      isShared: stateRef.current.isShared,
+      participantsCount: stateRef.current.participants.length
+    });
 
     const handleSessionMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;

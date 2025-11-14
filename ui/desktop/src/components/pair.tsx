@@ -456,6 +456,43 @@ export default function Pair({
   console.log('🎯 Is Matrix mode:', isMatrixMode);
   console.log('🎯 Loading states:', { loadingChat, isLoadingMatrixHistory });
 
+  // Add a diagnostic function to test Matrix message reception
+  useEffect(() => {
+    if (!isMatrixMode || !matrixRoomId) return;
+
+    // Create a test function that can be called from the browser console
+    (window as any).testMatrixListeners = () => {
+      console.log('🔍 DIAGNOSTIC: Testing Matrix message listeners');
+      console.log('🔍 Matrix connection state:', { isConnected, isReady });
+      console.log('🔍 Session sharing state:', {
+        isShared: sessionSharing.isShared,
+        roomId: matrixRoomId,
+        effectiveSessionId
+      });
+      
+      // Test if Matrix service is receiving events
+      const testCallback = (data: any) => {
+        console.log('🔍 DIAGNOSTIC: Received test message:', data);
+      };
+      
+      const cleanup1 = onMessage(testCallback);
+      const cleanup2 = onSessionMessage(testCallback);
+      
+      console.log('🔍 DIAGNOSTIC: Set up test listeners, send a message from Matrix web to test');
+      
+      // Clean up after 30 seconds
+      setTimeout(() => {
+        cleanup1();
+        cleanup2();
+        console.log('🔍 DIAGNOSTIC: Cleaned up test listeners');
+      }, 30000);
+    };
+
+    return () => {
+      delete (window as any).testMatrixListeners;
+    };
+  }, [isMatrixMode, matrixRoomId, isConnected, isReady, sessionSharing, effectiveSessionId, onMessage, onSessionMessage]);
+
   return (
     <BaseChat
       chat={chat}
