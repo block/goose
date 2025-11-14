@@ -134,21 +134,47 @@ export const useSessionSharing = ({
         try {
           const messageData = JSON.parse(content.split('goose-session-message:')[1]);
           
-          // In Matrix collaboration, we want to process all session messages from the room
-          // regardless of session ID, since different users have different local session IDs
+          // In Matrix collaboration, we want to process session messages from the current room only
+          // We check both session ID match AND room ID match to avoid cross-contamination
           const isMatrixRoom = sessionId.startsWith('!'); // Matrix room IDs start with !
-          const shouldProcessMessage = isMatrixRoom || messageData.sessionId === sessionId;
+          const isFromCurrentRoom = !roomId || roomId === sessionId; // Either no roomId filter or matches current room
+          const isSessionMatch = messageData.sessionId === sessionId;
+          
+          const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : isSessionMatch;
           
           console.log('🔍 Session message processing check:', {
             messageSessionId: messageData.sessionId,
             currentSessionId: sessionId,
+            messageRoomId: roomId,
             isMatrixRoom,
+            isFromCurrentRoom,
+            isSessionMatch,
             shouldProcessMessage,
-            roomId
+            sender
           });
           
           if (shouldProcessMessage) {
-            // Convert to local message format
+            // Get sender information for proper attribution
+            let senderData = senderInfo;
+            if (!senderData && sender) {
+              // Try to find sender in friends list
+              const friend = friends.find(f => f.userId === sender);
+              if (friend) {
+                senderData = {
+                  userId: friend.userId,
+                  displayName: friend.displayName,
+                  avatarUrl: friend.avatarUrl,
+                };
+              } else {
+                // Fallback to basic sender info from Matrix ID
+                senderData = {
+                  userId: sender,
+                  displayName: sender.split(':')[0].substring(1), // Extract username from Matrix ID
+                };
+              }
+            }
+            
+            // Convert to local message format with proper sender attribution
             const message: Message = {
               id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               role: messageData.role,
@@ -157,12 +183,13 @@ export const useSessionSharing = ({
                 type: 'text',
                 text: messageData.content,
               }],
+              sender: senderData, // Include sender information
             };
             
-            console.log('💬 Syncing message to local session:', message);
+            console.log('💬 Syncing message to local session with sender:', message);
             onMessageSync?.(message);
           } else {
-            console.log('🚫 Skipping session message due to session ID mismatch');
+            console.log('🚫 Skipping session message - not from current room/session');
           }
         } catch (error) {
           console.error('Failed to parse session message:', error);
@@ -244,7 +271,7 @@ export const useSessionSharing = ({
       messageCleanup();
       gooseSessionCleanup();
     };
-  }, [isConnected, sessionId, state.roomId, currentUser?.userId, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
+  }, [isConnected, sessionId, state.roomId, currentUser?.userId, friends, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
 
   // Invite a friend to the current session
   const inviteToSession = useCallback(async (friendUserId: string) => {
