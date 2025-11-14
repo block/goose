@@ -68,9 +68,32 @@ export const useSessionSharing = ({
     error: null,
   });
 
+  // Use refs to avoid stale closures in event handlers
+  const stateRef = useRef(state);
+  const friendsRef = useRef(friends);
+  const currentUserRef = useRef(currentUser);
+  
+  // Update refs when values change
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  
+  useEffect(() => {
+    friendsRef.current = friends;
+  }, [friends]);
+  
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   // Listen for session-related Matrix messages
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected) {
+      console.log('🔌 useSessionSharing: Not connected, skipping listener setup');
+      return;
+    }
+
+    console.log('🔧 useSessionSharing: Setting up Matrix message listeners for session:', sessionId);
 
     const handleSessionMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;
@@ -158,7 +181,7 @@ export const useSessionSharing = ({
             let senderData = senderInfo;
             if (!senderData && sender) {
               // Try to find sender in friends list
-              const friend = friends.find(f => f.userId === sender);
+              const friend = friendsRef.current.find(f => f.userId === sender);
               if (friend) {
                 senderData = {
                   userId: friend.userId,
@@ -201,8 +224,11 @@ export const useSessionSharing = ({
     const handleRegularMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;
       
+      const currentState = stateRef.current;
+      const currentUserFromRef = currentUserRef.current;
+      
       // Only log debug info for messages that might be processed (reduce noise)
-      if (state.roomId && roomId === state.roomId && sender !== currentUser?.userId) {
+      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
         console.log('🔍 Processing message in session room:', { 
           content: content?.substring(0, 50) + '...', 
           sender, 
@@ -211,14 +237,14 @@ export const useSessionSharing = ({
       }
       
       // Only process messages from Matrix rooms that are part of our session
-      if (state.roomId && roomId === state.roomId && sender !== currentUser?.userId) {
+      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
         console.log('💬 Regular message in session room:', { content, sender, roomId, senderInfo });
         
         // Find sender info from friends or participants
         let senderData = senderInfo;
         if (!senderData) {
           // Try to find sender in friends list
-          const friend = friends.find(f => f.userId === sender);
+          const friend = friendsRef.current.find(f => f.userId === sender);
           if (friend) {
             senderData = {
               userId: friend.userId,
@@ -227,7 +253,7 @@ export const useSessionSharing = ({
             };
           } else {
             // Try to find in participants
-            const participant = state.participants.find(p => p.userId === sender);
+            const participant = currentState.participants.find(p => p.userId === sender);
             if (participant) {
               senderData = {
                 userId: participant.userId,
@@ -267,11 +293,17 @@ export const useSessionSharing = ({
     const gooseSessionCleanup = onMessage('gooseSessionSync', handleRegularMessage);
     
     return () => {
+      console.log('🔧 useSessionSharing: Cleaning up Matrix message listeners for session:', sessionId);
       sessionCleanup();
       messageCleanup();
       gooseSessionCleanup();
     };
-  }, [isConnected, sessionId, state.roomId, currentUser?.userId, friends, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
+  }, [isConnected, sessionId, currentUser?.userId, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
+  
+  // Separate effect to log room ID changes without recreating listeners
+  useEffect(() => {
+    console.log('🏠 useSessionSharing: Room ID changed to:', state.roomId);
+  }, [state.roomId]);
 
   // Invite a friend to the current session
   const inviteToSession = useCallback(async (friendUserId: string) => {
