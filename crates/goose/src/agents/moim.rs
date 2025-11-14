@@ -129,6 +129,9 @@ mod tests {
             .iter()
             .any(|c| c.as_text().is_some_and(|t| t.contains("<info-msg>")));
 
-        assert!(has_moim, "MOIM should be in message before latest assistant message");
+        assert!(
+            has_moim,
+            "MOIM should be in message before latest assistant message"
+        );
     }
 }
