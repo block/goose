@@ -445,42 +445,44 @@ function BaseChatContent({
           )}
         </div>
 
-        <div
-          className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
-        >
-          <ChatInput
-            sessionId={chat.sessionId}
-            handleSubmit={handleSubmit}
-            chatState={chatState}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={input || ''}
-            setView={setView}
-            totalTokens={tokenState?.totalTokens || sessionTokenCount}
-            accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens || sessionInputTokens || localInputTokens
-            }
-            accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
-            }
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipe={recipe}
-            recipeId={recipeId}
-            recipeAccepted={recipeAccepted}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            autoSubmit={autoSubmit}
-            append={append}
-            isEditingConversation={isEditingConversation}
-            onEditingConversationChange={setIsEditingConversation}
-            {...customChatInputProps}
-          />
-        </div>
+        {!isEditingConversation && (
+          <div
+            className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+          >
+            <ChatInput
+              sessionId={chat.sessionId}
+              handleSubmit={handleSubmit}
+              chatState={chatState}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              initialValue={input || ''}
+              setView={setView}
+              totalTokens={tokenState?.totalTokens || sessionTokenCount}
+              accumulatedInputTokens={
+                tokenState?.accumulatedInputTokens || sessionInputTokens || localInputTokens
+              }
+              accumulatedOutputTokens={
+                tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
+              }
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              recipe={recipe}
+              recipeId={recipeId}
+              recipeAccepted={recipeAccepted}
+              initialPrompt={initialPrompt}
+              toolCount={toolCount || 0}
+              autoSubmit={autoSubmit}
+              append={append}
+              isEditingConversation={isEditingConversation}
+              onEditingConversationChange={setIsEditingConversation}
+              {...customChatInputProps}
+            />
+          </div>
+        )}
       </MainPanelLayout>
 
       {/* Recipe Warning Modal */}
