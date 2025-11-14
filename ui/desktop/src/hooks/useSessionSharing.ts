@@ -133,7 +133,21 @@ export const useSessionSharing = ({
       if (content.includes('goose-session-message:')) {
         try {
           const messageData = JSON.parse(content.split('goose-session-message:')[1]);
-          if (messageData.sessionId === sessionId) {
+          
+          // In Matrix collaboration, we want to process all session messages from the room
+          // regardless of session ID, since different users have different local session IDs
+          const isMatrixRoom = sessionId.startsWith('!'); // Matrix room IDs start with !
+          const shouldProcessMessage = isMatrixRoom || messageData.sessionId === sessionId;
+          
+          console.log('🔍 Session message processing check:', {
+            messageSessionId: messageData.sessionId,
+            currentSessionId: sessionId,
+            isMatrixRoom,
+            shouldProcessMessage,
+            roomId
+          });
+          
+          if (shouldProcessMessage) {
             // Convert to local message format
             const message: Message = {
               id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -147,6 +161,8 @@ export const useSessionSharing = ({
             
             console.log('💬 Syncing message to local session:', message);
             onMessageSync?.(message);
+          } else {
+            console.log('🚫 Skipping session message due to session ID mismatch');
           }
         } catch (error) {
           console.error('Failed to parse session message:', error);
