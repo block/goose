@@ -7,10 +7,7 @@ mod tests {
     use crate::scenario_tests::mock_client::WEATHER_TYPE;
     use crate::scenario_tests::scenario_runner::run_scenario;
     use anyhow::Result;
-    use serial_test::serial;
-
     #[tokio::test]
-    #[serial]
     async fn test_what_is_your_name() -> Result<()> {
         run_scenario(
             "what_is_your_name",
@@ -30,7 +27,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_weather_tool() -> Result<()> {
         // Google tells me it only knows about the weather in the US, so we skip it.
         run_scenario(
@@ -61,7 +57,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_image_analysis() -> Result<()> {
         // Google says it doesn't know about images, the other providers complain about
         // the image format, so we only run this for OpenAI and Anthropic.

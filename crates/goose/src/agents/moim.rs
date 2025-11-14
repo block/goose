@@ -3,12 +3,18 @@ use crate::conversation::message::Message;
 use crate::conversation::{fix_conversation, Conversation};
 use rmcp::model::Role;
 
+#[doc(hidden)]
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    pub static SKIP: std::cell::Cell<bool> = std::cell::Cell::new(false);
+}
+
 pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
 ) -> Conversation {
-    let config = crate::config::Config::global();
-    if !config.get_param("GOOSE_MOIM_ENABLED").unwrap_or(true) {
+    #[cfg(any(test, feature = "test-support"))]
+    if SKIP.with(|f| f.get()) {
         return conversation;
     }
 

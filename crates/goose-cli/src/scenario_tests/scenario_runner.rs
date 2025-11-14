@@ -141,31 +141,7 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
-    let original_moim = goose::config::Config::global()
-        .get_param::<bool>("GOOSE_MOIM_ENABLED")
-        .ok();
-    goose::config::Config::global()
-        .set_param("GOOSE_MOIM_ENABLED", false)
-        .ok();
-
-    struct MoimGuard(Option<bool>);
-    impl Drop for MoimGuard {
-        fn drop(&mut self) {
-            match self.0 {
-                Some(val) => {
-                    goose::config::Config::global()
-                        .set_param("GOOSE_MOIM_ENABLED", val)
-                        .ok();
-                }
-                None => {
-                    goose::config::Config::global()
-                        .delete("GOOSE_MOIM_ENABLED")
-                        .ok();
-                }
-            }
-        }
-    }
-    let _restore_guard = MoimGuard(original_moim);
+    goose::agents::moim::SKIP.with(|f| f.set(true));
 
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
