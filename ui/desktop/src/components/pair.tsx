@@ -74,6 +74,9 @@ export default function Pair({
   
   // Track if we've already initialized the chat to prevent reloads from clearing Matrix messages
   const [hasInitializedChat, setHasInitializedChat] = useState(false);
+  
+  // Track which messages have been synced to Matrix to prevent duplicates
+  const [syncedMessageIds, setSyncedMessageIds] = useState<Set<string>>(new Set());
 
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
@@ -470,15 +473,19 @@ export default function Pair({
     const lastMessage = chat.messages[chat.messages.length - 1];
     
     if (lastMessage && lastMessage.role === 'assistant') {
-      // Check if this message was generated locally (not from Matrix)
+      // Check if this message was generated locally (not from Matrix) and hasn't been synced yet
       const isFromMatrix = lastMessage.id.startsWith('matrix_');
+      const alreadySynced = syncedMessageIds.has(lastMessage.id);
       
-      if (!isFromMatrix) {
+      if (!isFromMatrix && !alreadySynced) {
         console.log('🤖 Syncing new Goose response to Matrix as separate user:', {
           messageId: lastMessage.id,
           role: lastMessage.role,
           content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
         });
+        
+        // Mark this message as being synced to prevent duplicates
+        setSyncedMessageIds(prev => new Set(prev).add(lastMessage.id));
         
         // Get the message content
         const messageContent = Array.isArray(lastMessage.content) 
@@ -499,14 +506,22 @@ export default function Pair({
           })
           .catch((error) => {
             console.error('❌ Failed to sync Goose response to Matrix as separate user:', error);
+            // Remove from synced set if sync failed so we can retry
+            setSyncedMessageIds(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(lastMessage.id);
+              return newSet;
+            });
             // Fallback to regular message if Goose message fails
             return sendMessage(matrixRoomId, messageContent);
           });
+      } else if (alreadySynced) {
+        console.log('🤖 Skipping Matrix sync - message already synced:', lastMessage.id);
       } else {
         console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
       }
     }
-  }, [chat.messages, isMatrixMode, matrixRoomId, sendMessage, sendGooseMessage]);
+  }, [chat.messages, isMatrixMode, matrixRoomId, sendMessage, sendGooseMessage, syncedMessageIds]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
