@@ -16,25 +16,6 @@ export function createUserMessage(text: string): Message {
   };
 }
 
-export function createToolErrorResponseMessage(id: string, error: string): Message {
-  return {
-    id: generateMessageId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolResponse',
-        id,
-        toolResult: {
-          status: 'error',
-          error,
-        },
-      },
-    ],
-    metadata: { userVisible: true, agentVisible: true },
-  };
-}
-
 export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }

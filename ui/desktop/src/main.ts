@@ -2086,7 +2086,7 @@ async function appMain() {
     }
   });
 
-  ipcMain.on('notify', (_event, data) => {
+  ipcMain.on('notify', (event, data) => {
     try {
       // Validate notification data
       if (!data || typeof data !== 'object') {
@@ -2111,10 +2111,24 @@ async function appMain() {
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
 
       console.log('NOTIFY', data);
-      new Notification({
+      const notification = new Notification({
         title: sanitizeText(data.title),
         body: sanitizeText(data.body),
-      }).show();
+      });
+
+      // Add click handler to focus the window
+      notification.on('click', () => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          if (window.isMinimized()) {
+            window.restore();
+          }
+          window.show();
+          window.focus();
+        }
+      });
+
+      notification.show();
     } catch (error) {
       console.error('Error showing notification:', error);
     }
@@ -2162,39 +2176,6 @@ async function appMain() {
     if (window) {
       window.reload();
     }
-  });
-
-  ipcMain.handle('start-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
-      windowPowerSaveBlockers.set(windowId, blockerId);
-      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      console.log(`[Main] Power save blocker already active for window ${windowId}`);
-    }
-
-    return false;
-  });
-
-  ipcMain.handle('stop-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      powerSaveBlocker.stop(blockerId);
-      windowPowerSaveBlockers.delete(windowId);
-      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    return false;
   });
 
   // Handle metadata fetching from main process

@@ -17,6 +17,8 @@ import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
@@ -32,6 +34,7 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  notifications: NotificationEvent[];
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -62,6 +65,7 @@ async function streamFromResponse(
   updateMessages: (messages: Message[]) => void,
   updateTokenState: (tokenState: TokenState) => void,
   updateChatState: (state: ChatState) => void,
+  updateNotifications: (notification: NotificationEvent) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let currentMessages = initialMessages;
@@ -73,10 +77,18 @@ async function streamFromResponse(
           const msg = event.message;
           currentMessages = pushMessage(currentMessages, msg);
 
-          if (getCompactingMessage(msg)) {
+          const hasToolConfirmation = msg.content.some(
+            (content) => content.type === 'toolConfirmationRequest'
+          );
+
+          if (hasToolConfirmation) {
+            updateChatState(ChatState.WaitingForUserInput);
+          } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
           } else if (getThinkingMessage(msg)) {
             updateChatState(ChatState.Thinking);
+          } else {
+            updateChatState(ChatState.Streaming);
           }
 
           updateTokenState(event.token_state);
@@ -101,7 +113,10 @@ async function streamFromResponse(
           updateMessages(event.conversation);
           break;
         }
-        case 'Notification':
+        case 'Notification': {
+          updateNotifications(event as NotificationEvent);
+          break;
+        }
         case 'Ping':
           break;
       }
@@ -133,6 +148,7 @@ export function useChatStream({
     accumulatedOutputTokens: 0,
     accumulatedTotalTokens: 0,
   });
+  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -146,15 +162,28 @@ export function useChatStream({
     messagesRef.current = newMessages;
   }, []);
 
+  const updateNotifications = useCallback((notification: NotificationEvent) => {
+    setNotifications((prev) => [...prev, notification]);
+  }, []);
+
   const onFinish = useCallback(
     (error?: string): void => {
       if (error) {
         setSessionLoadError(error);
       }
+
+      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
+      if (isNewSession) {
+        console.log(
+          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
+        );
+        window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish]
+    [onStreamFinish, sessionId]
   );
 
   // Load session on mount or sessionId change
@@ -216,9 +245,18 @@ export function useChatStream({
         return;
       }
 
+      if (!userMessage.trim()) {
+        return;
+      }
+
+      if (messagesRef.current.length === 0) {
+        window.dispatchEvent(new CustomEvent('session-created'));
+      }
+
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       updateMessages(currentMessages);
       setChatState(ChatState.Streaming);
+      setNotifications([]);
 
       abortControllerRef.current = new AbortController();
 
@@ -238,6 +276,7 @@ export function useChatStream({
           updateMessages,
           setTokenState,
           setChatState,
+          updateNotifications,
           onFinish
         );
       } catch (error) {
@@ -250,7 +289,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, chatState, updateMessages, onFinish]
+    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
   );
 
   const setRecipeUserParams = useCallback(
@@ -309,5 +348,6 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState,
+    notifications,
   };
 }
