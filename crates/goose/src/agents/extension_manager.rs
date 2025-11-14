@@ -674,6 +674,7 @@ impl ExtensionManager {
                                 output_schema: tool.output_schema,
                                 icons: None,
                                 title: None,
+                                meta: None,
                             });
                         }
                     }

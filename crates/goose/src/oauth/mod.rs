@@ -1,9 +1,11 @@
+mod persist;
+
 use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use minijinja::render;
-use rmcp::transport::auth::OAuthState;
+use rmcp::transport::auth::{CredentialStore, OAuthState};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -11,9 +13,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
 
-use crate::oauth::persist::{clear_credentials, load_cached_state, save_credentials};
-
-mod persist;
+use crate::oauth::persist::GooseCredentialStore;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 
@@ -32,18 +32,21 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
-    if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
-        if let Some(authorization_manager) = oauth_state.into_authorization_manager() {
-            if authorization_manager.refresh_token().await.is_ok() {
-                return Ok(authorization_manager);
-            }
+    let credential_store = GooseCredentialStore::new(name.clone());
+    let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+    auth_manager.set_credential_store(credential_store.clone());
+
+    if auth_manager.initialize_from_store().await? {
+        if auth_manager.refresh_token().await.is_ok() {
+            return Ok(auth_manager);
         }
 
-        if let Err(e) = clear_credentials(name) {
+        if let Err(e) = credential_store.clear().await {
             warn!("error clearing bad credentials: {}", e);
         }
     }
 
+    // No existing credentials or they were invalid - need to do the full oauth flow
     let (code_sender, code_receiver) = oneshot::channel::<CallbackParams>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
@@ -91,13 +94,14 @@ pub async fn oauth_flow(
     } = code_receiver.await?;
     oauth_state.handle_callback(&auth_code, &csrf_token).await?;
 
-    if let Err(e) = save_credentials(name, &oauth_state).await {
-        warn!("Failed to save credentials: {}", e);
-    }
-
-    let auth_manager = oauth_state
+    let mut auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
+
+    // Set the credential store on the manager we got from OAuthState
+    // The credentials were already saved during the exchange_code_for_token call
+    let credential_store = GooseCredentialStore::new(name.clone());
+    auth_manager.set_credential_store(credential_store);
 
     Ok(auth_manager)
 }
