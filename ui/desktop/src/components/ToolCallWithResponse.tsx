@@ -158,7 +158,8 @@ interface Progress {
 }
 
 const logToString = (logMessage: NotificationEvent) => {
-  const params = logMessage.message.params;
+  const message = logMessage.message as { method: string; params: unknown };
+  const params = message.params as Record<string, unknown>;
 
   // Special case for the developer system shell logs
   if (
@@ -174,8 +175,10 @@ const logToString = (logMessage: NotificationEvent) => {
   return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
 };
 
-const notificationToProgress = (notification: NotificationEvent): Progress =>
-  notification.message.params as unknown as Progress;
+const notificationToProgress = (notification: NotificationEvent): Progress => {
+  const message = notification.message as { method: string; params: unknown };
+  return message.params as Progress;
+};
 
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
@@ -256,11 +259,17 @@ function ToolCallView({
       : [];
 
   const logs = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/message')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/message';
+    })
     .map(logToString);
 
   const progress = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/progress')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/progress';
+    })
     .map(notificationToProgress)
     .reduce((map, item) => {
       const key = item.progressToken;

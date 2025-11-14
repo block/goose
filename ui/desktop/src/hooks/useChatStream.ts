@@ -17,21 +17,7 @@ import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
-// JSON value type for notification params
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-// Base NotificationEvent from API
-type BaseNotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
-
-// Extended NotificationEvent with proper typing for message structure
-export type NotificationEvent = Omit<BaseNotificationEvent, 'message'> & {
-  message: {
-    method: string;
-    params: {
-      [key: string]: JsonValue;
-    };
-  };
-};
+export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 interface UseChatStreamProps {
   sessionId: string;
