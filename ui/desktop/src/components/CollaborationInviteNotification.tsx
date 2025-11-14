@@ -120,15 +120,13 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         
         // Navigate to the pair view (regular chat session) with Matrix integration
         console.log('🧭 Navigating to pair view for Matrix collaboration:', invite.roomId);
-        navigate('/pair', { 
-          state: { 
-            matrixMode: true, 
-            matrixRoomId: invite.roomId,
-            matrixRecipientId: invite.sender,
-            resetChat: true,
-            disableAnimation: true
-          } 
+        const searchParams = new URLSearchParams({
+          matrixMode: 'true',
+          matrixRoomId: invite.roomId,
+          matrixRecipientId: invite.sender,
+          resetChat: 'true'
         });
+        navigate(`/pair?${searchParams.toString()}`);
         
         // Show success notification (but don't block navigation)
         setTimeout(() => {
@@ -151,15 +149,13 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         
         // Navigate to the pair view (regular chat session) with Matrix integration
         console.log('🧭 Navigating to pair view for Matrix collaboration:', invite.roomId);
-        navigate('/pair', { 
-          state: { 
-            matrixMode: true, 
-            matrixRoomId: invite.roomId,
-            matrixRecipientId: invite.sender,
-            resetChat: true,
-            disableAnimation: true
-          } 
+        const searchParams2 = new URLSearchParams({
+          matrixMode: 'true',
+          matrixRoomId: invite.roomId,
+          matrixRecipientId: invite.sender,
+          resetChat: 'true'
         });
+        navigate(`/pair?${searchParams2.toString()}`);
         
         // Show success notification (but don't block navigation)
         setTimeout(() => {

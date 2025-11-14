@@ -49,16 +49,23 @@ export default function Pair({
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
-  const [_searchParams, setSearchParams] = useSearchParams();
+  
+  // Check if we're in Matrix mode using URL parameters
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isMatrixMode = searchParams.get('matrixMode') === 'true';
+  const matrixRoomId = searchParams.get('matrixRoomId');
+  const matrixRecipientId = searchParams.get('matrixRecipientId');
 
-  // Check if we're in Matrix mode
-  const routeState = location.state as ViewOptions | undefined;
-  const isMatrixMode = routeState?.matrixMode || false;
-  const matrixRoomId = routeState?.matrixRoomId;
-  const matrixRecipientId = routeState?.matrixRecipientId;
+  // Debug Matrix mode detection
+  console.log('🔍 Matrix mode detection:');
+  console.log('🔍 URL search params:', Object.fromEntries(searchParams.entries()));
+  console.log('🔍 matrixMode param:', searchParams.get('matrixMode'));
+  console.log('🔍 matrixRoomId param:', searchParams.get('matrixRoomId'));
+  console.log('🔍 matrixRecipientId param:', searchParams.get('matrixRecipientId'));
+  console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, isConnected, isReady } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
 
@@ -153,6 +160,10 @@ export default function Pair({
           };
 
           console.log('📜 Loaded Matrix collaboration history:', gooseMessages.length, 'messages');
+          console.log('📜 Sample message structure:', gooseMessages[0]);
+          console.log('📜 All converted messages:', gooseMessages);
+          console.log('📜 Updated chat object:', updatedChat);
+          console.log('📜 Chat messages array length:', updatedChat.messages.length);
           setChat(updatedChat);
         } else {
           console.log('📜 No previous messages found in Matrix room');
@@ -181,12 +192,24 @@ export default function Pair({
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
-  const handleMessageSubmit = (message: string) => {
+  const handleMessageSubmit = async (message: string) => {
     // Clean up any auto submit state:
     setShouldAutoSubmit(false);
     setIsTransitioningFromHub(false);
     setMessageToSubmit(null);
-    console.log('Message submitted:', message);
+    
+    console.log('💬 Message submitted:', message);
+    
+    // If in Matrix mode, also send the message to Matrix room
+    if (isMatrixMode && matrixRoomId && message.trim()) {
+      try {
+        console.log('📤 Sending message to Matrix room:', matrixRoomId);
+        await sendMessage(matrixRoomId, message);
+        console.log('✅ Message sent to Matrix successfully');
+      } catch (error) {
+        console.error('❌ Failed to send message to Matrix:', error);
+      }
+    }
   };
 
   const recipePrompt =
@@ -224,6 +247,12 @@ export default function Pair({
       </div>
     );
   };
+
+  // Debug the chat state before rendering
+  console.log('🎯 Pair component rendering with chat:', chat);
+  console.log('🎯 Chat messages count:', chat.messages?.length || 0);
+  console.log('🎯 Is Matrix mode:', isMatrixMode);
+  console.log('🎯 Loading states:', { loadingChat, isLoadingMatrixHistory });
 
   return (
     <BaseChat

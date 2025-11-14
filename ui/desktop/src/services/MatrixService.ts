@@ -1472,13 +1472,27 @@ export class MatrixService extends EventEmitter {
             avatarUrl: senderMember?.getMxcAvatarUrl() || senderUser?.avatarUrl || null,
           };
 
-          // Determine message type based on content and sender
+          // Parse session messages if present
+          let actualContent = content.body || '';
           let messageType: 'user' | 'assistant' | 'system' = 'user';
-          
-          // Check if this is a Goose/AI message
-          if (content['goose.message.type'] || content['goose.type'] || 
+          let sessionData = null;
+
+          // Check if this is a session message that needs parsing
+          if (actualContent.includes('goose-session-message:')) {
+            try {
+              const sessionJson = actualContent.substring(actualContent.indexOf('goose-session-message:') + 'goose-session-message:'.length);
+              sessionData = JSON.parse(sessionJson);
+              actualContent = sessionData.content || actualContent;
+              messageType = sessionData.role === 'assistant' ? 'assistant' : 'user';
+              console.log('📜 Parsed session message:', sessionData.role, actualContent.substring(0, 50) + '...');
+            } catch (error) {
+              console.warn('Failed to parse session message:', error);
+            }
+          }
+          // Check if this is a regular Goose/AI message
+          else if (content['goose.message.type'] || content['goose.type'] || 
               this.isGooseInstance(sender, senderInfo.displayName) ||
-              this.looksLikeGooseMessage(content.body || '')) {
+              this.looksLikeGooseMessage(actualContent)) {
             messageType = 'assistant';
           } else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
             messageType = 'system';
@@ -1487,7 +1501,7 @@ export class MatrixService extends EventEmitter {
           return {
             messageId: event.getId() || `msg_${event.getTs()}`,
             sender,
-            content: content.body || '',
+            content: actualContent,
             timestamp: new Date(event.getTs()),
             type: messageType,
             isFromSelf,
@@ -1496,9 +1510,11 @@ export class MatrixService extends EventEmitter {
               eventType: event.getType(),
               msgType: content.msgtype,
               gooseType: content['goose.message.type'] || content['goose.type'],
-              gooseSessionId: content['goose.session_id'],
+              gooseSessionId: content['goose.session_id'] || sessionData?.sessionId,
               gooseTaskId: content['goose.task.id'],
+              sessionData,
               originalEvent: event,
+              originalContent: content.body,
             },
           };
         });
