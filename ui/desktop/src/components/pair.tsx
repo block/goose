@@ -622,10 +622,6 @@ export default function Pair({
         } else {
           console.log('🤖 Skipping Matrix sync - content unchanged:', messageContent.substring(0, 50) + '...');
         }
-      } else {
-        console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
-      }
-    }
     
     // Cleanup timeout on unmount
     return () => {
