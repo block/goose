@@ -22,6 +22,7 @@ import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
+import AvatarImage from './AvatarImage';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -197,7 +198,17 @@ export default function GooseMessage({
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
 
   return (
-    <div className="goose-message flex w-[90%] justify-start min-w-0">
+    <div className="goose-message flex w-[90%] justify-start min-w-0 gap-3">
+      {/* AI Avatar on the left side */}
+      <div className="flex-shrink-0 mt-1">
+        <AvatarImage
+          avatarUrl={undefined} // AI doesn't have a Matrix avatar
+          displayName="Goose AI"
+          size="md"
+          className="ring-2 ring-green-500 ring-offset-2"
+        />
+      </div>
+      
       <div className="flex flex-col w-full min-w-0">
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">

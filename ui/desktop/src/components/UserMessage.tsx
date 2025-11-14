@@ -8,6 +8,8 @@ import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import Edit from './icons/Edit';
 import { Button } from './ui/button';
+import AvatarImage from './AvatarImage';
+import { useMatrix } from '../contexts/MatrixContext';
 
 interface UserMessageProps {
   message: Message;
@@ -21,6 +23,9 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const [editContent, setEditContent] = useState('');
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get current user info from Matrix context
+  const { currentUser } = useMatrix();
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -196,8 +201,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
             </div>
           </div>
         ) : (
-          // Normal message display
-          <div className="message flex justify-end w-full">
+          // Normal message display with avatar
+          <div className="message flex justify-end w-full gap-3">
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
                 <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
@@ -250,6 +255,16 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                   </div>
                 </div>
               </div>
+            </div>
+            
+            {/* Avatar on the right side */}
+            <div className="flex-shrink-0 mt-1">
+              <AvatarImage
+                avatarUrl={currentUser?.avatarUrl}
+                displayName={currentUser?.displayName || 'You'}
+                size="md"
+                className="ring-2 ring-background-accent ring-offset-2"
+              />
             </div>
           </div>
         )}
