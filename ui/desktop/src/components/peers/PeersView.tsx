@@ -475,7 +475,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
 
       {/* Current User Info */}
       {currentUser && (
-        <div className="pt-14 pb-4 px-4 bg-background-default border-b border-border-default">
+        <div className="pt-14 pb-4 px-4 bg-background-default rounded-2xl">
           <div className="flex items-end gap-3">
             <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
               {currentUser.avatarUrl ? (
