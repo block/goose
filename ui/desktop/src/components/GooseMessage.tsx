@@ -13,7 +13,7 @@ import {
 import { Message, confirmPermission } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
-import { NotificationEvent } from '../hooks/useMessageStream';
+import { NotificationEvent } from '../hooks/useChatStream';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 

@@ -14,10 +14,25 @@ import {
 
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
-type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
+// JSON value type for notification params
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// Base NotificationEvent from API
+type BaseNotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
+
+// Extended NotificationEvent with proper typing for message structure
+export type NotificationEvent = Omit<BaseNotificationEvent, 'message'> & {
+  message: {
+    method: string;
+    params: {
+      [key: string]: JsonValue;
+    };
+  };
+};
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -114,7 +129,7 @@ async function streamFromResponse(
           break;
         }
         case 'Notification': {
-          updateNotifications(event);
+          updateNotifications(event as NotificationEvent);
           break;
         }
         case 'Ping':
@@ -150,6 +165,8 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
+  const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -166,16 +183,68 @@ export function useChatStream({
     setNotifications((prev) => [...prev, notification]);
   }, []);
 
+  const stopPowerSaveBlocker = useCallback(() => {
+    try {
+      window.electron.stopPowerSaveBlocker();
+    } catch (error) {
+      console.error('Failed to stop power save blocker:', error);
+    }
+
+    if (powerSaveTimeoutId) {
+      window.clearTimeout(powerSaveTimeoutId);
+      setPowerSaveTimeoutId(null);
+    }
+  }, [powerSaveTimeoutId]);
+
   const onFinish = useCallback(
     (error?: string): void => {
+      stopPowerSaveBlocker();
+
       if (error) {
         setSessionLoadError(error);
       }
+
+      const timeSinceLastInteraction = Date.now() - lastInteractionTime;
+
+      if (timeSinceLastInteraction > 60000) {
+        try {
+          window.electron.showNotification({
+            title: 'Goose finished the task',
+            body: 'Click here for details',
+          });
+        } catch (error) {
+          console.error('Failed to show notification:', error);
+        }
+      } else {
+        console.log('useChatStream: Not showing notification (task took less than 2 seconds)');
+      }
+
+      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
+      if (isNewSession) {
+        console.log(
+          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
+        );
+        window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish]
+    [onStreamFinish, stopPowerSaveBlocker, lastInteractionTime, sessionId]
   );
+
+  useEffect(() => {
+    return () => {
+      if (powerSaveTimeoutId) {
+        window.clearTimeout(powerSaveTimeoutId);
+      }
+      try {
+        window.electron.stopPowerSaveBlocker();
+      } catch (error) {
+        console.error('Failed to stop power save blocker during cleanup:', error);
+      }
+    };
+  }, [powerSaveTimeoutId]);
 
   // Load session on mount or sessionId change
   useEffect(() => {
@@ -236,6 +305,34 @@ export function useChatStream({
         return;
       }
 
+      if (!userMessage.trim()) {
+        stopPowerSaveBlocker();
+        return;
+      }
+
+      LocalMessageStorage.addMessage(userMessage.trim());
+
+      try {
+        window.electron.startPowerSaveBlocker();
+      } catch (error) {
+        console.error('Failed to start power save blocker:', error);
+      }
+
+      setLastInteractionTime(Date.now());
+
+      const timeoutId = window.setTimeout(
+        () => {
+          console.warn('Power save blocker timeout - stopping automatically after 15 minutes');
+          stopPowerSaveBlocker();
+        },
+        15 * 60 * 1000
+      );
+      setPowerSaveTimeoutId(timeoutId);
+
+      if (messagesRef.current.length === 0) {
+        window.dispatchEvent(new CustomEvent('session-created'));
+      }
+
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       updateMessages(currentMessages);
       setChatState(ChatState.Streaming);
@@ -272,7 +369,15 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
+    [
+      sessionId,
+      session,
+      chatState,
+      updateMessages,
+      updateNotifications,
+      onFinish,
+      stopPowerSaveBlocker,
+    ]
   );
 
   const setRecipeUserParams = useCallback(
@@ -315,8 +420,10 @@ export function useChatStream({
 
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
+    setLastInteractionTime(Date.now());
+    stopPowerSaveBlocker();
     setChatState(ChatState.Idle);
-  }, []);
+  }, [stopPowerSaveBlocker]);
 
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];

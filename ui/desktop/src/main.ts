@@ -2086,7 +2086,7 @@ async function appMain() {
     }
   });
 
-  ipcMain.on('notify', (_event, data) => {
+  ipcMain.on('notify', (event, data) => {
     try {
       // Validate notification data
       if (!data || typeof data !== 'object') {
@@ -2111,10 +2111,24 @@ async function appMain() {
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
 
       console.log('NOTIFY', data);
-      new Notification({
+      const notification = new Notification({
         title: sanitizeText(data.title),
         body: sanitizeText(data.body),
-      }).show();
+      });
+
+      // Add click handler to focus the window
+      notification.on('click', () => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          if (window.isMinimized()) {
+            window.restore();
+          }
+          window.show();
+          window.focus();
+        }
+      });
+
+      notification.show();
     } catch (error) {
       console.error('Error showing notification:', error);
     }
