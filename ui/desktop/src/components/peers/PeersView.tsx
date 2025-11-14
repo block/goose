@@ -64,112 +64,130 @@ const PeerCard: React.FC<{
     return `${days}d ago`;
   };
 
+  const isOnline = peer.presence === 'online';
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-background-default rounded-xl p-4 hover:bg-background-medium transition-colors relative group"
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => onStartChat(peer)}
+      className={`
+        relative cursor-pointer group
+        bg-background-default rounded-2xl
+        px-6 py-6
+        transition-colors duration-200
+        hover:bg-background-medium
+        aspect-square
+        flex flex-col justify-between
+        ${isOnline ? 'ring-1 ring-green-200 bg-green-50/30' : ''}
+      `}
     >
-      {/* Avatar and Info */}
-      <div className="flex items-start gap-3">
-        <div className="relative">
-          <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
-            {peer.avatarUrl ? (
-              <img src={peer.avatarUrl} alt={peer.displayName} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-lg font-medium text-text-on-accent">
-                {(peer.displayName || peer.userId).charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          {/* Status dot */}
-          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default ${
-            peer.presence === 'online' ? 'bg-green-500' :
-            peer.presence === 'unavailable' ? 'bg-yellow-500' : 'bg-gray-400'
-          }`} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-text-default truncate">
-            {peer.displayName || peer.userId.split(':')[0].substring(1)}
-          </h3>
-          <p className="text-sm text-text-muted truncate">{peer.userId}</p>
-          <div className="mt-1">
-            <StatusIndicator status={peer.presence} />
-          </div>
-          {peer.presence !== 'online' && peer.lastActiveAgo && (
-            <p className="text-xs text-text-muted mt-1">
-              Last seen {formatLastSeen(peer.lastActiveAgo)}
-            </p>
+      {/* Avatar in top left */}
+      <div className="relative w-fit">
+        <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
+          {peer.avatarUrl ? (
+            <img src={peer.avatarUrl} alt={peer.displayName} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-lg font-medium text-text-on-accent">
+              {(peer.displayName || peer.userId).charAt(0).toUpperCase()}
+            </span>
           )}
         </div>
+        {/* Status dot */}
+        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default ${
+          peer.presence === 'online' ? 'bg-green-500' :
+          peer.presence === 'unavailable' ? 'bg-yellow-500' : 'bg-gray-400'
+        }`} />
+      </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+      {/* Status tag in top right */}
+      <div className="absolute top-4 right-4">
+        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+          isOnline 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-background-muted text-text-muted'
+        }`}>
+          {peer.presence === 'online' ? 'Online' :
+           peer.presence === 'unavailable' ? 'Away' : 'Offline'}
+        </div>
+      </div>
+
+      {/* Actions menu in top right corner (on hover) */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <div className="relative">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => onStartChat(peer)}
-            className="p-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
-            title="Start AI chat session"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActions(!showActions);
+            }}
+            className="p-1 rounded-lg hover:bg-background-medium transition-colors"
           >
-            <MessageCircle className="w-4 h-4" />
+            <MoreVertical className="w-4 h-4 text-text-muted" />
           </motion.button>
 
-          <div className="relative">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowActions(!showActions)}
-              className="p-2 rounded-lg hover:bg-background-medium transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </motion.button>
-
-            <AnimatePresence>
-              {showActions && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  className="absolute right-0 top-full mt-2 bg-background-default border border-border-default rounded-lg shadow-lg py-2 min-w-[160px] z-10"
+          <AnimatePresence>
+            {showActions && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                className="absolute right-0 top-full mt-2 bg-background-default border border-border-default rounded-lg shadow-lg py-2 min-w-[160px] z-20"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => {
+                    // TODO: Implement voice call
+                    setShowActions(false);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm"
                 >
-                  <button
-                    onClick={() => {
-                      // TODO: Implement voice call
-                      setShowActions(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm"
-                  >
-                    <Phone className="w-4 h-4" />
-                    Voice Call
-                  </button>
-                  <button
-                    onClick={() => {
-                      // TODO: Implement video call
-                      setShowActions(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm"
-                  >
-                    <Video className="w-4 h-4" />
-                    Video Call
-                  </button>
-                  <div className="border-t border-border-default my-2" />
-                  <button
-                    onClick={() => {
-                      onRemovePeer(peer);
-                      setShowActions(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm text-red-500"
-                  >
-                    <UserX className="w-4 h-4" />
-                    Remove Friend
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  <Phone className="w-4 h-4" />
+                  Voice Call
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement video call
+                    setShowActions(false);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm"
+                >
+                  <Video className="w-4 h-4" />
+                  Video Call
+                </button>
+                <div className="border-t border-border-default my-2" />
+                <button
+                  onClick={() => {
+                    onRemovePeer(peer);
+                    setShowActions(false);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-background-medium flex items-center gap-2 text-sm text-red-500"
+                >
+                  <UserX className="w-4 h-4" />
+                  Remove Friend
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+      </div>
+
+      {/* Name and info at bottom */}
+      <div className="mt-auto w-full">
+        <h3 className="text-lg font-light text-text-default truncate mb-1">
+          {peer.displayName || peer.userId.split(':')[0].substring(1)}
+        </h3>
+        <p className="text-xs text-text-muted truncate">
+          {peer.userId}
+        </p>
+        {peer.presence !== 'online' && peer.lastActiveAgo && (
+          <p className="text-xs text-text-muted mt-1">
+            {formatLastSeen(peer.lastActiveAgo)}
+          </p>
+        )}
       </div>
     </motion.div>
   );
@@ -520,7 +538,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                       <Circle className="w-2 h-2 fill-green-500 text-green-500" />
                       Online ({onlineFriends.length})
                     </h2>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                       {onlineFriends.map((friend) => (
                         <PeerCard
                           key={friend.userId}
@@ -540,7 +558,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                       <Circle className="w-2 h-2 fill-gray-400 text-gray-400" />
                       Offline ({offlineFriends.length})
                     </h2>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                       {offlineFriends.map((friend) => (
                         <PeerCard
                           key={friend.userId}
