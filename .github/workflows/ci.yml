@@ -13,44 +13,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  # changes:
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     docs-only: ${{ steps.filter.outputs.docs-only }}
-  #     code: ${{ steps.filter.outputs.code }}
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-  #     - name: Check for file changes
-  #       uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
-  #       id: filter
-  #       with:
-  #         filters: |
-  #           docs-only:
-  #             - 'documentation/**'
-  #           code:
-  #             - '!documentation/**'
+      - name: Check for file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
+        id: filter
+        with:
+          filters: |
+            docs-only:
+              - 'documentation/**'
+            code:
+              - '!documentation/**'
 
-  # rust-format:
-  #   name: Check Rust Code Format
-  #   runs-on: ubuntu-latest
-  #   needs: changes
-  #   if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+  rust-format:
+    name: Check Rust Code Format
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #     - name: Run cargo fmt
-  #       run: cargo fmt --check
+      - name: Run cargo fmt
+        run: cargo fmt --check
 
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
-    # needs: changes
-    # if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -74,76 +74,76 @@ jobs:
         working-directory: crates
 
 
-  # rust-lint:
-  #   name: Lint Rust Code
-  #   runs-on: ubuntu-latest
-  #   needs: changes
-  #   if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
-  #   steps:
-  #     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+  rust-lint:
+    name: Lint Rust Code
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #     - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
 
-  #     - name: Lint
-  #       run: |
-  #         source ./bin/activate-hermit
-  #         hermit uninstall rustup
-  #         export CARGO_INCREMENTAL=0
-  #         ./scripts/clippy-lint.sh
+      - name: Lint
+        run: |
+          source ./bin/activate-hermit
+          hermit uninstall rustup
+          export CARGO_INCREMENTAL=0
+          ./scripts/clippy-lint.sh
 
-  # openapi-schema-check:
-  #   name: Check OpenAPI Schema is Up-to-Date
-  #   runs-on: ubuntu-latest
-  #   needs: changes
-  #   if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+  openapi-schema-check:
+    name: Check OpenAPI Schema is Up-to-Date
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #     - name: Cache Cargo artifacts
-  #       uses: Swatinem/rust-cache@v2
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
 
-  #     - name: Install Node.js Dependencies for OpenAPI Check
-  #       run: source ../../bin/activate-hermit && npm ci
-  #       working-directory: ui/desktop
+      - name: Install Node.js Dependencies for OpenAPI Check
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
 
-  #     - name: Check OpenAPI Schema is Up-to-Date
-  #       run: |
-  #         source ./bin/activate-hermit
-  #         hermit uninstall rustup
-  #         just check-openapi-schema
+      - name: Check OpenAPI Schema is Up-to-Date
+        run: |
+          source ./bin/activate-hermit
+          hermit uninstall rustup
+          just check-openapi-schema
 
-  # desktop-lint:
-  #   name: Test and Lint Electron Desktop App
-  #   runs-on: macos-latest
-  #   needs: changes
-  #   if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+  desktop-lint:
+    name: Test and Lint Electron Desktop App
+    runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-  #     - name: Cache npm dependencies
-  #       uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-  #       with:
-  #         path: |
-  #           ui/desktop/node_modules
-  #           .hermit/node/cache
-  #         key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
-  #         restore-keys: |
-  #           ci-npm-cache-v1-${{ runner.os }}-
+      - name: Cache npm dependencies
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          restore-keys: |
+            ci-npm-cache-v1-${{ runner.os }}-
 
-  #     - name: Install Dependencies
-  #       run: source ../../bin/activate-hermit && npm ci
-  #       working-directory: ui/desktop
+      - name: Install Dependencies
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
 
-  #     - name: Run Lint
-  #       run: source ../../bin/activate-hermit && npm run lint:check
-  #       working-directory: ui/desktop
+      - name: Run Lint
+        run: source ../../bin/activate-hermit && npm run lint:check
+        working-directory: ui/desktop
 
-  #     - name: Run Tests
-  #       run: source ../../bin/activate-hermit && npm run test:run
-  #       working-directory: ui/desktop
+      - name: Run Tests
+        run: source ../../bin/activate-hermit && npm run test:run
+        working-directory: ui/desktop
