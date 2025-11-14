@@ -343,7 +343,6 @@ pub fn ensure_session_dir() -> Result<PathBuf> {
         let session_dir = temp_base
             .join(format!("thread_{:?}", thread_id))
             .join(SESSIONS_FOLDER);
-        eprintln!("session dir: {session_dir:?}");
         if !session_dir.exists() {
             fs::create_dir_all(&session_dir)?;
         }
