@@ -87,7 +87,9 @@ impl AgentManager {
             })
             .await;
         if let Some(provider) = &*self.default_provider.read().await {
-            agent.update_provider(Arc::clone(provider)).await?;
+            agent
+                .update_provider(Arc::clone(provider), &session_id)
+                .await?;
         }
 
         let mut sessions = self.sessions.write().await;

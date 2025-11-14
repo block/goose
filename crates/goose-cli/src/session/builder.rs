@@ -149,7 +149,15 @@ async fn offer_extension_debugging_help(
 
     // Create a minimal agent for debugging
     let debug_agent = Agent::new();
-    debug_agent.update_provider(provider).await?;
+
+    let session = SessionManager::create_session(
+        std::env::current_dir()?,
+        "CLI Session".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
+    debug_agent.update_provider(provider, &session.id).await?;
 
     // Add the developer extension if available to help with debugging
     let extensions = get_all_extensions();
@@ -166,12 +174,6 @@ async fn offer_extension_debugging_help(
         }
     }
 
-    let session = SessionManager::create_session(
-        std::env::current_dir()?,
-        "CLI Session".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
     let mut debug_session = CliSession::new(
         debug_agent,
         session.id,
@@ -246,11 +248,24 @@ pub struct SessionSettings {
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
-    // Load config and get provider/model
     let config = Config::global();
+
+    let (saved_provider, saved_model_config) = if session_config.resume {
+        if let Some(ref session_id) = session_config.session_id {
+            match SessionManager::get_session(session_id, false).await {
+                Ok(session_data) => (session_data.provider_name, session_data.model_config),
+                Err(_) => (None, None),
+            }
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
 
     let provider_name = session_config
         .provider
+        .or(saved_provider)
         .or_else(|| {
             session_config
                 .settings
@@ -262,6 +277,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let model_name = session_config
         .model
+        .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
         .or_else(|| {
             session_config
                 .settings
@@ -271,16 +287,26 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .or_else(|| config.get_goose_model().ok())
         .expect("No model configured. Run 'goose configure' first");
 
-    let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+    let model_config = if session_config.resume
+        && saved_model_config
+            .as_ref()
+            .is_some_and(|mc| mc.model_name == model_name)
+    {
+        let mut config = saved_model_config.unwrap();
+        if let Some(temp) = session_config.settings.as_ref().and_then(|s| s.temperature) {
+            config = config.with_temperature(Some(temp));
+        }
+        config
+    } else {
+        let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+        goose::model::ModelConfig::new(&model_name)
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to create model configuration: {}", e));
+                process::exit(1);
+            })
+            .with_temperature(temperature)
+    };
 
-    let model_config = goose::model::ModelConfig::new(&model_name)
-        .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to create model configuration: {}", e));
-            process::exit(1);
-        })
-        .with_temperature(temperature);
-
-    // Create the agent
     let agent: Agent = Agent::new();
 
     agent
@@ -304,10 +330,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         }
     };
-    // Keep a reference to the provider for display_session_info
     let provider_for_display = Arc::clone(&new_provider);
 
-    // Log model information at startup
     if let Some(lead_worker) = new_provider.as_lead_worker() {
         let (lead_model, worker_model) = lead_worker.get_model_info();
         tracing::info!(
@@ -318,14 +342,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         tracing::info!("🤖 Using model: {}", model_name);
     }
-
-    agent
-        .update_provider(new_provider)
-        .await
-        .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to initialize agent: {}", e));
-            process::exit(1);
-        });
 
     let session_id: String = if session_config.no_session {
         let working_dir = std::env::current_dir().expect("Could not get working directory");
@@ -361,6 +377,14 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         session_config.session_id.unwrap()
     };
+
+    agent
+        .update_provider(new_provider, &session_id)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
 
     agent
         .extension_manager

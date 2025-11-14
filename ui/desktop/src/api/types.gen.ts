@@ -410,6 +410,16 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+export type ModelConfig = {
+    context_limit?: number | null;
+    fast_model?: string | null;
+    max_tokens?: number | null;
+    model_name: string;
+    temperature?: number | null;
+    toolshim: boolean;
+    toolshim_model?: string | null;
+};
+
 /**
  * Information about a model's capabilities
  */
@@ -687,8 +697,10 @@ export type Session = {
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    model_config?: ModelConfig | null;
     name: string;
     output_tokens?: number | null;
+    provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
