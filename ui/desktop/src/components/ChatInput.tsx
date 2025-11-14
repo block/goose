@@ -35,6 +35,10 @@ import { getApiUrl } from '../config';
 import { useCustomCommands } from '../hooks/useCustomCommands';
 import { AddCustomCommandModal } from './AddCustomCommandModal';
 import { CustomCommand } from '../types/customCommands';
+import { useSessionSharing } from '../hooks/useSessionSharing';
+import SessionSharing from './collaborative/SessionSharing';
+import { CollaborativeButton } from './collaborative';
+import EnhancedMentionPopover from './EnhancedMentionPopover';
 
 
 interface QueuedMessage {
@@ -299,10 +303,10 @@ export default function ChatInput({
     selectAction: (index: number) => void;
   }>(null);
   
-  // Action pills for visual display
-  const mentionPopoverRef = useRef<{
-    getDisplayFiles: () => FileItemWithMatch[];
-    selectFile: (index: number) => void;
+  // Enhanced mention popover ref
+  const enhancedMentionPopoverRef = useRef<{
+    getDisplayItems: () => any[];
+    selectItem: (index: number) => void;
   }>(null);
 
   // Whisper hook for voice dictation
@@ -347,6 +351,54 @@ export default function ChatInput({
   // Add Custom Command Modal state
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+
+  // Session sharing hook
+  const sessionSharing = useSessionSharing({
+    sessionId: sessionId || 'default',
+    sessionTitle: `Chat Session ${sessionId?.substring(0, 8) || 'Default'}`,
+    messages,
+    onMessageSync: (message) => {
+      // Handle synced messages from session participants
+      console.log('💬 Synced message from shared session:', message);
+      // Add the synced message to local chat
+      if (append) {
+        append(message);
+      }
+    },
+    onParticipantJoin: (participant) => {
+      console.log('👥 Participant joined session:', participant);
+    },
+    onParticipantLeave: (userId) => {
+      console.log('👋 Participant left session:', userId);
+    },
+  });
+
+  // Listen for AI responses to sync to Matrix
+  useEffect(() => {
+    if (!sessionSharing.isSessionActive || !messages.length) return;
+
+    const lastMessage = messages[messages.length - 1];
+    
+    // Check if the last message is an AI response (assistant role) and not already synced
+    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.id?.startsWith('shared-') && !lastMessage.id?.startsWith('matrix-')) {
+      console.log('🤖 Syncing AI response to Matrix:', lastMessage);
+      
+      // Extract text content from the message
+      const textContent = lastMessage.content
+        .filter(c => c.type === 'text')
+        .map(c => c.text)
+        .join('');
+      
+      if (textContent.trim()) {
+        sessionSharing.syncMessage({
+          id: lastMessage.id || `ai-${Date.now()}`,
+          role: 'assistant',
+          content: textContent,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  }, [messages, sessionSharing]);
 
 
 
@@ -1180,6 +1232,17 @@ export default function ChatInput({
           LocalMessageStorage.addMessage(allFilePaths.join(' '));
         }
 
+        // Sync message with session participants if session is active
+        if (sessionSharing.isSessionActive) {
+          console.log('🔄 Syncing user message to Matrix:', textToSend);
+          sessionSharing.syncMessage({
+            id: Date.now().toString(),
+            role: 'user',
+            content: textToSend,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         handleSubmit(
           new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
         );
@@ -1231,6 +1294,7 @@ export default function ChatInput({
       localDroppedFiles.length,
       onFilesProcessed,
       pastedImages,
+      sessionSharing,
       setLocalDroppedFiles,
     ]
   );
@@ -1276,11 +1340,11 @@ export default function ChatInput({
     }
 
     // If mention popover is open, handle arrow keys and enter
-    if (mentionPopover.isOpen && mentionPopoverRef.current) {
+    if (mentionPopover.isOpen && enhancedMentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
         evt.preventDefault();
-        const displayFiles = mentionPopoverRef.current.getDisplayFiles();
-        const maxIndex = Math.max(0, displayFiles.length - 1);
+        const displayItems = enhancedMentionPopoverRef.current.getDisplayItems();
+        const maxIndex = Math.max(0, displayItems.length - 1);
         setMentionPopover((prev) => ({
           ...prev,
           selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex),
@@ -1297,7 +1361,7 @@ export default function ChatInput({
       }
       if (evt.key === 'Enter') {
         evt.preventDefault();
-        mentionPopoverRef.current.selectFile(mentionPopover.selectedIndex);
+        enhancedMentionPopoverRef.current.selectItem(mentionPopover.selectedIndex);
         return;
       }
       if (evt.key === 'Escape') {
@@ -1394,6 +1458,49 @@ export default function ChatInput({
         textAreaRef.current.focus();
       }
     }, 0);
+  };
+
+  const handleFriendInvite = async (friendUserId: string) => {
+    console.log('👥 handleFriendInvite called with:', friendUserId);
+    
+    try {
+      // Invite the friend to the current session
+      await sessionSharing.inviteToSession(friendUserId);
+      
+      // Replace the @ mention with a friend mention format
+      const friendName = friendUserId.split(':')[0].substring(1); // Extract username from Matrix ID
+      const mentionText = `@${friendName}`;
+      
+      const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
+      const afterMention = displayValue.slice(
+        mentionPopover.mentionStart + 1 + mentionPopover.query.length
+      );
+      const newValue = `${beforeMention}${mentionText} ${afterMention}`;
+
+      setDisplayValue(newValue);
+      setValue(newValue);
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      textAreaRef.current?.focus();
+
+      // Set cursor position after the inserted mention and space
+      const newCursorPosition = beforeMention.length + mentionText.length + 1;
+      setTimeout(() => {
+        if (textAreaRef.current) {
+          textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+          textAreaRef.current.focus();
+        }
+      }, 0);
+      
+      console.log('✅ Successfully invited friend and updated UI');
+    } catch (error) {
+      console.error('❌ Failed to invite friend:', error);
+      // Keep the popover open so user can try again
+      // You might want to show a toast notification here
+      toastError({
+        title: 'Invitation Failed',
+        msg: error instanceof Error ? error.message : 'Failed to invite friend to session',
+      });
+    }
   };
 
   const handleActionButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1939,6 +2046,13 @@ export default function ChatInput({
         </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
 
+        {/* Session Sharing Component */}
+        <SessionSharing
+          sessionSharing={sessionSharing}
+          shouldShowIconOnly={shouldShowIconOnly}
+        />
+        <div className="w-px h-4 bg-border-default mx-2" />
+
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center min-w-0 flex-shrink overflow-hidden">
           {/* Cost Tracker */}
@@ -1986,11 +2100,12 @@ export default function ChatInput({
           </Tooltip>
         </div>
 
-        <MentionPopover
-          ref={mentionPopoverRef}
+        <EnhancedMentionPopover
+          ref={enhancedMentionPopoverRef}
           isOpen={mentionPopover.isOpen}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
-          onSelect={handleMentionFileSelect}
+          onSelectFile={handleMentionFileSelect}
+          onInviteFriend={handleFriendInvite}
           position={mentionPopover.position}
           query={mentionPopover.query}
           selectedIndex={mentionPopover.selectedIndex}

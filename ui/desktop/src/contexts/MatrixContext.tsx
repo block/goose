@@ -24,6 +24,7 @@ interface MatrixContextType {
   // Events
   onMessage: (callback: (data: any) => void) => () => void;
   onAIMessage: (callback: (message: GooseAIMessage) => void) => () => void;
+  onSessionMessage: (callback: (data: any) => void) => () => void;
   onPresenceChange: (callback: (data: any) => void) => () => void;
 }
 
@@ -120,7 +121,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
   };
 
   const logout = async () => {
-    await matrixService.disconnect();
+    await matrixService.logout();
   };
 
   const searchUsers = async (query: string) => {
@@ -154,6 +155,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return () => matrixService.off('aiMessage', callback);
   };
 
+  const onSessionMessage = (callback: (data: any) => void) => {
+    matrixService.on('sessionMessage', callback);
+    return () => matrixService.off('sessionMessage', callback);
+  };
+
   const onPresenceChange = (callback: (data: any) => void) => {
     matrixService.on('presenceChange', callback);
     return () => matrixService.off('presenceChange', callback);
@@ -175,6 +181,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     sendAIPrompt,
     onMessage,
     onAIMessage,
+    onSessionMessage,
     onPresenceChange,
   };
 

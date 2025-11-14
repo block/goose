@@ -8,6 +8,8 @@ import {
   useCallback,
 } from 'react';
 import { FileIcon } from './FileIcon';
+import { Users, UserPlus } from 'lucide-react';
+import { useMatrix } from '../contexts/MatrixContext';
 
 interface FileItem {
   path: string;
@@ -22,10 +24,25 @@ export interface FileItemWithMatch extends FileItem {
   matchedText: string;
 }
 
+interface FriendItem {
+  userId: string;
+  displayName: string;
+  type: 'friend';
+}
+
+interface FriendItemWithMatch extends FriendItem {
+  matchScore: number;
+  matches: number[];
+  matchedText: string;
+}
+
+type MentionItem = FileItemWithMatch | FriendItemWithMatch;
+
 interface MentionPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (filePath: string) => void;
+  onInviteFriend?: (friendUserId: string) => void;
   position: { x: number; y: number };
   query: string;
   selectedIndex: number;

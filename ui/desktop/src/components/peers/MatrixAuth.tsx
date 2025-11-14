@@ -13,7 +13,7 @@ const MatrixAuth: React.FC<MatrixAuthProps> = ({ onClose }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    homeserver: 'https://matrix.org',
+    homeserver: 'https://matrix.tchncs.de',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +173,11 @@ const MatrixAuth: React.FC<MatrixAuthProps> = ({ onClose }) => {
                 required
               />
             </div>
+            {mode === 'register' && (
+              <p className="text-xs text-gray-500 mt-1">
+                Password must be at least 12 characters long
+              </p>
+            )}
           </div>
 
           {/* Error Message */}

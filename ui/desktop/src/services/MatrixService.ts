@@ -40,6 +40,7 @@ export class MatrixService extends EventEmitter {
   private isConnected = false;
   private config: MatrixConfig;
   private syncState: 'PREPARED' | 'SYNCING' | 'ERROR' | 'STOPPED' = 'STOPPED';
+  private readonly STORAGE_KEY = 'goose-matrix-credentials';
 
   constructor(config: MatrixConfig) {
     super();
@@ -47,33 +48,126 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Save credentials to secure storage
+   */
+  private async saveCredentials(credentials: {
+    accessToken: string;
+    userId: string;
+    deviceId: string;
+    homeserverUrl: string;
+  }): Promise<void> {
+    try {
+      // Use localStorage for now, but in production you'd want more secure storage
+      const credentialsData = {
+        accessToken: credentials.accessToken,
+        userId: credentials.userId,
+        deviceId: credentials.deviceId,
+        homeserverUrl: credentials.homeserverUrl,
+        timestamp: Date.now(),
+      };
+      
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(credentialsData));
+      console.log('✅ Matrix credentials saved');
+    } catch (error) {
+      console.error('❌ Failed to save Matrix credentials:', error);
+    }
+  }
+
+  /**
+   * Load credentials from secure storage
+   */
+  private async loadCredentials(): Promise<MatrixConfig | null> {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (!stored) {
+        console.log('📭 No stored Matrix credentials found');
+        return null;
+      }
+
+      const credentialsData = JSON.parse(stored);
+      
+      // Check if credentials are not too old (optional expiry check)
+      const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+      if (Date.now() - credentialsData.timestamp > maxAge) {
+        console.log('⏰ Stored Matrix credentials are too old, clearing...');
+        await this.clearCredentials();
+        return null;
+      }
+
+      console.log('✅ Loaded stored Matrix credentials for:', credentialsData.userId);
+      return {
+        homeserverUrl: credentialsData.homeserverUrl,
+        accessToken: credentialsData.accessToken,
+        userId: credentialsData.userId,
+        deviceId: credentialsData.deviceId,
+      };
+    } catch (error) {
+      console.error('❌ Failed to load Matrix credentials:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear stored credentials
+   */
+  private async clearCredentials(): Promise<void> {
+    try {
+      localStorage.removeItem(this.STORAGE_KEY);
+      console.log('🗑️ Matrix credentials cleared');
+    } catch (error) {
+      console.error('❌ Failed to clear Matrix credentials:', error);
+    }
+  }
+
+  /**
    * Initialize and start the Matrix client
    */
   async initialize(): Promise<void> {
     try {
+      // Try to load stored credentials first
+      const storedConfig = await this.loadCredentials();
+      if (storedConfig) {
+        console.log('🔄 Attempting auto-login with stored credentials...');
+        this.config = { ...this.config, ...storedConfig };
+      }
+
       if (this.config.accessToken) {
-        // Use existing access token
+        // Use existing access token (either passed in or loaded from storage)
         this.client = sdk.createClient({
           baseUrl: this.config.homeserverUrl,
           accessToken: this.config.accessToken,
           userId: this.config.userId,
           deviceId: this.config.deviceId,
         });
+        
+        this.setupEventListeners();
+        
+        try {
+          await this.startSync();
+          console.log('✅ Auto-login successful');
+        } catch (syncError) {
+          console.error('❌ Auto-login failed, clearing stored credentials:', syncError);
+          await this.clearCredentials();
+          // Reset config and create fresh client for manual login
+          this.config = {
+            homeserverUrl: this.config.homeserverUrl,
+          };
+          this.client = sdk.createClient({
+            baseUrl: this.config.homeserverUrl,
+          });
+          this.setupEventListeners();
+        }
       } else {
         // Create client for login
         this.client = sdk.createClient({
           baseUrl: this.config.homeserverUrl,
         });
-      }
-
-      this.setupEventListeners();
-      
-      if (this.config.accessToken) {
-        await this.startSync();
+        this.setupEventListeners();
       }
 
       this.emit('initialized');
     } catch (error) {
+      console.error('❌ Matrix initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -108,10 +202,38 @@ export class MatrixService extends EventEmitter {
       this.setupEventListeners();
       await this.startSync();
 
+      // Save credentials for future auto-login
+      await this.saveCredentials({
+        accessToken: this.config.accessToken,
+        userId: this.config.userId,
+        deviceId: this.config.deviceId,
+        homeserverUrl: this.config.homeserverUrl,
+      });
+
       this.emit('login', response);
-    } catch (error) {
-      this.emit('error', error);
-      throw error;
+    } catch (error: any) {
+      // Provide more helpful error messages
+      let errorMessage = 'Login failed';
+      
+      if (error.httpStatus === 403) {
+        if (error.data?.errcode === 'M_FORBIDDEN') {
+          errorMessage = 'Invalid username or password. Please check your credentials.';
+        } else {
+          errorMessage = 'Access forbidden. Please check your credentials or try a different homeserver.';
+        }
+      } else if (error.httpStatus === 429) {
+        errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+      } else if (error.httpStatus >= 500) {
+        errorMessage = 'Server error. Please try again later or use a different homeserver.';
+      } else if (error.name === 'ConnectionError' || error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.data?.error) {
+        errorMessage = error.data.error;
+      }
+
+      const enhancedError = new Error(errorMessage);
+      this.emit('error', enhancedError);
+      throw enhancedError;
     }
   }
 
@@ -141,10 +263,50 @@ export class MatrixService extends EventEmitter {
       this.setupEventListeners();
       await this.startSync();
 
+      // Save credentials for future auto-login
+      await this.saveCredentials({
+        accessToken: this.config.accessToken,
+        userId: this.config.userId,
+        deviceId: this.config.deviceId,
+        homeserverUrl: this.config.homeserverUrl,
+      });
+
       this.emit('register', response);
-    } catch (error) {
-      this.emit('error', error);
-      throw error;
+    } catch (error: any) {
+      // Provide more helpful error messages for registration
+      let errorMessage = 'Registration failed';
+      
+      if (error.httpStatus === 400) {
+        if (error.data?.errcode === 'M_USER_IN_USE') {
+          errorMessage = 'Username is already taken. Please choose a different username.';
+        } else if (error.data?.errcode === 'M_INVALID_USERNAME') {
+          errorMessage = 'Invalid username format. Use only letters, numbers, and underscores.';
+        } else if (error.data?.errcode === 'M_PASSWORD_TOO_SHORT') {
+          errorMessage = 'Password is too short. Please use at least 12 characters.';
+        } else if (error.data?.errcode === 'M_WEAK_PASSWORD') {
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+        } else if (error.data?.error) {
+          errorMessage = error.data.error;
+        }
+      } else if (error.httpStatus === 403) {
+        if (error.data?.errcode === 'M_FORBIDDEN') {
+          errorMessage = 'Registration is disabled on this homeserver. Please try a different homeserver.';
+        } else {
+          errorMessage = 'Registration not allowed. Please try a different homeserver.';
+        }
+      } else if (error.httpStatus === 429) {
+        errorMessage = 'Too many registration attempts. Please wait a moment and try again.';
+      } else if (error.httpStatus >= 500) {
+        errorMessage = 'Server error. Please try again later or use a different homeserver.';
+      } else if (error.name === 'ConnectionError' || error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.data?.error) {
+        errorMessage = error.data.error;
+      }
+
+      const enhancedError = new Error(errorMessage);
+      this.emit('error', enhancedError);
+      throw enhancedError;
     }
   }
 
@@ -199,28 +361,45 @@ export class MatrixService extends EventEmitter {
     const content = event.getContent();
     const sender = event.getSender();
     
-    // Check if this is a Goose AI message
-    if (content.msgtype?.startsWith('m.goose.ai.')) {
+    // Skip messages from ourselves to avoid echo
+    if (sender === this.config.userId) {
+      return;
+    }
+    
+    const messageData = {
+      roomId: room.roomId,
+      sender,
+      content: content.body,
+      timestamp: new Date(event.getTs()),
+      event,
+    };
+    
+    // Check if this is a Goose AI message (using custom properties)
+    if (content['goose.type']) {
       const aiMessage: GooseAIMessage = {
-        type: content.msgtype.replace('m.goose.', '') as any,
-        sessionId: content.session_id || room.roomId,
+        type: `ai.${content['goose.type']}` as any,
+        sessionId: content['goose.session_id'] || room.roomId,
         content: content.body,
-        model: content.model,
+        model: content['goose.model'],
         sender,
-        timestamp: new Date(event.getTs()),
-        metadata: content.metadata,
+        timestamp: new Date(content['goose.timestamp'] || event.getTs()),
+        metadata: content,
       };
       
       this.emit('aiMessage', aiMessage);
     } else {
-      // Regular message
-      this.emit('message', {
-        roomId: room.roomId,
-        sender,
-        content: content.body,
-        timestamp: new Date(event.getTs()),
-        event,
-      });
+      // Regular message - emit both regular message event and check for session messages
+      this.emit('message', messageData);
+      
+      // Also check if this is a session-related message and emit as session message
+      if (content.body) {
+        // Check for Goose session messages (from useSessionSharing)
+        if (content.body.includes('goose-session-message:') || 
+            content.body.includes('goose-session-invite:') || 
+            content.body.includes('goose-session-joined:')) {
+          this.emit('sessionMessage', messageData);
+        }
+      }
     }
   }
 
@@ -247,11 +426,14 @@ export class MatrixService extends EventEmitter {
     }
 
     await this.client.sendEvent(roomId, 'm.room.message', {
-      msgtype: 'm.goose.ai.prompt',
-      body: prompt,
-      session_id: sessionId,
-      model,
-      timestamp: Date.now(),
+      msgtype: 'm.text',
+      body: `🤖 AI Prompt: ${prompt}`,
+      format: 'org.matrix.custom.html',
+      formatted_body: `<strong>🤖 AI Prompt:</strong><br/>${prompt}`,
+      'goose.session_id': sessionId,
+      'goose.type': 'prompt',
+      'goose.model': model,
+      'goose.timestamp': Date.now(),
     });
   }
 
@@ -264,11 +446,14 @@ export class MatrixService extends EventEmitter {
     }
 
     await this.client.sendEvent(roomId, 'm.room.message', {
-      msgtype: 'm.goose.ai.response',
-      body: response,
-      session_id: sessionId,
-      model,
-      timestamp: Date.now(),
+      msgtype: 'm.text',
+      body: `🤖 AI Response: ${response}`,
+      format: 'org.matrix.custom.html',
+      formatted_body: `<strong>🤖 AI Response:</strong><br/>${response}`,
+      'goose.session_id': sessionId,
+      'goose.type': 'response',
+      'goose.model': model,
+      'goose.timestamp': Date.now(),
     });
   }
 
@@ -280,22 +465,14 @@ export class MatrixService extends EventEmitter {
       throw new Error('Client not initialized');
     }
 
+    // Create a simple private room without complex power levels
     const room = await this.client.createRoom({
       name: `🤖 ${name}`,
       topic: 'Collaborative AI Session with Goose',
       preset: 'private_chat',
       invite: inviteUserIds,
-      initial_state: [
-        {
-          type: 'm.room.power_levels',
-          content: {
-            events: {
-              'm.goose.ai.prompt': 0,
-              'm.goose.ai.response': 50, // Only elevated users can send AI responses
-            },
-          },
-        },
-      ],
+      // Remove initial_state to avoid permission issues
+      // We'll use regular message types instead of custom ones
     });
 
     return room.room_id;
@@ -391,7 +568,34 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
-   * Disconnect from Matrix
+   * Logout and clear stored credentials
+   */
+  async logout(): Promise<void> {
+    try {
+      // Try to logout from the server if we have a client
+      if (this.client) {
+        try {
+          await this.client.logout();
+        } catch (error) {
+          console.warn('Server logout failed, continuing with local logout:', error);
+        }
+      }
+    } finally {
+      // Always clear local state and credentials
+      await this.disconnect();
+      await this.clearCredentials();
+      
+      // Reset config to initial state
+      this.config = {
+        homeserverUrl: this.config.homeserverUrl,
+      };
+      
+      this.emit('logout');
+    }
+  }
+
+  /**
+   * Disconnect from Matrix (without clearing credentials)
    */
   async disconnect(): Promise<void> {
     if (this.client) {
@@ -430,5 +634,5 @@ export class MatrixService extends EventEmitter {
 
 // Export singleton instance
 export const matrixService = new MatrixService({
-  homeserverUrl: 'https://matrix.org', // Default to matrix.org, can be configured
+  homeserverUrl: 'https://matrix.tchncs.de', // Tchncs.de homeserver with open registration
 });
