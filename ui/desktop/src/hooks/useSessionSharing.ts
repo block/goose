@@ -153,13 +153,43 @@ export const useSessionSharing = ({
 
     // Also listen for regular messages that might contain session data
     const handleRegularMessage = (data: any) => {
-      const { content, sender, roomId } = data;
+      const { content, sender, roomId, senderInfo } = data;
       
       // Only process messages from Matrix rooms that are part of our session
       if (state.roomId && roomId === state.roomId && sender !== currentUser?.userId) {
-        console.log('💬 Regular message in session room:', { content, sender, roomId });
+        console.log('💬 Regular message in session room:', { content, sender, roomId, senderInfo });
         
-        // Convert regular Matrix messages to Goose messages
+        // Find sender info from friends or participants
+        let senderData = senderInfo;
+        if (!senderData) {
+          // Try to find sender in friends list
+          const friend = friends.find(f => f.userId === sender);
+          if (friend) {
+            senderData = {
+              userId: friend.userId,
+              displayName: friend.displayName,
+              avatarUrl: friend.avatarUrl,
+            };
+          } else {
+            // Try to find in participants
+            const participant = state.participants.find(p => p.userId === sender);
+            if (participant) {
+              senderData = {
+                userId: participant.userId,
+                displayName: participant.displayName,
+                avatarUrl: participant.avatarUrl,
+              };
+            } else {
+              // Fallback to basic sender info
+              senderData = {
+                userId: sender,
+                displayName: sender.split(':')[0].substring(1), // Extract username from Matrix ID
+              };
+            }
+          }
+        }
+        
+        // Convert regular Matrix messages to Goose messages with sender info
         const message: Message = {
           id: `matrix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user',
@@ -168,9 +198,10 @@ export const useSessionSharing = ({
             type: 'text',
             text: content,
           }],
+          sender: senderData,
         };
         
-        console.log('💬 Converting regular Matrix message to Goose message:', message);
+        console.log('💬 Converting regular Matrix message to Goose message with sender:', message);
         onMessageSync?.(message);
       }
     };

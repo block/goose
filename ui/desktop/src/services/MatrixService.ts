@@ -475,6 +475,16 @@ export class MatrixService extends EventEmitter {
     const sender = event.getSender();
     const isFromSelf = sender === this.config.userId;
     
+    // Get sender information
+    const senderUser = this.client?.getUser(sender);
+    const senderMember = room.getMember(sender);
+    
+    const senderInfo = {
+      userId: sender,
+      displayName: senderMember?.name || senderUser?.displayName || sender.split(':')[0].substring(1),
+      avatarUrl: senderMember?.getMxcAvatarUrl() || senderUser?.avatarUrl || null,
+    };
+    
     const messageData = {
       roomId: room.roomId,
       sender,
@@ -482,6 +492,7 @@ export class MatrixService extends EventEmitter {
       timestamp: new Date(event.getTs()),
       event,
       isFromSelf,
+      senderInfo,
     };
     
     // Check if this is a structured Goose message (new format)

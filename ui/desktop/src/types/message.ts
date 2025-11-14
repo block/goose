@@ -108,6 +108,12 @@ export interface Message {
   role: Role;
   created: number;
   content: MessageContent[];
+  // Optional sender metadata for collaborative sessions
+  sender?: {
+    userId: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
 }
 
 // Helper functions to create messages

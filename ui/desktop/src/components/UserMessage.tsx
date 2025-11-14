@@ -27,6 +27,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   // Get current user info from Matrix context
   const { currentUser } = useMatrix();
 
+  // Determine the sender info - use message sender if available, otherwise current user
+  const senderInfo = message.sender || {
+    userId: currentUser?.userId || 'unknown',
+    displayName: currentUser?.displayName || 'You',
+    avatarUrl: currentUser?.avatarUrl,
+  };
+
   // Extract text content from the message
   const textContent = getTextContent(message);
 
@@ -260,8 +267,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
             {/* Avatar on the right side */}
             <div className="flex-shrink-0 mt-1">
               <AvatarImage
-                avatarUrl={currentUser?.avatarUrl}
-                displayName={currentUser?.displayName || 'You'}
+                avatarUrl={senderInfo.avatarUrl}
+                displayName={senderInfo.displayName || senderInfo.userId}
                 size="md"
                 className="ring-2 ring-background-accent ring-offset-2"
               />
