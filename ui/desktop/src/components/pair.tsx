@@ -71,13 +71,24 @@ export default function Pair({
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
 
   // Session sharing hook for Matrix collaboration
+  // In Matrix mode, we need to use a session ID that matches what's being sent in Matrix messages
+  const effectiveSessionId = isMatrixMode && matrixRoomId ? matrixRoomId : (chat.sessionId || 'default');
+  
+  console.log('🔧 useSessionSharing configuration:', {
+    effectiveSessionId,
+    isMatrixMode,
+    matrixRoomId,
+    chatSessionId: chat.sessionId
+  });
+  
   const sessionSharing = useSessionSharing({
-    sessionId: chat.sessionId || 'default',
+    sessionId: effectiveSessionId,
     sessionTitle: chat.title || `Matrix Collaboration ${matrixRoomId?.substring(0, 8) || 'Session'}`,
     messages: chat.messages,
     onMessageSync: (message) => {
       // Handle synced messages from Matrix session participants
       console.log('💬 Synced message from Matrix shared session:', message);
+      console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
       // Add the synced message to local chat
       setChat(prevChat => ({
         ...prevChat,
