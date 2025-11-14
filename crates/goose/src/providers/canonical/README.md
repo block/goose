@@ -132,7 +132,17 @@ This will:
 - Check which models are mapped to canonical models
 - Report unmapped models
 - Show canonical models in use
-- Compare with previous runs
+- Compare with previous runs to detect mapping changes
+- Generate output file: `src/providers/canonical/data/canonical_mapping_report.json`
+
+**Lock File / Diff Functionality:**
+
+The checker maintains `canonical_mapping_report.json` which stores all (provider, model) -> canonical model mappings along with the full report. On subsequent runs, it compares against this file and reports:
+- **Changed Mappings**: Models that now map to a different canonical model
+- **Added Mappings**: Models that gained a canonical mapping
+- **Removed Mappings**: Models that lost their canonical mapping
+
+This helps you track changes in model mappings over time, similar to how package lock files work.
 
 **Note:** Requires proper provider credentials to be configured.
 

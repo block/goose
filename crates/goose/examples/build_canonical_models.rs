@@ -250,12 +250,5 @@ async fn main() -> Result<()> {
     registry.to_file(&output_path)?;
     println!("\n✓ Wrote {} models to {}", registry.count(), output_path.display());
 
-    // Also write a timestamped report
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let report_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("src/providers/canonical/data/report_{}.json", timestamp));
-    registry.to_file(&report_path)?;
-    println!("✓ Wrote report to {}", report_path.display());
-
     Ok(())
 }

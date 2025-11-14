@@ -1,13 +1,22 @@
 /// Canonical Model Checker
 ///
 /// This script checks which models from top providers are properly mapped to canonical models.
-/// It outputs a report showing:
+/// It maintains a lock file of mappings and detects changes between runs.
+///
+/// Outputs:
 /// - Models that are NOT mapped to canonical models
 /// - Full list of (provider, model) <-> canonical-model mappings
-/// - Comparison with previous runs (if available)
+/// - Diff report showing mapping changes since last run:
+///   * Changed mappings (model now maps to a different canonical model)
+///   * Added mappings (model gained a canonical mapping)
+///   * Removed mappings (model lost its canonical mapping)
+///
+/// Output File:
+/// - src/providers/canonical/data/canonical_mapping_report.json
+///   Contains full report with mapping data (acts as a lock file)
 ///
 /// Usage:
-///   cargo run --example canonical_model_checker -- [--output report.json]
+///   cargo run --example canonical_model_checker -- [--output custom_path.json]
 ///
 
 use anyhow::{Context, Result};
@@ -19,10 +28,17 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 struct ProviderModelPair {
     provider: String,
     model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MappingEntry {
+    provider: String,
+    model: String,
+    canonical: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,7 +50,11 @@ struct MappingReport {
     unmapped_models: Vec<ProviderModelPair>,
 
     /// All mappings: (provider, model) -> canonical model
+    /// Stored per provider for backward compatibility
     all_mappings: HashMap<String, Vec<ModelMapping>>,
+
+    /// Flat list of all mappings for easier comparison (lock file format)
+    mapped_models: Vec<MappingEntry>,
 
     /// Total models checked per provider
     model_counts: HashMap<String, usize>,
@@ -49,6 +69,7 @@ impl MappingReport {
             timestamp: chrono::Utc::now().to_rfc3339(),
             unmapped_models: Vec::new(),
             all_mappings: HashMap::new(),
+            mapped_models: Vec::new(),
             model_counts: HashMap::new(),
             canonical_models_used: HashSet::new(),
         }
@@ -76,9 +97,14 @@ impl MappingReport {
             }
         }
 
-        // Track canonical models used
-        for canonical in mapping_map.values() {
+        // Track canonical models used and build flat mapping list
+        for (model, canonical) in &mapping_map {
             self.canonical_models_used.insert(canonical.clone());
+            self.mapped_models.push(MappingEntry {
+                provider: provider_name.to_string(),
+                model: model.clone(),
+                canonical: canonical.clone(),
+            });
         }
 
         // Store mappings and counts
@@ -158,33 +184,74 @@ impl MappingReport {
         println!("CHANGES SINCE PREVIOUS RUN");
         println!("{}", "=".repeat(80));
 
-        // Find new unmapped models
-        let prev_unmapped: HashSet<_> = previous.unmapped_models
-            .iter()
-            .map(|p| (&p.provider, &p.model))
-            .collect();
-        let curr_unmapped: HashSet<_> = self.unmapped_models
-            .iter()
-            .map(|p| (&p.provider, &p.model))
-            .collect();
+        // Build lookup maps for current and previous mappings
+        // Key: (provider, model), Value: canonical model
+        let mut prev_map: HashMap<(String, String), String> = HashMap::new();
+        for entry in &previous.mapped_models {
+            prev_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
+        }
 
-        let newly_mapped: Vec<_> = prev_unmapped.difference(&curr_unmapped).collect();
-        let newly_unmapped: Vec<_> = curr_unmapped.difference(&prev_unmapped).collect();
+        let mut curr_map: HashMap<(String, String), String> = HashMap::new();
+        for entry in &self.mapped_models {
+            curr_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
+        }
 
-        if newly_mapped.is_empty() && newly_unmapped.is_empty() {
+        // Find changes
+        let mut changed_mappings = Vec::new();
+        let mut added_mappings = Vec::new();
+        let mut removed_mappings = Vec::new();
+
+        // Check current mappings against previous
+        for (key @ (provider, model), canonical) in &curr_map {
+            match prev_map.get(key) {
+                Some(prev_canonical) if prev_canonical != canonical => {
+                    // Mapping changed
+                    changed_mappings.push((provider.clone(), model.clone(), prev_canonical.clone(), canonical.clone()));
+                }
+                None => {
+                    // New mapping
+                    added_mappings.push((provider.clone(), model.clone(), canonical.clone()));
+                }
+                _ => {
+                    // No change
+                }
+            }
+        }
+
+        // Check for removed mappings
+        for (key @ (provider, model), canonical) in &prev_map {
+            if !curr_map.contains_key(key) {
+                removed_mappings.push((provider.clone(), model.clone(), canonical.clone()));
+            }
+        }
+
+        // Print changes
+        if changed_mappings.is_empty() && added_mappings.is_empty() && removed_mappings.is_empty() {
             println!("\nNo changes in model mappings.");
         } else {
-            if !newly_mapped.is_empty() {
-                println!("\n✓ Newly Mapped Models ({}):", newly_mapped.len());
-                for (provider, model) in newly_mapped {
+            if !changed_mappings.is_empty() {
+                println!("\n⚠ Changed Mappings ({}):", changed_mappings.len());
+                println!("  (Models that now map to a different canonical model)");
+                for (provider, model, old_canonical, new_canonical) in changed_mappings {
                     println!("  {} / {}", provider, model);
+                    println!("    WAS: {}", old_canonical);
+                    println!("    NOW: {}", new_canonical);
                 }
             }
 
-            if !newly_unmapped.is_empty() {
-                println!("\n✗ Newly Unmapped Models ({}):", newly_unmapped.len());
-                for (provider, model) in newly_unmapped {
-                    println!("  {} / {}", provider, model);
+            if !added_mappings.is_empty() {
+                println!("\n✓ Added Mappings ({}):", added_mappings.len());
+                println!("  (Models that gained a canonical mapping)");
+                for (provider, model, canonical) in added_mappings {
+                    println!("  {} / {} -> {}", provider, model, canonical);
+                }
+            }
+
+            if !removed_mappings.is_empty() {
+                println!("\n✗ Removed Mappings ({}):", removed_mappings.len());
+                println!("  (Models that lost their canonical mapping)");
+                for (provider, model, canonical) in removed_mappings {
+                    println!("  {} / {} (was: {})", provider, model, canonical);
                 }
             }
         }
@@ -294,7 +361,8 @@ async fn main() -> Result<()> {
     let output_path = if args.len() > 2 && args[1] == "--output" {
         PathBuf::from(&args[2])
     } else {
-        PathBuf::from("canonical_mapping_report.json")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/providers/canonical/data/canonical_mapping_report.json")
     };
 
     // Try to compare with previous run
