@@ -5,7 +5,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use minijinja::render;
-use rmcp::transport::auth::{CredentialStore, OAuthState};
+use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -77,6 +77,7 @@ pub async fn oauth_flow(
     });
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
     oauth_state
         .start_authorization(&[], redirect_uri.as_str(), Some("goose"))
@@ -94,13 +95,19 @@ pub async fn oauth_flow(
     } = code_receiver.await?;
     oauth_state.handle_callback(&auth_code, &csrf_token).await?;
 
+    let (client_id, token_response) = oauth_state.get_credentials().await?;
+
     let mut auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    // Set the credential store on the manager we got from OAuthState
-    // The credentials were already saved during the exchange_code_for_token call
-    let credential_store = GooseCredentialStore::new(name.clone());
+    credential_store
+        .save(StoredCredentials {
+            client_id,
+            token_response,
+        })
+        .await?;
+
     auth_manager.set_credential_store(credential_store);
 
     Ok(auth_manager)
