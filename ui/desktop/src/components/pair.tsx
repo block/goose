@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
@@ -219,7 +219,9 @@ export default function Pair({
 
   // Session sharing hook for Matrix collaboration
   // In Matrix mode, we need to use a session ID that matches what's being sent in Matrix messages
-  const effectiveSessionId = isMatrixMode && matrixRoomId ? matrixRoomId : (chat.sessionId || 'default');
+  const effectiveSessionId = useMemo(() => {
+    return isMatrixMode && matrixRoomId ? matrixRoomId : (chat.sessionId || 'default');
+  }, [isMatrixMode, matrixRoomId, chat.sessionId]);
   
   console.log('🔧 useSessionSharing configuration:', {
     effectiveSessionId,
@@ -228,6 +230,40 @@ export default function Pair({
     chatSessionId: chat.sessionId
   });
   
+  // Stable message sync callback to prevent listener recreation
+  const handleMessageSync = useCallback((message: Message) => {
+    // Handle synced messages from Matrix session participants
+    console.log('💬 Synced message from Matrix shared session:', {
+      id: message.id,
+      role: message.role,
+      content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+      created: message.created,
+      sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+    });
+    console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
+    
+    // Only add real-time messages, not historical ones (avoid duplicates with history loading)
+    // Skip messages that are older than 30 seconds to avoid processing historical messages as real-time
+    const messageAge = Date.now() / 1000 - message.created;
+    const isRecentMessage = messageAge < 30; // Messages within last 30 seconds are considered real-time
+    
+    console.log('💬 Message age check:', { 
+      messageAge, 
+      isRecentMessage, 
+      messageId: message.id,
+      currentTime: Date.now() / 1000,
+      messageTime: message.created
+    });
+    
+    if (isRecentMessage) {
+      console.log('✅ Processing real-time message:', message.id);
+      // Use centralized message management for real-time messages
+      addMessagesToChat([message], 'real-time-sync');
+    } else {
+      console.log('💬 Skipping old message (likely from history):', message.id);
+    }
+  }, [effectiveSessionId, isMatrixMode, matrixRoomId, addMessagesToChat]);
+  
   // Initialize session sharing with Matrix room info if available
   const sessionSharing = useSessionSharing({
     sessionId: effectiveSessionId,
@@ -235,38 +271,7 @@ export default function Pair({
     messages: chat.messages,
     // Pass Matrix room ID to session sharing so it knows which room to listen to
     initialRoomId: isMatrixMode ? matrixRoomId : undefined,
-    onMessageSync: (message) => {
-      // Handle synced messages from Matrix session participants
-      console.log('💬 Synced message from Matrix shared session:', {
-        id: message.id,
-        role: message.role,
-        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
-        created: message.created,
-        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
-      });
-      console.log('💬 Session ID match check:', { effectiveSessionId, isMatrixMode, matrixRoomId });
-      
-      // Only add real-time messages, not historical ones (avoid duplicates with history loading)
-      // Skip messages that are older than 30 seconds to avoid processing historical messages as real-time
-      const messageAge = Date.now() / 1000 - message.created;
-      const isRecentMessage = messageAge < 30; // Messages within last 30 seconds are considered real-time
-      
-      console.log('💬 Message age check:', { 
-        messageAge, 
-        isRecentMessage, 
-        messageId: message.id,
-        currentTime: Date.now() / 1000,
-        messageTime: message.created
-      });
-      
-      if (isRecentMessage) {
-        console.log('✅ Processing real-time message:', message.id);
-        // Use centralized message management for real-time messages
-        addMessagesToChat([message], 'real-time-sync');
-      } else {
-        console.log('💬 Skipping old message (likely from history):', message.id);
-      }
-    },
+    onMessageSync: handleMessageSync,
   });
 
   useEffect(() => {
