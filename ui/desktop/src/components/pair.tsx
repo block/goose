@@ -66,7 +66,7 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady, onMessage, onGooseMessage } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
 
@@ -223,110 +223,8 @@ export default function Pair({
     setChat,
   ]);
 
-  // Listen for incoming Matrix messages in real-time when in Matrix mode
-  useEffect(() => {
-    if (!isMatrixMode || !matrixRoomId) {
-      console.log('👂 Skipping Matrix listeners:', { isMatrixMode, matrixRoomId });
-      return;
-    }
-
-    console.log('👂 Setting up Matrix message listeners for room:', matrixRoomId);
-    console.log('👂 Matrix connection status:', { isConnected, isReady });
-
-    // Handle regular messages
-    const unsubscribeMessage = onMessage((messageData: any) => {
-      console.log('📨 Received Matrix message:', messageData);
-      
-      // Only process messages from the current Matrix room
-      if (messageData.roomId !== matrixRoomId) {
-        console.log('📨 Ignoring message from different room:', messageData.roomId);
-        return;
-      }
-
-      // Don't process messages from self to avoid duplicates
-      if (messageData.isFromSelf) {
-        console.log('📨 Ignoring message from self');
-        return;
-      }
-
-      // Convert Matrix message to Goose message format
-      const newMessage: Message = {
-        id: `matrix_live_${messageData.timestamp.getTime()}_${Math.random()}`,
-        role: 'user',
-        created: Math.floor(messageData.timestamp.getTime() / 1000),
-        content: [
-          {
-            type: 'text' as const,
-            text: messageData.content,
-          }
-        ],
-        sender: messageData.senderInfo ? {
-          userId: messageData.senderInfo.userId,
-          displayName: messageData.senderInfo.displayName,
-          avatarUrl: messageData.senderInfo.avatarUrl,
-        } : undefined,
-      };
-
-      console.log('📨 Adding new message to chat:', newMessage);
-
-      // Add the message to the current chat
-      setChat(prevChat => ({
-        ...prevChat,
-        messages: [...prevChat.messages, newMessage],
-      }));
-    });
-
-    // Session messages are now handled by useSessionSharing hook, no need for manual handling here
-
-    // Handle Goose messages (AI responses, etc.)
-    const unsubscribeGooseMessage = onGooseMessage((gooseMessage: any) => {
-      console.log('🦆 Received Goose message:', gooseMessage);
-      
-      // Only process messages from the current Matrix room
-      if (gooseMessage.roomId !== matrixRoomId) {
-        console.log('🦆 Ignoring Goose message from different room:', gooseMessage.roomId);
-        return;
-      }
-
-      // Don't process messages from self
-      if (gooseMessage.metadata?.isFromSelf) {
-        console.log('🦆 Ignoring Goose message from self');
-        return;
-      }
-
-      // Convert Goose message to chat message format
-      const newMessage: Message = {
-        id: `matrix_goose_${gooseMessage.timestamp.getTime()}_${Math.random()}`,
-        role: 'assistant',
-        created: Math.floor(gooseMessage.timestamp.getTime() / 1000),
-        content: [
-          {
-            type: 'text' as const,
-            text: gooseMessage.content,
-          }
-        ],
-        sender: {
-          userId: gooseMessage.sender,
-          displayName: gooseMessage.sender.split(':')[0]?.substring(1) || 'Goose',
-        },
-      };
-
-      console.log('🦆 Adding new Goose message to chat:', newMessage);
-
-      // Add the message to the current chat
-      setChat(prevChat => ({
-        ...prevChat,
-        messages: [...prevChat.messages, newMessage],
-      }));
-    });
-
-    // Cleanup function
-    return () => {
-      console.log('👂 Cleaning up Matrix message listeners');
-      unsubscribeMessage();
-      unsubscribeGooseMessage();
-    };
-  }, [isMatrixMode, matrixRoomId, onMessage, onGooseMessage]); // Removed setChat from dependencies to prevent constant re-renders
+  // Matrix real-time messages are handled by useSessionSharing hook
+  // No need for separate Matrix listeners since useSessionSharing processes session messages correctly
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
