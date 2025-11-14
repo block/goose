@@ -7,7 +7,7 @@ import MarkdownContent from './MarkdownContent';
 import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { NotificationEvent } from '../hooks/useMessageStream';
+import { NotificationEvent } from '../hooks/useChatStream';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';

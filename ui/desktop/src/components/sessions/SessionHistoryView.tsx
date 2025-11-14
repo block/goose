@@ -33,7 +33,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Message, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
 
-// Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
