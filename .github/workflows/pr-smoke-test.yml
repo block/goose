@@ -46,7 +46,7 @@ jobs:
 
   build-binary:
     name: Build Release Binary
-    runs-on: goose
+    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
