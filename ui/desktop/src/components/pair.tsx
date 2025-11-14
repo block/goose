@@ -66,7 +66,7 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady, onMessage, onSessionMessage } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
   
