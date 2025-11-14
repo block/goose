@@ -122,6 +122,7 @@ const GooseChat: React.FC = () => {
       case 'goose.task.request': return '📋 Task Request';
       case 'goose.task.response': return '✅ Task Response';
       case 'goose.collaboration.invite': return '🤝 Collaboration Invite';
+      case 'goose.collaboration.chat': return '💬 Chat Collaboration';
       case 'goose.collaboration.accept': return '✅ Collaboration Accepted';
       case 'goose.collaboration.decline': return '❌ Collaboration Declined';
       default: return '🦆 Goose Message';

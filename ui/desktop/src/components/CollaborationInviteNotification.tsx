@@ -21,13 +21,16 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
   const [pendingInvites, setPendingInvites] = useState<GooseChatMessage[]>([]);
   const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(new Set());
 
-  // Listen for collaboration invites
+  // Listen for Goose messages that could be collaboration opportunities
   useEffect(() => {
     if (!isConnected) return;
 
     const unsubscribe = onGooseMessage((message: GooseChatMessage) => {
-      // Only show collaboration invites that are not from self
-      if (message.type === 'goose.collaboration.invite' && !message.metadata?.isFromSelf) {
+      // Only show messages that are not from self
+      if (message.metadata?.isFromSelf) return;
+
+      // Handle explicit collaboration invites
+      if (message.type === 'goose.collaboration.invite') {
         console.log('🔔 Received collaboration invite notification:', message);
         
         // Add to pending invites if not already dismissed
@@ -39,6 +42,37 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
           return prev;
         });
       }
+      
+      // Handle regular Goose chat messages as collaboration opportunities
+      else if (message.type === 'goose.chat') {
+        console.log('💬 Received Goose chat message - offering collaboration:', message);
+        
+        // Only show notifications for recent messages (within the last 5 minutes)
+        // This prevents spam from old messages when first connecting
+        const messageAge = Date.now() - message.timestamp.getTime();
+        const fiveMinutesInMs = 5 * 60 * 1000;
+        
+        if (messageAge > fiveMinutesInMs) {
+          console.log('💬 Ignoring old chat message for collaboration notification');
+          return;
+        }
+        
+        // Convert chat message to collaboration opportunity
+        const collaborationOpportunity: GooseChatMessage = {
+          ...message,
+          type: 'goose.collaboration.chat', // New type for chat-based collaboration
+          content: message.content, // Keep original message content
+        };
+        
+        // Add to pending invites if not already dismissed
+        setPendingInvites(prev => {
+          const exists = prev.some(invite => invite.messageId === message.messageId);
+          if (!exists && !dismissedInvites.has(message.messageId)) {
+            return [...prev, collaborationOpportunity];
+          }
+          return prev;
+        });
+      }
     });
 
     return unsubscribe;
@@ -46,32 +80,52 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
 
   const handleAcceptInvite = async (invite: GooseChatMessage) => {
     try {
-      console.log('🤝 Accepting collaboration invite from notification:', invite);
+      console.log('🤝 Accepting collaboration from notification:', invite);
       
-      // Extract session details from the message metadata
-      const sessionData = invite.metadata;
-      if (!sessionData?.sessionId || !sessionData?.roomId) {
-        console.error('❌ Invalid collaboration invite - missing session data');
-        return;
-      }
+      // Handle explicit collaboration invites with session metadata
+      if (invite.type === 'goose.collaboration.invite') {
+        const sessionData = invite.metadata;
+        if (!sessionData?.sessionId || !sessionData?.roomId) {
+          console.error('❌ Invalid collaboration invite - missing session data');
+          return;
+        }
 
-      // Accept the collaboration invite via Matrix
-      await acceptCollaborationInvite(invite.roomId, invite.messageId, ['ai-chat', 'collaboration']);
+        // Accept the collaboration invite via Matrix
+        await acceptCollaborationInvite(invite.roomId, invite.messageId, ['ai-chat', 'collaboration']);
+        
+        console.log('✅ Accepted collaboration invite:', {
+          sessionId: sessionData.sessionId,
+          sessionTitle: sessionData.sessionTitle,
+          roomId: sessionData.roomId,
+        });
+        
+        // Show success notification
+        alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nYou can now collaborate in real-time!`);
+      }
+      
+      // Handle regular chat messages as collaboration opportunities
+      else if (invite.type === 'goose.collaboration.chat') {
+        console.log('💬 Joining chat room for collaboration:', invite.roomId);
+        
+        // For regular chat messages, we join the room and start collaborating
+        // The room ID is where the original message came from
+        const senderName = getSenderName(invite);
+        
+        // Send a collaboration acceptance message to the room
+        await acceptCollaborationInvite(invite.roomId, invite.messageId, ['ai-chat', 'collaboration']);
+        
+        console.log('✅ Joined chat room for collaboration:', invite.roomId);
+        
+        // Show success notification
+        alert(`Started collaborating with ${senderName}!\n\nYou're now in their chat room and can work together.`);
+      }
       
       // Remove from pending invites
       setPendingInvites(prev => prev.filter(i => i.messageId !== invite.messageId));
       
-      console.log('✅ Accepted collaboration invite:', {
-        sessionId: sessionData.sessionId,
-        sessionTitle: sessionData.sessionTitle,
-        roomId: sessionData.roomId,
-      });
-      
-      // Show success notification
-      alert(`Joined collaborative session: ${sessionData.sessionTitle}\n\nYou can now collaborate in real-time!`);
-      
     } catch (error) {
-      console.error('❌ Failed to accept collaboration invite:', error);
+      console.error('❌ Failed to accept collaboration:', error);
+      alert('Failed to join collaboration. Please try again.');
     }
   };
 
@@ -127,7 +181,7 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-sm font-semibold text-gray-900">
-                    Collaboration Invite
+                    {invite.type === 'goose.collaboration.invite' ? 'Collaboration Invite' : 'New Message'}
                   </h4>
                   <button
                     onClick={() => handleDismissInvite(invite)}
@@ -138,7 +192,11 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
                 </div>
                 
                 <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">{getSenderName(invite)}</span> invited you to collaborate
+                  <span className="font-medium">{getSenderName(invite)}</span> {
+                    invite.type === 'goose.collaboration.invite' 
+                      ? 'invited you to collaborate' 
+                      : 'sent you a message'
+                  }
                 </p>
                 
                 <p className="text-xs text-gray-500 mb-3 line-clamp-2">
