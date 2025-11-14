@@ -464,8 +464,9 @@ export default function Pair({
   ]);
 
   // Sync Goose responses to Matrix when they're added to the chat (with debouncing)
+  // Only sync if the current user asked the last question
   useEffect(() => {
-    if (!isMatrixMode || !matrixRoomId) {
+    if (!isMatrixMode || !matrixRoomId || !currentUser) {
       return;
     }
 
@@ -477,6 +478,31 @@ export default function Pair({
       const isFromMatrix = lastMessage.id.startsWith('matrix_');
       
       if (!isFromMatrix) {
+        // Find the last user message to determine who asked the question
+        const lastUserMessage = [...chat.messages].reverse().find(msg => msg.role === 'user');
+        
+        // Only sync Goose response if the current user asked the last question
+        const shouldSync = lastUserMessage && (
+          // If the message has sender info, check if it's from current user
+          lastUserMessage.sender?.userId === currentUser.userId ||
+          // If no sender info, assume it's from current user (local message)
+          !lastUserMessage.sender
+        );
+        
+        if (!shouldSync) {
+          console.log('🤖 Skipping Goose response sync - not responding to current user\'s question:', {
+            lastUserMessageSender: lastUserMessage?.sender?.userId || 'local',
+            currentUser: currentUser.userId,
+            lastUserMessageId: lastUserMessage?.id
+          });
+          return;
+        }
+        
+        console.log('🤖 Goose response should sync - responding to current user\'s question:', {
+          lastUserMessageSender: lastUserMessage?.sender?.userId || 'local',
+          currentUser: currentUser.userId,
+          assistantMessageId: lastMessage.id
+        });
         // Get the message content
         const messageContent = Array.isArray(lastMessage.content) 
           ? lastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
@@ -522,11 +548,15 @@ export default function Pair({
               
               try {
                 // Send as a Goose message (this will make Goose appear as a separate user)
+                // Include metadata about which user this Goose is responding to
                 await sendGooseMessage(matrixRoomId, messageContent, 'goose.chat', {
                   metadata: {
                     originalMessageId: lastMessage.id,
                     timestamp: lastMessage.created,
                     isGooseResponse: true,
+                    respondingToUser: currentUser.userId,
+                    respondingToDisplayName: currentUser.displayName || currentUser.userId,
+                    inResponseToMessageId: lastUserMessage?.id,
                   }
                 });
                 
@@ -569,7 +599,7 @@ export default function Pair({
         syncTimeoutRef.current = null;
       }
     };
-  }, [chat.messages, isMatrixMode, matrixRoomId, sendMessage, sendGooseMessage, syncedMessageIds]);
+  }, [chat.messages, isMatrixMode, matrixRoomId, currentUser, sendMessage, sendGooseMessage, syncedMessageIds]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
