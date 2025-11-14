@@ -29,7 +29,7 @@ interface SharedSessionState {
 }
 
 interface UseSessionSharingProps {
-  sessionId: string;
+  sessionId: string | null; // Allow null to disable session sharing
   sessionTitle: string;
   messages: Message[];
   onMessageSync?: (message: Message) => void;
