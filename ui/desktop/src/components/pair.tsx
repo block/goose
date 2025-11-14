@@ -65,7 +65,7 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady, onMessage, onSessionMessage } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, sendGooseMessage, isConnected, isReady, onMessage, onSessionMessage } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
   
@@ -474,36 +474,39 @@ export default function Pair({
       const isFromMatrix = lastMessage.id.startsWith('matrix_');
       
       if (!isFromMatrix) {
-        console.log('🤖 Syncing new Goose response to Matrix:', {
+        console.log('🤖 Syncing new Goose response to Matrix as separate user:', {
           messageId: lastMessage.id,
           role: lastMessage.role,
           content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
         });
         
-        // Send the assistant response to Matrix as a session message
+        // Get the message content
         const messageContent = Array.isArray(lastMessage.content) 
           ? lastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
           : '';
         
-        const messageData = {
-          sessionId: effectiveSessionId,
-          role: lastMessage.role,
-          content: messageContent,
-          timestamp: Date.now(),
-        };
-
-        sendMessage(matrixRoomId, `goose-session-message:${JSON.stringify(messageData)}`)
+        // Send as a Goose message (this will make Goose appear as a separate user)
+        // Use the Matrix context's sendGooseMessage method instead of generic sendMessage
+        sendGooseMessage(matrixRoomId, messageContent, 'goose.chat', {
+          metadata: {
+            originalMessageId: lastMessage.id,
+            timestamp: lastMessage.created,
+            isGooseResponse: true,
+          }
+        })
           .then(() => {
-            console.log('✅ Goose response synced to Matrix successfully');
+            console.log('✅ Goose response synced to Matrix as separate user successfully');
           })
           .catch((error) => {
-            console.error('❌ Failed to sync Goose response to Matrix:', error);
+            console.error('❌ Failed to sync Goose response to Matrix as separate user:', error);
+            // Fallback to regular message if Goose message fails
+            return sendMessage(matrixRoomId, messageContent);
           });
       } else {
         console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
       }
     }
-  }, [chat.messages, isMatrixMode, matrixRoomId, effectiveSessionId, sendMessage]);
+  }, [chat.messages, isMatrixMode, matrixRoomId, sendMessage, sendGooseMessage]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
 
