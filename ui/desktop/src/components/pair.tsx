@@ -81,16 +81,49 @@ export default function Pair({
     console.log(`📝 Adding ${newMessages.length} messages from ${source}`);
     
     setChat(prevChat => {
-      // Get current message IDs for deduplication
-      const existingIds = new Set(prevChat.messages.map(msg => msg.id));
+      // Create comprehensive deduplication checks
+      const existingMessages = prevChat.messages;
       
-      // Filter out duplicates and already processed messages
+      // Filter out duplicates using multiple criteria
       const uniqueNewMessages = newMessages.filter(msg => {
-        const isDuplicate = existingIds.has(msg.id) || processedMessageIds.has(msg.id);
-        if (isDuplicate) {
-          console.log(`📝 Skipping duplicate message from ${source}:`, msg.id);
+        // Check 1: Exact ID match
+        const idDuplicate = existingMessages.some(existing => existing.id === msg.id);
+        if (idDuplicate) {
+          console.log(`📝 Skipping duplicate message from ${source} (ID match):`, msg.id);
           return false;
         }
+        
+        // Check 2: Already processed ID
+        if (processedMessageIds.has(msg.id)) {
+          console.log(`📝 Skipping already processed message from ${source}:`, msg.id);
+          return false;
+        }
+        
+        // Check 3: Content + timestamp + role match (for messages with different IDs but same content)
+        const contentText = Array.isArray(msg.content) 
+          ? msg.content.map(c => c.type === 'text' ? c.text : '').join('')
+          : msg.content;
+        
+        const contentDuplicate = existingMessages.some(existing => {
+          const existingText = Array.isArray(existing.content)
+            ? existing.content.map(c => c.type === 'text' ? c.text : '').join('')
+            : existing.content;
+          
+          // Match if same content, role, and timestamp within 5 seconds
+          return existingText === contentText && 
+                 existing.role === msg.role && 
+                 Math.abs(existing.created - msg.created) <= 5;
+        });
+        
+        if (contentDuplicate) {
+          console.log(`📝 Skipping duplicate message from ${source} (content match):`, {
+            content: contentText.substring(0, 50) + '...',
+            role: msg.role,
+            timestamp: msg.created
+          });
+          return false;
+        }
+        
         return true;
       });
       
@@ -111,6 +144,12 @@ export default function Pair({
       });
       
       console.log(`📝 Added ${uniqueNewMessages.length} unique messages from ${source}. Total: ${allMessages.length}`);
+      console.log(`📝 Message details:`, uniqueNewMessages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: Array.isArray(msg.content) ? msg.content[0]?.text?.substring(0, 30) + '...' : 'N/A',
+        timestamp: msg.created
+      })));
       
       return {
         ...prevChat,
@@ -252,22 +291,28 @@ export default function Pair({
 
         if (roomHistory.length > 0) {
           // Convert Matrix messages to Goose message format
-          const gooseMessages: Message[] = roomHistory.map((msg, index) => ({
-            id: `matrix_${index}_${msg.timestamp.getTime()}`,
-            role: msg.role as 'user' | 'assistant',
-            created: Math.floor(msg.timestamp.getTime() / 1000),
-            content: [
-              {
-                type: 'text' as const,
-                text: msg.content,
-              }
-            ],
-            sender: msg.metadata?.senderInfo ? {
-              userId: msg.metadata.senderInfo.userId,
-              displayName: msg.metadata.senderInfo.displayName,
-              avatarUrl: msg.metadata.senderInfo.avatarUrl,
-            } : undefined,
-          }));
+          const gooseMessages: Message[] = roomHistory.map((msg, index) => {
+            // Create more stable ID based on content and timestamp to help with deduplication
+            const contentHash = msg.content.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
+            const stableId = `matrix_${msg.timestamp.getTime()}_${msg.role}_${contentHash}`;
+            
+            return {
+              id: stableId,
+              role: msg.role as 'user' | 'assistant',
+              created: Math.floor(msg.timestamp.getTime() / 1000),
+              content: [
+                {
+                  type: 'text' as const,
+                  text: msg.content,
+                }
+              ],
+              sender: msg.metadata?.senderInfo ? {
+                userId: msg.metadata.senderInfo.userId,
+                displayName: msg.metadata.senderInfo.displayName,
+                avatarUrl: msg.metadata.senderInfo.avatarUrl,
+              } : undefined,
+            };
+          });
 
           // Use centralized message management for Matrix history
           addMessagesToChat(gooseMessages, 'matrix-history');
