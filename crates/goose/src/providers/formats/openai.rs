@@ -55,9 +55,6 @@ struct StreamingChunk {
     model: Option<String>,
 }
 
-/// Convert internal Message format to OpenAI's API message specification
-///   some openai compatible endpoints use the anthropic image spec at the content level
-///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
@@ -256,7 +253,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     messages_spec
 }
 
-/// Convert internal Tool format to OpenAI's API tool specification
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
@@ -270,7 +266,6 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             "type": "function",
             "function": {
                 "name": tool.name,
-                // do not silently truncate description
                 "description": tool.description,
                 "parameters": tool.input_schema,
             }

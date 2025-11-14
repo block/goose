@@ -42,7 +42,7 @@ pub fn list_available_recipes() -> Result<Vec<RecipeInfo>> {
             RecipeInfo {
                 name,
                 source: RecipeSource::Local,
-                path: path.to_string_lossy().to_string(),
+                path: path.display().to_string(),
                 title: Some(recipe.title),
                 description: Some(recipe.description),
             }

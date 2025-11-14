@@ -261,7 +261,7 @@ You can turn your current goose session into a reusable recipe that includes the
 
   <TabItem value="cli" label="goose CLI">
 
-  Using a recipe with the Goose CLI might involve the following tasks:
+  Using a recipe with the goose CLI might involve the following tasks:
   - [Configuring your recipe location](#configure-recipe-location)
   - [Running a recipe](#run-a-recipe)
   - [Scheduling a recipe](#schedule-recipe)
@@ -295,30 +295,30 @@ You can turn your current goose session into a reusable recipe that includes the
        │  ○ Toggle Extensions 
        │  ○ Remove Extension 
        // highlight-start
-       │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
+       │  ● goose settings (Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more)
        // highlight-end
        │
        ◇  What would you like to configure?
-       │  Goose Settings 
+       │  goose settings 
        │
        ◆  What setting would you like to configure?
-       │  ○ Goose Mode 
+       │  ○ goose mode 
        │  ○ Tool Permission 
        │  ○ Tool Output 
        │  ○ Toggle Experiment 
        // highlight-start
-       │  ● Goose recipe github repo (Goose will pull recipes from this repo if not found locally.)
+       │  ● goose recipe github repo (goose will pull recipes from this repo if not found locally.)
        // highlight-end
        └  
        ┌  goose-configure 
        │
        ◇  What would you like to configure?
-       │  Goose Settings 
+       │  goose settings 
        │
        ◇  What setting would you like to configure?
-       │  Goose recipe github repo 
+       │  goose recipe github repo 
        │
-       ◆  Enter your Goose Recipe GitHub repo (owner/repo): eg: my_org/goose-recipes
+       ◆  Enter your goose recipe GitHub repo (owner/repo): eg: my_org/goose-recipes
        // highlight-start
        │  squareup/goose-recipes (default)
        // highlight-end
@@ -458,7 +458,7 @@ You can turn your current goose session into a reusable recipe that includes the
 </Tabs>
 
 ## Share Recipe
-Share your recipe with Goose users using a recipe link or recipe file.
+Share your recipe with goose users using a recipe link or recipe file.
 
 :::info Privacy & Isolation
 Each recipient gets their own private session when using your shared recipe. No data is shared between users, and your original session and recipe remain unaffected.
@@ -533,7 +533,7 @@ At the bottom of the `Schedule Details` page you can view the list of sessions c
 
   ```bash
   # Add a new scheduled recipe which runs every day at 9 AM
-  goose schedule add --schedule-id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+  goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
   ```
   You can use either a 5, 6, or 7-digit cron expression for full scheduling precision, following the format "seconds minutes hours day-of-month month day-of-week year".
 

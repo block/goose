@@ -309,6 +309,17 @@
     "environmentVariables": []
   },
   {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "i-ching",
     "name": "I Ching",
     "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
@@ -562,6 +573,24 @@
     ]
   },
   {
+    "id": "supabase",
+    "name": "Supabase",
+    "description": "Connect your Supabase projects to AI assistants. Manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly from your MCP client.",
+    "type": "streamable-http",
+    "url": "https://mcp.supabase.com/mcp",
+    "link": "https://github.com/supabase-community/supabase-mcp",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "SUPABASE_PERSONAL_ACCESS_TOKEN",
+        "description": "Personal access token (optional; use if not authenticating via browser OAuth)",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Web Search",
     "description": "Web search capabilities powered by Tavily",
@@ -590,34 +619,12 @@
     "environmentVariables": []
   },
   {
-    "id": "vscode",
-    "name": "VSCode",
-    "description": "Provides a VSCode IDE integration for development workflows",
-    "command": "npx vscode-mcp-server",
-    "link": "https://github.com/block/vscode-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-    {
-    "id": "gotoHuman-mcp",
-    "name": "gotoHuman MCP Server",
-    "description": "Adds human approvals into your workflows",
-    "command": "npx -y @gotohuman/mcp-server",
-    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
-    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

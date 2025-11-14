@@ -63,7 +63,7 @@ pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 
     let search_dirs_str = search_dirs
         .iter()
-        .map(|p| p.to_string_lossy())
+        .map(|p| p.display().to_string())
         .collect::<Vec<_>>()
         .join(":");
     Err(anyhow!(

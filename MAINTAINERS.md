@@ -1,11 +1,18 @@
 # Core Maintainers
 
-* Bradley Axen
-* Douwe Osinga
-* David Katz
-* Mic Neale
 * Alex Hancock
-* Zane Staggs
+* Bradley Axen
+* David Katz
+* Douwe Osinga
 * Jack Amadeo
+* Mic Neale
+* Zane Staggs
+
 
 # Maintainers
+
+* Abhijay Jain
+* Angie Jones
+* Rizèl Scarlett
+* Tania Chakraborty
+* The-Best-Codes (on GitHub)

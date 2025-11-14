@@ -13,50 +13,51 @@ A session is a single, continuous interaction between you and goose, providing a
 ## Start Session 
 
 :::info First-time setup
-In your first session, Goose prompts you to [set up an LLM (Large Language Model) provider](/docs/getting-started/installation#set-llm-provider).
+In your first session, goose prompts you to [set up an LLM (Large Language Model) provider](/docs/getting-started/installation#set-llm-provider).
 :::
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-        When you open Goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and Goose will immediately get to work. 
+        When you open goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and goose will immediately get to work. 
         
-        When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where Goose reads and writes files by default.
+        When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where goose reads and writes files by default.
 
         <Tabs>
           <TabItem value="same-directory" label="Same Directory" default>
 
-            To start a session in the same Goose window:
+            To start a session in the same goose window:
             1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
             2. Click `Home` in the sidebar
             3. Send your first prompt from the chat box
 
-            To start a session in a new Goose window:
+            To start a session in a new goose window:
             1. Click the <AppWindow className="inline" size={16} /> button in the top-left
-            2. In the new Goose window, send your first prompt from the chat box
+            2. In the new goose window, send your first prompt from the chat box
 
           </TabItem>
           <TabItem value="diff-directory" label="Different Directory">
 
             1. Click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app
             2. Navigate to the new directory or create a new folder
-            3. Click `Open` to open a new Goose window for the selected directory
+            3. Click `Open` to open a new goose window for the selected directory
             4. Send your first prompt from the chat box
 
           </TabItem>
         </Tabs>
 
         :::tip
-        On macOS, you can drag and drop a folder onto the Goose icon in the dock to open a new session in that directory.
+        On macOS, you can drag and drop a folder onto the goose icon in the dock to open a new session in that directory.
         :::
 
-        You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
+        You can also use keyboard shortcuts to start a new session or bring focus to open goose windows.
         
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
         | New Session in Current Directory | `Cmd+N`  | `Ctrl+N`  |
         | New Session in Different Directory  | `Cmd+O` | `Ctrl+O` |
-        | Focus Goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+        | Focus goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
         | Toggle Sidebar | `Cmd+B` | `Ctrl+B` |
+        | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
@@ -65,7 +66,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
         goose session 
         ```
 
-        If you want to interact with Goose in a web-based chat interface, start a session with the [`web`](/docs/guides/goose-cli-commands#web) command:
+        If you want to interact with goose in a web-based chat interface, start a session with the [`web`](/docs/guides/goose-cli-commands#web) command:
         ```sh
         goose web --open
         ```
@@ -90,12 +91,12 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
         6. A success toast notification will confirm the change
 
         :::tip
-        Session descriptions help you manage multiple Goose windows. When you're in the Goose chat interface, session descriptions appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different Goose sessions.
+        Session descriptions help you manage multiple goose windows. When you're in the goose chat interface, session descriptions appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different goose sessions.
         ::: 
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        By default, goose names your session using the current timestamp in the format `YYYYMMDD_<COUNT>`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
 
         ```
         goose session -n react-migration
@@ -105,7 +106,8 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 
         ```
         starting session | provider: openai model: gpt-4o
-        logging to ~/.local/share/goose/sessions/react-migration.json1
+        session id: react-migration
+        working directory: /path/to/your/project
         ```
     </TabItem>
 </Tabs>
@@ -119,7 +121,7 @@ Note that sessions are automatically saved when you exit.
     <TabItem value="cli" label="goose CLI">
         To exit a session, type `exit`. Alternatively, you exit the session by holding down `Ctrl+C`.
 
-        Your session will be stored locally in `~/.local/share/goose/sessions`.
+        Your session will be stored in the local SQLite database at `~/.local/share/goose/sessions/sessions.db`.
     </TabItem>
 </Tabs>
 
@@ -161,10 +163,23 @@ Search allows you to find specific content within sessions or find specific sess
     4. Enter your search term
     5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
 
-    This is a metadata-only search. It doesn't search conversation content. Note that searching by file name is supported (e.g. `20250727_130002.jsonl`), but this property isn't displayed in the UI.
+    This is a metadata-only search. It doesn't search conversation content. Note that searching by session ID (e.g. `20251108_1`) is supported, but this property isn't displayed in the UI.
 
     :::tip
     You can [rename sessions](#name-session) to give them descriptive names that you'll remember later.
+    :::
+
+    #### Search Across All Session Content
+    
+    To search conversation content across all your sessions, ask goose directly in any chat session. For example:
+
+    - "Find my earlier conversation about React hooks from last week"
+    - "Show me sessions where I worked on database migrations"
+
+    goose will search your session history and show relevant conversations with context from matching sessions. 
+    
+    :::info
+    This functionality requires the built-in `Chatrecall` extension to be enabled (it's enabled by default).
     :::
 
     #### Search Within Historical Session
@@ -185,6 +200,8 @@ Search allows you to find specific content within sessions or find specific sess
   </TabItem>
   <TabItem value="cli" label="goose CLI">
 
+    #### Search Within Current Session
+
     Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
 
     | Terminal | Operating System | Shortcut |
@@ -194,36 +211,52 @@ Search allows you to find specific content within sessions or find specific sess
     | Windows Terminal | Windows | `Ctrl+F` |
     | Linux Terminal | Linux | `Ctrl+F` |
 
+    To find specific content within your current session:
+
+    1. Use the shortcut to open the search bar
+    2. Enter your search term
+    3. Use shortcuts and search bar buttons to navigate the results
+
     :::info
     Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
     :::
 
-    The Goose CLI supports [listing session history](/docs/guides/goose-cli-commands#session-list-options) but doesn't provide search functionality. As a workaround, you can use your terminal's search capabilities (including regex support) to search for specific content within sessions or find specific sessions. 
+    #### Search Across All Session Content
     
-    Examples for macOS:
+    To search conversation content across all your sessions, start a goose session and ask directly:
+
+    - "Find my earlier conversation about React hooks from last week"
+    - "Show me sessions where I worked on database migrations"
+
+    goose will search your session history and show relevant conversations with context from matching sessions.
+    
+    :::info
+    This functionality requires the built-in `Chatrecall` extension to be enabled (it's enabled by default).
+    :::
+
+    #### Search Session Data Directly
+    
+    The [`session list`](/docs/guides/goose-cli-commands#session-list-options) subcommand with supported options can be useful for some search operations.
+
+    You can also query the SQLite database directly:
 
     ```bash
-    # Search session IDs (filenames)
-    ls ~/.local/share/goose/sessions/ | grep "full or partial session id"
+    # Search session descriptions
+    sqlite3 ~/.local/share/goose/sessions/sessions.db \
+      "SELECT id, description FROM sessions WHERE description LIKE '%your search term%';"
 
-    # List sessions modified in last 7 days
-    find ~/.local/share/goose/sessions/ -mtime -7 -name "*.jsonl"
+    # Search by working directory
+    sqlite3 ~/.local/share/goose/sessions/sessions.db \
+      "SELECT id, description, working_dir FROM sessions WHERE working_dir LIKE '%project-name%';"
 
-    # Show first line (metadata) of each session file
-    for f in ~/.local/share/goose/sessions/*.jsonl; do
-        head -n1 "$f" | grep "your search term" && echo "Found in: $(basename "$f" .jsonl)"
-    done
-
-    # Find search term in session content
-    rg "your search term" ~/.local/share/goose/sessions/
-
-    # Search and show session IDs that contain search term
-    for f in ~/.local/share/goose/sessions/*.jsonl; do
-        if grep -q "your search term" "$f"; then
-        echo "Found in session: $(basename "$f" .jsonl)"
-        fi
-    done
+    # List recent sessions
+    sqlite3 ~/.local/share/goose/sessions/sessions.db \
+      "SELECT id, description, created_at FROM sessions ORDER BY created_at DESC LIMIT 10;"
     ```
+
+    :::info Session Storage Migration
+    Starting with version 1.10.0, goose uses a SQLite database (`sessions.db`) instead of individual `.jsonl` files. Legacy `.jsonl` files remain on disk but are no longer managed by goose.
+    :::
 
   </TabItem>
 </Tabs>
@@ -234,7 +267,7 @@ Search allows you to find specific content within sessions or find specific sess
     <TabItem value="ui" label="goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `History` in the sidebar
-    3. Click the session you'd like to resume. Goose provides [search features](#search-sessions) to help you find the session.
+    3. Click the session you'd like to resume. goose provides [search features](#search-sessions) to help you find the session.
     4. Choose how to resume:
        - Click `Resume` to continue in the current window
        - Click `New Window` to open in a new window
@@ -317,7 +350,7 @@ You can resume a CLI session in Desktop.
         Deleting a session from goose Desktop will also delete it from the CLI. This action cannot be undone.
         :::
 
-        The session will be immediately removed from your session history and the underlying session file will be deleted from your local storage.
+        The session will be immediately removed from your session history and the underlying session record will be deleted from local storage.
     </TabItem>
     <TabItem value="cli" label="goose CLI">
         You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).

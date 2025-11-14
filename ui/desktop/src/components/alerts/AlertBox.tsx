@@ -27,19 +27,17 @@ const alertStyles: Record<AlertType, string> = {
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   const { read } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
-  const [loadedThreshold, setLoadedThreshold] = useState<number | null>(null);
-  const [thresholdValue, setThresholdValue] = useState(
-    alert.autoCompactThreshold ? Math.max(1, Math.round(alert.autoCompactThreshold * 100)) : 80
-  );
+  const [loadedThreshold, setLoadedThreshold] = useState<number>(0.8);
+  const [thresholdValue, setThresholdValue] = useState(80);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const loadThreshold = async () => {
       try {
         const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-        if (threshold !== undefined && threshold !== null) {
-          setLoadedThreshold(threshold as number);
-          setThresholdValue(Math.max(1, Math.round((threshold as number) * 100)));
+        if (threshold !== undefined && threshold !== null && typeof threshold === 'number') {
+          setLoadedThreshold(threshold);
+          setThresholdValue(Math.max(1, Math.round(threshold * 100)));
         }
       } catch (err) {
         console.error('Error fetching auto-compact threshold:', err);
@@ -49,7 +47,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     loadThreshold();
   }, [read]);
 
-  const currentThreshold = loadedThreshold !== null ? loadedThreshold : alert.autoCompactThreshold;
+  const currentThreshold = loadedThreshold;
 
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
@@ -103,95 +101,91 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <span className="text-[11px]">{alert.message}</span>
 
           {/* Auto-compact threshold indicator with edit */}
-          {currentThreshold !== undefined && (
-            <div className="flex items-center justify-center gap-1 min-h-[20px]">
-              {isEditingThreshold ? (
-                <>
-                  <span className="text-[10px] opacity-70">Auto compact at</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    step="1"
-                    value={thresholdValue}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      // Allow empty input for easier editing
-                      if (e.target.value === '') {
-                        setThresholdValue(1);
-                      } else if (!isNaN(val)) {
-                        // Clamp value between 1 and 100
-                        setThresholdValue(Math.max(1, Math.min(100, val)));
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // On blur, ensure we have a valid value
-                      const val = parseInt(e.target.value, 10);
-                      if (isNaN(val) || val < 1) {
-                        setThresholdValue(1);
-                      } else if (val > 100) {
-                        setThresholdValue(100);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveThreshold();
-                      } else if (e.key === 'Escape') {
-                        setIsEditingThreshold(false);
-                        const resetValue = currentThreshold
-                          ? Math.round(currentThreshold * 100)
-                          : 80;
-                        setThresholdValue(Math.max(1, resetValue));
-                      }
-                    }}
-                    onFocus={(e) => {
-                      // Select all text on focus for easier editing
-                      e.target.select();
-                    }}
-                    onClick={(e) => {
-                      // Prevent issues with text selection
-                      e.stopPropagation();
-                    }}
-                    className="w-12 px-1 text-[10px] bg-white/10 border border-current/30 rounded outline-none text-center focus:bg-white/20 focus:border-current/50 transition-colors"
-                    disabled={isSaving}
-                    autoFocus
-                  />
-                  <span className="text-[10px] opacity-70">%</span>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
+          <div className="flex items-center justify-center gap-1 min-h-[20px]">
+            {isEditingThreshold ? (
+              <>
+                <span className="text-[10px] opacity-70">Auto compact at</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value={thresholdValue}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    // Allow empty input for easier editing
+                    if (e.target.value === '') {
+                      setThresholdValue(1);
+                    } else if (!isNaN(val)) {
+                      // Clamp value between 1 and 100
+                      setThresholdValue(Math.max(1, Math.min(100, val)));
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // On blur, ensure we have a valid value
+                    const val = parseInt(e.target.value, 10);
+                    if (isNaN(val) || val < 1) {
+                      setThresholdValue(1);
+                    } else if (val > 100) {
+                      setThresholdValue(100);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
                       handleSaveThreshold();
-                    }}
-                    disabled={isSaving}
-                    className="p-1 hover:opacity-60 transition-opacity cursor-pointer relative z-50"
-                    style={{ minWidth: '20px', minHeight: '20px', pointerEvents: 'auto' }}
-                  >
-                    <FaSave className="w-3 h-3" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="text-[10px] opacity-70">
-                    Auto compact at {Math.round(currentThreshold * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsEditingThreshold(true);
-                    }}
-                    className="p-1 hover:opacity-60 transition-opacity cursor-pointer relative z-10"
-                    style={{ minWidth: '20px', minHeight: '20px' }}
-                  >
-                    <FaPencilAlt className="w-3 h-3 opacity-70" />
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                    } else if (e.key === 'Escape') {
+                      setIsEditingThreshold(false);
+                      const resetValue = Math.round(currentThreshold * 100);
+                      setThresholdValue(Math.max(1, resetValue));
+                    }
+                  }}
+                  onFocus={(e) => {
+                    // Select all text on focus for easier editing
+                    e.target.select();
+                  }}
+                  onClick={(e) => {
+                    // Prevent issues with text selection
+                    e.stopPropagation();
+                  }}
+                  className="w-12 px-1 text-[10px] bg-white/10 border border-current/30 rounded outline-none text-center focus:bg-white/20 focus:border-current/50 transition-colors"
+                  disabled={isSaving}
+                  autoFocus
+                />
+                <span className="text-[10px] opacity-70">%</span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSaveThreshold();
+                  }}
+                  disabled={isSaving}
+                  className="p-1 hover:opacity-60 transition-opacity cursor-pointer relative z-50"
+                  style={{ minWidth: '20px', minHeight: '20px', pointerEvents: 'auto' }}
+                >
+                  <FaSave className="w-3 h-3" />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] opacity-70">
+                  Auto compact at {Math.round(currentThreshold * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsEditingThreshold(true);
+                  }}
+                  className="p-1 hover:opacity-60 transition-opacity cursor-pointer relative z-10"
+                  style={{ minWidth: '20px', minHeight: '20px' }}
+                >
+                  <FaPencilAlt className="w-3 h-3 opacity-70" />
+                </button>
+              </>
+            )}
+          </div>
 
           <div className="flex justify-between w-full relative">
             {(() => {

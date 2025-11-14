@@ -648,6 +648,8 @@ impl ServerProcess {
             .arg("--json-schema")
             .arg("{}")
             .arg("--verbose")
+            .arg("--verbose-prompt")
+            .arg("--no-warmup")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
 
