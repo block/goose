@@ -342,31 +342,8 @@ export default function Pair({
     initialValue,
   };
 
-  // Matrix collaboration header
-  const renderMatrixHeader = () => {
-    if (!isMatrixMode || !matrixRoomId) return null;
-    
-    const collaboratorName = matrixRecipientId?.split(':')[0]?.substring(1) || 'Unknown';
-    
-    return (
-      <div className="flex items-center gap-3 p-4 border-b border-border-default bg-background-muted">
-        <button
-          onClick={() => setView('chat', { resetChat: true })}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-text-muted hover:text-text-default hover:bg-background-subtle rounded-lg transition-colors"
-        >
-          ← Back to Chat
-        </button>
-        <div className="flex-1">
-          <h2 className="text-lg font-medium text-text-default">
-            🤝 Matrix Collaboration
-          </h2>
-          <p className="text-sm text-text-muted">
-            Room: {matrixRoomId} • Collaborating with {collaboratorName}
-          </p>
-        </div>
-      </div>
-    );
-  };
+  // Matrix collaboration should be invisible - just a regular chat with Matrix sync
+  // No special header needed - users should see normal Goose chat interface
 
   // Debug the chat state before rendering
   console.log('🎯 Pair component rendering with chat:', chat);
@@ -384,9 +361,8 @@ export default function Pair({
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       onMessageSubmit={handleMessageSubmit}
       customChatInputProps={customChatInputProps}
-      renderHeader={renderMatrixHeader} // Add Matrix header when in Matrix mode
       contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
-      showPopularTopics={!isTransitioningFromHub && !isMatrixMode} // Don't show popular topics in Matrix mode or when transitioning from Hub
+      showPopularTopics={!isTransitioningFromHub} // Show popular topics in all modes, including Matrix
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
     />
   );

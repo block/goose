@@ -123,8 +123,7 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         const searchParams = new URLSearchParams({
           matrixMode: 'true',
           matrixRoomId: invite.roomId,
-          matrixRecipientId: invite.sender,
-          resetChat: 'true'
+          matrixRecipientId: invite.sender
         });
         navigate(`/pair?${searchParams.toString()}`);
         
@@ -152,8 +151,7 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         const searchParams2 = new URLSearchParams({
           matrixMode: 'true',
           matrixRoomId: invite.roomId,
-          matrixRecipientId: invite.sender,
-          resetChat: 'true'
+          matrixRecipientId: invite.sender
         });
         navigate(`/pair?${searchParams2.toString()}`);
         
