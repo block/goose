@@ -20,7 +20,7 @@ goose CLI follows consistent patterns for flag naming to make commands intuitive
 - **`-v, --verbose`**: Used for verbose output
 - **`-l, --limit`**: Used for limiting result counts
 - **`-f, --format`**: Used for specifying output formats
-- **`-w, --working-dir`**: Used for working directory filters
+- **`-w, --working_dir`**: Used for working directory filters
 
 ### Core Commands
 
