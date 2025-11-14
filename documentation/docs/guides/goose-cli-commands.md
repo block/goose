@@ -309,7 +309,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Control Options:**
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
-- **`--max-tool-repetitions <NUMBER>`**: Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops
+- **`--max-tool-repetitions <NUMBER>`**: Maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops
 - **`--max-turns <NUMBER>`**: Maximum number of turns allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--render-recipe`**: Print the rendered recipe instead of running it
