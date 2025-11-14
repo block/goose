@@ -2178,39 +2178,6 @@ async function appMain() {
     }
   });
 
-  ipcMain.handle('start-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
-      windowPowerSaveBlockers.set(windowId, blockerId);
-      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      console.log(`[Main] Power save blocker already active for window ${windowId}`);
-    }
-
-    return false;
-  });
-
-  ipcMain.handle('stop-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      powerSaveBlocker.stop(blockerId);
-      windowPowerSaveBlockers.delete(windowId);
-      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    return false;
-  });
-
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
