@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
@@ -69,6 +69,52 @@ export default function Pair({
   const { getRoomHistoryAsGooseMessages, sendMessage, isConnected, isReady } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
+  
+  // Track all message IDs to prevent duplicates across all sources
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+
+  // Centralized message management function
+  const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
+    console.log(`📝 Adding ${newMessages.length} messages from ${source}`);
+    
+    setChat(prevChat => {
+      // Get current message IDs for deduplication
+      const existingIds = new Set(prevChat.messages.map(msg => msg.id));
+      
+      // Filter out duplicates and already processed messages
+      const uniqueNewMessages = newMessages.filter(msg => {
+        const isDuplicate = existingIds.has(msg.id) || processedMessageIds.has(msg.id);
+        if (isDuplicate) {
+          console.log(`📝 Skipping duplicate message from ${source}:`, msg.id);
+          return false;
+        }
+        return true;
+      });
+      
+      if (uniqueNewMessages.length === 0) {
+        console.log(`📝 No new unique messages from ${source}`);
+        return prevChat;
+      }
+      
+      // Combine all messages and sort by timestamp
+      const allMessages = [...prevChat.messages, ...uniqueNewMessages]
+        .sort((a, b) => a.created - b.created);
+      
+      // Update processed message IDs
+      setProcessedMessageIds(prev => {
+        const newSet = new Set(prev);
+        uniqueNewMessages.forEach(msg => newSet.add(msg.id));
+        return newSet;
+      });
+      
+      console.log(`📝 Added ${uniqueNewMessages.length} unique messages from ${source}. Total: ${allMessages.length}`);
+      
+      return {
+        ...prevChat,
+        messages: allMessages,
+      };
+    });
+  }, [setChat, processedMessageIds]);
 
   // Session sharing hook for Matrix collaboration
   // In Matrix mode, we need to use a session ID that matches what's being sent in Matrix messages
@@ -98,26 +144,8 @@ export default function Pair({
       console.log('💬 Message age check:', { messageAge, isRecentMessage, messageId: message.id });
       
       if (isRecentMessage) {
-        // Check for duplicates before adding
-        setChat(prevChat => {
-          const isDuplicate = prevChat.messages.some(existingMsg => 
-            existingMsg.id === message.id || 
-            (existingMsg.created === message.created && 
-             existingMsg.role === message.role && 
-             JSON.stringify(existingMsg.content) === JSON.stringify(message.content))
-          );
-          
-          if (isDuplicate) {
-            console.log('💬 Skipping duplicate message:', message.id);
-            return prevChat;
-          }
-          
-          console.log('💬 Adding new real-time message:', message.id);
-          return {
-            ...prevChat,
-            messages: [...prevChat.messages, message],
-          };
-        });
+        // Use centralized message management for real-time messages
+        addMessagesToChat([message], 'real-time-sync');
       } else {
         console.log('💬 Skipping old message (likely from history):', message.id);
       }
@@ -215,26 +243,9 @@ export default function Pair({
             } : undefined,
           }));
 
-          // Merge Matrix history with existing chat messages (avoid duplicates)
-          setChat(prevChat => {
-            // Filter out any existing Matrix messages to avoid duplicates
-            const nonMatrixMessages = prevChat.messages.filter(msg => !msg.id.startsWith('matrix_'));
-            
-            // Combine and sort by timestamp
-            const allMessages = [...nonMatrixMessages, ...gooseMessages].sort((a, b) => a.created - b.created);
-            
-            console.log('📜 Merged Matrix history with existing chat:', {
-              existingMessages: nonMatrixMessages.length,
-              matrixMessages: gooseMessages.length,
-              totalMessages: allMessages.length
-            });
-
-            return {
-              ...prevChat,
-              messages: allMessages,
-            };
-          });
-
+          // Use centralized message management for Matrix history
+          addMessagesToChat(gooseMessages, 'matrix-history');
+          
           console.log('📜 Loaded Matrix collaboration history:', gooseMessages.length, 'messages');
         } else {
           console.log('📜 No previous messages found in Matrix room');
@@ -258,7 +269,7 @@ export default function Pair({
     loadingChat,
     chat.sessionId, // Add this dependency to wait for chat initialization
     getRoomHistoryAsGooseMessages,
-    setChat,
+    addMessagesToChat,
   ]);
 
   // Matrix real-time messages are handled by useSessionSharing hook
