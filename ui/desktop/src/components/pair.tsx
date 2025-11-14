@@ -77,6 +77,10 @@ export default function Pair({
   
   // Track which messages have been synced to Matrix to prevent duplicates
   const [syncedMessageIds, setSyncedMessageIds] = useState<Set<string>>(new Set());
+  
+  // Track pending sync operations to debounce rapid message changes
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedContentRef = useRef<string>('');
 
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
@@ -463,7 +467,7 @@ export default function Pair({
     setChat,
   ]);
 
-  // Sync Goose responses to Matrix when they're added to the chat
+  // Sync Goose responses to Matrix when they're added to the chat (with debouncing)
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId) {
       return;
@@ -473,54 +477,102 @@ export default function Pair({
     const lastMessage = chat.messages[chat.messages.length - 1];
     
     if (lastMessage && lastMessage.role === 'assistant') {
-      // Check if this message was generated locally (not from Matrix) and hasn't been synced yet
+      // Check if this message was generated locally (not from Matrix)
       const isFromMatrix = lastMessage.id.startsWith('matrix_');
-      const alreadySynced = syncedMessageIds.has(lastMessage.id);
       
-      if (!isFromMatrix && !alreadySynced) {
-        console.log('🤖 Syncing new Goose response to Matrix as separate user:', {
-          messageId: lastMessage.id,
-          role: lastMessage.role,
-          content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
-        });
-        
-        // Mark this message as being synced to prevent duplicates
-        setSyncedMessageIds(prev => new Set(prev).add(lastMessage.id));
-        
+      if (!isFromMatrix) {
         // Get the message content
         const messageContent = Array.isArray(lastMessage.content) 
           ? lastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
           : '';
         
-        // Send as a Goose message (this will make Goose appear as a separate user)
-        // Use the Matrix context's sendGooseMessage method instead of generic sendMessage
-        sendGooseMessage(matrixRoomId, messageContent, 'goose.chat', {
-          metadata: {
-            originalMessageId: lastMessage.id,
-            timestamp: lastMessage.created,
-            isGooseResponse: true,
-          }
-        })
-          .then(() => {
-            console.log('✅ Goose response synced to Matrix as separate user successfully');
-          })
-          .catch((error) => {
-            console.error('❌ Failed to sync Goose response to Matrix as separate user:', error);
-            // Remove from synced set if sync failed so we can retry
-            setSyncedMessageIds(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(lastMessage.id);
-              return newSet;
-            });
-            // Fallback to regular message if Goose message fails
-            return sendMessage(matrixRoomId, messageContent);
+        // Check if content has changed from last sync
+        const contentChanged = lastSyncedContentRef.current !== messageContent;
+        
+        if (contentChanged) {
+          console.log('🤖 Debouncing Goose response sync (content changed):', {
+            messageId: lastMessage.id,
+            role: lastMessage.role,
+            content: messageContent.substring(0, 50) + '...',
+            previousContent: lastSyncedContentRef.current.substring(0, 50) + '...'
           });
-      } else if (alreadySynced) {
-        console.log('🤖 Skipping Matrix sync - message already synced:', lastMessage.id);
+          
+          // Clear any existing timeout
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+          }
+          
+          // Set up debounced sync - wait 2 seconds for message to stabilize
+          syncTimeoutRef.current = setTimeout(async () => {
+            // Double-check the message is still the latest and hasn't been synced
+            const currentLastMessage = chat.messages[chat.messages.length - 1];
+            const currentContent = Array.isArray(currentLastMessage?.content) 
+              ? currentLastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
+              : '';
+            
+            // Only sync if this is still the latest message and content matches
+            if (currentLastMessage?.id === lastMessage.id && 
+                currentContent === messageContent &&
+                !syncedMessageIds.has(lastMessage.id)) {
+              
+              console.log('🤖 Syncing stabilized Goose response to Matrix:', {
+                messageId: lastMessage.id,
+                content: messageContent.substring(0, 50) + '...'
+              });
+              
+              // Mark as synced
+              setSyncedMessageIds(prev => new Set(prev).add(lastMessage.id));
+              lastSyncedContentRef.current = messageContent;
+              
+              try {
+                // Send as a Goose message (this will make Goose appear as a separate user)
+                await sendGooseMessage(matrixRoomId, messageContent, 'goose.chat', {
+                  metadata: {
+                    originalMessageId: lastMessage.id,
+                    timestamp: lastMessage.created,
+                    isGooseResponse: true,
+                  }
+                });
+                
+                console.log('✅ Goose response synced to Matrix as separate user successfully');
+              } catch (error) {
+                console.error('❌ Failed to sync Goose response to Matrix as separate user:', error);
+                // Remove from synced set if sync failed so we can retry
+                setSyncedMessageIds(prev => {
+                  const newSet = new Set(prev);
+                  newSet.delete(lastMessage.id);
+                  return newSet;
+                });
+                // Fallback to regular message if Goose message fails
+                try {
+                  await sendMessage(matrixRoomId, messageContent);
+                  console.log('✅ Goose response synced to Matrix as regular message (fallback)');
+                } catch (fallbackError) {
+                  console.error('❌ Failed to sync Goose response as fallback:', fallbackError);
+                }
+              }
+            } else {
+              console.log('🤖 Skipping sync - message changed or already synced during debounce period');
+            }
+            
+            syncTimeoutRef.current = null;
+          }, 2000); // Wait 2 seconds for message to stabilize
+          
+        } else {
+          console.log('🤖 Skipping Matrix sync - content unchanged:', messageContent.substring(0, 50) + '...');
+        }
       } else {
         console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
       }
     }
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+    };
   }, [chat.messages, isMatrixMode, matrixRoomId, sendMessage, sendGooseMessage, syncedMessageIds]);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, chat.recipeConfig || null);
