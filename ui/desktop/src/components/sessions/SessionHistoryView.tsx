@@ -111,10 +111,6 @@ const SessionMessages: React.FC<{
                   }}
                   toolCallNotifications={new Map()}
                   append={() => {}} // Read-only for session history
-                  appendMessage={(newMessage) => {
-                    // Read-only - do nothing
-                    console.log('appendMessage called in read-only session history:', newMessage);
-                  }}
                   isUserMessage={isUserMessage} // Use the same function as BaseChat
                   batchSize={15} // Same as BaseChat default
                   batchDelay={30} // Same as BaseChat default

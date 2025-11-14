@@ -35,7 +35,6 @@ interface UseChatStreamReturn {
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: NotificationEvent[];
-  appendMessage: (message: Message) => void;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -166,14 +165,6 @@ export function useChatStream({
   const updateNotifications = useCallback((notification: NotificationEvent) => {
     setNotifications((prev) => [...prev, notification]);
   }, []);
-
-  const appendMessage = useCallback(
-    (message: Message) => {
-      const newMessages = [...messagesRef.current, message];
-      updateMessages(newMessages);
-    },
-    [updateMessages]
-  );
 
   const onFinish = useCallback(
     (error?: string): void => {
@@ -341,6 +332,5 @@ export function useChatStream({
     setRecipeUserParams,
     tokenState,
     notifications,
-    appendMessage,
   };
 }

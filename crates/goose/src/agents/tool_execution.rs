@@ -71,7 +71,7 @@ impl Agent {
                             }
                         });
 
-                    let confirmation = Message::user().with_tool_confirmation_request(
+                    let confirmation = Message::assistant().with_tool_confirmation_request(
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
                         tool_call.arguments.clone().unwrap_or_default(),

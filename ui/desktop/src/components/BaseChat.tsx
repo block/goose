@@ -106,7 +106,6 @@ function BaseChatContent({
     setRecipeUserParams,
     tokenState,
     notifications,
-    appendMessage,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -232,13 +231,7 @@ function BaseChatContent({
         messages={messages}
         chat={chat}
         toolCallNotifications={toolCallNotifications}
-        appendMessage={appendMessage}
-        isUserMessage={(m: Message) => {
-          const hasToolConfirmation = m.content.some(
-            (content) => content.type === 'toolConfirmationRequest'
-          );
-          return m.role === 'user' && !hasToolConfirmation;
-        }}
+        isUserMessage={(m: Message) => m.role === 'user'}
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}
       />
