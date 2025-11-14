@@ -419,7 +419,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     // Estimate tiles that can fit in viewport
     // Assuming each tile is roughly 200px (including gaps) and viewport height minus headers
     const estimatedTileHeight = 200;
-    const headerHeight = 100; // Approximate height of user info section only
+    const headerHeight = 150; // Approximate height of user info section with 50px top padding
     const availableHeight = windowSize.height - headerHeight;
     
     // Calculate how many rows can fit
@@ -475,8 +475,8 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
 
       {/* Current User Info */}
       {currentUser && (
-        <div className="p-4 bg-background-default border-b border-border-default">
-          <div className="flex items-center gap-3">
+        <div className="pt-14 pb-4 px-4 bg-background-default border-b border-border-default">
+          <div className="flex items-end gap-3">
             <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
               {currentUser.avatarUrl ? (
                 <img src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
