@@ -416,7 +416,10 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
-    async fn map_to_canonical_model(&self, provider_model: &str) -> Result<Option<String>, ProviderError> {
+    async fn map_to_canonical_model(
+        &self,
+        provider_model: &str,
+    ) -> Result<Option<String>, ProviderError> {
         let canonical = canonical_name(self.get_name(), provider_model);
 
         if CanonicalModelRegistry::bundled_contains(&canonical)? {

@@ -18,12 +18,8 @@
 /// Usage:
 ///   cargo run --example canonical_model_checker -- [--output custom_path.json]
 ///
-
 use anyhow::{Context, Result};
-use goose::providers::{
-    canonical::ModelMapping,
-    create_with_named_model,
-};
+use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -104,8 +100,10 @@ impl MappingReport {
             });
         }
 
-        self.all_mappings.insert(provider_name.to_string(), mappings);
-        self.model_counts.insert(provider_name.to_string(), fetched_models.len());
+        self.all_mappings
+            .insert(provider_name.to_string(), mappings);
+        self.model_counts
+            .insert(provider_name.to_string(), fetched_models.len());
     }
 
     fn print_summary(&self) {
@@ -119,13 +117,16 @@ impl MappingReport {
         let mut providers: Vec<_> = self.model_counts.iter().collect();
         providers.sort_by_key(|(name, _)| *name);
         for (provider, count) in providers {
-            let mapped = self.all_mappings
+            let mapped = self
+                .all_mappings
                 .get(provider)
                 .map(|m| m.len())
                 .unwrap_or(0);
             let unmapped = count - mapped;
-            println!("  {:<20} Total: {:>3}  Mapped: {:>3}  Unmapped: {:>3}",
-                     provider, count, mapped, unmapped);
+            println!(
+                "  {:<20} Total: {:>3}  Mapped: {:>3}  Unmapped: {:>3}",
+                provider, count, mapped, unmapped
+            );
         }
 
         println!("\n{}", "=".repeat(80));
@@ -157,7 +158,10 @@ impl MappingReport {
         }
 
         println!("\n{}", "=".repeat(80));
-        println!("CANONICAL MODELS REFERENCED ({})", self.canonical_models_used.len());
+        println!(
+            "CANONICAL MODELS REFERENCED ({})",
+            self.canonical_models_used.len()
+        );
         println!("{}", "=".repeat(80));
         if self.canonical_models_used.is_empty() {
             println!("  (none yet)");
@@ -179,12 +183,18 @@ impl MappingReport {
 
         let mut prev_map: HashMap<(String, String), String> = HashMap::new();
         for entry in &previous.mapped_models {
-            prev_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
+            prev_map.insert(
+                (entry.provider.clone(), entry.model.clone()),
+                entry.canonical.clone(),
+            );
         }
 
         let mut curr_map: HashMap<(String, String), String> = HashMap::new();
         for entry in &self.mapped_models {
-            curr_map.insert((entry.provider.clone(), entry.model.clone()), entry.canonical.clone());
+            curr_map.insert(
+                (entry.provider.clone(), entry.model.clone()),
+                entry.canonical.clone(),
+            );
         }
 
         let mut changed_mappings = Vec::new();
@@ -194,7 +204,12 @@ impl MappingReport {
         for (key @ (provider, model), canonical) in &curr_map {
             match prev_map.get(key) {
                 Some(prev_canonical) if prev_canonical != canonical => {
-                    changed_mappings.push((provider.clone(), model.clone(), prev_canonical.clone(), canonical.clone()));
+                    changed_mappings.push((
+                        provider.clone(),
+                        model.clone(),
+                        prev_canonical.clone(),
+                        canonical.clone(),
+                    ));
                 }
                 None => {
                     added_mappings.push((provider.clone(), model.clone(), canonical.clone()));
@@ -245,18 +260,15 @@ impl MappingReport {
     }
 
     fn save_to_file(&self, path: &PathBuf) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .context("Failed to serialize report")?;
-        std::fs::write(path, json)
-            .context("Failed to write report file")?;
+        let json = serde_json::to_string_pretty(self).context("Failed to serialize report")?;
+        std::fs::write(path, json).context("Failed to write report file")?;
         Ok(())
     }
 
     fn load_from_file(path: &PathBuf) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .context("Failed to read report file")?;
-        let report: MappingReport = serde_json::from_str(&content)
-            .context("Failed to parse report file")?;
+        let content = std::fs::read_to_string(path).context("Failed to read report file")?;
+        let report: MappingReport =
+            serde_json::from_str(&content).context("Failed to parse report file")?;
         Ok(report)
     }
 }

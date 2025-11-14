@@ -32,11 +32,15 @@ impl CanonicalModelRegistry {
     }
 
     pub fn bundled() -> Result<Self> {
-        BUNDLED_REGISTRY.as_ref().map(|r| r.clone()).map_err(|e| anyhow::anyhow!("{}", e))
+        BUNDLED_REGISTRY
+            .as_ref()
+            .map(|r| r.clone())
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     pub fn bundled_contains(name: &str) -> Result<bool> {
-        BUNDLED_REGISTRY.as_ref()
+        BUNDLED_REGISTRY
+            .as_ref()
             .map(|r| r.contains(name))
             .map_err(|e| anyhow::anyhow!("{}", e))
     }
@@ -45,8 +49,8 @@ impl CanonicalModelRegistry {
         let content = std::fs::read_to_string(path.as_ref())
             .context("Failed to read canonical models file")?;
 
-        let models: Vec<CanonicalModel> = serde_json::from_str(&content)
-            .context("Failed to parse canonical models JSON")?;
+        let models: Vec<CanonicalModel> =
+            serde_json::from_str(&content).context("Failed to parse canonical models JSON")?;
 
         let mut registry = Self::new();
         for model in models {
@@ -63,8 +67,7 @@ impl CanonicalModelRegistry {
         let json = serde_json::to_string_pretty(&models)
             .context("Failed to serialize canonical models")?;
 
-        std::fs::write(path.as_ref(), json)
-            .context("Failed to write canonical models file")?;
+        std::fs::write(path.as_ref(), json).context("Failed to write canonical models file")?;
 
         Ok(())
     }

@@ -54,4 +54,3 @@ pub struct CanonicalModel {
     /// Pricing for this model
     pub pricing: Pricing,
 }
-

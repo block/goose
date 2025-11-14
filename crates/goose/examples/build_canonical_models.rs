@@ -5,7 +5,9 @@
 ///   cargo run --example build_canonical_models
 ///
 use anyhow::{Context, Result};
-use goose::providers::canonical::{canonical_name, CanonicalModel, CanonicalModelRegistry, Pricing};
+use goose::providers::canonical::{
+    canonical_name, CanonicalModel, CanonicalModelRegistry, Pricing,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -93,14 +95,20 @@ async fn main() -> Result<()> {
             let existing_has_paid = existing_prompt > 0.0 || existing_completion > 0.0;
 
             let should_replace = if has_paid_pricing != existing_has_paid {
-                has_paid_pricing  // Prefer the one with paid pricing
+                has_paid_pricing // Prefer the one with paid pricing
             } else {
-                name.len() < existing_name.len()  // Both same pricing tier, prefer shorter name
+                name.len() < existing_name.len() // Both same pricing tier, prefer shorter name
             };
 
             if should_replace {
-                println!("  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
-                    canonical_id, existing_model["id"].as_str().unwrap(), existing_has_paid, id, has_paid_pricing);
+                println!(
+                    "  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
+                    canonical_id,
+                    existing_model["id"].as_str().unwrap(),
+                    existing_has_paid,
+                    id,
+                    has_paid_pricing
+                );
                 if name.len() >= existing_name.len() {
                 } else {
                     shortest_names.insert(canonical_id.clone(), name.to_string());
@@ -108,7 +116,10 @@ async fn main() -> Result<()> {
                 canonical_groups.insert(canonical_id, model);
             }
         } else {
-            println!("  Adding: {} (from {}, paid: {})", canonical_id, id, has_paid_pricing);
+            println!(
+                "  Adding: {} (from {}, paid: {})",
+                canonical_id, id, has_paid_pricing
+            );
             shortest_names.insert(canonical_id.clone(), name.to_string());
             canonical_groups.insert(canonical_id, model);
         }
@@ -155,7 +166,11 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                if model.get("architecture").and_then(|a| a.get("multimodality")).is_some() {
+                if model
+                    .get("architecture")
+                    .and_then(|a| a.get("multimodality"))
+                    .is_some()
+                {
                     if !mods.contains(&"file".to_string()) {
                         mods.push("file".to_string());
                     }
@@ -180,11 +195,7 @@ async fn main() -> Result<()> {
         let supports_tools = model
             .get("supported_parameters")
             .and_then(|v| v.as_array())
-            .map(|params| {
-                params
-                    .iter()
-                    .any(|param| param.as_str() == Some("tools"))
-            })
+            .map(|params| params.iter().any(|param| param.as_str() == Some("tools")))
             .unwrap_or(false);
 
         let pricing_obj = model.get("pricing").unwrap();
@@ -227,7 +238,11 @@ async fn main() -> Result<()> {
     let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src/providers/canonical/data/canonical_models.json");
     registry.to_file(&output_path)?;
-    println!("\n✓ Wrote {} models to {}", registry.count(), output_path.display());
+    println!(
+        "\n✓ Wrote {} models to {}",
+        registry.count(),
+        output_path.display()
+    );
 
     Ok(())
 }
