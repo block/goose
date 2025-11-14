@@ -473,11 +473,7 @@ export class MatrixService extends EventEmitter {
   private handleMessage(event: any, room: any): void {
     const content = event.getContent();
     const sender = event.getSender();
-    
-    // Skip messages from ourselves to avoid echo
-    if (sender === this.config.userId) {
-      return;
-    }
+    const isFromSelf = sender === this.config.userId;
     
     const messageData = {
       roomId: room.roomId,
@@ -485,6 +481,7 @@ export class MatrixService extends EventEmitter {
       content: content.body,
       timestamp: new Date(event.getTs()),
       event,
+      isFromSelf,
     };
     
     // Check if this is a structured Goose message (new format)
@@ -504,13 +501,15 @@ export class MatrixService extends EventEmitter {
           capabilities: content['goose.capabilities'],
           status: content['goose.status'],
           attachments: content['goose.attachments'],
+          isFromSelf, // Add this to metadata so UI can distinguish
           ...content['goose.metadata'],
         },
       };
       
-      console.log('🦆 Received Goose message:', gooseChatMessage.type, 'from:', sender);
+      console.log('🦆 Received Goose message:', gooseChatMessage.type, 'from:', sender, isFromSelf ? '(self)' : '(other)');
       this.emit('gooseMessage', gooseChatMessage);
-      return;
+      
+      // Don't return early - let it also be processed as regular message
     }
     
     // Check if this is a legacy Goose AI message (using custom properties)
@@ -522,16 +521,17 @@ export class MatrixService extends EventEmitter {
         model: content['goose.model'],
         sender,
         timestamp: new Date(content['goose.timestamp'] || event.getTs()),
-        metadata: content,
+        metadata: { ...content, isFromSelf },
       };
       
       this.emit('aiMessage', aiMessage);
-      return;
+      
+      // Don't return early for legacy messages either
     }
     
-    // Check if sender appears to be a Goose instance (heuristic detection)
+    // Check if sender appears to be a Goose instance (heuristic detection) - but not ourselves
     const senderUser = this.client?.getUser(sender);
-    if (this.isGooseInstance(sender, senderUser?.displayName)) {
+    if (!isFromSelf && this.isGooseInstance(sender, senderUser?.displayName)) {
       // Treat as potential Goose message even without explicit markers
       const gooseChatMessage: GooseChatMessage = {
         type: 'goose.chat',
@@ -540,18 +540,20 @@ export class MatrixService extends EventEmitter {
         sender,
         timestamp: new Date(event.getTs()),
         roomId: room.roomId,
-        metadata: {},
+        metadata: { isFromSelf: false },
       };
       
       console.log('🦆 Detected potential Goose message from:', sender);
       this.emit('gooseMessage', gooseChatMessage);
     }
     
-    // Always emit regular message event
-    this.emit('message', messageData);
+    // Always emit regular message event (but skip our own messages to avoid echo in regular chat)
+    if (!isFromSelf) {
+      this.emit('message', messageData);
+    }
     
     // Also check if this is a session-related message and emit as session message
-    if (content.body) {
+    if (content.body && !isFromSelf) {
       // Check for Goose session messages (from useSessionSharing)
       if (content.body.includes('goose-session-message:') || 
           content.body.includes('goose-session-invite:') || 
@@ -757,6 +759,32 @@ export class MatrixService extends EventEmitter {
    */
   async createDirectMessage(userId: string): Promise<string> {
     return this.addFriend(userId);
+  }
+
+  /**
+   * Find the room ID for a direct message with a specific user
+   */
+  findDirectMessageRoom(userId: string): string | null {
+    const rooms = this.getRooms();
+    const dmRoom = rooms.find(room => 
+      room.isDirectMessage && 
+      room.members.some(member => member.userId === userId)
+    );
+    return dmRoom?.roomId || null;
+  }
+
+  /**
+   * Get or create a direct message room with a user
+   */
+  async getOrCreateDirectMessageRoom(userId: string): Promise<string> {
+    // First try to find existing DM room
+    const existingRoomId = this.findDirectMessageRoom(userId);
+    if (existingRoomId) {
+      return existingRoomId;
+    }
+    
+    // Create new DM room if none exists
+    return this.createDirectMessage(userId);
   }
 
   /**

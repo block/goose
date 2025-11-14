@@ -34,6 +34,8 @@ interface MatrixContextType {
   declineCollaborationInvite: (roomId: string, originalMessageId: string, reason?: string, metadata?: Record<string, any>) => Promise<string>;
   createGooseCollaborationRoom: (name: string, inviteGooseIds?: string[], topic?: string) => Promise<string>;
   announceCapabilities: (roomId: string, capabilities: string[], status?: 'idle' | 'busy' | 'working', currentTask?: string) => Promise<string>;
+  findDirectMessageRoom: (userId: string) => string | null;
+  getOrCreateDirectMessageRoom: (userId: string) => Promise<string>;
   
   // Events
   onMessage: (callback: (data: any) => void) => () => void;
@@ -242,6 +244,14 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return await matrixService.announceCapabilities(roomId, capabilities, status, currentTask);
   };
 
+  const findDirectMessageRoom = (userId: string) => {
+    return matrixService.findDirectMessageRoom(userId);
+  };
+
+  const getOrCreateDirectMessageRoom = async (userId: string) => {
+    return await matrixService.getOrCreateDirectMessageRoom(userId);
+  };
+
   const onGooseMessage = (callback: (message: GooseChatMessage) => void) => {
     matrixService.on('gooseMessage', callback);
     return () => matrixService.off('gooseMessage', callback);
@@ -274,6 +284,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     declineCollaborationInvite,
     createGooseCollaborationRoom,
     announceCapabilities,
+    findDirectMessageRoom,
+    getOrCreateDirectMessageRoom,
     // Events
     onMessage,
     onAIMessage,

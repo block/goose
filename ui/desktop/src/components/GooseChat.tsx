@@ -12,6 +12,7 @@ const GooseChat: React.FC = () => {
     acceptCollaborationInvite,
     createGooseCollaborationRoom,
     announceCapabilities,
+    getOrCreateDirectMessageRoom,
     onGooseMessage 
   } = useMatrix();
   
@@ -102,6 +103,22 @@ const GooseChat: React.FC = () => {
     }
   };
 
+  const getSenderDisplayName = (message: GooseChatMessage) => {
+    const isFromSelf = message.metadata?.isFromSelf;
+    if (isFromSelf) {
+      return 'You';
+    }
+    
+    // Try to find display name from goose instances
+    const gooseInstance = gooseInstances.find(g => g.userId === message.sender);
+    if (gooseInstance?.displayName) {
+      return gooseInstance.displayName;
+    }
+    
+    // Fallback to user ID without domain
+    return message.sender.split(':')[0].substring(1);
+  };
+
   if (!isConnected) {
     return (
       <div className="p-6 bg-background-muted rounded-lg">
@@ -130,6 +147,20 @@ const GooseChat: React.FC = () => {
                 }`} />
                 <span className="font-medium">{goose.displayName || goose.userId}</span>
                 <span className="text-sm text-text-muted">{goose.status || 'idle'}</span>
+                <button
+                  onClick={async () => {
+                    try {
+                      const roomId = await getOrCreateDirectMessageRoom(goose.userId);
+                      setSelectedRoom(roomId);
+                      console.log('🦆 Set room for DM with', goose.displayName || goose.userId, ':', roomId);
+                    } catch (error) {
+                      console.error('Failed to get/create DM room:', error);
+                    }
+                  }}
+                  className="ml-auto px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                >
+                  Chat
+                </button>
               </div>
             ))}
           </div>
@@ -227,30 +258,76 @@ const GooseChat: React.FC = () => {
           {messages.length === 0 ? (
             <p className="text-text-muted text-sm">No Goose messages yet. Send a message to see it here!</p>
           ) : (
-            messages.map((message, index) => (
-              <div key={index} className="p-3 bg-background-default rounded border-l-4 border-blue-400">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium">{formatMessageType(message.type)}</span>
-                  <span className="text-xs text-text-muted">
-                    {message.timestamp.toLocaleTimeString()}
-                  </span>
+            messages.map((message, index) => {
+              const isFromSelf = message.metadata?.isFromSelf;
+              const senderName = getSenderDisplayName(message);
+              
+              return (
+                <div 
+                  key={index} 
+                  className={`p-3 rounded border-l-4 ${
+                    isFromSelf 
+                      ? 'bg-blue-50 border-blue-400 ml-8' 
+                      : 'bg-background-default border-green-400 mr-8'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{formatMessageType(message.type)}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        isFromSelf 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {senderName}
+                      </span>
+                    </div>
+                    <span className="text-xs text-text-muted">
+                      {message.timestamp.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-sm mb-1">{message.content}</p>
+                  <div className="text-xs text-text-muted">
+                    Room: {message.roomId}
+                    {message.metadata?.taskId && ` | Task: ${message.metadata.taskId}`}
+                    {message.metadata?.priority && ` | Priority: ${message.metadata.priority}`}
+                    {message.metadata?.capabilities && ` | Capabilities: ${message.metadata.capabilities.join(', ')}`}
+                  </div>
+                  {message.type === 'goose.collaboration.invite' && !isFromSelf && (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => handleAcceptCollaboration(message.messageId)}
+                        className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                      >
+                        Accept Collaboration
+                      </button>
+                      <button
+                        onClick={() => {
+                          // TODO: Implement decline functionality
+                          console.log('Decline collaboration:', message.messageId);
+                        }}
+                        className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
+                  {message.type === 'goose.task.request' && !isFromSelf && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => {
+                          // TODO: Implement task response functionality
+                          console.log('Respond to task:', message.metadata?.taskId);
+                        }}
+                        className="px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
+                      >
+                        Respond to Task
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm mb-1">{message.content}</p>
-                <div className="text-xs text-text-muted">
-                  From: {message.sender} | Room: {message.roomId}
-                  {message.metadata?.taskId && ` | Task: ${message.metadata.taskId}`}
-                  {message.metadata?.priority && ` | Priority: ${message.metadata.priority}`}
-                </div>
-                {message.type === 'goose.collaboration.invite' && (
-                  <button
-                    onClick={() => handleAcceptCollaboration(message.messageId)}
-                    className="mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                  >
-                    Accept Collaboration
-                  </button>
-                )}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
