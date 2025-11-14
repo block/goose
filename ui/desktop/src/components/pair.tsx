@@ -467,42 +467,77 @@ export default function Pair({
   // Only sync if the current user asked the last question
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId || !currentUser) {
+      console.log('🤖 Skipping Goose sync - missing requirements:', {
+        isMatrixMode,
+        hasMatrixRoomId: !!matrixRoomId,
+        hasCurrentUser: !!currentUser
+      });
       return;
     }
 
     // Find any new assistant messages that haven't been synced to Matrix yet
     const lastMessage = chat.messages[chat.messages.length - 1];
     
-    if (lastMessage && lastMessage.role === 'assistant') {
-      // Check if this message was generated locally (not from Matrix)
-      const isFromMatrix = lastMessage.id.startsWith('matrix_');
-      
-      if (!isFromMatrix) {
-        // Find the last user message to determine who asked the question
-        const lastUserMessage = [...chat.messages].reverse().find(msg => msg.role === 'user');
-        
-        // Only sync Goose response if the current user asked the last question
-        const shouldSync = lastUserMessage && (
-          // If the message has sender info, check if it's from current user
-          lastUserMessage.sender?.userId === currentUser.userId ||
-          // If no sender info, assume it's from current user (local message)
-          !lastUserMessage.sender
-        );
-        
-        if (!shouldSync) {
-          console.log('🤖 Skipping Goose response sync - not responding to current user\'s question:', {
-            lastUserMessageSender: lastUserMessage?.sender?.userId || 'local',
-            currentUser: currentUser.userId,
-            lastUserMessageId: lastUserMessage?.id
-          });
-          return;
-        }
-        
-        console.log('🤖 Goose response should sync - responding to current user\'s question:', {
-          lastUserMessageSender: lastUserMessage?.sender?.userId || 'local',
-          currentUser: currentUser.userId,
-          assistantMessageId: lastMessage.id
-        });
+    if (!lastMessage) {
+      console.log('🤖 No messages in chat yet');
+      return;
+    }
+    
+    if (lastMessage.role !== 'assistant') {
+      console.log('🤖 Last message is not from assistant:', lastMessage.role);
+      return;
+    }
+    
+    console.log('🤖 Checking assistant message for Matrix sync:', {
+      messageId: lastMessage.id,
+      role: lastMessage.role,
+      content: Array.isArray(lastMessage.content) ? lastMessage.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+      alreadySynced: syncedMessageIds.has(lastMessage.id)
+    });
+    
+    // Check if this message was generated locally (not from Matrix)
+    const isFromMatrix = lastMessage.id.startsWith('matrix_');
+    
+    if (isFromMatrix) {
+      console.log('🤖 Skipping Matrix sync for message from Matrix:', lastMessage.id);
+      return;
+    }
+    
+    // Check if already synced
+    if (syncedMessageIds.has(lastMessage.id)) {
+      console.log('🤖 Message already synced to Matrix:', lastMessage.id);
+      return;
+    }
+    
+    // Find the last user message to determine who asked the question
+    const lastUserMessage = [...chat.messages].reverse().find(msg => msg.role === 'user');
+    
+    if (!lastUserMessage) {
+      console.log('🤖 No user message found to determine who asked the question');
+      return;
+    }
+    
+    // Only sync Goose response if the current user asked the last question
+    const shouldSync = lastUserMessage && (
+      // If the message has sender info, check if it's from current user
+      lastUserMessage.sender?.userId === currentUser.userId ||
+      // If no sender info, assume it's from current user (local message)
+      !lastUserMessage.sender
+    );
+    
+    console.log('🤖 User check for Goose response sync:', {
+      lastUserMessageSender: lastUserMessage?.sender?.userId || 'local',
+      currentUser: currentUser.userId,
+      lastUserMessageId: lastUserMessage?.id,
+      shouldSync
+    });
+    
+    if (!shouldSync) {
+      console.log('🤖 Skipping Goose response sync - not responding to current user\'s question');
+      return;
+    }
+    
+    console.log('🤖 ✅ Goose response should sync - responding to current user\'s question');
         // Get the message content
         const messageContent = Array.isArray(lastMessage.content) 
           ? lastMessage.content.map(c => c.type === 'text' ? c.text : '').join('')
