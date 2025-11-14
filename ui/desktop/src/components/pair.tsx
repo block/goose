@@ -143,7 +143,33 @@ export default function Pair({
             const isVeryRecent = Math.abs(existing.created - msg.created) <= 2;
             const isDifferentId = existing.id !== msg.id;
             
-            return isSameContent && isSameRole && isVeryRecent && isDifferentId;
+            const wouldBlock = isSameContent && isSameRole && isVeryRecent && isDifferentId;
+            
+            if (wouldBlock) {
+              console.log(`🔍 DEDUP: Found potential duplicate for ${source}:`, {
+                newMessage: {
+                  id: msg.id,
+                  content: contentText.substring(0, 30) + '...',
+                  role: msg.role,
+                  timestamp: msg.created
+                },
+                existingMessage: {
+                  id: existing.id,
+                  content: existingText.substring(0, 30) + '...',
+                  role: existing.role,
+                  timestamp: existing.created
+                },
+                checks: {
+                  isSameContent,
+                  isSameRole,
+                  isVeryRecent,
+                  isDifferentId,
+                  timeDiff: Math.abs(existing.created - msg.created)
+                }
+              });
+            }
+            
+            return wouldBlock;
           });
           
           if (recentDuplicate) {
