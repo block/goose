@@ -7,6 +7,7 @@ mod tests {
     use crate::scenario_tests::mock_client::WEATHER_TYPE;
     use crate::scenario_tests::scenario_runner::run_scenario;
     use anyhow::Result;
+
     #[tokio::test]
     async fn test_what_is_your_name() -> Result<()> {
         run_scenario(
