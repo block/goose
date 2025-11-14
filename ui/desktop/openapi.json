@@ -1042,6 +1042,19 @@
         }
       }
     },
+    "/mcp-ui-proxy": {
+      "get": {
+        "tags": [
+          "super::routes::mcp_ui_proxy"
+        ],
+        "operationId": "mcp_ui_proxy",
+        "responses": {
+          "200": {
+            "description": "MCP UI proxy HTML page"
+          }
+        }
+      }
+    },
     "/recipes/create": {
       "post": {
         "tags": [

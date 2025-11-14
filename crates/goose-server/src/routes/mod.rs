@@ -2,6 +2,7 @@ pub mod agent;
 pub mod audio;
 pub mod config_management;
 pub mod errors;
+pub mod mcp_ui_proxy;
 pub mod recipe;
 pub mod recipe_utils;
 pub mod reply;
@@ -27,4 +28,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(mcp_ui_proxy::routes())
 }
