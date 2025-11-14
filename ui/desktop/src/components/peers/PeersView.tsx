@@ -390,22 +390,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   return (
     <div className="flex flex-col h-screen bg-background-muted">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-border-default bg-background-default">
-        {/* Connection Status */}
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <div className="flex items-center gap-1 text-green-600">
-              <Wifi className="w-4 h-4" />
-              <span className="text-xs">Connected</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 text-red-600">
-              <WifiOff className="w-4 h-4" />
-              <span className="text-xs">Disconnected</span>
-            </div>
-          )}
-        </div>
-
+      <div className="flex items-center justify-start p-6 border-b border-border-default bg-background-default">
         <div className="flex items-center gap-3">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -441,11 +426,25 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
                 </span>
               )}
             </div>
-            <div>
+            <div className="flex-1">
               <p className="font-medium text-text-default">
                 {currentUser.displayName || currentUser.userId.split(':')[0].substring(1)}
               </p>
               <p className="text-xs text-text-muted">{currentUser.userId}</p>
+              {/* Connection Status */}
+              <div className="flex items-center gap-1 mt-1">
+                {isConnected ? (
+                  <>
+                    <Wifi className="w-3 h-3 text-green-600" />
+                    <span className="text-xs text-green-600">Connected</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3 h-3 text-red-600" />
+                    <span className="text-xs text-red-600">Disconnected</span>
+                  </>
+                )}
+              </div>
             </div>
             <StatusIndicator status={currentUser.presence} />
           </div>
