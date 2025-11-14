@@ -638,10 +638,10 @@ export class MatrixService extends EventEmitter {
       }
     }
     
-    // Only emit regular message event if it's not already handled as a Goose message or session message
-    // This prevents duplicate rendering
-    if (!isFromSelf && !isGooseMessage && !isSessionMessage) {
-      console.log('💬 Received regular message from:', sender);
+    // Emit regular message event for non-Goose and non-session messages
+    // For Matrix collaboration, we want to see all messages including our own
+    if (!isGooseMessage && !isSessionMessage) {
+      console.log('💬 Received regular message from:', sender, isFromSelf ? '(self)' : '(other)');
       this.emit('message', messageData);
     }
     

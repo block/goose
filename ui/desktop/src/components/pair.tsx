@@ -428,8 +428,10 @@ export default function Pair({
         return;
       }
       
-      // Skip messages from ourselves
+      // Skip messages from ourselves to avoid duplicate display (we already see them locally)
+      // Note: We still want to process them for other users to see
       if (sender === currentUser?.userId) {
+        console.log('📨 Skipping message from self to avoid duplicate display:', sender);
         return;
       }
       
