@@ -221,16 +221,23 @@ export default function Pair({
   }, [setChat, processedMessageIds]);
 
   // Session sharing hook for Matrix collaboration
-  // In Matrix mode, we need to use a session ID that matches what's being sent in Matrix messages
+  // In Matrix mode, we MUST use the Matrix room ID as the session ID for proper message routing
   const effectiveSessionId = useMemo(() => {
-    return isMatrixMode && matrixRoomId ? matrixRoomId : (chat.sessionId || 'default');
+    if (isMatrixMode && matrixRoomId) {
+      console.log('🔧 Matrix mode: Using Matrix room ID as session ID:', matrixRoomId);
+      return matrixRoomId;
+    } else {
+      console.log('🔧 Regular mode: Using chat session ID:', chat.sessionId);
+      return chat.sessionId || 'default';
+    }
   }, [isMatrixMode, matrixRoomId, chat.sessionId]);
   
   console.log('🔧 useSessionSharing configuration:', {
     effectiveSessionId,
     isMatrixMode,
     matrixRoomId,
-    chatSessionId: chat.sessionId
+    chatSessionId: chat.sessionId,
+    willUseMatrixRoomId: isMatrixMode && matrixRoomId
   });
   
   // Stable message sync callback to prevent listener recreation
