@@ -248,19 +248,13 @@ impl McpClientTrait for TodoClient {
 
     async fn get_moim(&self) -> Option<String> {
         let session_id = self.context.session_id.as_ref()?;
+        let metadata = SessionManager::get_session(session_id, false).await.ok()?;
+        let state = extension_data::TodoState::from_extension_data(&metadata.extension_data)?;
 
-        let content = match SessionManager::get_session(session_id, false).await {
-            Ok(metadata) => {
-                extension_data::TodoState::from_extension_data(&metadata.extension_data)
-                    .map(|state| state.content)
-                    .filter(|c| !c.trim().is_empty())
-            }
-            Err(e) => {
-                tracing::debug!("Could not read session for MOIM: {}", e);
-                None
-            }
-        };
+        if state.content.trim().is_empty() {
+            return None;
+        }
 
-        content.map(|c| format!("Current tasks and notes:\n{}\n", c))
+        Some(format!("Current tasks and notes:\n{}\n", state.content))
     }
 }
