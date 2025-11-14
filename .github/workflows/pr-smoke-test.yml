@@ -55,11 +55,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Activate hermit and set CARGO_HOME
-        run: |
-          source bin/activate-hermit
-          echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
-          echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install Dependencies
         run: |
@@ -71,7 +67,6 @@ jobs:
 
       - name: Build Release Binary for Smoke Tests
         run: |
-          source ./bin/activate-hermit
           cargo build --release
 
       - name: Upload Binary for Smoke Tests
