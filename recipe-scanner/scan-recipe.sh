@@ -256,7 +256,6 @@ GOOSE_TMP="/tmp/goose_${USER_ID}"
 mkdir -p "$GOOSE_TMP"/{logs,state,cache,config} 2>/dev/null || true
 chmod -R 755 "$GOOSE_TMP" 2>/dev/null || true
 
-export GOOSE_LOG_DIR="$GOOSE_TMP/logs"
 export XDG_STATE_HOME="$GOOSE_TMP/state"
 export XDG_CACHE_HOME="$GOOSE_TMP/cache"
 export GOOSE_TELEMETRY_ENABLED=false

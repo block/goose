@@ -9,7 +9,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-// Import the new handlers from commands::schedule
+
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
     handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
@@ -1142,7 +1142,7 @@ pub async fn cli() -> anyhow::Result<()> {
                             .and_then(|rf| {
                                 goose::recipe::template_recipe::parse_recipe_content(
                                     &rf.content,
-                                    Some(rf.parent_dir.to_string_lossy().to_string()),
+                                    Some(rf.parent_dir.display().to_string()),
                                 )
                                 .ok()
                                 .map(|(r, _)| r.version)
@@ -1170,8 +1170,12 @@ pub async fn cli() -> anyhow::Result<()> {
                         "Recipe execution started"
                     );
 
-                    let (input_config, recipe_info) =
-                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
+                        recipe_name,
+                        params,
+                        additional_sub_recipes,
+                        quiet,
+                    )?;
                     (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {

@@ -20,6 +20,8 @@ use tracing::{info, warn};
 use utoipa::ToSchema;
 
 const CURRENT_SCHEMA_VERSION: i32 = 6;
+pub const SESSIONS_FOLDER: &str = "sessions";
+pub const DB_NAME: &str = "sessions.db";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -352,7 +354,7 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let session_dir = Paths::data_dir().join("sessions");
+    let session_dir = Paths::data_dir().join(SESSIONS_FOLDER);
 
     if !session_dir.exists() {
         fs::create_dir_all(&session_dir)?;
@@ -463,7 +465,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 impl SessionStorage {
     async fn new() -> Result<Self> {
         let session_dir = ensure_session_dir()?;
-        let db_path = session_dir.join("sessions.db");
+        let db_path = session_dir.join(DB_NAME);
 
         let storage = if db_path.exists() {
             Self::open(&db_path).await?
@@ -1031,6 +1033,8 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
         sqlx::query(
@@ -1044,14 +1048,15 @@ impl SessionStorage {
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
         .bind(metadata_json)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -1111,10 +1116,12 @@ impl SessionStorage {
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let exists =
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
                 .bind(session_id)
-                .fetch_one(&self.pool)
+                .fetch_one(&mut *tx)
                 .await?;
 
         if !exists {
@@ -1123,14 +1130,15 @@ impl SessionStorage {
 
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 

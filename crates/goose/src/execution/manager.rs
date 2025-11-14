@@ -1,7 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
-use crate::scheduler_factory::SchedulerFactory;
+use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
 use lru::LruCache;
@@ -35,7 +35,7 @@ impl AgentManager {
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
         let schedule_file_path = Paths::data_dir().join("schedule.json");
 
-        let scheduler = SchedulerFactory::create(schedule_file_path).await?;
+        let scheduler = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());

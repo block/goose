@@ -19,10 +19,9 @@ use goose::config::{
 };
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
+use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers};
 use goose::session::{SessionManager, SessionType};
-use rmcp::model::{Tool, ToolAnnotations};
-use rmcp::object;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -602,54 +601,14 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let spin = spinner();
     spin.start("Checking your configuration...");
 
-    // Create model config with env var settings
     let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
         .map(|val| val == "1" || val.to_lowercase() == "true")
         .unwrap_or(false);
+    let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
-    let model_config = ModelConfig::new(&model)?
-        .with_max_tokens(Some(50))
-        .with_toolshim(toolshim_enabled)
-        .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
-
-    let provider = create(provider_name, model_config).await?;
-
-    let messages =
-        vec![Message::user().with_text("What is the weather like in San Francisco today?")];
-    // Only add the sample tool if toolshim is not enabled
-    let tools = if !toolshim_enabled {
-        let sample_tool = Tool::new(
-            "get_weather".to_string(),
-            "Get current temperature for a given location.".to_string(),
-            object!({
-                "type": "object",
-                "required": ["location"],
-                "properties": {
-                    "location": {"type": "string"}
-                }
-            }),
-        )
-        .annotate(ToolAnnotations {
-            title: Some("Get weather".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(false),
-            open_world_hint: Some(false),
-        });
-        vec![sample_tool]
-    } else {
-        vec![]
-    };
-
-    let result = provider
-        .complete(
-            "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
-            &messages,
-            &tools.into_iter().collect::<Vec<_>>()
-        ).await;
-
-    match result {
-        Ok((_message, _usage)) => {
+    match test_provider_configuration(provider_name, &model, toolshim_enabled, toolshim_model).await
+    {
+        Ok(()) => {
             config.set_goose_provider(provider_name)?;
             config.set_goose_model(&model)?;
             print_config_file_saved()?;

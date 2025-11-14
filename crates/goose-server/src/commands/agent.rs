@@ -28,13 +28,10 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
-    // Initialize logging and telemetry
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
 
-    // Initialize pricing cache on startup
-    tracing::info!("Initializing pricing cache...");
     if let Err(e) = initialize_pricing_cache().await {
         tracing::warn!(
             "Failed to initialize pricing cache: {}. Pricing data may not be available.",
@@ -61,7 +58,7 @@ pub async fn run() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);
-    // Ensure the listener/socket is properly closed on cancellation by using graceful shutdown
+
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;

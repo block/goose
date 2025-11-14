@@ -110,6 +110,7 @@ paste = "1.0.0"
 shellexpand = "3.1.1"
 indexmap = "2.12.0"
 ignore = "0.4.25"
+which = "8.0.0"
 
 
 [target.'cfg(target_os = "windows")'.dependencies]

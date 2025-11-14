@@ -85,6 +85,7 @@
             description = workspaceToml.workspace.package.description;
             homepage = workspaceToml.workspace.package.repository;
             license = licenses.asl20;  # Maps from "Apache-2.0" in Cargo.toml
+            mainProgram = "goose";
           };
         };
 

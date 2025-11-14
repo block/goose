@@ -2,6 +2,7 @@
 title: VS Code Extension
 sidebar_label: VS Code Extension
 sidebar_position: 4
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';

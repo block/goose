@@ -607,8 +607,12 @@ impl acp::Agent for GooseAcpAgent {
     ) -> Result<acp::NewSessionResponse, acp::Error> {
         info!("ACP: Received new session request {:?}", args);
 
-        // Generate a unique session ID
-        let session_id = uuid::Uuid::new_v4().to_string();
+        let goose_session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_default(),
+            "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
+            SessionType::User,
+        )
+        .await?;
 
         let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -617,15 +621,14 @@ impl acp::Agent for GooseAcpAgent {
             cancel_token: None,
         };
 
-        // Store the session
         let mut sessions = self.sessions.lock().await;
-        sessions.insert(session_id.clone(), session);
+        sessions.insert(goose_session.id.clone(), session);
 
-        info!("Created new session with ID: {}", session_id);
+        info!("Created new ACP/goose session {}", goose_session.id);
 
         Ok(acp::NewSessionResponse {
-            session_id: acp::SessionId(session_id.into()),
-            modes: None, // TODO: Implement session modes if needed
+            session_id: acp::SessionId(goose_session.id.into()),
+            modes: None,
             meta: None,
         })
     }
@@ -651,15 +654,9 @@ impl acp::Agent for GooseAcpAgent {
     }
 
     async fn prompt(&self, args: acp::PromptRequest) -> Result<acp::PromptResponse, acp::Error> {
-        info!("ACP: Received prompt request {:?}", args);
-
-        // Get the session
         let session_id = args.session_id.0.to_string();
-
-        // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
 
-        // Store the cancel token in the session BEFORE starting the prompt
         {
             let mut sessions = self.sessions.lock().await;
             let session = sessions
@@ -670,21 +667,13 @@ impl acp::Agent for GooseAcpAgent {
 
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
-
         let session_config = SessionConfig {
-            id: session.id.clone(),
+            id: session_id.clone(),
             schedule_id: None,
             max_turns: None,
             retry_config: None,
         };
 
-        // Get agent's reply through the Goose agent
         let mut stream = self
             .agent
             .reply(user_message, session_config, Some(cancel_token.clone()))
@@ -696,12 +685,9 @@ impl acp::Agent for GooseAcpAgent {
 
         use futures::StreamExt;
 
-        // Track if we were cancelled
         let mut was_cancelled = false;
 
-        // Process the agent's response stream
         while let Some(event) = stream.next().await {
-            // Check if we've been cancelled
             if cancel_token.is_cancelled() {
                 was_cancelled = true;
                 break;
@@ -709,24 +695,19 @@ impl acp::Agent for GooseAcpAgent {
 
             match event {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
-                    // Re-acquire the lock to add message to conversation
                     let mut sessions = self.sessions.lock().await;
                     let session = sessions
                         .get_mut(&session_id)
                         .ok_or_else(acp::Error::invalid_params)?;
 
-                    // Add to conversation
                     session.messages.push(message.clone());
 
-                    // Process message content, including tool calls
                     for content_item in &message.content {
                         self.handle_message_content(content_item, &args.session_id, session)
                             .await?;
                     }
                 }
-                Ok(_) => {
-                    // Ignore other events for now
-                }
+                Ok(_) => {}
                 Err(e) => {
                     error!("Error in agent response stream: {}", e);
                     return Err(acp::Error::internal_error());
@@ -734,7 +715,6 @@ impl acp::Agent for GooseAcpAgent {
             }
         }
 
-        // Clear the cancel token since we're done
         let mut sessions = self.sessions.lock().await;
         if let Some(session) = sessions.get_mut(&session_id) {
             session.cancel_token = None;
@@ -753,7 +733,6 @@ impl acp::Agent for GooseAcpAgent {
     async fn cancel(&self, args: acp::CancelNotification) -> Result<(), acp::Error> {
         info!("ACP: Received cancel request {:?}", args);
 
-        // Get the session and cancel its active operation
         let session_id = args.session_id.0.to_string();
         let mut sessions = self.sessions.lock().await;
 

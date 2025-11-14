@@ -9,10 +9,9 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
+use super::Agent;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-
-use super::Agent;
 
 impl Agent {
     /// Handle schedule management tool calls
@@ -62,34 +61,24 @@ impl Agent {
         }
     }
 
-    /// List all scheduled jobs
     async fn handle_list_jobs(
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
     ) -> ToolResult<Vec<Content>> {
-        match scheduler.list_scheduled_jobs().await {
-            Ok(jobs) => {
-                let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to serialize jobs: {}", e),
-                        None,
-                    )
-                })?;
-                Ok(vec![Content::text(format!(
-                    "Scheduled Jobs:\n{}",
-                    jobs_json
-                ))])
-            }
-            Err(e) => Err(ErrorData::new(
+        let jobs = scheduler.list_scheduled_jobs().await;
+        let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
+            ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Failed to list jobs: {}", e),
+                format!("Failed to serialize jobs: {}", e),
                 None,
-            )),
-        }
+            )
+        })?;
+        Ok(vec![Content::text(format!(
+            "Scheduled Jobs:\n{}",
+            jobs_json
+        ))])
     }
 
-    /// Create a new scheduled job from a recipe file
     async fn handle_create_job(
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
@@ -123,19 +112,6 @@ impl Agent {
             .and_then(|v| v.as_str())
             .unwrap_or("background");
 
-        // Validate execution_mode is either "foreground" or "background"
-        if execution_mode != "foreground" && execution_mode != "background" {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "Invalid execution_mode: {}. Must be 'foreground' or 'background'",
-                    execution_mode
-                ),
-                None,
-            ));
-        }
-
-        // Validate recipe file exists and is readable
         if !std::path::Path::new(recipe_path).exists() {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
