@@ -238,7 +238,7 @@ export default function Pair({
     }
   }, [isMatrixMode, matrixRoomId, chat.sessionId]);
   
-  console.log('🔧 useSessionSharing configuration:', {
+  console.log('🔧 Matrix configuration:', {
     effectiveSessionId,
     isMatrixMode,
     matrixRoomId,

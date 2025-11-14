@@ -2055,11 +2055,13 @@ export default function ChatInput({
         </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Session Sharing Component */}
-        <SessionSharing
-          sessionSharing={sessionSharing}
-          shouldShowIconOnly={shouldShowIconOnly}
-        />
+        {/* Session Sharing Component - disabled in Matrix mode */}
+        {!isInMatrixMode && (
+          <SessionSharing
+            sessionSharing={sessionSharing}
+            shouldShowIconOnly={shouldShowIconOnly}
+          />
+        )}
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Model selector, mode selector, alerts, summarize button */}
