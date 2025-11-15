@@ -417,6 +417,18 @@ export class MatrixService extends EventEmitter {
         this.cachedCurrentUser = null;
       }
       
+      // Handle Matrix room invitations for collaboration
+      if (member.userId === this.config.userId && member.membership === 'invite') {
+        console.log('🎯 Received Matrix room invitation:', {
+          roomId: member.roomId,
+          inviter: event.getSender(),
+          membership: member.membership
+        });
+        
+        // Emit a collaboration invite event for Matrix room invitations
+        this.handleMatrixRoomInvitation(member.roomId, event.getSender());
+      }
+      
       this.emit('membershipChange', { event, member });
     });
 
@@ -466,6 +478,35 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Handle Matrix room invitations and emit a direct invitation event
+   */
+  private handleMatrixRoomInvitation(roomId: string, inviter: string): void {
+    console.log('🎯 Processing Matrix room invitation:', {
+      roomId,
+      inviter
+    });
+
+    // Get inviter information
+    const inviterUser = this.client?.getUser(inviter);
+    const inviterName = inviterUser?.displayName || inviter.split(':')[0].substring(1);
+
+    // Emit a direct Matrix room invitation event (not a goose message)
+    // This prevents duplicate notifications
+    const invitationData = {
+      roomId,
+      inviter,
+      inviterName,
+      timestamp: new Date(),
+      type: 'matrix_room_invitation',
+    };
+
+    console.log('🎯 Emitting Matrix room invitation event:', invitationData);
+    
+    // Emit as a Matrix-specific invitation event
+    this.emit('matrixRoomInvitation', invitationData);
+  }
+
+  /**
    * Check if a user is a Goose instance based on their display name or user ID
    */
   private isGooseInstance(userId: string, displayName?: string): boolean {
@@ -494,6 +535,7 @@ export class MatrixService extends EventEmitter {
       /collaborative.*session/i,
       /task.*request/i,
       /collaboration.*invite/i,
+      /goose-session-message:/i,  // Session messages from useSessionSharing
     ];
     
     return goosePatterns.some(pattern => pattern.test(content));
@@ -520,7 +562,9 @@ export class MatrixService extends EventEmitter {
     console.log('🔍 MatrixService.handleMessage called:', {
       roomId: room.roomId,
       sender,
+      configUserId: this.config.userId,
       isFromSelf,
+      senderEqualsConfig: sender === this.config.userId,
       contentBody: content.body?.substring(0, 100) + '...',
       eventType: event.getType(),
       timestamp: new Date(event.getTs())
@@ -618,18 +662,22 @@ export class MatrixService extends EventEmitter {
     }
     
     // Check if this is a session-related message or contains @goose mention
-    if (content.body && !isFromSelf) {
+    if (content.body) {
       // Check for Goose session messages (from useSessionSharing)
       if (content.body.includes('goose-session-message:') || 
           content.body.includes('goose-session-invite:') || 
           content.body.includes('goose-session-joined:')) {
         isSessionMessage = true;
-        console.log('📝 Received session message from:', sender);
-        this.emit('sessionMessage', messageData);
+        console.log('📝 Received session message from:', sender, '- processing as session sync only');
+        
+        // For session messages, emit ONLY the gooseSessionSync event
+        // This prevents them from being processed as regular messages
+        this.emit('gooseSessionSync', messageData);
+        return; // Exit early to prevent further processing
       }
       
-      // Check for @goose mentions
-      if (this.containsGooseMention(content.body)) {
+      // Check for @goose mentions (only for non-session messages and not from self)
+      if (!isFromSelf && this.containsGooseMention(content.body)) {
         console.log('🦆 Detected @goose mention in message from:', sender);
         this.emit('gooseMention', {
           ...messageData,
@@ -638,22 +686,23 @@ export class MatrixService extends EventEmitter {
       }
     }
     
-    // Emit regular message event for non-Goose and non-session messages
-    // For Matrix collaboration, we want to see all messages including our own
-    if (!isGooseMessage && !isSessionMessage) {
-      console.log('💬 Received regular message from:', sender, isFromSelf ? '(self)' : '(other)');
+    // FIXED: Always emit regular messages for display, regardless of sender
+    // This ensures that the sender's own messages appear in BaseChat
+    if (!isSessionMessage && !isGooseMessage) {
+      // Check if this might be in a collaborative Matrix room by looking at room members
+      const roomObj = this.client?.getRoom(messageData.roomId);
+      const memberCount = roomObj?.getMembers()?.length || 0;
+      
+      // For multi-user rooms (more than 2 people), route through session sync for non-self messages
+      // But still emit regular message event for display purposes
+      if (!isFromSelf && memberCount > 2) {
+        console.log('🔄 Multi-user room detected - routing message through session sync to prevent local AI response from:', sender);
+        this.emit('gooseSessionSync', messageData);
+      }
+      
+      // ALWAYS emit regular message for display (both self and others)
+      console.log('💬 Emitting regular message for display from:', sender, isFromSelf ? '(self)' : '(other)');
       this.emit('message', messageData);
-    }
-    
-    // However, always emit for session messages in collaborative sessions
-    // (even if they're from Goose instances) to ensure proper synchronization
-    if (isSessionMessage) {
-      // Already emitted above
-    } else if (!isFromSelf && isGooseMessage) {
-      // For Goose messages that might also need to be treated as regular messages in collaborative sessions
-      // We'll emit a special event that useSessionSharing can listen to
-      console.log('🔄 Emitting Goose message as potential session sync from:', sender);
-      this.emit('gooseSessionSync', messageData);
     }
   }
 

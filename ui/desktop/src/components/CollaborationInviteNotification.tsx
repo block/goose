@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, X, Check, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
-import { GooseChatMessage } from '../services/MatrixService';
+import { GooseChatMessage, matrixService } from '../services/MatrixService';
 
 interface CollaborationInviteNotificationProps {
   className?: string;
@@ -21,22 +21,82 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
   } = useMatrix();
   
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingInvites, setPendingInvites] = useState<GooseChatMessage[]>([]);
   const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(new Set());
 
-  // Listen for Goose messages that could be collaboration opportunities
+  // Helper function to get current active Matrix room ID if in shared session mode
+  const getCurrentActiveMatrixRoom = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const isMatrixMode = searchParams.get('matrixMode') === 'true';
+    const matrixRoomId = searchParams.get('matrixRoomId');
+    
+    return isMatrixMode && matrixRoomId ? matrixRoomId : null;
+  };
+
+  // Listen for Matrix room invitations and Goose messages
   useEffect(() => {
     if (!isConnected) return;
 
-    const unsubscribe = onGooseMessage((message: GooseChatMessage) => {
+    // Handler for Matrix room invitations
+    const handleMatrixRoomInvitation = (invitationData: any) => {
+      console.log('🔔 Received Matrix room invitation:', invitationData);
+      
+      // Skip notifications for the currently active Matrix room (shared session)
+      const activeMatrixRoom = getCurrentActiveMatrixRoom();
+      if (activeMatrixRoom && invitationData.roomId === activeMatrixRoom) {
+        console.log('🔔 Skipping Matrix invitation notification for active room:', invitationData.roomId);
+        return;
+      }
+
+      // Convert Matrix invitation to GooseChatMessage format for UI compatibility
+      const collaborationInvite: GooseChatMessage = {
+        type: 'goose.collaboration.invite',
+        messageId: `matrix-invite-${invitationData.roomId}-${Date.now()}`,
+        content: `${invitationData.inviterName} invited you to collaborate in a Matrix room`,
+        sender: invitationData.inviter,
+        timestamp: invitationData.timestamp,
+        roomId: invitationData.roomId,
+        metadata: {
+          isFromSelf: false,
+          invitationType: 'matrix_room',
+          sessionId: `matrix-${invitationData.roomId}`,
+          sessionTitle: `Matrix Collaboration with ${invitationData.inviterName}`,
+          roomId: invitationData.roomId,
+          inviterName: invitationData.inviterName,
+        },
+      };
+
+      // Add to pending invites if not already dismissed
+      setPendingInvites(prev => {
+        const exists = prev.some(invite => invite.messageId === collaborationInvite.messageId);
+        if (!exists && !dismissedInvites.has(collaborationInvite.messageId)) {
+          return [...prev, collaborationInvite];
+        }
+        return prev;
+      });
+    };
+
+    // Listen for direct Matrix room invitations (no duplicates)
+    matrixService.on('matrixRoomInvitation', handleMatrixRoomInvitation);
+
+    // Listen for Goose messages that could be collaboration opportunities
+    const unsubscribeGooseMessages = onGooseMessage((message: GooseChatMessage) => {
       // Only show messages that are not from self
       if (message.metadata?.isFromSelf) {
         console.log('💬 Ignoring message from self');
         return;
       }
 
-      // Handle explicit collaboration invites
-      if (message.type === 'goose.collaboration.invite') {
+      // Skip notifications for messages from the currently active Matrix room (shared session)
+      const activeMatrixRoom = getCurrentActiveMatrixRoom();
+      if (activeMatrixRoom && message.roomId === activeMatrixRoom) {
+        console.log('🔔 Skipping collaboration notification for message from active Matrix room:', message.roomId);
+        return;
+      }
+
+      // Handle explicit collaboration invites (but skip Matrix room invitations since they're handled above)
+      if (message.type === 'goose.collaboration.invite' && message.metadata?.invitationType !== 'matrix_room') {
         console.log('🔔 Received collaboration invite notification:', message);
         
         // Add to pending invites if not already dismissed
@@ -89,7 +149,12 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
       }
     });
 
-    return unsubscribe;
+    return () => {
+      // Remove Matrix room invitation listener
+      matrixService.off('matrixRoomInvitation', handleMatrixRoomInvitation);
+      // Remove Goose message listener
+      unsubscribeGooseMessages();
+    };
   }, [isConnected, onGooseMessage, dismissedInvites]);
 
   const handleAcceptInvite = async (invite: GooseChatMessage) => {
@@ -227,27 +292,27 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 300, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="bg-white border border-blue-200 rounded-lg shadow-lg p-4 max-w-sm"
+            className="bg-background-default border border-borderStandard rounded-lg shadow-lg p-4 max-w-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600" />
+              <div className="flex-shrink-0 w-10 h-10 bg-bgSubtle rounded-full flex items-center justify-center">
+                <Users className="w-5 h-5 text-accent" />
               </div>
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-semibold text-gray-900">
+                  <h4 className="text-sm font-semibold text-textStandard">
                     {invite.type === 'goose.collaboration.invite' ? 'Collaboration Invite' : 'New Message'}
                   </h4>
                   <button
                     onClick={() => handleDismissInvite(invite)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-textSubtle hover:text-textStandard transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <p className="text-sm text-gray-600 mb-2">
+                <p className="text-sm text-textStandard mb-2">
                   <span className="font-medium">{getSenderName(invite)}</span> {
                     invite.type === 'goose.collaboration.invite' 
                       ? 'invited you to collaborate' 
@@ -255,7 +320,7 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
                   }
                 </p>
                 
-                <p className="text-xs text-gray-500 mb-3 line-clamp-2">
+                <p className="text-xs text-textSubtle mb-3 line-clamp-2">
                   {invite.content}
                 </p>
                 
@@ -270,14 +335,14 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
                   
                   <button
                     onClick={() => handleDeclineInvite(invite)}
-                    className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 border border-borderStandard text-textStandard text-xs rounded hover:bg-bgSubtle transition-colors"
                   >
                     <X className="w-3 h-3" />
                     Decline
                   </button>
                 </div>
                 
-                <div className="flex items-center gap-1 mt-2 text-xs text-gray-400">
+                <div className="flex items-center gap-1 mt-2 text-xs text-textSubtle">
                   <Clock className="w-3 h-3" />
                   {invite.timestamp.toLocaleTimeString()}
                 </div>

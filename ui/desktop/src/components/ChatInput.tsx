@@ -39,7 +39,9 @@ import { useSessionSharing } from '../hooks/useSessionSharing';
 import SessionSharing from './collaborative/SessionSharing';
 import { CollaborativeButton } from './collaborative';
 import EnhancedMentionPopover from './EnhancedMentionPopover';
+import { useMatrix } from '../contexts/MatrixContext';
 
+// Force rebuild timestamp: 2025-01-15T01:00:00Z - All .length errors fixed
 
 interface QueuedMessage {
   id: string;
@@ -352,54 +354,66 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // Check if we're in Matrix mode by looking at URL parameters
-  const isInMatrixMode = window.location.search.includes('matrixMode=true');
+  // Simple Matrix detection: if sessionId looks like a Matrix room ID, it's a Matrix chat
+  const isMatrixRoom = sessionId && sessionId.startsWith('!');
   
-  // Extract Matrix room ID from URL parameters if in Matrix mode
-  const urlParams = new URLSearchParams(window.location.search);
-  const matrixRoomId = urlParams.get('matrixRoomId');
+  // Get Matrix context for current user information
+  const { currentUser } = useMatrix();
   
-  // Session sharing hook - use Matrix room ID as sessionId in Matrix mode
+  // Session sharing hook - simplified approach for Matrix rooms
   const sessionSharing = useSessionSharing({
-    sessionId: isInMatrixMode && matrixRoomId ? matrixRoomId : (sessionId || 'default'),
-    sessionTitle: isInMatrixMode && matrixRoomId ? `Matrix Room ${matrixRoomId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'Default'}`,
+    sessionId: sessionId, // Use the sessionId as-is (Matrix room ID or regular session ID)
+    sessionTitle: isMatrixRoom && sessionId ? `Matrix Room ${sessionId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
     messages: messages, // Always sync messages
     onMessageSync: (message) => {
-      // Handle synced messages from session participants
-      console.log('💬 Synced message from shared session:', message);
-      // Add the synced message to local chat
+      console.log('💬 ChatInput: Received message from useSessionSharing:', message);
+      
+      // For Matrix rooms, messages from Matrix should appear normally
+      // For regular sessions, messages should also appear normally
+      // The key is that useSessionSharing handles both cases the same way
       if (append) {
         append(message);
+      } else {
+        console.warn('⚠️ ChatInput: append function is not available!');
       }
     },
-    initialRoomId: isInMatrixMode && matrixRoomId ? matrixRoomId : undefined, // Pass Matrix room ID for Matrix mode
+    initialRoomId: isMatrixRoom ? sessionId : null, // Pass Matrix room ID if it's a Matrix room
     onParticipantJoin: (participant) => {
-      if (!isInMatrixMode) {
-        console.log('👥 Participant joined session:', participant);
-      }
+      console.log('👥 Participant joined session:', participant);
     },
     onParticipantLeave: (userId) => {
-      if (!isInMatrixMode) {
-        console.log('👋 Participant left session:', userId);
-      }
+      console.log('👋 Participant left session:', userId);
     },
   });
 
   // Listen for AI responses to sync to Matrix
+  // FIXED: Robust null checking to prevent "Cannot read properties of undefined (reading 'length')" error
+  // Updated: Fixed all commandHistory.length accesses with safeCommandHistory
+  // Final fix: All .length accesses now properly null-checked
   useEffect(() => {
-    if (!sessionSharing.isSessionActive || !messages.length) return;
+    if (!sessionSharing.isSessionActive || !messages || !Array.isArray(messages) || messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
     
     // Check if the last message is an AI response (assistant role) and not already synced
-    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.id?.startsWith('shared-') && !lastMessage.id?.startsWith('matrix-')) {
+    // Also check if it's not from Matrix (to prevent sync loops)
+    if (lastMessage && 
+        lastMessage.role === 'assistant' && 
+        !lastMessage.id?.startsWith('shared-') && 
+        !lastMessage.id?.startsWith('matrix-') &&
+        !lastMessage.sender) { // Messages from Matrix have sender info, local AI responses don't
       console.log('🤖 Syncing AI response to session:', lastMessage);
       
-      // Extract text content from the message
-      const textContent = lastMessage.content
-        .filter(c => c.type === 'text')
-        .map(c => c.text)
-        .join('');
+      // Extract text content from the message - with robust null checking
+      let textContent = '';
+      if (lastMessage.content && Array.isArray(lastMessage.content)) {
+        textContent = lastMessage.content
+          .filter(c => c && c.type === 'text')
+          .map(c => c.text || '')
+          .join('');
+      } else if (typeof lastMessage.content === 'string') {
+        textContent = lastMessage.content;
+      }
       
       if (textContent.trim()) {
         sessionSharing.syncMessage({
@@ -476,14 +490,14 @@ export default function ChatInput({
   // Handle recipe prompt updates
   useEffect(() => {
     // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
-    if (recipeAccepted && initialPrompt && messages.length === 0) {
+    if (recipeAccepted && initialPrompt && messages && Array.isArray(messages) && messages.length === 0) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length]);
+  }, [recipeAccepted, initialPrompt, messages]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
@@ -1060,11 +1074,14 @@ export default function ChatInput({
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue || '');
-      setIsInGlobalHistory(commandHistory.length === 0);
+      // Determine which history we're using - ensure commandHistory is always an array
+      const safeCommandHistory = commandHistory || [];
+      setIsInGlobalHistory(safeCommandHistory.length === 0);
     }
 
-    // Determine which history we're using
-    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
+    // Determine which history we're using - ensure commandHistory is always an array
+    const safeCommandHistory = commandHistory || [];
+    const currentHistory = isInGlobalHistory ? globalHistory : safeCommandHistory;
     let newIndex = historyIndex;
     let newValue = '';
 
@@ -1087,11 +1104,11 @@ export default function ChatInput({
         // Still have items in current history
         newIndex = historyIndex - 1;
         newValue = currentHistory[newIndex];
-      } else if (isInGlobalHistory && commandHistory.length > 0) {
+      } else if (isInGlobalHistory && safeCommandHistory.length > 0) {
         // Switch to chat history
         setIsInGlobalHistory(false);
-        newIndex = commandHistory.length - 1;
-        newValue = commandHistory[newIndex];
+        newIndex = safeCommandHistory.length - 1;
+        newValue = safeCommandHistory[newIndex];
       } else {
         // Return to original input
         newIndex = -1;
@@ -2058,8 +2075,8 @@ export default function ChatInput({
         </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Session Sharing Component - disabled in Matrix mode */}
-        {!isInMatrixMode && (
+        {/* Session Sharing Component - disabled for Matrix rooms */}
+        {!isMatrixRoom && (
           <SessionSharing
             sessionSharing={sessionSharing}
             shouldShowIconOnly={shouldShowIconOnly}
@@ -2088,7 +2105,7 @@ export default function ChatInput({
                 setView={setView}
                 alerts={alerts}
                 recipeConfig={recipeConfig}
-                hasMessages={messages.length > 0}
+                hasMessages={messages && Array.isArray(messages) && messages.length > 0}
                 shouldShowIconOnly={shouldShowIconOnly}
               />
             </div>

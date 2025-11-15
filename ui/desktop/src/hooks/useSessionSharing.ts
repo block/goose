@@ -3,6 +3,8 @@ import { useMatrix } from '../contexts/MatrixContext';
 import { MatrixUser } from '../services/MatrixService';
 import { Message } from '../types/message';
 
+// Force rebuild timestamp: 2025-01-15T01:00:00Z - Fixed friends.length and useEffect dependency array
+
 interface SessionParticipant extends MatrixUser {
   joinedAt: Date;
   isTyping?: boolean;
@@ -47,32 +49,7 @@ export const useSessionSharing = ({
   onParticipantLeave,
   initialRoomId,
 }: UseSessionSharingProps) => {
-  // Early return with disabled state if sessionId is null (Matrix mode)
-  if (!sessionId) {
-    console.log('🚫 useSessionSharing: Disabled (sessionId is null)');
-    return {
-      // State
-      isShared: false,
-      isSessionActive: false,
-      participants: [],
-      isHost: false,
-      pendingInvitations: [],
-      error: null,
-      canInvite: false,
-
-      // Actions (no-op functions)
-      inviteToSession: async () => { throw new Error('Session sharing is disabled'); },
-      joinSession: async () => { throw new Error('Session sharing is disabled'); },
-      leaveSession: () => {},
-      syncMessage: async () => {},
-      declineInvitation: () => {},
-      getAvailableFriends: () => [],
-      
-      // Utilities
-      clearError: () => {},
-    };
-  }
-
+  // Always call hooks first - no conditional returns before hooks!
   const { 
     currentUser, 
     friends, 
@@ -86,19 +63,22 @@ export const useSessionSharing = ({
     isConnected 
   } = useMatrix();
 
+  // Check if this is a Matrix room (before using in useState)
+  const isMatrixRoom = sessionId && sessionId.startsWith('!');
+  
   const [state, setState] = useState<SharedSessionState>({
-    isShared: !!initialRoomId, // If we have an initial room ID, we're already in a shared session
+    isShared: !!initialRoomId || isMatrixRoom, // If we have an initial room ID or it's a Matrix room, we're in a shared session
     sessionId,
     participants: [],
     isHost: false,
-    roomId: initialRoomId || null, // Set the initial room ID if provided
+    roomId: initialRoomId || (isMatrixRoom ? sessionId : null), // Use sessionId as roomId for Matrix rooms
     pendingInvitations: [],
     error: null,
   });
   
   // Update state when initialRoomId changes (for Matrix mode)
   useEffect(() => {
-    if (initialRoomId && (!state.roomId || state.roomId !== initialRoomId)) {
+    if (initialRoomId) {
       console.log('🏠 useSessionSharing: Updating room ID from initialRoomId:', initialRoomId);
       setState(prev => ({
         ...prev,
@@ -107,7 +87,7 @@ export const useSessionSharing = ({
         isHost: false, // In Matrix mode, we're joining an existing session
       }));
     }
-  }, [initialRoomId, state.roomId]);
+  }, [initialRoomId]); // Only depend on initialRoomId
   
   // Log initial state setup for debugging
   useEffect(() => {
@@ -136,6 +116,9 @@ export const useSessionSharing = ({
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  // Track processed message IDs to prevent duplicates - ALWAYS call this hook
+  const processedMessageIds = useRef<Set<string>>(new Set());
 
   // Listen for session-related Matrix messages
   useEffect(() => {
@@ -281,23 +264,43 @@ export const useSessionSharing = ({
 
     // Also listen for regular messages that might contain session data
     const handleRegularMessage = (data: any) => {
-      const { content, sender, roomId, senderInfo } = data;
+      const { content, sender, roomId, senderInfo, timestamp, event } = data;
       
       const currentState = stateRef.current;
       const currentUserFromRef = currentUserRef.current;
       
-      // Only log debug info for messages that might be processed (reduce noise)
-      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
-        console.log('🔍 Processing message in session room:', { 
-          content: content?.substring(0, 50) + '...', 
-          sender, 
-          roomId
-        });
+      // Create a unique message ID for deduplication
+      const messageId = event?.getId?.() || `${sender}-${timestamp?.getTime?.() || Date.now()}-${content?.substring(0, 20)}`;
+      
+      // Check if we've already processed this message
+      if (processedMessageIds.current.has(messageId)) {
+        console.log('🚫 Skipping duplicate message:', messageId);
+        return;
       }
+      
+      // Debug logging for all incoming messages to understand the flow
+      console.log('🔍 handleRegularMessage called:', { 
+        messageId,
+        content: content?.substring(0, 50) + '...', 
+        sender, 
+        roomId,
+        currentRoomId: currentState.roomId,
+        isFromSelf: sender === currentUserFromRef?.userId,
+        sessionId
+      });
       
       // Only process messages from Matrix rooms that are part of our session
       if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
-        console.log('💬 Regular message in session room:', { content, sender, roomId, senderInfo });
+        console.log('💬 Processing message in session room:', { messageId, content, sender, roomId, senderInfo });
+        
+        // Skip if this is a goose-session-message (should be handled by handleSessionMessage)
+        if (content && content.includes('goose-session-message:')) {
+          console.log('🚫 Skipping handleRegularMessage - this is a session message, will be handled by handleSessionMessage');
+          return;
+        }
+        
+        // Mark this message as processed
+        processedMessageIds.current.add(messageId);
         
         // Find sender info from friends or participants
         let senderData = senderInfo;
@@ -329,10 +332,50 @@ export const useSessionSharing = ({
           }
         }
         
+        // Determine the correct role based on message content and sender
+        let messageRole: 'user' | 'assistant' = 'user'; // Default to user
+        
+        // Use heuristic detection for non-session messages
+        const isGooseResponse = content && (
+            // Direct Goose markers - these are the most reliable indicators
+            content.includes('🦆 Goose:') ||
+            content.startsWith('🦆 Goose:') ||
+            content.includes('🤖') ||
+            // AI assistant self-identification patterns
+            /I'm\s+goose,?\s+an?\s+AI\s+(agent|assistant)/i.test(content) ||
+            /created\s+by\s+Block/i.test(content) ||
+            /I'm\s+an?\s+AI\s+(agent|assistant)/i.test(content) ||
+            // Tool and capability mentions (very specific to AI assistants)
+            /I\s+have\s+access\s+to\s+(several\s+)?tools/i.test(content) ||
+            /I\s+can\s+(use|access)\s+(tools|extensions)/i.test(content) ||
+            /using\s+the\s+tools\s+(and\s+extensions\s+)?available/i.test(content) ||
+            // AI assistant help patterns (be more specific)
+            /I'm\s+(here|ready|available)\s+(and\s+ready\s+)?to\s+help/i.test(content) ||
+            /What\s+(would\s+you\s+like|can\s+I\s+help)\s+(me\s+to\s+)?(work\s+on|do|with)/i.test(content) ||
+            /I\s+can\s+assist\s+you\s+with/i.test(content) ||
+            // Markdown formatting patterns (common in AI responses)
+            /^-\s+\*\*[^*]+\*\*/.test(content) || // Starts with "- **Something**"
+            /\*\*[^*]+\*\*.*\*\*[^*]+\*\*/.test(content) || // Multiple bold sections
+            // Code block patterns
+            /```[\s\S]*```/.test(content) ||
+            // Long structured responses (likely AI)
+            (content.length > 200 && /\n\n/.test(content) && /^(I|Let|Here|To|The)/i.test(content)) ||
+            // Check if sender info indicates it's a Goose instance
+            (senderData?.displayName && senderData.displayName.toLowerCase().includes('goose')) ||
+            (sender && sender.toLowerCase().includes('goose'))
+          );
+          
+        if (isGooseResponse) {
+          messageRole = 'assistant';
+          console.log('🤖 Detected AI response from Matrix based on content patterns');
+        } else {
+          console.log('👤 Treating as user message from Matrix');
+        }
+        
         // Convert regular Matrix messages to Goose messages with sender info
         const message: Message = {
           id: `matrix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
+          role: messageRole,
           created: Math.floor(Date.now() / 1000),
           content: [{
             type: 'text',
@@ -341,15 +384,67 @@ export const useSessionSharing = ({
           sender: senderData,
         };
         
-        console.log('💬 Converting regular Matrix message to Goose message');
-        onMessageSync?.(message);
+        console.log('💬 Converting Goose message to local message and syncing:', message);
+        console.log('🔍 onMessageSync callback available?', !!onMessageSync);
+        
+        if (onMessageSync) {
+          console.log('📤 Calling onMessageSync with message:', {
+            messageId: message.id,
+            role: message.role,
+            sender: message.sender?.displayName || message.sender?.userId,
+            contentPreview: message.content[0]?.text?.substring(0, 50) + '...'
+          });
+          onMessageSync(message);
+        } else {
+          console.warn('⚠️ onMessageSync callback is not available!');
+        }
+      } else {
+        console.log('🚫 Skipping message - not from current session room or from self');
       }
-      // Removed debug logging for filtered messages to reduce console noise
     };
 
     const sessionCleanup = onSessionMessage(handleSessionMessage);
+    
+    // Re-enable regular message handler with proper filtering
     const messageCleanup = onMessage(handleRegularMessage);
-    const gooseSessionCleanup = onMessage('gooseSessionSync', handleRegularMessage);
+    console.log('✅ ENABLED regular message handler with goose-session-message filtering');
+    
+    // Handle gooseSessionSync events separately to avoid duplication
+    const handleGooseSessionSync = (data: any) => {
+      const { content, sender, roomId, senderInfo } = data;
+      
+      const currentState = stateRef.current;
+      const currentUserFromRef = currentUserRef.current;
+      
+      // Debug logging
+      console.log('🔄 handleGooseSessionSync called:', { 
+        content: content?.substring(0, 50) + '...', 
+        sender, 
+        roomId,
+        currentRoomId: currentState.roomId,
+        isFromSelf: sender === currentUserFromRef?.userId,
+        sessionId
+      });
+      
+      // Only process messages from Matrix rooms that are part of our session and not from self
+      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
+        console.log('🔄 Processing gooseSessionSync message in session room:', { content, sender, roomId, senderInfo });
+        
+        // Skip if this is already a goose-session-message (to avoid double processing)
+        if (content && content.includes('goose-session-message:')) {
+          console.log('🚫 Skipping gooseSessionSync - already a session message, will be handled by handleSessionMessage');
+          return;
+        }
+        
+        // DON'T call handleRegularMessage here - it will be handled by the regular message handler
+        // This was causing duplicate messages because both handlers were processing the same message
+        console.log('🚫 Skipping gooseSessionSync processing - regular message handler will process this to avoid duplication');
+      } else {
+        console.log('🚫 Skipping gooseSessionSync - not from current session room or from self');
+      }
+    };
+    
+    const gooseSessionCleanup = onMessage('gooseSessionSync', handleGooseSessionSync);
     
     return () => {
       console.log('🔧 useSessionSharing: Cleaning up Matrix message listeners for session:', sessionId);
@@ -357,7 +452,7 @@ export const useSessionSharing = ({
       messageCleanup();
       gooseSessionCleanup();
     };
-  }, [isConnected, sessionId, currentUser?.userId, onSessionMessage, onMessage, onMessageSync, onParticipantJoin]);
+  }, [isConnected, sessionId, currentUser?.userId || null]);
   
   // Separate effect to log room ID changes without recreating listeners
   useEffect(() => {
@@ -371,7 +466,7 @@ export const useSessionSharing = ({
       isConnected, 
       currentUser: currentUser?.userId, 
       roomId: state.roomId,
-      friends: friends.length 
+      friends: friends?.length || 0 
     });
 
     if (!currentUser || !isConnected) {
@@ -452,7 +547,7 @@ export const useSessionSharing = ({
       }));
       throw error;
     }
-  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, sendCollaborationInvite, friends.length]);
+  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, sendCollaborationInvite, friends?.length]);
 
   // Join a shared session
   const joinSession = useCallback(async (invitation: SessionInvitation) => {
@@ -593,8 +688,40 @@ export const useSessionSharing = ({
   // Get available friends to invite (excluding current participants)
   const getAvailableFriends = useCallback(() => {
     const participantIds = new Set(state.participants.map(p => p.userId));
-    return friends.filter(friend => !participantIds.has(friend.userId));
+    return (friends || []).filter(friend => !participantIds.has(friend.userId));
   }, [friends, state.participants]);
+
+  // Check if session sharing should be disabled AFTER all hooks are called
+  // For Matrix rooms, we still want useSessionSharing to work for message processing,
+  // but we disable the collaborative features (invitations, etc.)
+  if (!sessionId) {
+    console.log('🚫 useSessionSharing: Disabled (sessionId is null)');
+    return {
+      // State
+      isShared: false,
+      isSessionActive: false,
+      participants: [],
+      isHost: false,
+      pendingInvitations: [],
+      error: null,
+      canInvite: false,
+
+      // Actions (no-op functions)
+      inviteToSession: async () => { throw new Error('Session sharing is disabled'); },
+      joinSession: async () => { throw new Error('Session sharing is disabled'); },
+      leaveSession: () => {},
+      syncMessage: async () => {},
+      declineInvitation: () => {},
+      getAvailableFriends: () => [],
+      
+      // Utilities
+      clearError: () => {},
+    };
+  }
+  
+  if (isMatrixRoom) {
+    console.log('🔄 useSessionSharing: Matrix room mode - message processing enabled, collaboration features disabled');
+  }
 
   return {
     // State
@@ -604,7 +731,7 @@ export const useSessionSharing = ({
     isHost: state.isHost,
     pendingInvitations: state.pendingInvitations,
     error: state.error,
-    canInvite: isConnected && !!currentUser && friends.length > 0,
+    canInvite: isConnected && !!currentUser && (friends?.length || 0) > 0,
 
     // Actions
     inviteToSession,
