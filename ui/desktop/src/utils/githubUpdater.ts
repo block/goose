@@ -106,13 +106,19 @@ export class GitHubUpdater {
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
 
-      const asset = release.assets.find((a) => a.name === assetName);
+      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase()); // keeping comparison to lower case becasue Goose vs goose
       if (asset) {
         downloadUrl = asset.browser_download_url;
         log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
         log.info(`GitHubUpdater: Download URL: ${downloadUrl}`);
       } else {
         log.warn(`GitHubUpdater: No matching asset found for ${assetName}`);
+      }
+
+      if (!downloadUrl) {
+        throw new Error(
+          `Update Available but no download URL found for platform: ${platform}, arch: ${arch}`
+        );
       }
 
       return {
@@ -159,6 +165,7 @@ export class GitHubUpdater {
       if (!response.body) {
         throw new Error('Response body is null');
       }
+      let lastReportedPercent = -1; // Track last reported percentage to throttle updates
 
       // Read the response stream
       const reader = response.body.getReader();
@@ -172,10 +179,15 @@ export class GitHubUpdater {
         chunks.push(value);
         downloadedSize += value.length;
 
-        // Report progress
+        // Report progress - only when percentage changes by at least 1%
         if (totalSize > 0 && onProgress) {
           const percent = Math.round((downloadedSize / totalSize) * 100);
-          onProgress(percent);
+
+          // Only report if percent changed (throttles from hundreds/sec to ~100 total)
+          if (percent !== lastReportedPercent) {
+            onProgress(percent);
+            lastReportedPercent = percent;
+          }
         }
       }
 

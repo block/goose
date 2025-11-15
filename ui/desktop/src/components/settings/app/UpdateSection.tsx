@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -29,6 +29,7 @@ export default function UpdateSection() {
     currentVersion: '',
   });
   const [progress, setProgress] = useState<number>(0);
+  const progressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Get current version on mount
@@ -75,7 +76,15 @@ export default function UpdateSection() {
 
         case 'download-progress':
           setUpdateStatus('downloading');
-          setProgress((event.data as UpdateEventData)?.percent || 0);
+
+          // Debounce progress updates to prevent flickering (max 10 updates/sec)
+          if (progressTimeoutRef.current) {
+            clearTimeout(progressTimeoutRef.current);
+          }
+
+          progressTimeoutRef.current = setTimeout(() => {
+            setProgress((event.data as UpdateEventData)?.percent || 0);
+          }, 100); // Update at most every 100ms
           break;
 
         case 'update-downloaded':
@@ -93,6 +102,13 @@ export default function UpdateSection() {
           break;
       }
     });
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+      }
+    };
   }, []);
 
   const checkForUpdates = async () => {
@@ -117,29 +133,6 @@ export default function UpdateSection() {
       setUpdateInfo((prev) => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to check for updates',
-      }));
-      setUpdateStatus('error');
-      setTimeout(() => setUpdateStatus('idle'), 5000);
-    }
-  };
-
-  const downloadAndInstallUpdate = async () => {
-    setUpdateStatus('downloading');
-    setProgress(0);
-
-    try {
-      const result = await window.electron.downloadUpdate();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to download update');
-      }
-
-      // The download progress and completion will be handled by updater events
-    } catch (error) {
-      console.error('Error downloading update:', error);
-      setUpdateInfo((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to download update',
       }));
       setUpdateStatus('error');
       setTimeout(() => setUpdateStatus('idle'), 5000);
@@ -216,13 +209,6 @@ export default function UpdateSection() {
             Check for Updates
           </Button>
 
-          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
-            <Button onClick={downloadAndInstallUpdate} variant="secondary" size="sm">
-              <Download className="w-3 h-3 mr-1" />
-              Download Update
-            </Button>
-          )}
-
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">
               Install & Restart
@@ -247,12 +233,21 @@ export default function UpdateSection() {
         )}
 
         {/* Update information */}
-        {updateInfo.isUpdateAvailable && (
+        {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-muted mt-4 space-y-1">
-            <p>Update will be downloaded to your Downloads folder.</p>
-            <p className="text-xs text-amber-600">
-              Note: After downloading, you'll need to close the app and manually install the update.
+            <p>Update will be downloaded automatically in the background.</p>
+            <p className="text-xs text-green-600">
+              The update will be installed automatically when you quit the app.
             </p>
+          </div>
+        )}
+
+        {updateStatus === 'ready' && (
+          <div className="text-xs text-text-muted mt-4 space-y-1">
+            <p className="text-xs text-green-600">
+              Update is ready! It will be installed when you quit Goose.
+            </p>
+            <p className="text-xs text-text-muted">Or click "Install & Restart" to update now.</p>
           </div>
         )}
       </div>
