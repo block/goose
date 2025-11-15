@@ -31,6 +31,7 @@ interface GooseMessageProps {
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
   isEditingConversation?: boolean;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
 export default function GooseMessage({
@@ -43,12 +44,23 @@ export default function GooseMessage({
   appendMessage,
   isStreaming = false,
   isEditingConversation = false,
+  messageCheckboxStates,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const handledToolConfirmations = useRef<Set<string>>(new Set());
 
   // Determine if message should be greyed out/struck through
-  const isDeselected = message.metadata?.agentVisible === false;
+  // Check checkbox states first (for real-time editing), then fall back to metadata
+  const isDeselected = useMemo(() => {
+    if (messageCheckboxStates && message.id) {
+      const checkboxState = messageCheckboxStates.get(message.id);
+      if (checkboxState !== undefined) {
+        return !checkboxState; // Deselected if checkbox is unchecked
+      }
+    }
+    // Fall back to metadata if not in checkbox states
+    return message.metadata?.agentVisible === false;
+  }, [messageCheckboxStates, message.id, message.metadata?.agentVisible]);
 
   let textContent = getTextContent(message);
 

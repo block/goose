@@ -40,7 +40,8 @@ interface ProgressiveMessageListProps {
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
   isEditingConversation?: boolean; // Whether the conversation is being edited
-  onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
+  onCheckboxChange?: (messageId: string, checked: boolean) => void;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
 export default function ProgressiveMessageList({
@@ -58,7 +59,8 @@ export default function ProgressiveMessageList({
   onMessageUpdate,
   onRenderingComplete,
   isEditingConversation = false,
-  onMetadataUpdate,
+  onCheckboxChange,
+  messageCheckboxStates,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -217,8 +219,8 @@ export default function ProgressiveMessageList({
                   message={message} 
                   onMessageUpdate={onMessageUpdate}
                   isEditingConversation={isEditingConversation}
-                  onMetadataUpdate={onMetadataUpdate}
-                  messages={messages}
+                  onCheckboxChange={onCheckboxChange}
+                  messageCheckboxStates={messageCheckboxStates}
                 />
               )
             ) : (
@@ -237,6 +239,7 @@ export default function ProgressiveMessageList({
                   message.role === 'assistant'
                 }
                 isEditingConversation={isEditingConversation}
+                messageCheckboxStates={messageCheckboxStates}
               />
             )}
           </div>
@@ -256,7 +259,8 @@ export default function ProgressiveMessageList({
     onMessageUpdate,
     toolCallChains,
     isEditingConversation,
-    onMetadataUpdate,
+    onCheckboxChange,
+    messageCheckboxStates,
   ]);
 
   return (
