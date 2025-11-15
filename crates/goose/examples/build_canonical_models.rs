@@ -170,10 +170,9 @@ async fn main() -> Result<()> {
                     .get("architecture")
                     .and_then(|a| a.get("multimodality"))
                     .is_some()
+                    && !mods.contains(&"file".to_string())
                 {
-                    if !mods.contains(&"file".to_string()) {
-                        mods.push("file".to_string());
-                    }
+                    mods.push("file".to_string());
                 }
                 mods
             })
