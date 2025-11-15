@@ -364,14 +364,25 @@ export function AppInner() {
   const handleOpenChat = useCallback((roomId: string, senderId: string) => {
     console.log('📱 Opening chat for room:', roomId, 'sender:', senderId);
     
-    // Navigate to peers view with chat parameters
-    navigate('/peers', { 
-      state: { 
-        openChat: true, 
-        roomId, 
-        senderId 
-      } 
-    });
+    // For Matrix rooms (starting with !), navigate directly to pair view with Matrix parameters
+    if (roomId.startsWith('!')) {
+      console.log('📱 Opening Matrix shared session for room:', roomId);
+      const searchParams = new URLSearchParams({
+        matrixMode: 'true',
+        matrixRoomId: roomId,
+        matrixRecipientId: senderId
+      });
+      navigate(`/pair?${searchParams.toString()}`);
+    } else {
+      // For non-Matrix rooms, navigate to peers view
+      navigate('/peers', { 
+        state: { 
+          openChat: true, 
+          roomId, 
+          senderId 
+        } 
+      });
+    }
   }, [navigate]);
 
   useEffect(() => {

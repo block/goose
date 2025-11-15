@@ -557,7 +557,7 @@ function BaseChatContent({
             </div>
 
             <ChatInput
-              sessionId={chat.sessionId}
+              sessionId={(customChatInputProps as any)?.sessionId || chat.sessionId} // Allow override from customChatInputProps
               handleSubmit={handleSubmit}
               chatState={chatState}
               onStop={onStopGoose}

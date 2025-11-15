@@ -3,7 +3,8 @@ import { View, ViewOptions } from '../../utils/navigationUtils';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
-import { getSession, Session } from '../../api';
+import { Session } from '../../api';
+import { unifiedSessionService } from '../../services/UnifiedSessionService';
 
 interface SessionsViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -22,11 +23,14 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     setError(null);
     setShowSessionHistory(true);
     try {
-      const response = await getSession<true>({
-        path: { session_id: sessionId },
-        throwOnError: true,
-      });
-      setSelectedSession(response.data);
+      console.log('📋 SessionsView: Loading session details for:', sessionId);
+      const session = await unifiedSessionService.getSessionById(sessionId);
+      if (session) {
+        console.log('📋 SessionsView: Successfully loaded session:', session.id, session.description);
+        setSelectedSession(session);
+      } else {
+        throw new Error('Session not found');
+      }
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
       setError('Failed to load session details. Please try again later.');

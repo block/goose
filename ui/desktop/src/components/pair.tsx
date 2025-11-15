@@ -65,7 +65,7 @@ export default function Pair({
   console.log('🔍 isMatrixMode result:', isMatrixMode);
 
   // Matrix integration
-  const { getRoomHistoryAsGooseMessages, sendMessage, sendGooseMessage, isConnected, isReady, onMessage, onSessionMessage, currentUser } = useMatrix();
+  const { getRoomHistoryAsGooseMessages, sendMessage, sendGooseMessage, isConnected, isReady, onMessage, onSessionMessage, currentUser, rooms } = useMatrix();
   const [isLoadingMatrixHistory, setIsLoadingMatrixHistory] = useState(false);
   const [hasLoadedMatrixHistory, setHasLoadedMatrixHistory] = useState(false);
   
@@ -84,6 +84,20 @@ export default function Pair({
 
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
+    console.log(`🔍 addMessagesToChat called with source: "${source}", isMatrixMode: ${isMatrixMode}`);
+    
+    // In Matrix mode, only skip the old real-time-sync messages, but allow matrix-real-time from custom events
+    // The matrix-real-time source now comes from ChatInput via custom events, so we should process it
+    if (isMatrixMode && source === 'real-time-sync') {
+      console.log(`🚫 Skipping ${source} in Matrix mode - handled by useSessionSharing + custom events`);
+      return;
+    }
+    
+    // Additional check for matrix-real-time to ensure it's processed
+    if (isMatrixMode && source === 'matrix-real-time') {
+      console.log(`✅ Processing ${source} in Matrix mode - from ChatInput custom event`);
+    }
+    
     console.log(`📝 Adding ${newMessages.length} messages from ${source}`);
     
     setChat(prevChat => {
@@ -224,7 +238,7 @@ export default function Pair({
         messages: allMessages,
       };
     });
-  }, [setChat, processedMessageIds]);
+  }, [setChat, processedMessageIds, isMatrixMode]);
 
   // Session sharing hook for Matrix collaboration
   // In Matrix mode, we MUST use the Matrix room ID as the session ID for proper message routing
@@ -258,6 +272,26 @@ export default function Pair({
         hasInitializedChat,
         currentChatMessagesCount: chat.messages?.length || 0 
       });
+      
+      // In Matrix mode, skip local chat initialization entirely - Matrix room is the source of truth
+      if (isMatrixMode && matrixRoomId) {
+        console.log('🔄 Matrix mode: Skipping local chat initialization - Matrix room is source of truth');
+        // Create a minimal empty chat state for Matrix mode
+        const matrixChat: ChatType = {
+          sessionId: matrixRoomId, // Use Matrix room ID as session ID
+          messages: [], // Start empty, Matrix history will populate this
+          recipeConfig: null,
+        };
+        setChat(matrixChat);
+        setHasInitializedChat(true);
+        
+        // Update URL params to reflect Matrix room as session
+        setSearchParams((prev) => {
+          prev.set('resumeSessionId', matrixRoomId);
+          return prev;
+        });
+        return;
+      }
       
       // Skip initialization if we're in Matrix mode and have already initialized
       if (isMatrixMode && hasInitializedChat && chat.messages.length > 0) {
@@ -301,6 +335,8 @@ export default function Pair({
     loadCurrentChat,
     resumeSessionId,
     setSearchParams,
+    isMatrixMode,
+    matrixRoomId,
   ]);
 
   // Followed by sending the initialMessage if we have one. This will happen
@@ -406,68 +442,72 @@ export default function Pair({
     isConnected,
     isReady,
     hasLoadedMatrixHistory,
-    // Removed loadingChat and chat.sessionId dependencies for Matrix mode
     getRoomHistoryAsGooseMessages,
-    addMessagesToChat,
+    // Removed addMessagesToChat from dependencies to prevent re-render loop
   ]);
 
-  // Matrix real-time message listener (replaces periodic refresh)
+  // Listen for Matrix room messages directly and update chat state
+  // NOTE: Only for multi-user rooms (>2 people). 1-on-1 chats are handled by MatrixService message events
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady) {
       return;
     }
 
-    console.log('🔄 Setting up Matrix real-time message listeners');
+    // Check if this is a multi-user room (more than 2 people)
+    const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
+    const memberCount = currentRoom?.members?.length || 0;
+    
+    if (memberCount <= 2) {
+      console.log('🔄 Skipping direct Matrix listener for 1-on-1 chat - handled by MatrixService message events');
+      return;
+    }
 
-    // Listen for new messages in real-time
-    const handleNewMessage = (data: any) => {
-      const { content, sender, roomId, senderInfo } = data;
+    console.log('🔄 Setting up direct Matrix room message listener in pair.tsx for multi-user room');
+
+    const handleMatrixRoomMessage = (messageData: any) => {
+      const { content, sender, roomId, timestamp, senderInfo } = messageData;
       
-      // Only process messages from our Matrix room
+      // Only process messages from our specific Matrix room
       if (roomId !== matrixRoomId) {
         return;
       }
       
-      // Skip messages from ourselves to avoid duplicate display (we already see them locally)
-      // Note: We still want to process them for other users to see
+      // Skip messages from ourselves
       if (sender === currentUser?.userId) {
-        console.log('📨 Skipping message from self to avoid duplicate display:', sender);
         return;
       }
       
-      console.log('📨 New Matrix message received:', {
+      console.log('📨 pair.tsx: Received Matrix room message:', {
         sender,
         content: content?.substring(0, 50) + '...',
         roomId
       });
       
-      // Detect if this is a Goose message (assistant response)
-      const isGooseMessage = content && (
-        content.startsWith('🦆 Goose:') ||
+      // Determine message role based on content
+      let messageRole: 'user' | 'assistant' = 'user';
+      
+      // Detect Goose messages
+      const isGooseResponse = content && (
         content.includes('🦆 Goose:') ||
-        content.startsWith('🤖') ||
-        sender.toLowerCase().includes('goose') ||
-        (senderInfo?.displayName && senderInfo.displayName.toLowerCase().includes('goose'))
+        content.startsWith('🦆 Goose:') ||
+        content.includes('🤖') ||
+        (senderInfo?.displayName && senderInfo.displayName.toLowerCase().includes('goose')) ||
+        (sender && sender.toLowerCase().includes('goose'))
       );
       
-      // Determine the role based on message content and sender
-      let messageRole: 'user' | 'assistant' = 'user';
-      if (isGooseMessage) {
+      if (isGooseResponse) {
         messageRole = 'assistant';
-        console.log('🦆 Detected Goose message from Matrix - treating as assistant message');
       }
       
-      // Convert to Goose message format
-      const newMessage: Message = {
-        id: `matrix_${Date.now()}_${messageRole}_${Math.random().toString(36).substr(2, 9)}`,
+      // Create message in Goose format
+      const gooseMessage: Message = {
+        id: `matrix-${timestamp.getTime()}-${Math.random().toString(36).substr(2, 9)}`,
         role: messageRole,
-        created: Math.floor(Date.now() / 1000),
-        content: [
-          {
-            type: 'text' as const,
-            text: content,
-          }
-        ],
+        created: Math.floor(timestamp.getTime() / 1000),
+        content: [{
+          type: 'text',
+          text: content,
+        }],
         sender: senderInfo ? {
           userId: senderInfo.userId,
           displayName: senderInfo.displayName,
@@ -476,34 +516,35 @@ export default function Pair({
           userId: sender,
           displayName: sender.split(':')[0].substring(1),
         },
+        metadata: {
+          skipLocalResponse: true,
+          isFromCollaborator: true,
+          preventAutoResponse: true,
+          isMatrixSharedSession: true,
+          matrixRoomId: matrixRoomId
+        }
       };
       
-      // Add to chat using centralized message management
-      console.log('📨 Adding new Matrix message to chat:', {
-        messageId: newMessage.id,
-        sender: newMessage.sender?.displayName || newMessage.sender?.userId,
-        content: content?.substring(0, 50) + '...',
-        currentChatMessagesCount: chat.messages.length
-      });
-      
-      addMessagesToChat([newMessage], 'real-time-sync');
+      // Add directly to chat state using the callback to avoid dependency on addMessagesToChat
+      addMessagesToChat([gooseMessage], 'matrix-room-direct');
     };
 
-    // Set up real-time listener
-    const cleanup = onMessage(handleNewMessage);
+    // Listen for Matrix room messages
+    const cleanup = onMessage(handleMatrixRoomMessage);
 
     return () => {
+      console.log('🔄 Cleaning up direct Matrix room message listener in pair.tsx');
       cleanup();
-      console.log('🔄 Cleaned up Matrix real-time listeners');
     };
   }, [
     isMatrixMode,
     matrixRoomId,
     isConnected,
     isReady,
-    currentUser,
+    currentUser?.userId,
     onMessage,
-    addMessagesToChat,
+    rooms,
+    // Removed addMessagesToChat from dependencies to prevent re-render loop
   ]);
 
   // Sync Goose responses to Matrix when they're added to the chat (simplified, no complex debouncing)
@@ -723,6 +764,7 @@ export default function Pair({
   // Debug the chat state before rendering
   console.log('🎯 Pair component rendering with chat:', chat);
   console.log('🎯 Chat messages count:', chat.messages?.length || 0);
+  console.log('🎯 Last 3 message IDs:', chat.messages?.slice(-3).map(m => ({ id: m.id, content: m.content?.[0]?.text?.substring(0, 20) + '...' })));
   console.log('🎯 Is Matrix mode:', isMatrixMode);
   console.log('🎯 Loading states:', { loadingChat, isLoadingMatrixHistory });
 
@@ -763,16 +805,28 @@ export default function Pair({
     };
   }, [isMatrixMode, matrixRoomId, isConnected, isReady, effectiveSessionId, onMessage, onSessionMessage, chat.messages.length]);
 
+  // Create custom chat input props for Matrix mode
+  const matrixChatInputProps = useMemo(() => {
+    if (isMatrixMode && matrixRoomId) {
+      return {
+        ...customChatInputProps,
+        // Override sessionId specifically for ChatInput in Matrix mode
+        sessionId: matrixRoomId,
+      };
+    }
+    return customChatInputProps;
+  }, [customChatInputProps, isMatrixMode, matrixRoomId]);
+
   return (
     <BaseChat
-      chat={chat}
+      chat={chat} // Keep original chat with backend session ID
       loadingChat={loadingChat || isLoadingMatrixHistory} // Include Matrix history loading
       autoSubmit={shouldAutoSubmit}
       setChat={setChat}
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       onMessageSubmit={handleMessageSubmit}
-      customChatInputProps={customChatInputProps}
+      customChatInputProps={matrixChatInputProps}
       contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
       showPopularTopics={!isTransitioningFromHub} // Show popular topics in all modes, including Matrix
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub

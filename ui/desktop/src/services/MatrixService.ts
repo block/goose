@@ -1,6 +1,7 @@
 import * as sdk from 'matrix-js-sdk';
 import { EventEmitter } from 'events';
 import { sessionMappingService, SessionMappingService } from './SessionMappingService';
+import { matrixInviteStateService } from './MatrixInviteStateService';
 
 export interface MatrixUser {
   userId: string;
@@ -491,6 +492,18 @@ export class MatrixService extends EventEmitter {
     const inviterUser = this.client?.getUser(inviter);
     const inviterName = inviterUser?.displayName || inviter.split(':')[0].substring(1);
 
+    // Record the invite state and check if it should be shown
+    const inviteState = matrixInviteStateService.recordInvite(roomId, inviter, inviterName);
+    
+    if (!matrixInviteStateService.shouldShowInvite(roomId, inviter)) {
+      console.log('🎯 Skipping Matrix room invitation - already handled or seen recently:', {
+        roomId,
+        inviter,
+        status: inviteState.status,
+      });
+      return;
+    }
+
     // Emit a direct Matrix room invitation event (not a goose message)
     // This prevents duplicate notifications
     const invitationData = {
@@ -499,6 +512,7 @@ export class MatrixService extends EventEmitter {
       inviterName,
       timestamp: new Date(),
       type: 'matrix_room_invitation',
+      inviteState, // Include the state for UI reference
     };
 
     console.log('🎯 Emitting Matrix room invitation event:', invitationData);
@@ -807,6 +821,43 @@ export class MatrixService extends EventEmitter {
     }
 
     await this.client.invite(roomId, userId);
+  }
+
+  /**
+   * Accept a Matrix room invitation and update invite state
+   */
+  async acceptMatrixInvite(roomId: string): Promise<void> {
+    try {
+      await this.joinRoom(roomId);
+      matrixInviteStateService.acceptInvite(roomId);
+      console.log('✅ Accepted Matrix invite and updated state:', roomId);
+    } catch (error) {
+      console.error('❌ Failed to accept Matrix invite:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Decline a Matrix room invitation and update invite state
+   */
+  async declineMatrixInvite(roomId: string): Promise<void> {
+    try {
+      // Matrix doesn't have a direct "decline" method, but we can leave the room if we're in it
+      // or just update our local state to mark it as declined
+      matrixInviteStateService.declineInvite(roomId);
+      console.log('✅ Declined Matrix invite and updated state:', roomId);
+    } catch (error) {
+      console.error('❌ Failed to decline Matrix invite:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Dismiss a Matrix room invitation (close notification without action)
+   */
+  async dismissMatrixInvite(roomId: string): Promise<void> {
+    matrixInviteStateService.dismissInvite(roomId);
+    console.log('✅ Dismissed Matrix invite:', roomId);
   }
 
   /**

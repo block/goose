@@ -7,6 +7,8 @@ import {
   Folder,
   Edit2,
   Trash2,
+  Users,
+  Hash,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -20,7 +22,8 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { deleteSession, listSessions, Session, updateSessionDescription } from '../../api';
+import { Session } from '../../api';
+import { unifiedSessionService } from '../../services/UnifiedSessionService';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -56,11 +59,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
       setIsUpdating(true);
       try {
-        await updateSessionDescription({
-          path: { session_id: session.id },
-          body: { description: trimmedDescription },
-          throwOnError: true,
-        });
+        await unifiedSessionService.updateSessionDescriptionById(session.id, trimmedDescription);
         await onSave(session.id, trimmedDescription);
 
         // Close modal, then show success toast on a timeout to let the UI update complete.
@@ -216,8 +215,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setShowContent(false);
       setError(null);
       try {
-        const resp = await listSessions<true>({ throwOnError: true });
-        const sessions = resp.data.sessions;
+        const resp = await unifiedSessionService.getAllSessions();
+        const sessions = resp.sessions;
+        console.log('📋 Loaded unified sessions:', {
+          total: sessions.length,
+          regular: resp.regularSessionCount,
+          matrix: resp.matrixSessionCount,
+        });
         // Use startTransition to make state updates non-blocking
         startTransition(() => {
           setSessions(sessions);
@@ -382,10 +386,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
 
       try {
-        await deleteSession({
-          path: { session_id: sessionToDeleteId },
-          throwOnError: true,
-        });
+        await unifiedSessionService.deleteSessionById(sessionToDeleteId);
         toast.success('Session deleted successfully');
       } catch (error) {
         console.error('Error deleting session:', error);
@@ -429,10 +430,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         onSelectSession(session.id);
       }, [session.id]);
 
+      // Get session display info
+      const displayInfo = unifiedSessionService.getSessionDisplayInfo(session);
+      const isMatrix = displayInfo.type === 'matrix' || displayInfo.type === 'collaborative';
+
       return (
         <Card
           onClick={handleCardClick}
-          className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
+          className={`session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group ${
+            isMatrix ? 'border-l-4 border-l-blue-500' : ''
+          }`}
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -453,9 +460,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-16 break-words">
-              {session.description || session.id}
-            </h3>
+            <div className="flex items-center gap-2 mb-1 pr-16">
+              <h3 className="text-base break-words flex-1">
+                {session.description || session.id}
+              </h3>
+              {isMatrix && (
+                <div className="flex items-center gap-1">
+                  {displayInfo.type === 'collaborative' ? (
+                    <Users className="w-4 h-4 text-blue-500" title="Collaborative Matrix Session" />
+                  ) : (
+                    <Hash className="w-4 h-4 text-blue-500" title="Matrix Session" />
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -463,8 +481,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
             <div className="flex items-center text-text-muted text-xs mb-1">
               <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span className="truncate">{session.working_dir}</span>
+              <span className="truncate">{displayInfo.workingDir}</span>
             </div>
+            {isMatrix && displayInfo.participants && (
+              <div className="flex items-center text-text-muted text-xs mb-1">
+                <Users className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{displayInfo.participants.length} participants</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between mt-1 pt-2">
@@ -473,13 +497,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <MessageSquareText className="w-3 h-3 mr-1" />
                 <span className="font-mono">{session.message_count}</span>
               </div>
-              {session.total_tokens !== null && (
+              {displayInfo.hasTokenCounts && session.total_tokens !== null && (
                 <div className="flex items-center">
                   <Target className="w-3 h-3 mr-1" />
                   <span className="font-mono">{(session.total_tokens || 0).toLocaleString()}</span>
                 </div>
               )}
             </div>
+            {isMatrix && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                {displayInfo.type === 'collaborative' ? 'Collaborative' : 'Matrix'}
+              </div>
+            )}
           </div>
         </Card>
       );

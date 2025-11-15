@@ -345,41 +345,48 @@ export function useMessageStream({
                       ?.session_id as string;
                     
                     if (originalSessionId) {
+                      // Check if we should make backend calls for this session
+                      if (!sessionMappingService.shouldMakeBackendCalls(originalSessionId)) {
+                        console.log('📋 Skipping session data fetch in SSE Finish - Matrix session without backend mapping:', originalSessionId);
+                        break;
+                      }
+
+                      // Use session mapping service to get the appropriate backend session ID
+                      const backendSessionId = sessionMappingService.getBackendSessionId(originalSessionId);
+                      
+                      console.log('📋 SSE Finish - Session ID mapping:', {
+                        originalSessionId,
+                        backendSessionId,
+                        isMatrixSession: originalSessionId.startsWith('!'),
+                        shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(originalSessionId),
+                      });
+                      
+                      // Double-check that we have a valid backend session ID
+                      if (!backendSessionId) {
+                        console.log('📋 No backend session ID available for:', originalSessionId);
+                        break;
+                      }
+                      
+                      console.log('📋 Making getSession call with backend session ID:', backendSessionId);
+                      
                       try {
-                        // Use session mapping service to get the appropriate backend session ID
-                        const backendSessionId = sessionMappingService.getBackendSessionId(originalSessionId);
-                        
-                        console.log('📋 SSE Finish - Session ID mapping:', {
-                          originalSessionId,
-                          backendSessionId,
-                          isMatrixSession: originalSessionId.startsWith('!'),
-                          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(originalSessionId),
-                        });
-                        
-                        // Skip backend calls if no mapping exists for Matrix sessions
-                        if (backendSessionId === null) {
-                          console.log('📋 Skipping session data fetch in SSE Finish - no mapping for Matrix session:', originalSessionId);
-                          break;
-                        }
-                        
-                        console.log('📋 Making getSession call with backend session ID:', backendSessionId);
-                        
                         const sessionResponse = await getSession({
                           path: { session_id: backendSessionId },
-                          throwOnError: true,
+                          throwOnError: false, // Don't throw on error, handle gracefully
                         });
 
                         if (sessionResponse.data) {
                           console.log('📋 Successfully fetched session data for:', backendSessionId);
                           setSession(sessionResponse.data);
+                        } else if (sessionResponse.error) {
+                          console.log('📋 Session not found in backend for:', backendSessionId, '- this is expected for Matrix sessions without real backend sessions');
+                          // For Matrix sessions with generated IDs that don't exist in backend, this is normal
+                          // Don't treat this as an error
                         }
                       } catch (err) {
-                        console.error('📋 Error fetching session data in SSE Finish:', {
-                          originalSessionId,
-                          error: err instanceof Error ? err.message : String(err),
-                          errorName: err instanceof Error ? err.name : 'Unknown',
-                        });
-                        // Don't throw here, just log the error to prevent SSE stream interruption
+                        console.log('📋 Session fetch failed for:', backendSessionId, '- likely Matrix session with generated ID that doesn\'t exist in backend');
+                        // This is expected for Matrix sessions that have mappings with generated session IDs
+                        // that don't actually exist in the backend. Don't treat as an error.
                       }
                     }
                     break;
@@ -387,6 +394,13 @@ export function useMessageStream({
                 }
               } catch (e) {
                 console.error('Error parsing SSE event:', e);
+                
+                // Check if this is a session-related error that we should ignore
+                if (e instanceof Error && e.message.includes('Session not found')) {
+                  console.log('📋 Ignoring session not found error in SSE stream - likely Matrix session without backend mapping');
+                  continue; // Skip this event and continue processing
+                }
+                
                 if (onError && e instanceof Error) {
                   onError(e);
                 }

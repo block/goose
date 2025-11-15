@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { GooseChatMessage } from '../services/MatrixService';
 
 const GooseChat: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     isConnected, 
     gooseInstances, 
@@ -26,15 +27,36 @@ const GooseChat: React.FC = () => {
   const [taskDescription, setTaskDescription] = useState('');
   const [collaborationProject, setCollaborationProject] = useState('');
 
-  // Listen for incoming Goose messages
+  // Check if we're in a Matrix shared session context
+  const isInMatrixSharedSession = () => {
+    // Check URL parameters for Matrix mode
+    const searchParams = new URLSearchParams(location.search);
+    const matrixMode = searchParams.get('matrixMode') === 'true';
+    const matrixRoomId = searchParams.get('matrixRoomId');
+    
+    // Check if we're on a route that uses Matrix shared sessions
+    const isMatrixRoute = (location.pathname === '/' || location.pathname === '/pair') && (matrixMode || matrixRoomId);
+    
+    return isMatrixRoute;
+  };
+
+  // Listen for incoming Goose messages - but only when not in Matrix shared session
   useEffect(() => {
+    // Don't process Goose messages if we're in a Matrix shared session context
+    // to prevent interference with the main chat
+    if (isInMatrixSharedSession()) {
+      console.log('🚫 GooseChat: Disabling message processing - Matrix shared session is active');
+      return;
+    }
+
+    console.log('✅ GooseChat: Setting up Goose message listener');
     const unsubscribe = onGooseMessage((message: GooseChatMessage) => {
-      console.log('🦆 Received Goose message:', message);
+      console.log('🦆 GooseChat: Received Goose message:', message);
       setMessages(prev => [...prev, message]);
     });
 
     return unsubscribe;
-  }, [onGooseMessage]);
+  }, [onGooseMessage, location.search, location.pathname]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedRoom) return;

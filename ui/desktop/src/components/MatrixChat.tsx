@@ -10,6 +10,7 @@ interface MatrixChatProps {
   recipientId?: string;
   onBack?: () => void;
   className?: string;
+  disableMessageHandling?: boolean; // Add prop to disable message handling when used alongside useSessionSharing
 }
 
 interface ChatMessage {
@@ -28,6 +29,7 @@ const MatrixChat: React.FC<MatrixChatProps> = ({
   recipientId,
   onBack,
   className = '',
+  disableMessageHandling = false,
 }) => {
   const {
     currentUser,
@@ -58,7 +60,12 @@ const MatrixChat: React.FC<MatrixChatProps> = ({
 
   // Listen for messages in this room
   useEffect(() => {
-    if (!roomId || !currentUser) return;
+    if (!roomId || !currentUser || disableMessageHandling) {
+      if (disableMessageHandling) {
+        console.log('🚫 MatrixChat message handling disabled - useSessionSharing is handling messages');
+      }
+      return;
+    }
 
     const handleRegularMessage = (messageData: any) => {
       const { content, sender, roomId: msgRoomId, timestamp, senderInfo } = messageData;
@@ -131,7 +138,7 @@ const MatrixChat: React.FC<MatrixChatProps> = ({
       unsubscribeRegular();
       unsubscribeGoose();
     };
-  }, [roomId, currentUser, onMessage, onGooseMessage]);
+  }, [roomId, currentUser, onMessage, onGooseMessage, disableMessageHandling]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, User, Clock } from 'lucide-react';
 import { useMatrix } from '../contexts/MatrixContext';
+import { useLocation } from 'react-router-dom';
 import AvatarImage from './AvatarImage';
 
 interface MessageNotificationData {
@@ -31,8 +32,19 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
     currentUser,
   } = useMatrix();
   
+  const location = useLocation();
+  
   const [notifications, setNotifications] = useState<MessageNotificationData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+
+  // Helper function to get current active Matrix room ID if in shared session mode
+  const getCurrentActiveMatrixRoom = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const isMatrixMode = searchParams.get('matrixMode') === 'true';
+    const matrixRoomId = searchParams.get('matrixRoomId');
+    
+    return isMatrixMode && matrixRoomId ? matrixRoomId : null;
+  };
 
   // Listen for incoming messages
   useEffect(() => {
@@ -44,6 +56,13 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       
       // Only show notifications for messages from others
       if (sender === currentUser.userId) return;
+      
+      // Skip notifications for messages from the currently active Matrix room (shared session)
+      const activeMatrixRoom = getCurrentActiveMatrixRoom();
+      if (activeMatrixRoom && roomId === activeMatrixRoom) {
+        console.log('📱 Skipping notification for message from active Matrix room:', roomId);
+        return;
+      }
       
       // Filter out very old messages (more than 2 minutes old) to prevent spam on startup
       const messageAge = Date.now() - new Date(timestamp).getTime();
@@ -85,6 +104,13 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       
       // Only show notifications for messages from others
       if (metadata?.isFromSelf) return;
+      
+      // Skip notifications for messages from the currently active Matrix room (shared session)
+      const activeMatrixRoom = getCurrentActiveMatrixRoom();
+      if (activeMatrixRoom && roomId === activeMatrixRoom) {
+        console.log('🦆 Skipping Goose notification for message from active Matrix room:', roomId);
+        return;
+      }
       
       // Filter out old messages
       const messageAge = Date.now() - new Date(timestamp).getTime();

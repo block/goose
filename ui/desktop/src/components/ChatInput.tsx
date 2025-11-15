@@ -366,15 +366,32 @@ export default function ChatInput({
     sessionTitle: isMatrixRoom && sessionId ? `Matrix Room ${sessionId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
     messages: messages, // Always sync messages
     onMessageSync: (message) => {
-      console.log('💬 ChatInput: Received message from useSessionSharing:', message);
+      console.log('💬 ChatInput: *** RECEIVED MESSAGE FROM useSessionSharing ***', message);
+      console.log('💬 ChatInput: Message details:', {
+        id: message.id,
+        role: message.role,
+        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+        sender: message.sender?.displayName || message.sender?.userId || 'unknown',
+        hasAppendFunction: !!append,
+        appendFunctionType: typeof append,
+        sessionId: sessionId,
+        isMatrixRoom: isMatrixRoom
+      });
       
       // For Matrix rooms, messages from Matrix should appear normally
       // For regular sessions, messages should also appear normally
       // The key is that useSessionSharing handles both cases the same way
       if (append) {
-        append(message);
+        console.log('💬 ChatInput: *** CALLING APPEND FUNCTION WITH MESSAGE ***');
+        try {
+          const result = append(message);
+          console.log('💬 ChatInput: *** APPEND FUNCTION RETURNED ***:', result);
+          console.log('💬 ChatInput: *** APPEND SUCCESSFUL - MESSAGE SHOULD APPEAR IN CHAT ***');
+        } catch (error) {
+          console.error('💬 ChatInput: *** APPEND FUNCTION FAILED ***:', error);
+        }
       } else {
-        console.warn('⚠️ ChatInput: append function is not available!');
+        console.warn('⚠️ ChatInput: *** APPEND FUNCTION IS NOT AVAILABLE! ***');
       }
     },
     initialRoomId: isMatrixRoom ? sessionId : null, // Pass Matrix room ID if it's a Matrix room
