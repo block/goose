@@ -78,11 +78,13 @@ export const useChatEngine = ({
 
   // Get the appropriate session ID for backend API calls
   const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
+  const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
   
   console.log('📋 useChatEngine: Session ID mapping:', {
     originalSessionId: chat.sessionId,
     backendSessionId,
     isMatrixSession: chat.sessionId.startsWith('!'),
+    shouldMakeBackendCalls,
   });
 
   const {
@@ -104,7 +106,7 @@ export const useChatEngine = ({
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
     body: {
-      session_id: backendSessionId, // Use mapped session ID for backend
+      session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
       ...(chat.recipeConfig?.title
         ? {
@@ -253,7 +255,14 @@ export const useChatEngine = ({
           originalSessionId: chat.sessionId,
           backendSessionId,
           isMatrixSession: chat.sessionId.startsWith('!'),
+          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(chat.sessionId),
         });
+        
+        // Skip backend calls if no mapping exists for Matrix sessions
+        if (backendSessionId === null) {
+          console.log('📋 Skipping session token fetch - no mapping for Matrix session:', chat.sessionId);
+          return;
+        }
         
         const response = await getSession<true>({
           path: { session_id: backendSessionId },

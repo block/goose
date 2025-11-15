@@ -167,17 +167,44 @@ export class SessionMappingService {
    * Get the appropriate session ID for backend API calls
    * Returns the mapped Goose session ID if it's a Matrix room, otherwise returns the original ID
    */
-  public getBackendSessionId(sessionId: string): string {
+  public getBackendSessionId(sessionId: string): string | null {
     if (SessionMappingService.isMatrixRoomId(sessionId)) {
       const gooseSessionId = this.getGooseSessionId(sessionId);
       if (gooseSessionId) {
         return gooseSessionId;
       }
-      console.warn('📋 SessionMappingService: No mapping found for Matrix room ID:', sessionId);
-      // Return original ID as fallback (will likely cause backend errors, but better than crashing)
-      return sessionId;
+      console.warn('📋 SessionMappingService: No mapping found for Matrix room ID:', sessionId, '- skipping backend calls');
+      // Return null to indicate that backend calls should be skipped
+      return null;
     }
     return sessionId;
+  }
+
+  /**
+   * Check if backend API calls should be made for this session ID
+   * Returns false for Matrix sessions without mappings
+   */
+  public shouldMakeBackendCalls(sessionId: string): boolean {
+    if (SessionMappingService.isMatrixRoomId(sessionId)) {
+      const gooseSessionId = this.getGooseSessionId(sessionId);
+      return gooseSessionId !== null;
+    }
+    return true; // Always make backend calls for regular Goose sessions
+  }
+
+  /**
+   * Create a mapping for an existing Matrix room if one doesn't exist
+   * This is useful for Matrix rooms loaded from history that don't have mappings yet
+   */
+  public ensureMappingExists(matrixRoomId: string, title?: string): SessionMapping {
+    const existingMapping = this.getMapping(matrixRoomId);
+    if (existingMapping) {
+      return existingMapping;
+    }
+
+    // Create a new mapping for this Matrix room
+    console.log('📋 SessionMappingService: Creating mapping for existing Matrix room:', matrixRoomId);
+    return this.createMapping(matrixRoomId, [], title || `Matrix Room ${matrixRoomId.substring(1, 8)}`);
   }
 
   /**

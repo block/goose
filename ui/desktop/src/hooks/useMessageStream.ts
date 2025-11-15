@@ -353,7 +353,14 @@ export function useMessageStream({
                           originalSessionId: sessionId,
                           backendSessionId,
                           isMatrixSession: sessionId.startsWith('!'),
+                          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(sessionId),
                         });
+                        
+                        // Skip backend calls if no mapping exists for Matrix sessions
+                        if (backendSessionId === null) {
+                          console.log('📋 Skipping session data fetch in SSE Finish - no mapping for Matrix session:', sessionId);
+                          break;
+                        }
                         
                         const sessionResponse = await getSession({
                           path: { session_id: backendSessionId },
