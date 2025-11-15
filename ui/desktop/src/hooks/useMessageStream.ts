@@ -5,7 +5,7 @@ import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 import { sessionMappingService } from '../services/SessionMappingService';
 
-// Force rebuild timestamp: 2025-01-15T02:45:00Z - Enhanced Matrix session SSE error handling
+// Force rebuild timestamp: 2025-01-15T02:50:00Z - Fixed SSE Finish session mapping error
 
 let messageIdCounter = 0;
 
@@ -341,26 +341,28 @@ export function useMessageStream({
                       onFinish(lastMessage, parsedEvent.reason);
                     }
 
-                    const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
+                    const originalSessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
                     
-                    if (sessionId) {
+                    if (originalSessionId) {
                       try {
                         // Use session mapping service to get the appropriate backend session ID
-                        const backendSessionId = sessionMappingService.getBackendSessionId(sessionId);
+                        const backendSessionId = sessionMappingService.getBackendSessionId(originalSessionId);
                         
-                        console.log('📋 Fetching session data in SSE Finish:', {
-                          originalSessionId: sessionId,
+                        console.log('📋 SSE Finish - Session ID mapping:', {
+                          originalSessionId,
                           backendSessionId,
-                          isMatrixSession: sessionId.startsWith('!'),
-                          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(sessionId),
+                          isMatrixSession: originalSessionId.startsWith('!'),
+                          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(originalSessionId),
                         });
                         
                         // Skip backend calls if no mapping exists for Matrix sessions
                         if (backendSessionId === null) {
-                          console.log('📋 Skipping session data fetch in SSE Finish - no mapping for Matrix session:', sessionId);
+                          console.log('📋 Skipping session data fetch in SSE Finish - no mapping for Matrix session:', originalSessionId);
                           break;
                         }
+                        
+                        console.log('📋 Making getSession call with backend session ID:', backendSessionId);
                         
                         const sessionResponse = await getSession({
                           path: { session_id: backendSessionId },
@@ -368,11 +370,16 @@ export function useMessageStream({
                         });
 
                         if (sessionResponse.data) {
+                          console.log('📋 Successfully fetched session data for:', backendSessionId);
                           setSession(sessionResponse.data);
                         }
                       } catch (err) {
-                        console.error('Error fetching session data:', err);
-                        // Don't throw here, just log the error
+                        console.error('📋 Error fetching session data in SSE Finish:', {
+                          originalSessionId,
+                          error: err instanceof Error ? err.message : String(err),
+                          errorName: err instanceof Error ? err.name : 'Unknown',
+                        });
+                        // Don't throw here, just log the error to prevent SSE stream interruption
                       }
                     }
                     break;
