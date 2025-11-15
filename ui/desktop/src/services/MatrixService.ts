@@ -1120,11 +1120,13 @@ export class MatrixService extends EventEmitter {
         return null;
       }
 
-      // Fetch with authentication header
+      // Fetch with authentication header and improved error handling
       const response = await fetch(httpUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
+        // Add timeout and other fetch options to handle HTTP2 issues
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
@@ -1139,7 +1141,20 @@ export class MatrixService extends EventEmitter {
       console.log('getAuthenticatedMediaBlob - created blob URL:', blobUrl);
       return blobUrl;
     } catch (error) {
-      console.error('Failed to get authenticated media blob:', error);
+      // Enhanced error handling for different types of network errors
+      if (error instanceof Error) {
+        if (error.name === 'TimeoutError') {
+          console.warn('Matrix media fetch timed out for:', mxcUrl);
+        } else if (error.message.includes('HTTP2') || error.message.includes('PROTOCOL_ERROR')) {
+          console.warn('HTTP2 protocol error fetching Matrix media:', mxcUrl, '- this is usually a server-side issue');
+        } else if (error.message.includes('Failed to fetch')) {
+          console.warn('Network error fetching Matrix media:', mxcUrl, '- check network connection');
+        } else {
+          console.error('Failed to get authenticated media blob:', error);
+        }
+      } else {
+        console.error('Failed to get authenticated media blob:', error);
+      }
       return null;
     }
   }
