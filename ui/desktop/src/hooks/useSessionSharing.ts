@@ -117,8 +117,17 @@ export const useSessionSharing = ({
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  // Track processed message IDs to prevent duplicates - ALWAYS call this hook
-  const processedMessageIds = useRef<Set<string>>(new Set());
+  // Track processed messages to prevent duplicates - ALWAYS call this hook
+  const processedMessages = useRef<Set<string>>(new Set());
+
+  // Helper function to create a deduplication key based on content and timestamp
+  const createMessageKey = (content: string, sender: string, timestamp?: number) => {
+    const time = timestamp || Date.now();
+    // Round timestamp to nearest second to catch near-simultaneous duplicates
+    const roundedTime = Math.floor(time / 1000);
+    // Use first 50 chars of content + sender + rounded timestamp
+    return `${sender}-${roundedTime}-${content.substring(0, 50)}`;
+  };
 
   // Listen for session-related Matrix messages
   useEffect(() => {
@@ -132,8 +141,18 @@ export const useSessionSharing = ({
       sessionId,
       roomId: stateRef.current.roomId,
       isShared: stateRef.current.isShared,
-      participantsCount: stateRef.current.participants.length
+      participantsCount: stateRef.current.participants.length,
+      onMessageSyncAvailable: !!onMessageSync
     });
+    
+    // Debug: Test the onMessageSync callback immediately
+    if (onMessageSync) {
+      console.log('🔧 useSessionSharing: Testing onMessageSync callback...');
+      // Don't actually call it, just confirm it exists
+      console.log('🔧 useSessionSharing: onMessageSync callback is available and callable');
+    } else {
+      console.warn('⚠️ useSessionSharing: onMessageSync callback is NOT available!');
+    }
 
     const handleSessionMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;
@@ -215,7 +234,9 @@ export const useSessionSharing = ({
             isFromCurrentRoom,
             isSessionMatch,
             shouldProcessMessage,
-            sender
+            sender,
+            messageRole: messageData.role,
+            messageContent: messageData.content?.substring(0, 50) + '...'
           });
           
           if (shouldProcessMessage) {
@@ -239,25 +260,79 @@ export const useSessionSharing = ({
               }
             }
             
+            // Enhanced role detection for session messages
+            let finalRole = messageData.role as 'user' | 'assistant';
+            
+            // If the role is 'assistant', double-check that it's actually from a Goose instance
+            if (finalRole === 'assistant') {
+              const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
+                                senderData?.userId?.toLowerCase().includes('goose') ||
+                                messageData.content?.includes('🦆') ||
+                                messageData.content?.includes('🤖');
+              
+              if (!isFromGoose) {
+                console.log('🔍 Role correction: Message marked as assistant but not from Goose, changing to user');
+                finalRole = 'user';
+              }
+            }
+            
+            // If the role is 'user' but content looks like a Goose response, correct it
+            if (finalRole === 'user') {
+              const looksLikeGooseResponse = messageData.content && (
+                messageData.content.includes('🦆') ||
+                messageData.content.includes('🤖') ||
+                messageData.content.startsWith('I\'m') ||
+                messageData.content.includes('I can help') ||
+                messageData.content.includes('Let me') ||
+                (messageData.content.length > 100 && messageData.content.includes('\n\n')) ||
+                /```[\s\S]*```/.test(messageData.content) // Contains code blocks
+              );
+              
+              const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
+                                senderData?.userId?.toLowerCase().includes('goose');
+              
+              if (looksLikeGooseResponse || isFromGoose) {
+                console.log('🔍 Role correction: Message marked as user but looks like Goose response, changing to assistant');
+                finalRole = 'assistant';
+              }
+            }
+            
             // Convert to local message format with proper sender attribution
             const message: Message = {
               id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              role: messageData.role,
+              role: finalRole,
               created: Math.floor(Date.now() / 1000),
               content: [{
                 type: 'text',
                 text: messageData.content,
               }],
               sender: senderData, // Include sender information
+              metadata: {
+                originalRole: messageData.role,
+                correctedRole: finalRole,
+                isFromMatrix: true,
+                skipLocalResponse: true, // Prevent triggering local AI response
+                preventAutoResponse: true,
+                isFromCollaborator: true,
+                sessionMessageId: messageData.sessionId
+              }
             };
             
-            console.log('💬 Syncing message to local session with sender:', message);
+            console.log('💬 Syncing session message to local session:', {
+              messageId: message.id,
+              originalRole: messageData.role,
+              finalRole: finalRole,
+              sender: senderData?.displayName || senderData?.userId,
+              content: messageData.content?.substring(0, 50) + '...'
+            });
+            
             onMessageSync?.(message);
           } else {
             console.log('🚫 Skipping session message - not from current room/session');
           }
         } catch (error) {
           console.error('Failed to parse session message:', error);
+          console.error('Raw content that failed to parse:', content);
         }
       }
     };
@@ -269,18 +344,16 @@ export const useSessionSharing = ({
       const currentState = stateRef.current;
       const currentUserFromRef = currentUserRef.current;
       
-      // Create a unique message ID for deduplication
-      const messageId = event?.getId?.() || `${sender}-${timestamp?.getTime?.() || Date.now()}-${content?.substring(0, 20)}`;
-      
-      // Check if we've already processed this message
-      if (processedMessageIds.current.has(messageId)) {
-        console.log('🚫 Skipping duplicate message:', messageId);
+      // Simple deduplication: check if we've seen this exact message content at this time
+      const messageKey = createMessageKey(content || '', sender, timestamp?.getTime?.());
+      if (processedMessages.current.has(messageKey)) {
+        console.log('🚫 Skipping duplicate regular message - same content and time:', messageKey);
         return;
       }
       
       // Debug logging for all incoming messages to understand the flow
       console.log('🔍 handleRegularMessage called:', { 
-        messageId,
+        messageKey,
         content: content?.substring(0, 50) + '...', 
         sender, 
         roomId,
@@ -291,16 +364,16 @@ export const useSessionSharing = ({
       
       // Only process messages from Matrix rooms that are part of our session
       if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
-        console.log('💬 Processing message in session room:', { messageId, content, sender, roomId, senderInfo });
+        console.log('💬 Processing message in session room:', { messageKey, content, sender, roomId, senderInfo });
         
-        // Skip if this is a goose-session-message (should be handled by handleSessionMessage)
+        // Skip if this is a goose-session-message (should be handled by handleGooseSessionSync)
         if (content && content.includes('goose-session-message:')) {
-          console.log('🚫 Skipping handleRegularMessage - this is a session message, will be handled by handleSessionMessage');
+          console.log('🚫 Skipping handleRegularMessage - this is a session message, will be handled by handleGooseSessionSync');
           return;
         }
         
         // Mark this message as processed
-        processedMessageIds.current.add(messageId);
+        processedMessages.current.add(messageKey);
         
         // Find sender info from friends or participants
         let senderData = senderInfo;
@@ -430,15 +503,147 @@ export const useSessionSharing = ({
       if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
         console.log('🔄 Processing gooseSessionSync message in session room:', { content, sender, roomId, senderInfo });
         
-        // Skip if this is already a goose-session-message (to avoid double processing)
+        // If this is a goose-session-message, process it here since handleSessionMessage isn't being called
         if (content && content.includes('goose-session-message:')) {
-          console.log('🚫 Skipping gooseSessionSync - already a session message, will be handled by handleSessionMessage');
-          return;
+          console.log('🔄 Processing goose-session-message in gooseSessionSync handler');
+          
+          // Call the same logic as handleSessionMessage for session messages
+          try {
+            const messageData = JSON.parse(content.split('goose-session-message:')[1]);
+            
+            // Simple deduplication: check if we've seen this exact message content at this time
+            const messageKey = createMessageKey(messageData.content || '', sender, messageData.timestamp);
+            if (processedMessages.current.has(messageKey)) {
+              console.log('🚫 Skipping duplicate message - same content and time:', messageKey);
+              return;
+            }
+            
+            // Mark this message as processed
+            processedMessages.current.add(messageKey);
+            
+            // In Matrix collaboration, we want to process session messages from the current room only
+            const isMatrixRoom = sessionId && sessionId.startsWith('!');
+            const isFromCurrentRoom = !roomId || roomId === sessionId;
+            const isSessionMatch = messageData.sessionId === sessionId;
+            
+            // For Matrix rooms, prioritize room ID matching over session ID matching
+            const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : (isSessionMatch || isFromCurrentRoom);
+            
+            console.log('🔍 Session message processing check (gooseSessionSync):', {
+              messageSessionId: messageData.sessionId,
+              currentSessionId: sessionId,
+              messageRoomId: roomId,
+              isMatrixRoom,
+              isFromCurrentRoom,
+              isSessionMatch,
+              shouldProcessMessage,
+              sender,
+              messageRole: messageData.role,
+              messageContent: messageData.content?.substring(0, 50) + '...'
+            });
+            
+            if (shouldProcessMessage) {
+              // Get sender information for proper attribution
+              let senderData = senderInfo;
+              if (!senderData && sender) {
+                // Try to find sender in friends list
+                const friend = friendsRef.current.find(f => f.userId === sender);
+                if (friend) {
+                  senderData = {
+                    userId: friend.userId,
+                    displayName: friend.displayName,
+                    avatarUrl: friend.avatarUrl,
+                  };
+                } else {
+                  // Fallback to basic sender info from Matrix ID
+                  senderData = {
+                    userId: sender,
+                    displayName: sender.split(':')[0].substring(1), // Extract username from Matrix ID
+                  };
+                }
+              }
+              
+              // Enhanced role detection for session messages
+              let finalRole = messageData.role as 'user' | 'assistant';
+              
+              // If the role is 'assistant', double-check that it's actually from a Goose instance
+              if (finalRole === 'assistant') {
+                const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
+                                  senderData?.userId?.toLowerCase().includes('goose') ||
+                                  messageData.content?.includes('🦆') ||
+                                  messageData.content?.includes('🤖');
+                
+                if (!isFromGoose) {
+                  console.log('🔍 Role correction: Message marked as assistant but not from Goose, changing to user');
+                  finalRole = 'user';
+                }
+              }
+              
+              // If the role is 'user' but content looks like a Goose response, correct it
+              if (finalRole === 'user') {
+                const looksLikeGooseResponse = messageData.content && (
+                  messageData.content.includes('🦆') ||
+                  messageData.content.includes('🤖') ||
+                  messageData.content.startsWith('I\'m') ||
+                  messageData.content.includes('I can help') ||
+                  messageData.content.includes('Let me') ||
+                  (messageData.content.length > 100 && messageData.content.includes('\n\n')) ||
+                  /```[\s\S]*```/.test(messageData.content) // Contains code blocks
+                );
+                
+                const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
+                                  senderData?.userId?.toLowerCase().includes('goose');
+                
+                if (looksLikeGooseResponse || isFromGoose) {
+                  console.log('🔍 Role correction: Message marked as user but looks like Goose response, changing to assistant');
+                  finalRole = 'assistant';
+                }
+              }
+              
+              // Convert to local message format with proper sender attribution
+              const message: Message = {
+                id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                role: finalRole,
+                created: Math.floor(Date.now() / 1000),
+                content: [{
+                  type: 'text',
+                  text: messageData.content,
+                }],
+                sender: senderData, // Include sender information
+                metadata: {
+                  originalRole: messageData.role,
+                  correctedRole: finalRole,
+                  isFromMatrix: true,
+                  skipLocalResponse: true, // Prevent triggering local AI response
+                  preventAutoResponse: true,
+                  isFromCollaborator: true,
+                  sessionMessageId: messageData.sessionId
+                }
+              };
+              
+              console.log('💬 *** PROCESSING SESSION MESSAGE IN GOOSE SESSION SYNC ***:', {
+                messageId: message.id,
+                originalRole: messageData.role,
+                finalRole: finalRole,
+                sender: senderData?.displayName || senderData?.userId,
+                content: messageData.content?.substring(0, 50) + '...'
+              });
+              
+              console.log('💬 *** CALLING onMessageSync FROM GOOSE SESSION SYNC ***');
+              onMessageSync?.(message);
+            } else {
+              console.log('🚫 Skipping session message - not from current room/session (gooseSessionSync)');
+            }
+          } catch (error) {
+            console.error('Failed to parse session message in gooseSessionSync:', error);
+            console.error('Raw content that failed to parse:', content);
+          }
+          
+          return; // Exit early after processing session message
         }
         
-        // DON'T call handleRegularMessage here - it will be handled by the regular message handler
-        // This was causing duplicate messages because both handlers were processing the same message
-        console.log('🚫 Skipping gooseSessionSync processing - regular message handler will process this to avoid duplication');
+        // For non-session messages, let the regular message handler process them
+        console.log('🔄 Non-session message in gooseSessionSync - letting regular handler process');
       } else {
         console.log('🚫 Skipping gooseSessionSync - not from current session room or from self');
       }
