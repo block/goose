@@ -7,6 +7,7 @@ mod routes;
 mod state;
 
 use clap::{Parser, Subcommand};
+use std::process::exit;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

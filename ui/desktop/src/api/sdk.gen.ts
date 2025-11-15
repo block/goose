@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddExtensionData, AddExtensionErrors, AddExtensionResponses, AgentAddExtensionData, AgentAddExtensionErrors, AgentAddExtensionResponses, AgentRemoveExtensionData, AgentRemoveExtensionErrors, AgentRemoveExtensionResponses, BackupConfigData, BackupConfigErrors, BackupConfigResponses, ConfirmPermissionData, ConfirmPermissionErrors, ConfirmPermissionResponses, CreateAppData, CreateAppErrors, CreateAppResponses, CreateCustomProviderData, CreateCustomProviderErrors, CreateCustomProviderResponses, CreateRecipeData, CreateRecipeErrors, CreateRecipeResponses, CreateScheduleData, CreateScheduleErrors, CreateScheduleResponses, DecodeRecipeData, DecodeRecipeErrors, DecodeRecipeResponses, DeleteAppData, DeleteAppErrors, DeleteAppResponses, DeleteRecipeData, DeleteRecipeErrors, DeleteRecipeResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSessionData, DeleteSessionErrors, DeleteSessionResponses, DiagnosticsData, DiagnosticsErrors, DiagnosticsResponses, EncodeRecipeData, EncodeRecipeErrors, EncodeRecipeResponses, ExportSessionData, ExportSessionErrors, ExportSessionResponses, GetAppData, GetAppErrors, GetAppResponses, GetCustomProviderData, GetCustomProviderErrors, GetCustomProviderResponses, GetExtensionsData, GetExtensionsErrors, GetExtensionsResponses, GetProviderModelsData, GetProviderModelsErrors, GetProviderModelsResponses, GetSessionData, GetSessionErrors, GetSessionInsightsData, GetSessionInsightsErrors, GetSessionInsightsResponses, GetSessionResponses, GetToolsData, GetToolsErrors, GetToolsResponses, ImportSessionData, ImportSessionErrors, ImportSessionResponses, InitConfigData, InitConfigErrors, InitConfigResponses, InspectRunningJobData, InspectRunningJobErrors, InspectRunningJobResponses, IterateAppData, IterateAppErrors, IterateAppResponses, KillRunningJobData, KillRunningJobResponses, ListAppsData, ListAppsErrors, ListAppsResponses, ListRecipesData, ListRecipesErrors, ListRecipesResponses, ListSchedulesData, ListSchedulesErrors, ListSchedulesResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ParseRecipeData, ParseRecipeErrors, ParseRecipeResponses, PauseScheduleData, PauseScheduleErrors, PauseScheduleResponses, ProvidersData, ProvidersResponses, ReadAllConfigData, ReadAllConfigResponses, ReadConfigData, ReadConfigErrors, ReadConfigResponses, RecoverConfigData, RecoverConfigErrors, RecoverConfigResponses, RemoveConfigData, RemoveConfigErrors, RemoveConfigResponses, RemoveCustomProviderData, RemoveCustomProviderErrors, RemoveCustomProviderResponses, RemoveExtensionData, RemoveExtensionErrors, RemoveExtensionResponses, ReplyData, ReplyErrors, ReplyResponses, ResumeAgentData, ResumeAgentErrors, ResumeAgentResponses, RunNowHandlerData, RunNowHandlerErrors, RunNowHandlerResponses, SaveRecipeData, SaveRecipeErrors, SaveRecipeResponses, ScanRecipeData, ScanRecipeResponses, SessionsHandlerData, SessionsHandlerErrors, SessionsHandlerResponses, StartAgentData, StartAgentErrors, StartAgentResponses, StartOpenrouterSetupData, StartOpenrouterSetupResponses, StartTetrateSetupData, StartTetrateSetupResponses, StatusData, StatusResponses, StoreAppData, StoreAppErrors, StoreAppResponses, UnpauseScheduleData, UnpauseScheduleErrors, UnpauseScheduleResponses, UpdateAgentProviderData, UpdateAgentProviderErrors, UpdateAgentProviderResponses, UpdateCustomProviderData, UpdateCustomProviderErrors, UpdateCustomProviderResponses, UpdateFromSessionData, UpdateFromSessionErrors, UpdateFromSessionResponses, UpdateRouterToolSelectorData, UpdateRouterToolSelectorErrors, UpdateRouterToolSelectorResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSessionNameData, UpdateSessionNameErrors, UpdateSessionNameResponses, UpdateSessionUserRecipeValuesData, UpdateSessionUserRecipeValuesErrors, UpdateSessionUserRecipeValuesResponses, UpsertConfigData, UpsertConfigErrors, UpsertConfigResponses, UpsertPermissionsData, UpsertPermissionsErrors, UpsertPermissionsResponses, ValidateConfigData, ValidateConfigErrors, ValidateConfigResponses } from './types.gen';
+import type { AddExtensionData, AddExtensionErrors, AddExtensionResponses, AgentAddExtensionData, AgentAddExtensionErrors, AgentAddExtensionResponses, AgentRemoveExtensionData, AgentRemoveExtensionErrors, AgentRemoveExtensionResponses, BackupConfigData, BackupConfigErrors, BackupConfigResponses, CheckProviderData, ConfirmPermissionData, ConfirmPermissionErrors, ConfirmPermissionResponses, CreateCustomProviderData, CreateCustomProviderErrors, CreateCustomProviderResponses, CreateRecipeData, CreateRecipeErrors, CreateRecipeResponses, CreateScheduleData, CreateScheduleErrors, CreateScheduleResponses, DecodeRecipeData, DecodeRecipeErrors, DecodeRecipeResponses, DeleteRecipeData, DeleteRecipeErrors, DeleteRecipeResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSessionData, DeleteSessionErrors, DeleteSessionResponses, DiagnosticsData, DiagnosticsErrors, DiagnosticsResponses, EncodeRecipeData, EncodeRecipeErrors, EncodeRecipeResponses, ExportSessionData, ExportSessionErrors, ExportSessionResponses, GetCustomProviderData, GetCustomProviderErrors, GetCustomProviderResponses, GetExtensionsData, GetExtensionsErrors, GetExtensionsResponses, GetProviderModelsData, GetProviderModelsErrors, GetProviderModelsResponses, GetSessionData, GetSessionErrors, GetSessionInsightsData, GetSessionInsightsErrors, GetSessionInsightsResponses, GetSessionResponses, GetToolsData, GetToolsErrors, GetToolsResponses, ImportSessionData, ImportSessionErrors, ImportSessionResponses, InitConfigData, InitConfigErrors, InitConfigResponses, InspectRunningJobData, InspectRunningJobErrors, InspectRunningJobResponses, KillRunningJobData, KillRunningJobResponses, ListRecipesData, ListRecipesErrors, ListRecipesResponses, ListSchedulesData, ListSchedulesErrors, ListSchedulesResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ParseRecipeData, ParseRecipeErrors, ParseRecipeResponses, PauseScheduleData, PauseScheduleErrors, PauseScheduleResponses, ProvidersData, ProvidersResponses, ReadAllConfigData, ReadAllConfigResponses, ReadConfigData, ReadConfigErrors, ReadConfigResponses, RecoverConfigData, RecoverConfigErrors, RecoverConfigResponses, RemoveConfigData, RemoveConfigErrors, RemoveConfigResponses, RemoveCustomProviderData, RemoveCustomProviderErrors, RemoveCustomProviderResponses, RemoveExtensionData, RemoveExtensionErrors, RemoveExtensionResponses, ReplyData, ReplyErrors, ReplyResponses, ResumeAgentData, ResumeAgentErrors, ResumeAgentResponses, RunNowHandlerData, RunNowHandlerErrors, RunNowHandlerResponses, SaveRecipeData, SaveRecipeErrors, SaveRecipeResponses, ScanRecipeData, ScanRecipeResponses, SessionsHandlerData, SessionsHandlerErrors, SessionsHandlerResponses, SetConfigProviderData, StartAgentData, StartAgentErrors, StartAgentResponses, StartOpenrouterSetupData, StartOpenrouterSetupResponses, StartTetrateSetupData, StartTetrateSetupResponses, StatusData, StatusResponses, UnpauseScheduleData, UnpauseScheduleErrors, UnpauseScheduleResponses, UpdateAgentProviderData, UpdateAgentProviderErrors, UpdateAgentProviderResponses, UpdateCustomProviderData, UpdateCustomProviderErrors, UpdateCustomProviderResponses, UpdateFromSessionData, UpdateFromSessionErrors, UpdateFromSessionResponses, UpdateRouterToolSelectorData, UpdateRouterToolSelectorErrors, UpdateRouterToolSelectorResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSessionNameData, UpdateSessionNameErrors, UpdateSessionNameResponses, UpdateSessionUserRecipeValuesData, UpdateSessionUserRecipeValuesErrors, UpdateSessionUserRecipeValuesResponses, UpsertConfigData, UpsertConfigErrors, UpsertConfigResponses, UpsertPermissionsData, UpsertPermissionsErrors, UpsertPermissionsResponses, ValidateConfigData, ValidateConfigErrors, ValidateConfigResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -102,60 +102,6 @@ export const updateRouterToolSelector = <ThrowOnError extends boolean = false>(o
     });
 };
 
-export const createApp = <ThrowOnError extends boolean = false>(options: Options<CreateAppData, ThrowOnError>) => {
-    return (options.client ?? client).post<CreateAppResponses, CreateAppErrors, ThrowOnError>({
-        url: '/apps',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
-export const deleteApp = <ThrowOnError extends boolean = false>(options: Options<DeleteAppData, ThrowOnError>) => {
-    return (options.client ?? client).delete<DeleteAppResponses, DeleteAppErrors, ThrowOnError>({
-        url: '/apps/app/{name}',
-        ...options
-    });
-};
-
-export const getApp = <ThrowOnError extends boolean = false>(options: Options<GetAppData, ThrowOnError>) => {
-    return (options.client ?? client).get<GetAppResponses, GetAppErrors, ThrowOnError>({
-        url: '/apps/app/{name}',
-        ...options
-    });
-};
-
-export const storeApp = <ThrowOnError extends boolean = false>(options: Options<StoreAppData, ThrowOnError>) => {
-    return (options.client ?? client).put<StoreAppResponses, StoreAppErrors, ThrowOnError>({
-        url: '/apps/app/{name}',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
-export const iterateApp = <ThrowOnError extends boolean = false>(options: Options<IterateAppData, ThrowOnError>) => {
-    return (options.client ?? client).post<IterateAppResponses, IterateAppErrors, ThrowOnError>({
-        url: '/apps/iterate',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-};
-
-export const listApps = <ThrowOnError extends boolean = false>(options?: Options<ListAppsData, ThrowOnError>) => {
-    return (options?.client ?? client).get<ListAppsResponses, ListAppsErrors, ThrowOnError>({
-        url: '/apps/list_apps',
-        ...options
-    });
-};
-
 export const readAllConfig = <ThrowOnError extends boolean = false>(options?: Options<ReadAllConfigData, ThrowOnError>) => {
     return (options?.client ?? client).get<ReadAllConfigResponses, unknown, ThrowOnError>({
         url: '/config',
@@ -167,6 +113,17 @@ export const backupConfig = <ThrowOnError extends boolean = false>(options?: Opt
     return (options?.client ?? client).post<BackupConfigResponses, BackupConfigErrors, ThrowOnError>({
         url: '/config/backup',
         ...options
+    });
+};
+
+export const checkProvider = <ThrowOnError extends boolean = false>(options: Options<CheckProviderData, ThrowOnError>) => {
+    return (options.client ?? client).post<unknown, unknown, ThrowOnError>({
+        url: '/config/check_provider',
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
     });
 };
 
@@ -284,6 +241,17 @@ export const recoverConfig = <ThrowOnError extends boolean = false>(options?: Op
 export const removeConfig = <ThrowOnError extends boolean = false>(options: Options<RemoveConfigData, ThrowOnError>) => {
     return (options.client ?? client).post<RemoveConfigResponses, RemoveConfigErrors, ThrowOnError>({
         url: '/config/remove',
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
+    });
+};
+
+export const setConfigProvider = <ThrowOnError extends boolean = false>(options: Options<SetConfigProviderData, ThrowOnError>) => {
+    return (options.client ?? client).post<unknown, unknown, ThrowOnError>({
+        url: '/config/set_provider',
         ...options,
         headers: {
             'Content-Type': 'application/json',

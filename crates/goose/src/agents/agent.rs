@@ -30,7 +30,9 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
+use crate::context_mgmt::{
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -39,7 +41,6 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
-use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -60,6 +61,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 
@@ -346,7 +348,6 @@ impl Agent {
         Ok(tool_futures)
     }
 
-    /// Set the scheduler service for this agent
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
@@ -413,6 +414,20 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if session.session_type == crate::session::SessionType::SubAgent
+            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
+                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+        {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Subagents cannot create other subagents".to_string(),
+                    None,
+                )),
+            );
+        }
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -781,8 +796,13 @@ impl Agent {
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         let needs_auto_compact = !is_manual_compact
-            && crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
-                .await?;
+            && check_if_compaction_needed(
+                self.provider().await?.as_ref(),
+                &conversation,
+                None,
+                &session,
+            )
+            .await?;
 
         let conversation_to_compact = conversation.clone();
 
@@ -817,7 +837,7 @@ impl Agent {
                     )
                 );
 
-                match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -1138,7 +1158,7 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
                                 Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     Self::update_session_metrics(&session_config, &usage, true).await?;

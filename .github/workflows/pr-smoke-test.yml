@@ -33,18 +33,20 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0
 
       - name: Check for code changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
         id: filter
         with:
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
           filters: |
             code:
               - '!documentation/**'
 
   build-binary:
     name: Build Release Binary
-    runs-on: goose
+    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
@@ -53,33 +55,18 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Activate hermit and set CARGO_HOME
-        run: |
-          source bin/activate-hermit
-          echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
-          echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Cache Cargo artifacts
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: |
-            ${{ env.CARGO_HOME }}/bin/
-            ${{ env.CARGO_HOME }}/registry/index/
-            ${{ env.CARGO_HOME }}/registry/cache/
-            ${{ env.CARGO_HOME }}/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Build Release Binary for Smoke Tests
         run: |
-          source ./bin/activate-hermit
           cargo build --release
 
       - name: Upload Binary for Smoke Tests

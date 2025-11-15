@@ -247,24 +247,12 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: { result: Content; isExpandToolResults: boolean }[] =
+  const toolResults: Content[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value
-          .filter((item) => {
-            const audience = item.annotations?.audience as string[] | undefined;
-            return !audience || audience.includes('user');
-          })
-          .map((item) => {
-            // Use user preference for detailed/concise, but still respect high priority items
-            const priority = (item.annotations?.priority as number | undefined) ?? -1;
-            const isHighPriority = priority >= 0.5;
-            const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
-
-            return {
-              result: item,
-              isExpandToolResults: isHighPriority || shouldExpandBasedOnStyle,
-            };
-          })
+      ? toolResponse!.toolResult.value.filter((item) => {
+          const audience = item.annotations?.audience as string[] | undefined;
+          return !audience || audience.includes('user');
+        })
       : [];
 
   const logs = notifications
@@ -289,17 +277,6 @@ function ToolCallView({
 
   const isRenderingProgress =
     loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
-
-  // Determine if the main tool call should be expanded
-  const isShouldExpand = (() => {
-    // Always expand if there are high priority results that need to be shown
-    const hasHighPriorityResults = toolResults.some((v) => v.isExpandToolResults);
-
-    // Also expand based on user preference for detailed mode
-    const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
-
-    return hasHighPriorityResults || shouldExpandBasedOnStyle;
-  })();
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
@@ -488,7 +465,7 @@ function ToolCallView({
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
-      isForceExpand={isShouldExpand}
+      isForceExpand={false}
       label={
         extensionTooltip ? (
           <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
@@ -529,13 +506,11 @@ function ToolCallView({
       {/* Tool Output */}
       {!isCancelledMessage && (
         <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            return (
-              <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-              </div>
-            );
-          })}
+          {toolResults.map((result, index) => (
+            <div key={index} className={cn('border-t border-borderSubtle')}>
+              <ToolResultView result={result} isStartExpanded={false} />
+            </div>
+          ))}
         </>
       )}
     </ToolCallExpandable>
