@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
@@ -47,6 +48,12 @@ pub struct UpdateSessionUserRecipeValuesResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
     json: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateConversationRequest {
+    conversation: Vec<goose::conversation::message::Message>,
 }
 
 const MAX_NAME_LENGTH: usize = 200;
@@ -307,6 +314,36 @@ async fn import_session(
     Ok(Json(session))
 }
 
+#[utoipa::path(
+    put,
+    path = "/sessions/{session_id}/conversation",
+    request_body = UpdateConversationRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Conversation updated successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn update_conversation(
+    Path(session_id): Path<String>,
+    Json(request): Json<UpdateConversationRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let conversation = Conversation::new_unvalidated(request.conversation);
+    SessionManager::replace_conversation(&session_id, &conversation)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -319,6 +356,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),
+        )
+        .route(
+            "/sessions/{session_id}/conversation",
+            put(update_conversation),
         )
         .with_state(state)
 }

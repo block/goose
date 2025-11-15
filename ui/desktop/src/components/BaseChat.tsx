@@ -41,7 +41,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { RecipeHeader } from './RecipeHeader';
@@ -57,6 +57,15 @@ import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import ParameterInputModal from './ParameterInputModal';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Button } from './ui/button';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useFileDrop } from '../hooks/useFileDrop';
@@ -66,6 +75,7 @@ import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { Message } from '../api';
 import { EditConversationBanner } from './EditConversationBanner';
+import { getApiUrl } from '../config';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -117,6 +127,8 @@ function BaseChatContent({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
   const [isEditingConversation, setIsEditingConversation] = useState(false);
+  // Track checkbox states for messages during edit mode
+  const [messageCheckboxStates, setMessageCheckboxStates] = useState<Map<string, boolean>>(new Map());
 
   // Use shared chat engine
   const {
@@ -141,7 +153,6 @@ function BaseChatContent({
     isUserMessage,
     clearError,
     onMessageUpdate,
-    onMetadataUpdate,
   } = useChatEngine({
     chat,
     setChat,
@@ -293,13 +304,101 @@ function BaseChatContent({
     return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
   }, []);
 
+  // Callback to update checkbox state for a message
+  const handleCheckboxChange = useCallback((messageId: string, checked: boolean) => {
+    setMessageCheckboxStates((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(messageId, checked);
+      return newMap;
+    });
+  }, []);
+
+  // Initialize checkbox states when entering edit mode
+  useEffect(() => {
+    if (isEditingConversation) {
+      const initialState = new Map<string, boolean>();
+      messages.forEach((msg) => {
+        if (msg.id) {
+          // Initialize with current agentVisible state (default to false/unchecked)
+          initialState.set(msg.id, msg.metadata?.agentVisible === true);
+        }
+      });
+      setMessageCheckboxStates(initialState);
+    }
+  }, [isEditingConversation, messages]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Edit Conversation Banner - outside MainPanelLayout to avoid overlap */}
       {isEditingConversation && (
         <div className="pt-[32px]">
           <EditConversationBanner
-            onSave={() => setIsEditingConversation(false)}
+            onSave={async () => {
+              try {
+                console.log('Save clicked, messages:', messages.length);
+                console.log('Checkbox states:', Array.from(messageCheckboxStates.entries()));
+                
+                // Update messages with agentVisible=false for unchecked messages
+                const updatedMessages = messages.map((msg) => {
+                  if (!msg.id) return msg;
+                  
+                  // Check if this message is unchecked (default to true if not in map)
+                  const isChecked = messageCheckboxStates.get(msg.id) ?? (msg.metadata?.agentVisible !== false);
+                  
+                  if (!isChecked) {
+                    // Set agentVisible=false for unchecked messages
+                    return {
+                      ...msg,
+                      metadata: {
+                        ...msg.metadata,
+                        agentVisible: false,
+                      },
+                    };
+                  }
+                  
+                  // Ensure agentVisible is true for checked messages
+                  return {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      agentVisible: true,
+                    },
+                  };
+                });
+                
+                console.log('Updated messages:', updatedMessages.length);
+                
+                // Persist to database via API endpoint (similar to compaction)
+                const apiUrl = getApiUrl(`/sessions/${chat.sessionId}/conversation`);
+                const secretKey = await window.electron.getSecretKey();
+                
+                const response = await fetch(apiUrl, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Secret-Key': secretKey,
+                  },
+                  body: JSON.stringify({
+                    conversation: updatedMessages,
+                  }),
+                });
+                
+                if (!response.ok) {
+                  const errorText = await response.text().catch(() => 'Unknown error');
+                  throw new Error(`Failed to update conversation: HTTP ${response.status} - ${errorText}`);
+                }
+                
+                // Update local state after successful save
+                setMessages(updatedMessages);
+                
+                // Clear checkbox states and exit edit mode
+                setMessageCheckboxStates(new Map());
+                setIsEditingConversation(false);
+              } catch (error) {
+                console.error('Error in Save handler:', error);
+                // Show error in console, user can see it there
+              }
+            }}
           />
         </div>
       )}
@@ -367,7 +466,8 @@ function BaseChatContent({
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
                       isEditingConversation={isEditingConversation}
-                      onMetadataUpdate={onMetadataUpdate}
+                      onCheckboxChange={handleCheckboxChange}
+                      messageCheckboxStates={messageCheckboxStates}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -386,7 +486,8 @@ function BaseChatContent({
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
                         isEditingConversation={isEditingConversation}
-                        onMetadataUpdate={onMetadataUpdate}
+                        onCheckboxChange={handleCheckboxChange}
+                        messageCheckboxStates={messageCheckboxStates}
                       />
                     </SearchView>
                   )}
@@ -517,6 +618,7 @@ function BaseChatContent({
         sessionId={chat.sessionId}
         onRecipeCreated={handleRecipeCreated}
       />
+
     </div>
   );
 }

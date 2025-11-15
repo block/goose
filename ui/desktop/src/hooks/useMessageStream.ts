@@ -423,6 +423,15 @@ export function useMessageStream({
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
+  // Filter out messages where agentVisible = false
+  const filterMessagesByVisibleStatus = useCallback((messages: Message[]): Message[] => {
+    return messages.filter((msg) => {
+      // Include message if agentVisible is not explicitly false
+      // Default to true if metadata is missing or agentVisible is undefined
+      return msg.metadata?.agentVisible !== false;
+    });
+  }, []);
+
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
@@ -434,18 +443,30 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
+        const filteredMessages = filterMessagesByVisibleStatus(requestMessages);
+
+        const requestBody = {
+          messages: filteredMessages,
+          ...extraMetadataRef.current.body,
+        };
+        const requestHeaders = {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': await window.electron.getSecretKey(),
+          ...extraMetadataRef.current.headers,
+        };
+
+        console.log('Request being sent to server:', {
+          url: api,
+          method: 'POST',
+          headers: requestHeaders,
+          body: requestBody,
+        });
+
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
-            ...extraMetadataRef.current.headers,
-          },
-          body: JSON.stringify({
-            messages: requestMessages,
-            ...extraMetadataRef.current.body,
-          }),
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
           signal: abortController.signal,
         });
 
@@ -510,7 +531,7 @@ export function useMessageStream({
       }
     },
 
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, filterMessagesByVisibleStatus]
   );
 
   // Append a new message and send request
