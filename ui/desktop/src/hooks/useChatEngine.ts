@@ -17,6 +17,8 @@ import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import { getSession } from '../api';
 
+// Force rebuild timestamp: 2025-01-15T02:35:00Z - Fixed Matrix session token fetching
+
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
