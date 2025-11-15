@@ -65,6 +65,8 @@ impl TodoClient {
 
                 Keep items short, specific, action-oriented. Not using the todo tool for complex tasks is an error.
 
+                For autonomous work, missing requirements means failure - document all requirements in TODO immediately.
+
                 Template:
                 - [ ] Implement feature X
                   - [ ] Update API
