@@ -148,11 +148,43 @@ export const useChatEngine = ({
     },
   });
 
-  // Wrap append to store messages in global history
+  // Wrap append to store messages in global history and check metadata flags
   const append = useCallback(
     (messageOrString: Message | string) => {
       const message =
         typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
+      
+      // Check metadata flags to prevent local AI responses
+      const shouldSkipLocalResponse = message.metadata?.skipLocalResponse ||
+                                     message.metadata?.preventAutoResponse ||
+                                     message.metadata?.isFromCollaborator ||
+                                     message.metadata?.isMatrixSharedSession;
+      
+      if (shouldSkipLocalResponse) {
+        console.log('🚫 Skipping local AI response due to metadata flags:', {
+          messageId: message.id,
+          role: message.role,
+          skipLocalResponse: message.metadata?.skipLocalResponse,
+          preventAutoResponse: message.metadata?.preventAutoResponse,
+          isFromCollaborator: message.metadata?.isFromCollaborator,
+          isMatrixSharedSession: message.metadata?.isMatrixSharedSession,
+          contentPreview: Array.isArray(message.content) 
+            ? message.content[0]?.text?.substring(0, 50) + '...' 
+            : 'N/A'
+        });
+        
+        // Add the message to the chat without triggering AI response
+        // We need to update the messages directly instead of using originalAppend
+        setMessages(prevMessages => [...prevMessages, message]);
+        
+        // Store in history if it's a user message
+        storeMessageInHistory(message);
+        
+        // Return a promise that resolves immediately (to match originalAppend's interface)
+        return Promise.resolve();
+      }
+      
+      // Normal flow - store in history and trigger AI response
       storeMessageInHistory(message);
 
       // If this is the first message in a new session, trigger a refresh immediately
@@ -164,7 +196,7 @@ export const useChatEngine = ({
 
       return originalAppend(message);
     },
-    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length]
+    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages]
   );
 
   // Simple token estimation function (roughly 4 characters per token)
@@ -214,8 +246,14 @@ export const useChatEngine = ({
         console.error('Error fetching session token count:', err);
       }
     };
+    
+    // Skip session token fetching for Matrix sessions (room IDs start with '!')
+    // Matrix sessions don't have traditional Goose session data on the backend
+    const isMatrixSession = chat.sessionId && chat.sessionId.startsWith('!');
+    
     // Only fetch session tokens when chat state is idle to avoid resetting during streaming
-    if (chat.sessionId && chatState === ChatState.Idle) {
+    // and when it's not a Matrix session
+    if (chat.sessionId && chatState === ChatState.Idle && !isMatrixSession) {
       fetchSessionTokens();
     }
   }, [chat.sessionId, messages, chatState]);
