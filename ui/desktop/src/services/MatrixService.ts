@@ -784,13 +784,13 @@ export class MatrixService extends EventEmitter {
       // We'll use regular message types instead of custom ones
     });
 
-    // Create session mapping for this Matrix room
+    // Create session mapping with backend session for this Matrix room
     const participants = [this.config.userId!, ...inviteUserIds];
-    const mapping = sessionMappingService.createMapping(room.room_id, participants, name);
+    const mapping = await sessionMappingService.createMappingWithBackendSession(room.room_id, participants, name);
     
-    console.log('📋 Created AI session with mapping:', {
+    console.log('📋 Created AI session with backend mapping:', {
       matrixRoomId: room.room_id,
-      gooseSessionId: mapping.gooseSessionId,
+      backendSessionId: mapping.gooseSessionId,
       participants: participants.length,
       name,
     });
@@ -826,7 +826,7 @@ export class MatrixService extends EventEmitter {
         console.log('✅ Already joined room:', roomId);
         
         // Still ensure session mapping exists for this room
-        this.ensureSessionMapping(roomId, existingRoom);
+        await this.ensureSessionMapping(roomId, existingRoom);
         return;
       }
 
@@ -841,7 +841,7 @@ export class MatrixService extends EventEmitter {
       // Get the room after joining to create session mapping
       const joinedRoom = this.client.getRoom(roomId);
       if (joinedRoom) {
-        this.ensureSessionMapping(roomId, joinedRoom);
+        await this.ensureSessionMapping(roomId, joinedRoom);
       }
       
       // Emit join event
@@ -880,7 +880,7 @@ export class MatrixService extends EventEmitter {
   /**
    * Ensure a session mapping exists for a Matrix room
    */
-  private ensureSessionMapping(roomId: string, room: any): void {
+  private async ensureSessionMapping(roomId: string, room: any): Promise<void> {
     // Check if mapping already exists
     const existingMapping = sessionMappingService.getMapping(roomId);
     if (existingMapping) {
@@ -892,18 +892,30 @@ export class MatrixService extends EventEmitter {
       return;
     }
 
-    // Create new mapping if none exists
+    // Create new mapping with backend session if none exists
     const participants = room.getMembers().map((member: any) => member.userId);
     const roomName = room.name || `Matrix Room ${roomId.substring(1, 8)}`;
     
-    const mapping = sessionMappingService.createMapping(roomId, participants, roomName);
-    
-    console.log('📋 Created session mapping for joined room:', {
-      matrixRoomId: roomId,
-      gooseSessionId: mapping.gooseSessionId,
-      participants: participants.length,
-      roomName,
-    });
+    try {
+      const mapping = await sessionMappingService.createMappingWithBackendSession(roomId, participants, roomName);
+      
+      console.log('📋 Created backend session mapping for joined room:', {
+        matrixRoomId: roomId,
+        backendSessionId: mapping.gooseSessionId,
+        participants: participants.length,
+        roomName,
+      });
+    } catch (error) {
+      console.error('📋 Failed to create backend session mapping for joined room:', error);
+      // Fallback to regular mapping if backend session creation fails
+      const mapping = sessionMappingService.createMapping(roomId, participants, roomName);
+      console.log('📋 Created fallback mapping for joined room:', {
+        matrixRoomId: roomId,
+        gooseSessionId: mapping.gooseSessionId,
+        participants: participants.length,
+        roomName,
+      });
+    }
   }
 
   /**

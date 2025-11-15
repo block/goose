@@ -34,6 +34,7 @@ export class SessionMappingService {
 
   /**
    * Generate a new Goose session ID in the expected format
+   * Note: This is now deprecated in favor of using actual backend session IDs
    */
   private generateGooseSessionId(): string {
     const now = new Date();
@@ -69,6 +70,70 @@ export class SessionMappingService {
     });
 
     return mapping;
+  }
+
+  /**
+   * Create a new session mapping with a backend session ID
+   * This creates a real backend session for the Matrix room
+   */
+  public async createMappingWithBackendSession(
+    matrixRoomId: string, 
+    participants: string[] = [], 
+    title?: string
+  ): Promise<SessionMapping> {
+    try {
+      // Import startAgent dynamically to avoid circular dependencies
+      const { startAgent } = await import('../api');
+      
+      // Create a backend session for this Matrix room
+      const agentResponse = await startAgent({
+        body: {
+          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          // Create a recipe for Matrix collaboration
+          recipe: {
+            title: title || `Matrix Collaboration: ${matrixRoomId.substring(1, 8)}`,
+            description: `Collaborative AI session for Matrix room ${matrixRoomId}`,
+            instructions: [
+              'You are participating in a collaborative AI session through Matrix.',
+              'Multiple users may be participating in this conversation.',
+              'Be helpful and collaborative in your responses.',
+            ],
+          },
+        },
+        throwOnError: true,
+      });
+
+      const backendSession = agentResponse.data;
+      if (!backendSession?.id) {
+        throw new Error('Failed to create backend session');
+      }
+
+      const now = Date.now();
+      const mapping: SessionMapping = {
+        matrixRoomId,
+        gooseSessionId: backendSession.id, // Use the actual backend session ID
+        createdAt: now,
+        lastUsed: now,
+        participants,
+        title,
+      };
+
+      this.mappings.set(matrixRoomId, mapping);
+      this.saveMappingsToStorage();
+
+      console.log('📋 SessionMappingService: Created mapping with backend session:', {
+        matrixRoomId,
+        backendSessionId: backendSession.id,
+        participants: participants.length,
+        title,
+      });
+
+      return mapping;
+    } catch (error) {
+      console.error('📋 SessionMappingService: Failed to create backend session for Matrix room:', error);
+      // Fallback to the old method if backend session creation fails
+      return this.createMapping(matrixRoomId, participants, title);
+    }
   }
 
   /**
