@@ -309,9 +309,29 @@ function BaseChatContent({
     setMessageCheckboxStates((prev) => {
       const newMap = new Map(prev);
       newMap.set(messageId, checked);
+      
+      // If a user message is unchecked, uncheck all subsequent messages until next user message
+      if (!checked) {
+        const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+        if (messageIndex !== -1 && messages[messageIndex].role === 'user') {
+          // Find all messages after this user message until the next user message
+          for (let i = messageIndex + 1; i < messages.length; i++) {
+            const msg = messages[i];
+            if (msg.role === 'user') {
+              // Stop at next user message
+              break;
+            }
+            // Uncheck all assistant messages and tool calls
+            if (msg.id) {
+              newMap.set(msg.id, false);
+            }
+          }
+        }
+      }
+      
       return newMap;
     });
-  }, []);
+  }, [messages]);
 
   // Initialize checkbox states when entering edit mode
   useEffect(() => {
