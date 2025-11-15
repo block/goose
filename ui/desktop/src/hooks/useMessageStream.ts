@@ -340,14 +340,24 @@ export function useMessageStream({
 
                     const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
-                    if (sessionId) {
-                      const sessionResponse = await getSession({
-                        path: { session_id: sessionId },
-                        throwOnError: true,
-                      });
+                    
+                    // Skip session fetching for Matrix sessions (room IDs start with '!')
+                    // Matrix sessions don't have traditional Goose session data on the backend
+                    const isMatrixSession = sessionId && sessionId.startsWith('!');
+                    
+                    if (sessionId && !isMatrixSession) {
+                      try {
+                        const sessionResponse = await getSession({
+                          path: { session_id: sessionId },
+                          throwOnError: true,
+                        });
 
-                      if (sessionResponse.data) {
-                        setSession(sessionResponse.data);
+                        if (sessionResponse.data) {
+                          setSession(sessionResponse.data);
+                        }
+                      } catch (err) {
+                        console.error('Error fetching session data:', err);
+                        // Don't throw here, just log the error for Matrix sessions
                       }
                     }
                     break;
