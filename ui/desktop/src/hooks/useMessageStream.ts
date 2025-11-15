@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
 import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 // Force rebuild timestamp: 2025-01-15T02:35:00Z - Fixed Matrix session SSE stream error
 
@@ -343,14 +344,19 @@ export function useMessageStream({
                     const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
                     
-                    // Skip session fetching for Matrix sessions (room IDs start with '!')
-                    // Matrix sessions don't have traditional Goose session data on the backend
-                    const isMatrixSession = sessionId && sessionId.startsWith('!');
-                    
-                    if (sessionId && !isMatrixSession) {
+                    if (sessionId) {
                       try {
+                        // Use session mapping service to get the appropriate backend session ID
+                        const backendSessionId = sessionMappingService.getBackendSessionId(sessionId);
+                        
+                        console.log('📋 Fetching session data in SSE Finish:', {
+                          originalSessionId: sessionId,
+                          backendSessionId,
+                          isMatrixSession: sessionId.startsWith('!'),
+                        });
+                        
                         const sessionResponse = await getSession({
-                          path: { session_id: sessionId },
+                          path: { session_id: backendSessionId },
                           throwOnError: true,
                         });
 
@@ -359,7 +365,7 @@ export function useMessageStream({
                         }
                       } catch (err) {
                         console.error('Error fetching session data:', err);
-                        // Don't throw here, just log the error for Matrix sessions
+                        // Don't throw here, just log the error
                       }
                     }
                     break;

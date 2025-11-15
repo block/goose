@@ -1,5 +1,6 @@
 import * as sdk from 'matrix-js-sdk';
 import { EventEmitter } from 'events';
+import { sessionMappingService, SessionMappingService } from './SessionMappingService';
 
 export interface MatrixUser {
   userId: string;
@@ -783,6 +784,17 @@ export class MatrixService extends EventEmitter {
       // We'll use regular message types instead of custom ones
     });
 
+    // Create session mapping for this Matrix room
+    const participants = [this.config.userId!, ...inviteUserIds];
+    const mapping = sessionMappingService.createMapping(room.room_id, participants, name);
+    
+    console.log('📋 Created AI session with mapping:', {
+      matrixRoomId: room.room_id,
+      gooseSessionId: mapping.gooseSessionId,
+      participants: participants.length,
+      name,
+    });
+
     return room.room_id;
   }
 
@@ -812,6 +824,9 @@ export class MatrixService extends EventEmitter {
       const existingRoom = this.client.getRoom(roomId);
       if (existingRoom && existingRoom.getMyMembership() === 'join') {
         console.log('✅ Already joined room:', roomId);
+        
+        // Still ensure session mapping exists for this room
+        this.ensureSessionMapping(roomId, existingRoom);
         return;
       }
 
@@ -822,6 +837,12 @@ export class MatrixService extends EventEmitter {
       // Clear caches to refresh room data
       this.cachedRooms = null;
       this.cachedFriends = null;
+      
+      // Get the room after joining to create session mapping
+      const joinedRoom = this.client.getRoom(roomId);
+      if (joinedRoom) {
+        this.ensureSessionMapping(roomId, joinedRoom);
+      }
       
       // Emit join event
       this.emit('roomJoined', { roomId });
@@ -854,6 +875,35 @@ export class MatrixService extends EventEmitter {
       this.emit('error', enhancedError);
       throw enhancedError;
     }
+  }
+
+  /**
+   * Ensure a session mapping exists for a Matrix room
+   */
+  private ensureSessionMapping(roomId: string, room: any): void {
+    // Check if mapping already exists
+    const existingMapping = sessionMappingService.getMapping(roomId);
+    if (existingMapping) {
+      console.log('📋 Session mapping already exists for room:', roomId, '→', existingMapping.gooseSessionId);
+      
+      // Update participants if needed
+      const currentParticipants = room.getMembers().map((member: any) => member.userId);
+      sessionMappingService.updateParticipants(roomId, currentParticipants);
+      return;
+    }
+
+    // Create new mapping if none exists
+    const participants = room.getMembers().map((member: any) => member.userId);
+    const roomName = room.name || `Matrix Room ${roomId.substring(1, 8)}`;
+    
+    const mapping = sessionMappingService.createMapping(roomId, participants, roomName);
+    
+    console.log('📋 Created session mapping for joined room:', {
+      matrixRoomId: roomId,
+      gooseSessionId: mapping.gooseSessionId,
+      participants: participants.length,
+      roomName,
+    });
   }
 
   /**

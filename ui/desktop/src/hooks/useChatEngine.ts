@@ -16,6 +16,7 @@ import {
 import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import { getSession } from '../api';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 // Force rebuild timestamp: 2025-01-15T02:35:00Z - Fixed Matrix session token fetching
 
@@ -75,6 +76,15 @@ export const useChatEngine = ({
     }
   }, [powerSaveTimeoutId]);
 
+  // Get the appropriate session ID for backend API calls
+  const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
+  
+  console.log('📋 useChatEngine: Session ID mapping:', {
+    originalSessionId: chat.sessionId,
+    backendSessionId,
+    isMatrixSession: chat.sessionId.startsWith('!'),
+  });
+
   const {
     messages,
     append: originalAppend,
@@ -91,10 +101,10 @@ export const useChatEngine = ({
     setError,
   } = useMessageStream({
     api: getApiUrl('/reply'),
-    id: chat.sessionId,
+    id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
     body: {
-      session_id: chat.sessionId,
+      session_id: backendSessionId, // Use mapped session ID for backend
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
       ...(chat.recipeConfig?.title
         ? {
@@ -236,8 +246,17 @@ export const useChatEngine = ({
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
+        // Use session mapping service to get the appropriate backend session ID
+        const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
+        
+        console.log('📋 Fetching session tokens:', {
+          originalSessionId: chat.sessionId,
+          backendSessionId,
+          isMatrixSession: chat.sessionId.startsWith('!'),
+        });
+        
         const response = await getSession<true>({
-          path: { session_id: chat.sessionId },
+          path: { session_id: backendSessionId },
           throwOnError: true,
         });
         const sessionDetails = response.data;
@@ -249,13 +268,8 @@ export const useChatEngine = ({
       }
     };
     
-    // Skip session token fetching for Matrix sessions (room IDs start with '!')
-    // Matrix sessions don't have traditional Goose session data on the backend
-    const isMatrixSession = chat.sessionId && chat.sessionId.startsWith('!');
-    
     // Only fetch session tokens when chat state is idle to avoid resetting during streaming
-    // and when it's not a Matrix session
-    if (chat.sessionId && chatState === ChatState.Idle && !isMatrixSession) {
+    if (chat.sessionId && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
   }, [chat.sessionId, messages, chatState]);
