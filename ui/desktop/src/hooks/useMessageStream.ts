@@ -5,7 +5,7 @@ import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 import { sessionMappingService } from '../services/SessionMappingService';
 
-// Force rebuild timestamp: 2025-01-15T02:35:00Z - Fixed Matrix session SSE stream error
+// Force rebuild timestamp: 2025-01-15T02:45:00Z - Enhanced Matrix session SSE error handling
 
 let messageIdCounter = 0;
 

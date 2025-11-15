@@ -18,7 +18,7 @@ import { ChatState } from '../types/chatState';
 import { getSession } from '../api';
 import { sessionMappingService } from '../services/SessionMappingService';
 
-// Force rebuild timestamp: 2025-01-15T02:35:00Z - Fixed Matrix session token fetching
+// Force rebuild timestamp: 2025-01-15T02:45:00Z - Enhanced Matrix session error handling
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
