@@ -551,6 +551,31 @@
         }
       }
     },
+    "/config/detect_api_keys": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "detect_api_keys",
+        "responses": {
+          "200": {
+            "description": "API key detection result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DetectedApiKey"
+                    }
+                  ],
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -2444,6 +2469,21 @@
         ],
         "properties": {
           "id": {
+            "type": "string"
+          }
+        }
+      },
+      "DetectedApiKey": {
+        "type": "object",
+        "required": [
+          "provider",
+          "env_var"
+        ],
+        "properties": {
+          "env_var": {
+            "type": "string"
+          },
+          "provider": {
             "type": "string"
           }
         }
