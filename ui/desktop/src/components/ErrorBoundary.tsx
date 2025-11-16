@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { errorMessage } from '../utils/conversionUtils';
 
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
@@ -14,7 +15,7 @@ window.addEventListener('error', (event) => {
   );
 });
 
-export function ErrorUI({ error }: { error: Error }) {
+export function ErrorUI({ error }: { error: string }) {
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center gap-6 bg-background">
       <div className="flex flex-col items-center gap-4 max-w-[600px] text-center px-6">
@@ -35,7 +36,7 @@ export function ErrorUI({ error }: { error: Error }) {
         )}
 
         <pre className="text-destructive text-sm dark:text-white p-4 bg-muted rounded-lg w-full overflow-auto border border-border whitespace-pre-wrap">
-          {error.message}
+          {error}
         </pre>
 
         <Button onClick={() => window.electron.reloadApp()}>Reload</Button>
@@ -64,7 +65,7 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return <ErrorUI error={this.state.error || new Error('Unknown error')} />;
+      return <ErrorUI error={errorMessage(this.state.error || 'Unknown error')} />;
     }
     return this.props.children;
   }
