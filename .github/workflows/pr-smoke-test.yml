@@ -103,6 +103,7 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
@@ -124,6 +125,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
