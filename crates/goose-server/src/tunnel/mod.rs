@@ -2,6 +2,9 @@ pub mod config;
 pub mod ed25519;
 pub mod lapstone;
 
+#[cfg(test)]
+mod lapstone_test;
+
 use crate::configuration::Settings;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
