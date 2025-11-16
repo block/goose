@@ -120,15 +120,16 @@ pub fn load_hint_files(
     hints
 }
 
-/// Load agents.md file from a specific directory
+/// Load hint files from a directory hierarchy up to the working directory
 ///
 /// This is used for dynamic loading when accessing files in new directories.
-/// Unlike `load_hint_files()`, this only checks the specific directory provided,
-/// not parent directories.
+/// Loads hints from all directories from the working directory down to the target directory,
+/// similar to how startup loading works from git root to working directory.
 ///
-/// Returns Some(content) if an agents.md file exists and can be read, None otherwise.
-pub fn load_agents_from_directory(
+/// Returns Some(content) if hint files exist and can be read, None otherwise.
+pub fn load_hints_from_directory(
     directory: &Path,
+    working_dir: &Path,
     hints_filenames: &[String],
     gitignore: &Gitignore,
 ) -> Option<String> {
@@ -146,27 +147,57 @@ pub fn load_agents_from_directory(
         return None;
     }
 
+    // Build path from working_dir to directory
+    let mut directories = Vec::new();
+    let mut current = directory;
+
+    // Walk up from directory to working_dir
+    loop {
+        directories.push(current.to_path_buf());
+
+        if current == working_dir {
+            break;
+        }
+
+        match current.parent() {
+            Some(parent) => {
+                // Stop if we've reached or passed working_dir
+                if !parent.starts_with(working_dir) {
+                    break;
+                }
+                current = parent;
+            }
+            None => break,
+        }
+    }
+
+    // Reverse so we load from working_dir down to directory
+    directories.reverse();
+
     let mut contents = Vec::new();
-    let mut visited = HashSet::new();
+    let git_root = find_git_root(working_dir);
+    let import_boundary = git_root.unwrap_or(working_dir);
 
-    // Import boundary is the directory itself (don't allow escaping)
-    let import_boundary = directory;
+    // Load hints from each directory in the path
+    for dir in &directories {
+        let mut visited = HashSet::new();
 
-    for hints_filename in hints_filenames {
-        let hints_path = directory.join(hints_filename);
+        for hints_filename in hints_filenames {
+            let hints_path = dir.join(hints_filename);
 
-        // Check if file exists and is not ignored
-        if hints_path.is_file() && !gitignore.matched(&hints_path, false).is_ignore() {
-            let expanded_content = read_referenced_files(
-                &hints_path,
-                import_boundary,
-                &mut visited,
-                0,
-                gitignore,
-            );
+            // Check if file exists and is not ignored
+            if hints_path.is_file() && !gitignore.matched(&hints_path, false).is_ignore() {
+                let expanded_content = read_referenced_files(
+                    &hints_path,
+                    import_boundary,
+                    &mut visited,
+                    0,
+                    gitignore,
+                );
 
-            if !expanded_content.is_empty() {
-                contents.push(expanded_content);
+                if !expanded_content.is_empty() {
+                    contents.push(expanded_content);
+                }
             }
         }
     }
@@ -177,8 +208,8 @@ pub fn load_agents_from_directory(
         // Include directory path in header with clear scoping
         let directory_str = directory.display();
         Some(format!(
-            "### Directory-Specific Context: {}\n\
-            **Scope**: The following instructions apply ONLY when working with files in the `{}` directory and its subdirectories.\n\n\
+            "### Directory-Specific Hints: {}\n\
+            **Scope**: The following instructions apply when working with files in the `{}` directory and its subdirectories.\n\n\
             {}",
             directory_str,
             directory_str,
@@ -536,7 +567,7 @@ End of hints"#;
     }
 
     #[test]
-    fn test_load_agents_from_directory_disabled_by_default() {
+    fn test_load_hints_from_directory_disabled_by_default() {
         temp_env::with_var_unset(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, || {
             let temp_dir = tempfile::tempdir().unwrap();
             let agents_path = temp_dir.path().join("AGENTS.md");
@@ -545,7 +576,8 @@ End of hints"#;
             let gitignore = create_dummy_gitignore();
 
             // Should return None when env var not set
-            let result = load_agents_from_directory(
+            let result = load_hints_from_directory(
+                temp_dir.path(),
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -555,7 +587,7 @@ End of hints"#;
     }
 
     #[test]
-    fn test_load_agents_from_directory_enabled() {
+    fn test_load_hints_from_directory_enabled() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
             let agents_path = temp_dir.path().join("AGENTS.md");
@@ -563,7 +595,8 @@ End of hints"#;
 
             let gitignore = create_dummy_gitignore();
 
-            let result = load_agents_from_directory(
+            let result = load_hints_from_directory(
+                temp_dir.path(),
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -572,18 +605,19 @@ End of hints"#;
             assert!(result.is_some());
             let content = result.unwrap();
             assert!(content.contains("Test content"));
-            assert!(content.contains("### Directory-Specific Context:"));
-            assert!(content.contains("**Scope**: The following instructions apply ONLY"));
+            assert!(content.contains("### Directory-Specific Hints:"));
+            assert!(content.contains("**Scope**: The following instructions apply when working"));
         });
     }
 
     #[test]
-    fn test_load_agents_from_directory_no_file() {
+    fn test_load_hints_from_directory_no_file() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
             let gitignore = create_dummy_gitignore();
 
-            let result = load_agents_from_directory(
+            let result = load_hints_from_directory(
+                temp_dir.path(),
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -594,7 +628,7 @@ End of hints"#;
     }
 
     #[test]
-    fn test_load_agents_from_directory_respects_gitignore() {
+    fn test_load_hints_from_directory_respects_gitignore() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
             let agents_path = temp_dir.path().join("AGENTS.md");
@@ -607,7 +641,8 @@ End of hints"#;
             builder.add(&gitignore_path);
             let gitignore = builder.build().unwrap();
 
-            let result = load_agents_from_directory(
+            let result = load_hints_from_directory(
+                temp_dir.path(),
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -618,7 +653,7 @@ End of hints"#;
     }
 
     #[test]
-    fn test_load_agents_from_directory_with_imports() {
+    fn test_load_hints_from_directory_with_imports() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
 
@@ -632,7 +667,8 @@ End of hints"#;
 
             let gitignore = create_dummy_gitignore();
 
-            let result = load_agents_from_directory(
+            let result = load_hints_from_directory(
+                temp_dir.path(),
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,

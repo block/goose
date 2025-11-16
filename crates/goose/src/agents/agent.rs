@@ -110,8 +110,6 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) autopilot: Mutex<AutoPilot>,
-    /// Counter for tracking turn numbers (used for context pruning)
-    turn_counter: Arc<Mutex<u32>>,
 }
 
 #[derive(Clone, Debug)]
@@ -187,7 +185,6 @@ impl Agent {
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
             autopilot: Mutex::new(AutoPilot::new()),
-            turn_counter: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -940,6 +937,14 @@ impl Agent {
                     break;
                 }
 
+                // Prune stale hint contexts periodically (every turn, but only if needed)
+                if let Err(e) = self
+                    .prune_stale_directory_hints(&session_config, turns_taken)
+                    .await
+                {
+                    warn!("Failed to prune stale directory hints: {}", e);
+                }
+
                 {
                     let mut autopilot = self.autopilot.lock().await;
                     if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
@@ -951,21 +956,6 @@ impl Agent {
                             mode: format!("autopilot:{}", role),
                         };
                     }
-                }
-
-                // Increment turn counter
-                {
-                    let mut turn = self.turn_counter.lock().await;
-                    *turn += 1;
-                }
-                let current_turn = *self.turn_counter.lock().await;
-
-                // Prune stale contexts periodically (every turn, but only if needed)
-                if let Err(e) = self
-                    .prune_stale_directory_contexts(&session_config, current_turn)
-                    .await
-                {
-                    warn!("Failed to prune stale directory contexts: {}", e);
                 }
 
                 let conversation_with_moim = super::moim::inject_moim(
@@ -1151,18 +1141,17 @@ impl Agent {
                                                     if let Ok(tool_call) = &tool_request.tool_call {
                                                         if tool_call.name == "developer__text_editor" {
                                                             if let Some(file_path) = Self::extract_file_path_from_args(&tool_call.arguments) {
-                                                                let current_turn = *self.turn_counter.lock().await;
-                                                                // Attempt to load directory context
-                                                                match self.maybe_load_directory_context(&file_path, &session_config, current_turn).await {
+                                                                // Attempt to load directory hints
+                                                                match self.maybe_load_directory_hints(&file_path, &session_config, turns_taken).await {
                                                                     Ok(true) => {
                                                                         context_loaded = true;
-                                                                        info!("Directory context loaded, will rebuild system prompt");
+                                                                        info!("Directory hints loaded, will rebuild system prompt");
                                                                     }
                                                                     Ok(false) => {
-                                                                        // No context loaded or access time updated
+                                                                        // No hints loaded or access time updated
                                                                     }
                                                                     Err(e) => {
-                                                                        warn!("Failed to load directory context for {}: {}", file_path.display(), e);
+                                                                        warn!("Failed to load directory hints for {}: {}", file_path.display(), e);
                                                                     }
                                                                 }
                                                             }
@@ -1328,23 +1317,22 @@ impl Agent {
         None
     }
 
-    /// Check if a file path's directory needs context loading and load if necessary
+    /// Check if a file path's directory needs hints loading and load if necessary
     ///
     /// This is called after tool execution to detect when new directories are accessed.
-    /// If the directory hasn't been loaded yet, loads its agents.md file and extends
-    /// the system prompt.
+    /// If the directory hasn't been loaded yet, loads its hint files (agents.md, .goosehints)
+    /// and extends the system prompt.
     ///
-    /// Security: Only loads agents.md from directories within the git repository or
-    /// working directory to prevent loading untrusted context from arbitrary paths.
-    async fn maybe_load_directory_context(
+    /// Security: Only loads hints from directories within the git repository or
+    /// working directory to prevent loading untrusted hints from arbitrary paths.
+    async fn maybe_load_directory_hints(
         &self,
         file_path: &std::path::Path,
         session_config: &SessionConfig,
         current_turn: u32,
     ) -> Result<bool> {
         use crate::hints::{
-            find_git_root, load_agents_from_directory, AGENTS_MD_FILENAME,
-            GOOSE_HINTS_FILENAME,
+            find_git_root, load_hints_from_directory, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME,
         };
         use crate::session::extension_data::{
             get_or_create_loaded_agents_state, save_loaded_agents_state,
@@ -1380,7 +1368,7 @@ impl Agent {
         // Check if directory is within trust boundary
         if !directory.starts_with(trust_boundary) {
             debug!(
-                "Skipping agents.md loading for {} - outside trust boundary ({})",
+                "Skipping hint loading for {} - outside trust boundary ({})",
                 directory.display(),
                 trust_boundary.display()
             );
@@ -1426,8 +1414,8 @@ impl Agent {
                 ]
             });
 
-        // Try to load agents.md from directory
-        match load_agents_from_directory(directory, &hints_filenames, &gitignore) {
+        // Try to load hint files from directory (hierarchical from working_dir to directory)
+        match load_hints_from_directory(directory, working_dir, &hints_filenames, &gitignore) {
             Some(content) => {
                 // Mark directory as loaded and get the tag
                 let tag = loaded_state.mark_loaded(directory, current_turn);
@@ -1446,15 +1434,15 @@ impl Agent {
                     .await?;
 
                 info!(
-                    "Loaded directory context from {} (turn {})",
+                    "Loaded directory hints from {} (turn {})",
                     directory.display(),
                     current_turn
                 );
 
-                Ok(true) // Context was loaded
+                Ok(true) // Hints were loaded
             }
             None => {
-                // No agents.md found, but mark as checked to avoid repeated attempts
+                // No hint files found, but mark as checked to avoid repeated attempts
                 let _tag = loaded_state.mark_loaded(directory, current_turn);
 
                 let mut session = SessionManager::get_session(&session_config.id, false).await?;
@@ -1469,8 +1457,8 @@ impl Agent {
         }
     }
 
-    /// Prune stale directory contexts that haven't been accessed recently
-    async fn prune_stale_directory_contexts(
+    /// Prune stale directory hints that haven't been accessed recently
+    async fn prune_stale_directory_hints(
         &self,
         session_config: &SessionConfig,
         current_turn: u32,
@@ -1502,7 +1490,7 @@ impl Agent {
             prompt_manager.remove_system_prompt_extras_by_tag(tag);
             loaded_state.remove_directory(path);
             info!(
-                "Pruned stale directory context: {} (idle for {} turns)",
+                "Pruned stale directory hints: {} (idle for {} turns)",
                 path, max_idle_turns
             );
         }
