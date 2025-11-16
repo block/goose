@@ -47,7 +47,6 @@ import {
   updateTrayMenu,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
-import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -192,9 +191,9 @@ if (process.platform !== 'darwin') {
               undefined,
               undefined,
               undefined,
-              undefined,
               recipeDeeplink || undefined,
-              scheduledJobId || undefined
+              scheduledJobId || undefined,
+              undefined
             );
           });
           return; // Skip the rest of the handler
@@ -280,7 +279,7 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    const recipeDeeplink = parsedUrl.searchParams.get('config');
+    const recipeDeeplink = parseRecipeDeeplink(parsedUrl.toString());
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
@@ -291,12 +290,12 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       undefined,
       undefined,
       undefined,
-      undefined,
       recipeDeeplink || undefined,
-      scheduledJobId || undefined
+      scheduledJobId || undefined,
+      undefined
     );
+    pendingDeepLink = null;
   }
-  pendingDeepLink = null;
 }
 
 let windowDeeplinkURL: string | null = null;
@@ -325,9 +324,9 @@ app.on('open-url', async (_event, url) => {
         undefined,
         undefined,
         undefined,
-        undefined,
         recipeDeeplink || undefined,
-        scheduledJobId || undefined
+        scheduledJobId || undefined,
+        undefined
       );
       windowDeeplinkURL = null;
       return; // Skip the rest of the handler
@@ -350,7 +349,6 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
-    pendingDeepLink = null;
   }
 });
 
@@ -494,9 +492,8 @@ const createChat = async (
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
-  recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
   viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
+  recipeDeeplink?: string, // Raw deeplink decoded on server
   scheduledJobId?: string, // Scheduled job ID if applicable
   recipeId?: string
 ) => {
@@ -693,10 +690,7 @@ const createChat = async (
   }
   if (
     appPath === '/' &&
-    (recipe !== undefined ||
-      recipeDeeplink !== undefined ||
-      recipeId !== undefined ||
-      initialMessage)
+    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
   ) {
     appPath = '/pair';
   }
@@ -704,6 +698,14 @@ const createChat = async (
   let searchParams = new URLSearchParams();
   if (resumeSessionId) {
     searchParams.set('resumeSessionId', resumeSessionId);
+    if (appPath === '/') {
+      appPath = '/pair';
+    }
+  }
+  // Only add recipeId to URL for the non-deeplink case (saved recipes launched from UI)
+  // For deeplinks, the recipe object is passed via appConfig, not URL params
+  if (recipeId) {
+    searchParams.set('recipeId', recipeId);
     if (appPath === '/') {
       appPath = '/pair';
     }
@@ -1041,15 +1043,13 @@ function parseRecipeDeeplink(url: string): string | undefined {
     // URLSearchParams decodes + as space, which can break encoded configs
     // Parse raw query to preserve "+" characters in values like config
     const search = parsedUrl.search || '';
-    // parse recipe deeplink from search params
     const configMatch = search.match(/(?:[?&])config=([^&]*)/);
-    // get recipe deeplink from config match
     let recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
     if (recipeDeeplinkTmp) {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
-      } catch {
-        // Leave as-is if decoding fails
+      } catch (error) {
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', error);
         return undefined;
       }
     }
@@ -2059,14 +2059,11 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, recipe, viewType, recipeId) => {
+    (_, query, dir, version, resumeSessionId, viewType, recipeId) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
-
-      // Log the recipe for debugging
-      console.log('Creating chat window with recipe:', recipe);
 
       createChat(
         app,
@@ -2074,7 +2071,6 @@ async function appMain() {
         dir,
         version,
         resumeSessionId,
-        recipe,
         viewType,
         undefined,
         undefined,

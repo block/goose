@@ -107,7 +107,7 @@ export function GroupedExtensionLoadingToast({
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              startNewSession(ext.recoverHints, null, setView);
+                              startNewSession(ext.recoverHints, setView);
                             }}
                             className="self-start"
                           >

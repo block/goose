@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
-import { FileText, Edit, Trash2, Play, Calendar, AlertCircle, Link } from 'lucide-react';
+import {
+  FileText,
+  Edit,
+  Trash2,
+  Play,
+  Calendar,
+  AlertCircle,
+  Link,
+  ExternalLink,
+} from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -70,51 +79,35 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe, recipeId: string) => {
-    if (process.env.ALPHA) {
-      try {
-        const newAgent = await startAgent({
-          body: {
-            working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-            recipe,
-          },
-          throwOnError: true,
-        });
-        const session = newAgent.data;
-        setView('pair', {
-          disableAnimation: true,
-          resumeSessionId: session.id,
-        });
-      } catch (error) {
-        console.error('Failed to load recipe:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load recipe');
-      }
-    } else {
-      try {
-        // onLoadRecipe is not working for loading recipes. It looks correct
-        // but the instructions are not flowing through to the server.
-        // Needs a fix but commenting out to get prod back up and running.
-        //
-        // if (onLoadRecipe) {
-        //   // Use the callback to navigate within the same window
-        //   onLoadRecipe(savedRecipe.recipe);
-        // } else {
-        // Fallback to creating a new window (for backwards compatibility)
-        window.electron.createChatWindow(
-          undefined, // query
-          undefined, // dir
-          undefined, // version
-          undefined, // resumeSessionId
-          recipe, // recipe config
-          undefined, // view type,
-          recipeId // recipe id
-        );
-        // }
-      } catch (err) {
-        console.error('Failed to load recipe:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load recipe');
-      }
+  const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
+    try {
+      const newAgent = await startAgent({
+        body: {
+          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          recipe,
+        },
+        throwOnError: true,
+      });
+      const session = newAgent.data;
+      setView('pair', {
+        disableAnimation: true,
+        resumeSessionId: session.id,
+      });
+    } catch (error) {
+      console.error('Failed to load recipe:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load recipe');
     }
+  };
+
+  const handleStartRecipeChatInNewWindow = (recipeId: string) => {
+    window.electron.createChatWindow(
+      undefined,
+      window.appConfig.get('GOOSE_WORKING_DIR') as string,
+      undefined,
+      undefined,
+      'pair',
+      recipeId
+    );
   };
 
   const handleDeleteRecipe = async (recipeManifest: RecipeManifestResponse) => {
@@ -220,6 +213,18 @@ export default function RecipesView() {
             title="Use recipe"
           >
             <Play className="w-4 h-4" />
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Open in new window"
+          >
+            <ExternalLink className="w-4 h-4" />
           </Button>
           <Button
             onClick={(e) => {

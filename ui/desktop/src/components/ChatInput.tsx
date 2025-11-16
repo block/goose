@@ -87,7 +87,6 @@ interface ChatInputProps {
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
-  autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
 }
@@ -114,7 +113,6 @@ export default function ChatInput({
   recipeAccepted,
   initialPrompt,
   toolCount,
-  autoSubmit = false,
   append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
@@ -305,7 +303,6 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -932,13 +929,6 @@ export default function ChatInput({
     ]
   );
 
-  useEffect(() => {
-    if (!!autoSubmit && !didAutoSubmit) {
-      setDidAutoSubmit(true);
-      performSubmit(initialValue);
-    }
-  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
-
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
@@ -1500,7 +1490,7 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {process.env.ALPHA && sessionId && (
+          {sessionId && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <BottomMenuExtensionSelection sessionId={sessionId} />

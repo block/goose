@@ -1,7 +1,12 @@
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ChatType } from '../types/chat';
-import BaseChat2 from './BaseChat2';
+import BaseChat from './BaseChat';
+
+export interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: string;
+}
 
 interface PairProps {
   setChat: (chat: ChatType) => void;
@@ -17,7 +22,7 @@ export default function Pair({
   initialMessage,
 }: PairProps) {
   return (
-    <BaseChat2
+    <BaseChat
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
