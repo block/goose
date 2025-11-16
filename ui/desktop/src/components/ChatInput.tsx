@@ -122,6 +122,7 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [isFileDialogOpen, setIsFileDialogOpen] = useState(false);
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -1014,13 +1015,21 @@ export default function ChatInput({
     }
   };
 
+  // Handle file selection with dialog state management
   const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
+    if (isFileDialogOpen) return; // Prevent multiple dialogs
+    
+    setIsFileDialogOpen(true);
+    try {
+      const path = await window.electron.selectFileOrDirectory();
+      if (path) {
+        const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+        setDisplayValue(newValue);
+        setValue(newValue);
+        textAreaRef.current?.focus();
+      }
+    } finally {
+      setIsFileDialogOpen(false);
     }
   };
 
@@ -1453,20 +1462,23 @@ export default function ChatInput({
         {/* Directory path */}
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
-
+        
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
               onClick={handleFileSelect}
+              disabled={isFileDialogOpen}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
+          <TooltipContent>
+            {isFileDialogOpen ? 'Dialog open...' : 'Attach file or directory'}
+          </TooltipContent>
         </Tooltip>
 
         <div className="w-px h-4 bg-border-default mx-2" />
