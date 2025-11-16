@@ -21,7 +21,7 @@ const MAX_TOOLS: usize = 50;
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
-    system_prompt_extras: Vec<String>,
+    system_prompt_extras: Vec<(String, Option<String>)>, // (content, optional_tag)
     current_date_timestamp: String,
 }
 
@@ -167,7 +167,12 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
         });
 
-        let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
+        let mut system_prompt_extras: Vec<String> = self
+            .manager
+            .system_prompt_extras
+            .iter()
+            .map(|(content, _tag)| content.clone())
+            .collect();
 
         // Add hints if provided
         if let Some(hints) = self.hints {
@@ -220,7 +225,18 @@ impl PromptManager {
 
     /// Add an additional instruction to the system prompt
     pub fn add_system_prompt_extra(&mut self, instruction: String) {
-        self.system_prompt_extras.push(instruction);
+        self.system_prompt_extras.push((instruction, None));
+    }
+
+    /// Add an additional instruction with a tag for later removal
+    pub fn add_system_prompt_extra_with_tag(&mut self, instruction: String, tag: String) {
+        self.system_prompt_extras.push((instruction, Some(tag)));
+    }
+
+    /// Remove all system prompt extras with a specific tag
+    pub fn remove_system_prompt_extras_by_tag(&mut self, tag: &str) {
+        self.system_prompt_extras
+            .retain(|(_, t)| t.as_ref().map(|s| s.as_str()) != Some(tag));
     }
 
     /// Override the system prompt with custom text
@@ -383,5 +399,70 @@ mod tests {
             .build();
 
         assert_snapshot!(system_prompt)
+    }
+
+    #[test]
+    fn test_add_system_prompt_extra_with_tag() {
+        let mut manager = PromptManager::new();
+
+        manager.add_system_prompt_extra("Untagged instruction".to_string());
+        manager.add_system_prompt_extra_with_tag(
+            "Tagged instruction".to_string(),
+            "test_tag".to_string(),
+        );
+
+        assert_eq!(manager.system_prompt_extras.len(), 2);
+        assert_eq!(manager.system_prompt_extras[0].1, None);
+        assert_eq!(
+            manager.system_prompt_extras[1].1,
+            Some("test_tag".to_string())
+        );
+    }
+
+    #[test]
+    fn test_remove_system_prompt_extras_by_tag() {
+        let mut manager = PromptManager::new();
+
+        manager.add_system_prompt_extra_with_tag("Context 1".to_string(), "dir1".to_string());
+        manager.add_system_prompt_extra_with_tag("Context 2".to_string(), "dir2".to_string());
+        manager.add_system_prompt_extra("Untagged".to_string());
+
+        assert_eq!(manager.system_prompt_extras.len(), 3);
+
+        manager.remove_system_prompt_extras_by_tag("dir1");
+        assert_eq!(manager.system_prompt_extras.len(), 2);
+
+        // Verify dir2 and untagged remain
+        assert!(manager
+            .system_prompt_extras
+            .iter()
+            .any(|(c, _)| c == "Context 2"));
+        assert!(manager
+            .system_prompt_extras
+            .iter()
+            .any(|(c, _)| c == "Untagged"));
+
+        // Verify dir1 is gone
+        assert!(!manager
+            .system_prompt_extras
+            .iter()
+            .any(|(c, _)| c == "Context 1"));
+    }
+
+    #[test]
+    fn test_build_with_tagged_extras() {
+        let mut manager = PromptManager::new();
+
+        manager.add_system_prompt_extra_with_tag(
+            "### Directory Context\nTest".to_string(),
+            "test_dir".to_string(),
+        );
+
+        let builder = manager.builder("test-model");
+        let prompt = builder.build();
+
+        // Verify the content appears in the prompt
+        assert!(prompt.contains("Directory Context"));
+        assert!(prompt.contains("Test"));
     }
 }

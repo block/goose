@@ -9,8 +9,9 @@ use crate::hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
+pub const DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV: &str = "DYNAMIC_SUBDIRECTORY_HINT_LOADING";
 
-fn find_git_root(start_dir: &Path) -> Option<&Path> {
+pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
 
     loop {
@@ -117,6 +118,73 @@ pub fn load_hint_files(
     }
 
     hints
+}
+
+/// Load agents.md file from a specific directory
+///
+/// This is used for dynamic loading when accessing files in new directories.
+/// Unlike `load_hint_files()`, this only checks the specific directory provided,
+/// not parent directories.
+///
+/// Returns Some(content) if an agents.md file exists and can be read, None otherwise.
+pub fn load_agents_from_directory(
+    directory: &Path,
+    hints_filenames: &[String],
+    gitignore: &Gitignore,
+) -> Option<String> {
+    // Only proceed if dynamic loading is enabled
+    let enabled = std::env::var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV)
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !enabled {
+        return None;
+    }
+
+    // Check if directory exists
+    if !directory.is_dir() {
+        return None;
+    }
+
+    let mut contents = Vec::new();
+    let mut visited = HashSet::new();
+
+    // Import boundary is the directory itself (don't allow escaping)
+    let import_boundary = directory;
+
+    for hints_filename in hints_filenames {
+        let hints_path = directory.join(hints_filename);
+
+        // Check if file exists and is not ignored
+        if hints_path.is_file() && !gitignore.matched(&hints_path, false).is_ignore() {
+            let expanded_content = read_referenced_files(
+                &hints_path,
+                import_boundary,
+                &mut visited,
+                0,
+                gitignore,
+            );
+
+            if !expanded_content.is_empty() {
+                contents.push(expanded_content);
+            }
+        }
+    }
+
+    if contents.is_empty() {
+        None
+    } else {
+        // Include directory path in header with clear scoping
+        let directory_str = directory.display();
+        Some(format!(
+            "### Directory-Specific Context: {}\n\
+            **Scope**: The following instructions apply ONLY when working with files in the `{}` directory and its subdirectories.\n\n\
+            {}",
+            directory_str,
+            directory_str,
+            contents.join("\n")
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -465,5 +533,115 @@ End of hints"#;
 
         assert!(hints.contains("Root file content"));
         assert!(hints.contains("--- Content from ../root_file.md ---"));
+    }
+
+    #[test]
+    fn test_load_agents_from_directory_disabled_by_default() {
+        temp_env::with_var_unset(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let agents_path = temp_dir.path().join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            // Should return None when env var not set
+            let result = load_agents_from_directory(
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_agents_from_directory_enabled() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let agents_path = temp_dir.path().join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_agents_from_directory(
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_some());
+            let content = result.unwrap();
+            assert!(content.contains("Test content"));
+            assert!(content.contains("### Directory-Specific Context:"));
+            assert!(content.contains("**Scope**: The following instructions apply ONLY"));
+        });
+    }
+
+    #[test]
+    fn test_load_agents_from_directory_no_file() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_agents_from_directory(
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_agents_from_directory_respects_gitignore() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let agents_path = temp_dir.path().join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore_path = temp_dir.path().join(".gooseignore");
+            std::fs::write(&gitignore_path, "AGENTS.md").unwrap();
+
+            let mut builder = ignore::gitignore::GitignoreBuilder::new(temp_dir.path());
+            builder.add(&gitignore_path);
+            let gitignore = builder.build().unwrap();
+
+            let result = load_agents_from_directory(
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_agents_from_directory_with_imports() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+
+            // Create an included file
+            let included_path = temp_dir.path().join("included.md");
+            std::fs::write(&included_path, "Included content").unwrap();
+
+            // Create agents.md with import
+            let agents_path = temp_dir.path().join("AGENTS.md");
+            std::fs::write(&agents_path, "Main content\n@included.md\n").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_agents_from_directory(
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_some());
+            let content = result.unwrap();
+            assert!(content.contains("Main content"));
+            assert!(content.contains("Included content"));
+        });
     }
 }
