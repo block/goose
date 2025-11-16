@@ -23,6 +23,18 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 
 log "Starting node setup (common)."
 
+# One-time cleanup for existing Linux users to fix locking issues
+CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
+if [[ "$(uname -s)" == "Linux" ]] && [ ! -f "$CLEANUP_MARKER" ]; then
+    log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
+    if [ -d ~/.config/goose/mcp-hermit ]; then
+        rm -rf ~/.config/goose/mcp-hermit
+        log "Removed old mcp-hermit directory."
+    fi
+    touch "$CLEANUP_MARKER"
+    log "Cleanup completed. Marker file created."
+fi
+
 # Ensure ~/.config/goose/mcp-hermit/bin exists
 log "Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist."
 mkdir -p ~/.config/goose/mcp-hermit/bin
