@@ -353,7 +353,7 @@ async fn save_recipe(
     let has_security_warnings = request.recipe.check_for_security_warnings();
     if has_security_warnings {
         return Err(ErrorResponse {
-            message: "This recipe contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.".to_string(),
+            message: "This recipe contains hidden characters that could be malicious. Please remove them before trying to save.".to_string(),
             status: StatusCode::BAD_REQUEST,
         });
     }
