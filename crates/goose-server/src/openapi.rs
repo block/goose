@@ -23,6 +23,7 @@ use goose::conversation::message::{
     ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
+use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -380,6 +381,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::recipe::schedule_recipe,
+        super::routes::recipe::set_recipe_slash_command,
         super::routes::recipe::save_recipe,
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
@@ -440,6 +443,7 @@ derive_utoipa!(Icon as IconSchema);
         ExtensionConfig,
         ConfigKey,
         Envs,
+        RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
         ToolInfo,
@@ -470,8 +474,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
-        super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
+        super::routes::recipe::ScheduleRecipeRequest,
+        super::routes::recipe::SetSlashCommandRequest,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
         super::routes::recipe::SaveRecipeResponse,
