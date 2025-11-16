@@ -1,0 +1,223 @@
+name: Clock
+description: Swiss Railway Clock widget
+width: 300
+height: 300
+resizable: false
+---
+class ClockWidget extends GooseWidget {
+    constructor(api) {
+        super(api);
+        this.animationFrame = null;
+        this.lastSecond = -1;
+        this.pauseUntil = 0;
+    }
+
+    css() {
+        return `
+            .clock-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                width: 100%;
+            }
+
+            #clockCanvas {
+                display: block;
+            }
+        `;
+    }
+
+    onMount() {
+        this.canvas = document.getElementById('clockCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.animate();
+    }
+
+    onClose() {
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+        }
+    }
+
+    animate() {
+        this.drawClock();
+        this.animationFrame = requestAnimationFrame(() => this.animate());
+    }
+
+    drawClock() {
+        const now = Date.now();
+        const date = new Date(now);
+
+        const canvas = this.canvas;
+        const ctx = this.ctx;
+        const radius = canvas.width / 2;
+        const centerX = radius;
+        const centerY = radius;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        for (let i = 0; i < 60; i++) {
+            const angle = (i * 6) * Math.PI / 180;
+            const isHourMark = i % 5 === 0;
+
+            if (isHourMark) {
+                const x1 = centerX + Math.sin(angle) * (radius - 15);
+                const y1 = centerY - Math.cos(angle) * (radius - 15);
+                const x2 = centerX + Math.sin(angle) * (radius - 40);
+                const y2 = centerY - Math.cos(angle) * (radius - 40);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'butt';
+                ctx.stroke();
+            } else {
+                const x1 = centerX + Math.sin(angle) * (radius - 15);
+                const y1 = centerY - Math.cos(angle) * (radius - 15);
+                const x2 = centerX + Math.sin(angle) * (radius - 25);
+                const y2 = centerY - Math.cos(angle) * (radius - 25);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'butt';
+                ctx.stroke();
+            }
+        }
+
+        ctx.font = '16px sans-serif';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GOOSE CLOCK', centerX, centerY - 65);
+
+        const seconds = date.getSeconds();
+        const milliseconds = date.getMilliseconds();
+
+        if (seconds === 0 && this.lastSecond === 59) {
+            this.pauseUntil = now + 1500;
+        }
+        this.lastSecond = seconds;
+
+        const hours = date.getHours() % 12;
+        const minutes = date.getMinutes();
+
+        const hourAngle = ((hours + minutes / 60) * 30) * Math.PI / 180;
+        this.drawHand(ctx, centerX, centerY, hourAngle, radius * 0.65, 11, 'black');
+
+        const minuteAngle = ((minutes + seconds / 60) * 6) * Math.PI / 180;
+        this.drawHand(ctx, centerX, centerY, minuteAngle, radius * 0.90, 8, 'black');
+
+        let secondAngle;
+        if (now < this.pauseUntil) {
+            secondAngle = 0;
+        } else {
+            secondAngle = ((seconds + milliseconds / 1000) * 6) * Math.PI / 180;
+        }
+        this.drawSecondHand(ctx, centerX, centerY, secondAngle, radius * 0.65);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#d32f2f';
+        ctx.fill();
+    }
+
+    drawHand(ctx, x, y, angle, length, width, color) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+
+        ctx.beginPath();
+        ctx.rect(-width/2, -length, width, length + 20);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    drawSecondHand(ctx, x, y, angle, length) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+
+        ctx.beginPath();
+        ctx.moveTo(0, length * 0.2);
+        ctx.lineTo(0, -length);
+        ctx.strokeStyle = '#d32f2f';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'butt';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, -length, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = '#d32f2f';
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    render() {
+        return `
+            <div class="clock-container">
+                <canvas id="clockCanvas" width="300" height="300"></canvas>
+            </div>
+        `;
+    }
+
+    getDefaultSize() {
+        return { width: 300, height: 300 };
+    }
+}
+---
+# Swiss Railway Clock Widget
+
+## Overview
+An analog clock widget inspired by the iconic Swiss railway clock (Hans Hilfiker design).
+
+## Core Functionality
+
+### Time Display
+- Analog clock face with hour, minute, and second hands
+- Second hand sweeps smoothly in small increments (10 updates/second)
+- Distinctive "pause and jump" behavior: second hand pauses at 12 o'clock for ~1.5 seconds before jumping to the next minute
+- Hour and minute hands update continuously based on current time
+- Clean white face with simple black hour markers
+
+### Swiss Clock Behavior
+- Second hand: smooth sweep with characteristic pause at top
+- During pause: hour and minute hands continue to move
+- After pause: second hand jumps to correct position and resumes sweep
+- Mimics the synchronization behavior of Swiss railway station clocks
+
+### Visual Design
+- Circular white clock face
+- Black outline circle
+- Simple black tick marks at hour positions
+- Red lollipop-style second hand (round tip)
+- Black tapered hour and minute hands
+- Centered on widget canvas
+
+## Default Dimensions
+- Width: 300px
+- Height: 300px
+- Not resizable (maintains aspect ratio)
+
+## Technical Requirements
+- Uses HTML5 canvas for rendering
+- Updates 10 times per second for smooth animation
+- Properly implements Swiss railway clock timing behavior
+- Cleans up animation loop when widget closes
+

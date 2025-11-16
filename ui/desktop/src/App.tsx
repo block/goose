@@ -43,6 +43,7 @@ import {
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
+import GooseAppsView from './components/apps/GooseAppsView';
 import { useNavigation } from './hooks/useNavigation';
 import Pair2 from './components/Pair2';
 
@@ -668,6 +669,7 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
+            <Route path="apps" element={<GooseAppsView />} />
             <Route
               path="shared-session"
               element={

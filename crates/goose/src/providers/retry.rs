@@ -89,7 +89,7 @@ pub trait ProviderRetry {
                 Err(error) => {
                     let should_retry = matches!(
                         error,
-                        ProviderError::RateLimitExceeded { .. } | ProviderError::ServerError(_)
+                        ProviderError::RateLimitExceeded { .. } // DOUWE(Remove) | ProviderError::ServerError(_)
                     );
 
                     if should_retry && attempts < config.max_retries {

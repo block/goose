@@ -36,7 +36,6 @@ import {
   updateEnvironmentVariables,
 } from './utils/settings';
 import * as crypto from 'crypto';
-// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -49,6 +48,8 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
+import { getContainerHtml, launchGooseApp } from './goose_apps';
+import { GooseApp } from './api';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
@@ -2042,7 +2043,6 @@ async function appMain() {
           })
         );
       }
-
       helpMenu.submenu.append(aboutGooseMenuItem);
     }
   }
@@ -2082,6 +2082,14 @@ async function appMain() {
       );
     }
   );
+
+  ipcMain.handle('launch-goose-app', async (_event, app: GooseApp) => {
+    await launchGooseApp(app);
+  });
+
+  ipcMain.handle('preview-goose-app', async (_event, app: GooseApp) => {
+    return getContainerHtml(app);
+  });
 
   ipcMain.on('close-window', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -2167,6 +2175,23 @@ async function appMain() {
       window.reload();
     }
   });
+
+  ipcMain.handle(
+    'capture-screenshot',
+    async (
+      event,
+      bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+    ) => {
+      const webContents = event.sender;
+      const image = await webContents.capturePage(bounds);
+      return image.toPNG();
+    }
+  );
 
   ipcMain.handle('start-power-save-blocker', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
