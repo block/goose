@@ -871,7 +871,7 @@ print(\"hello, world\")
             format_tool_name("platform__manage_extensions"),
             "Platform: Manage Extensions"
         );
-        assert_eq!(format_tool_name("todo__read"), "Todo: Read");
+        assert_eq!(format_tool_name("todo__write"), "Todo: Write");
     }
 
     #[test]

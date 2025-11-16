@@ -1163,6 +1163,28 @@ impl ExtensionManager {
             .get(&name.into())
             .map(|ext| ext.get_client())
     }
+
+    pub async fn collect_moim(&self) -> Option<String> {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+
+        let extensions = self.extensions.lock().await;
+        for (name, extension) in extensions.iter() {
+            if let ExtensionConfig::Platform { .. } = &extension.config {
+                let client = extension.get_client();
+                let client_guard = client.lock().await;
+                if let Some(moim_content) = client_guard.get_moim().await {
+                    tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
+                    content.push('\n');
+                    content.push_str(&moim_content);
+                }
+            }
+        }
+
+        content.push_str("\n</info-msg>");
+
+        Some(content)
+    }
 }
 
 #[cfg(test)]

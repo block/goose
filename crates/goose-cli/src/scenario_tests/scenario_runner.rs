@@ -141,6 +141,8 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
+    goose::agents::moim::SKIP.with(|f| f.set(true));
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
