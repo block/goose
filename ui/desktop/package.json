@@ -64,6 +64,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "electron-log": "^5.4.3",
+    "framer-motion": "^11.15.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3",
