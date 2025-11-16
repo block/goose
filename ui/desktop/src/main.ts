@@ -182,7 +182,7 @@ if (process.platform !== 'darwin') {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            const recipeDeeplink = parseRecipeDeeplink(protocolUrl);
+            const deeplinkData = parseRecipeDeeplink(protocolUrl);
             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
             createChat(
@@ -193,8 +193,10 @@ if (process.platform !== 'darwin') {
               undefined,
               undefined,
               undefined,
-              recipeDeeplink || undefined,
-              scheduledJobId || undefined
+              deeplinkData?.config,
+              scheduledJobId || undefined,
+              undefined,
+              deeplinkData?.parameters
             );
           });
           return; // Skip the rest of the handler
@@ -280,7 +282,7 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    const recipeDeeplink = parsedUrl.searchParams.get('config');
+    const deeplinkData = parseRecipeDeeplink(pendingDeepLink || '');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
@@ -292,8 +294,10 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       undefined,
       undefined,
       undefined,
-      recipeDeeplink || undefined,
-      scheduledJobId || undefined
+      deeplinkData?.config,
+      scheduledJobId || undefined,
+      undefined,
+      deeplinkData?.parameters
     );
   }
   pendingDeepLink = null;
@@ -311,8 +315,8 @@ app.on('open-url', async (_event, url) => {
     console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
-      let recipeDeeplink = parseRecipeDeeplink(url);
-      if (recipeDeeplink) {
+      const deeplinkData = parseRecipeDeeplink(url);
+      if (deeplinkData) {
         windowDeeplinkURL = url;
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -326,8 +330,10 @@ app.on('open-url', async (_event, url) => {
         undefined,
         undefined,
         undefined,
-        recipeDeeplink || undefined,
-        scheduledJobId || undefined
+        deeplinkData?.config,
+        scheduledJobId || undefined,
+        undefined,
+        deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
       return; // Skip the rest of the handler
@@ -498,7 +504,8 @@ const createChat = async (
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
   scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeId?: string
+  recipeId?: string,
+  recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
 ) => {
   updateEnvironmentVariables(envToggles);
 
@@ -547,6 +554,7 @@ const createChat = async (
           GOOSE_VERSION: version,
           recipeId: recipeId,
           recipeDeeplink: recipeDeeplink,
+          recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
         }),
       ],
@@ -1015,9 +1023,9 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
 
     addRecentDir(dirToAdd);
 
-    let recipeDeeplink: string | undefined = undefined;
+    let deeplinkData: RecipeDeeplinkData | undefined = undefined;
     if (windowDeeplinkURL) {
-      recipeDeeplink = parseRecipeDeeplink(windowDeeplinkURL);
+      deeplinkData = parseRecipeDeeplink(windowDeeplinkURL);
     }
     // Create a new window with the selected directory
     await createChat(
@@ -1028,13 +1036,21 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
       undefined,
       undefined,
       undefined,
-      recipeDeeplink
+      deeplinkData?.config,
+      undefined,
+      undefined,
+      deeplinkData?.parameters
     );
   }
   return result;
 };
 
-function parseRecipeDeeplink(url: string): string | undefined {
+interface RecipeDeeplinkData {
+  config: string;
+  parameters?: Record<string, string>;
+}
+
+function parseRecipeDeeplink(url: string): RecipeDeeplinkData | undefined {
   const parsedUrl = new URL(url);
   let recipeDeeplink = parsedUrl.searchParams.get('config');
   if (recipeDeeplink && !url.includes(recipeDeeplink)) {
@@ -1054,10 +1070,22 @@ function parseRecipeDeeplink(url: string): string | undefined {
       }
     }
   }
-  if (recipeDeeplink) {
-    return recipeDeeplink;
+  if (!recipeDeeplink) {
+    return undefined;
   }
-  return undefined;
+
+  // Extract all query parameters except 'config' as recipe parameters
+  const parameters: Record<string, string> = {};
+  parsedUrl.searchParams.forEach((value, key) => {
+    if (key !== 'config') {
+      parameters[key] = value;
+    }
+  });
+
+  return {
+    config: recipeDeeplink,
+    parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
+  };
 }
 
 // Global error handler

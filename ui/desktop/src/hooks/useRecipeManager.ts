@@ -22,6 +22,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   const chatContext = useChatContext();
   const messages = chat.messages;
 
+  // Get recipe parameters from deeplink if available
+  const paramsFromConfig =
+    (window.appConfig.get('recipeParameters') as Record<string, string> | null | undefined) ?? null;
+  console.log('[useRecipeManager] Read recipe parameters from appConfig:', paramsFromConfig);
+  const recipeParametersFromConfig = useRef<Record<string, string> | null>(paramsFromConfig);
+
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
   const hasCheckedRecipeRef = useRef(false);
@@ -32,6 +38,28 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const finalRecipe = chat.recipe;
   const resolvedRecipe = chat.resolvedRecipe;
+
+  // Initialize parameters from deeplink when recipe is loaded (from backend/deeplink)
+  useEffect(() => {
+    if (!chatContext || !finalRecipe) return;
+
+    // Only initialize if we have params from config and haven't set them yet
+    if (recipeParametersFromConfig.current && !chat.recipeParameterValues) {
+      console.log(
+        '[useRecipeManager] Initializing parameters from deeplink for loaded recipe:',
+        recipeParametersFromConfig.current
+      );
+
+      chatContext.setChat({
+        ...chatContext.chat,
+        recipeParameterValues: recipeParametersFromConfig.current,
+      });
+
+      // Clear the parameters from config after using them once
+      recipeParametersFromConfig.current = null;
+    }
+  }, [chatContext, finalRecipe, chat.recipeParameterValues]);
+
   useEffect(() => {
     if (!chatContext) return;
 
@@ -55,12 +83,26 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setIsRecipeWarningModalOpen(false);
         hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
+        // Initialize with parameters from deeplink if available
+        const initialParameterValues = recipeParametersFromConfig.current || null;
+
+        console.log(
+          '[useRecipeManager] Setting new recipe with deeplink parameters:',
+          initialParameterValues
+        );
+
         chatContext.setChat({
           ...chatContext.chat,
           recipe: recipe,
-          recipeParameterValues: null,
+          recipeParameterValues: initialParameterValues,
           messages: [],
         });
+
+        // Clear the parameters from config after using them once
+        if (initialParameterValues) {
+          console.log('[useRecipeManager] Clearing deeplink parameters from config');
+          recipeParametersFromConfig.current = null;
+        }
       }
       return;
     }
@@ -133,6 +175,68 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
     hasMessages,
     chat.sessionId,
     finalRecipe?.title,
+  ]);
+
+  // Auto-submit parameters from deeplink
+  useEffect(() => {
+    const submitDeeplinkParameters = async () => {
+      console.log('[useRecipeManager] Auto-submit check:', {
+        hasRecipeParameterValues: !!recipeParameterValues,
+        recipeParameterValues,
+        hasResolvedRecipe: !!chat.resolvedRecipe,
+        hasFinalRecipe: !!finalRecipe,
+        recipeAccepted,
+        requiresParameters,
+      });
+
+      if (
+        recipeParameterValues &&
+        !chat.resolvedRecipe &&
+        finalRecipe &&
+        recipeAccepted &&
+        requiresParameters
+      ) {
+        console.log(
+          '[useRecipeManager] Auto-submitting deeplink parameters:',
+          recipeParameterValues
+        );
+        try {
+          const response = await updateSessionUserRecipeValues({
+            path: {
+              session_id: chat.sessionId,
+            },
+            body: {
+              userRecipeValues: recipeParameterValues,
+            },
+            throwOnError: true,
+          });
+          const resolvedRecipe = response.data?.recipe;
+          console.log(
+            '[useRecipeManager] Auto-submit successful, resolvedRecipe:',
+            !!resolvedRecipe
+          );
+          if (chatContext && resolvedRecipe) {
+            chatContext.setChat({
+              ...chatContext.chat,
+              resolvedRecipe,
+            });
+          }
+        } catch (error) {
+          console.error('[useRecipeManager] Failed to auto-submit deeplink parameters:', error);
+          // Don't show error toast here - let the user manually submit
+        }
+      }
+    };
+
+    submitDeeplinkParameters();
+  }, [
+    recipeParameterValues,
+    chat.resolvedRecipe,
+    finalRecipe,
+    recipeAccepted,
+    chat.sessionId,
+    chatContext,
+    requiresParameters,
   ]);
 
   useEffect(() => {
