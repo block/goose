@@ -219,6 +219,11 @@ jobs:
           source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
 
+          df
+          ls -l target/
+          ls -l target/${TARGET}
+          ls -l target/${TARGET}/release
+
           # Create a directory for the package contents
           mkdir -p "target/${TARGET}/release/goose-package"
 
