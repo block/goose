@@ -315,30 +315,15 @@ const PeerCard: React.FC<{
         </div>
       </div>
 
-      {/* Message bubble (only if there's an unread message) */}
+      {/* Unread message indicator */}
       {lastMessage && lastMessage.isUnread && (
         <div className="absolute inset-x-4 bottom-16 z-10">
-          <div className="bg-background-default/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-border-default">
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-text-default mb-1">
-                  {lastMessage.isFromSelf ? 'You' : (peer.displayName || peer.userId.split(':')[0].substring(1))}
-                </p>
-                <p className="text-sm text-text-default break-words" style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}>
-                  {lastMessage.content}
-                </p>
-                <p className="text-xs text-text-muted mt-1">
-                  {formatMessageTime(lastMessage.timestamp)}
-                </p>
-              </div>
-              {!lastMessage.isFromSelf && (
-                <div className="w-2 h-2 bg-background-accent rounded-full flex-shrink-0 mt-1" />
-              )}
+          <div className="bg-background-accent rounded-full px-3 py-2 shadow-lg">
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 bg-text-on-accent rounded-full" />
+              <p className="text-xs font-medium text-text-on-accent">
+                1 unread
+              </p>
             </div>
           </div>
         </div>
