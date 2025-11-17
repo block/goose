@@ -1,0 +1,161 @@
+name: "Build Windows"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
+        description: "Git ref to checkout"
+  pull_request:
+    paths-ignore:
+      - "documentation/**"
+  workflow_dispatch:
+
+jobs:
+  build-windows-native:
+    name: Build on Windows Native
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
+        with:
+          key: windows-native-${{ runner.arch }}
+
+      - name: Check Rust environment
+        shell: powershell
+        run: |
+          Write-Host "=== Rust Environment Information ==="
+          rustc --version
+          cargo --version
+          rustup show
+
+          Write-Host "=== Cargo Configuration ==="
+          if (Test-Path "$env:USERPROFILE\.cargo\config.toml") {
+            Get-Content "$env:USERPROFILE\.cargo\config.toml"
+          } else {
+            Write-Host "No global cargo config found"
+          }
+
+          Write-Host "=== Available Rust Targets ==="
+          rustup target list --installed
+
+      - name: Build goose CLI
+        shell: powershell
+        run: |
+          Write-Host "=== Building goose CLI ==="
+          $env:RUST_BACKTRACE = "1"
+          $env:CARGO_INCREMENTAL = "1"
+
+          Write-Host "Building goose-cli..."
+          cargo build --release -p goose-cli --verbose
+
+          if (Test-Path "target/release/goose.exe") {
+            Write-Host "✅ goose.exe built successfully"
+            $size = (Get-Item "target/release/goose.exe").Length
+            Write-Host "Binary size: $([math]::Round($size/1MB, 2)) MB"
+          } else {
+            Write-Error "❌ goose.exe not found after build"
+            exit 1
+          }
+
+      - name: Build goose server (goosed)
+        shell: powershell
+        run: |
+          Write-Host "=== Building goose server ==="
+          $env:RUST_BACKTRACE = "1"
+          $env:CARGO_INCREMENTAL = "1"
+
+          Write-Host "Building goose-server..."
+          cargo build --release -p goose-server --verbose
+
+          if (Test-Path "target/release/goosed.exe") {
+            Write-Host "✅ goosed.exe built successfully"
+            $size = (Get-Item "target/release/goosed.exe").Length
+            Write-Host "Binary size: $([math]::Round($size/1MB, 2)) MB"
+          } else {
+            Write-Error "❌ goosed.exe not found after build"
+            exit 1
+          }
+
+      # - name: Run tests
+      #   shell: powershell
+      #   run: |
+      #     Write-Host "=== Running tests ==="
+      #     $env:RUST_BACKTRACE = "1"
+
+      #     Write-Host "Running goose crate tests..."
+      #     cargo test -p goose --verbose
+
+      #     Write-Host "Running goose-cli tests..."
+      #     cargo test -p goose-cli --verbose
+
+      #     Write-Host "Running goose-server tests..."
+      #     cargo test -p goose-server --verbose
+
+      # - name: Run clippy
+      #   shell: powershell
+      #   run: |
+      #     Write-Host "=== Running clippy ==="
+      #     cargo clippy --all-targets --all-features -- -D warnings
+
+      # - name: Check formatting
+      #   shell: powershell
+      #   run: |
+      #     Write-Host "=== Checking code formatting ==="
+      #     cargo fmt --all -- --check
+
+      - name: Prepare artifacts
+        shell: powershell
+        run: |
+          Write-Host "=== Preparing artifacts ==="
+
+          # Create artifact directory
+          New-Item -ItemType Directory -Force -Path "artifacts"
+
+          # Copy binaries
+          Copy-Item "target/release/goose.exe" "artifacts/"
+          Copy-Item "target/release/goosed.exe" "artifacts/"
+
+          # Create version info file
+          $version = "dev-build"
+          @{
+            version = $version
+            commit = "${{ github.sha }}"
+            build_time = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+            runner_os = "${{ runner.os }}"
+            runner_arch = "${{ runner.arch }}"
+          } | ConvertTo-Json | Out-File "artifacts/build-info.json" -Encoding UTF8
+
+          Write-Host "Artifacts prepared:"
+          Get-ChildItem "artifacts" | ForEach-Object {
+            $size = if ($_.PSIsContainer) { "Directory" } else { "$([math]::Round($_.Length/1MB, 2)) MB" }
+            Write-Host "  $($_.Name) - $size"
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        with:
+          name: goose-windows-native-${{ runner.arch }}
+          path: artifacts/
+          retention-days: 7
+
+      - name: Upload CLI binary (for compatibility)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        with:
+          name: goose-x86_64-pc-windows-msvc
+          path: target/release/goose.exe
+          retention-days: 7
