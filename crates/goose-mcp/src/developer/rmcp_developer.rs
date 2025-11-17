@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
@@ -17,6 +18,7 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    env::join_paths,
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
@@ -30,6 +32,8 @@ use tokio::{
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use tokio_util::sync::CancellationToken;
+
+use crate::developer::paths::get_shell_path_dirs;
 
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
@@ -945,7 +949,16 @@ impl DeveloperServer {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
-        let mut child = configure_shell_command(&shell_config, command)
+        let mut command = configure_shell_command(&shell_config, command);
+
+        if let Ok(v) = get_shell_path_dirs()
+            .await
+            .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+        {
+            command.env("PATH", v);
+        }
+
+        let mut child = command
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
