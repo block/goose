@@ -133,7 +133,7 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
-    disabled: isCollaborativeSession, // Completely disable useMessageStream for collaborative sessions
+    disabled: false, // Never disable - we'll handle blocking in the append function
     body: {
       session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
