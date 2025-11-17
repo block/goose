@@ -496,7 +496,11 @@ export const useSessionSharing = ({
         roomId,
         currentRoomId: currentState.roomId,
         isFromSelf: sender === currentUserFromRef?.userId,
-        sessionId
+        sessionId,
+        // Additional debugging
+        hasCurrentRoomId: !!currentState.roomId,
+        roomIdMatch: roomId === currentState.roomId,
+        shouldProcess: currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId
       });
       
       // Only process messages from Matrix rooms that are part of our session and not from self
@@ -662,7 +666,14 @@ export const useSessionSharing = ({
   // Separate effect to log room ID changes without recreating listeners
   useEffect(() => {
     console.log('🏠 useSessionSharing: Room ID changed to:', state.roomId);
-  }, [state.roomId]);
+    console.log('🏠 useSessionSharing: Full state:', {
+      sessionId: state.sessionId,
+      roomId: state.roomId,
+      isShared: state.isShared,
+      isHost: state.isHost,
+      participantsCount: state.participants.length
+    });
+  }, [state.roomId, state]);
 
   // Invite a friend to the current session
   const inviteToSession = useCallback(async (friendUserId: string) => {
