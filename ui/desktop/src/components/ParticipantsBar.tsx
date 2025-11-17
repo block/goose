@@ -32,7 +32,7 @@ export const ParticipantsBar: React.FC<ParticipantsBarProps> = ({
     if (!otherUser) return null;
     
     return (
-      <div className={`flex items-center gap-2 px-4 py-2 bg-background-subtle border-b border-border-subtle ${className}`}>
+      <div className={`flex items-center gap-2 px-4 py-2 bg-background-default border-b border-border-subtle ${className}`}>
         <AvatarImage
           avatarUrl={otherUser.avatarUrl}
           displayName={otherUser.displayName || otherUser.userId}
@@ -53,7 +53,7 @@ export const ParticipantsBar: React.FC<ParticipantsBarProps> = ({
   
   // For group chats (3+ people), show participant count and avatars
   return (
-    <div className={`flex items-center gap-3 px-4 py-2 bg-background-subtle border-b border-border-subtle ${className}`}>
+    <div className={`flex items-center gap-3 px-4 py-2 bg-background-default border-b border-border-subtle ${className}`}>
       <div className="flex items-center gap-2">
         <Users className="w-4 h-4 text-text-muted" />
         <span className="text-sm font-medium text-text-prominent">
@@ -75,11 +75,11 @@ export const ParticipantsBar: React.FC<ParticipantsBarProps> = ({
             avatarUrl={member.avatarUrl}
             displayName={member.displayName || member.userId}
             size="sm"
-            className="ring-2 ring-background-subtle"
+            className="ring-2 ring-background-default"
           />
         ))}
         {otherParticipants.length > 3 && (
-          <div className="w-6 h-6 rounded-full bg-background-accent flex items-center justify-center ring-2 ring-background-subtle">
+          <div className="w-6 h-6 rounded-full bg-background-accent flex items-center justify-center ring-2 ring-background-default">
             <span className="text-xs font-medium text-text-on-accent">
               +{otherParticipants.length - 3}
             </span>
