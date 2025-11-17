@@ -97,6 +97,12 @@ export interface UseMessageStreamOptions {
    * Default is 1.
    */
   maxSteps?: number;
+
+  /**
+   * If true, disables all API calls and makes this hook read-only.
+   * Useful for collaborative sessions where you only consume messages.
+   */
+  disabled?: boolean;
 }
 
 export interface UseMessageStreamHelpers {
@@ -176,6 +182,7 @@ export function useMessageStream({
   headers,
   body,
   maxSteps = 1,
+  disabled = false,
 }: UseMessageStreamOptions = {}): UseMessageStreamHelpers {
   // Generate a unique id for the chat if not provided
   const hookId = useId();
@@ -671,6 +678,21 @@ export function useMessageStream({
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
 
+      // If disabled, just add the message without making API calls
+      if (disabled) {
+        console.log('🚫 useMessageStream is disabled, adding message without API call:', {
+          messageId: messageToAppend.id,
+          role: messageToAppend.role,
+          contentPreview: Array.isArray(messageToAppend.content) 
+            ? messageToAppend.content[0]?.text?.substring(0, 50) + '...' 
+            : 'N/A'
+        });
+        
+        const currentMessages = [...messagesRef.current, messageToAppend];
+        mutate(currentMessages, false);
+        return;
+      }
+
       // If we were waiting for user input and user provides input, transition away from that state
       if (chatState === ChatState.WaitingForUserInput) {
         mutateChatState(ChatState.Thinking);
@@ -680,7 +702,7 @@ export function useMessageStream({
       mutate(currentMessages, false);
       await sendRequest(currentMessages);
     },
-    [mutate, sendRequest, chatState, mutateChatState]
+    [mutate, sendRequest, chatState, mutateChatState, disabled]
   );
 
   // Reload the last message

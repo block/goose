@@ -79,12 +79,14 @@ export const useChatEngine = ({
   // Get the appropriate session ID for backend API calls
   const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
   const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
+  const isCollaborativeSession = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
   
   console.log('📋 useChatEngine: Session ID mapping:', {
     originalSessionId: chat.sessionId,
     backendSessionId,
     isMatrixSession: chat.sessionId.startsWith('!'),
     shouldMakeBackendCalls,
+    isCollaborativeSession,
   });
 
   const {
@@ -105,6 +107,7 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
+    disabled: isCollaborativeSession, // Disable API calls for collaborative sessions
     body: {
       session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
@@ -168,6 +171,27 @@ export const useChatEngine = ({
       const message =
         typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
       
+      // Check if this is a collaborative session - if so, skip backend calls entirely
+      if (isCollaborativeSession) {
+        console.log('🚫 Skipping backend call for collaborative session:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          role: message.role,
+          contentPreview: Array.isArray(message.content) 
+            ? message.content[0]?.text?.substring(0, 50) + '...' 
+            : 'N/A'
+        });
+        
+        // Add the message to the chat without triggering AI response
+        setMessages(prevMessages => [...prevMessages, message]);
+        
+        // Store in history if it's a user message
+        storeMessageInHistory(message);
+        
+        // Return a promise that resolves immediately (to match originalAppend's interface)
+        return Promise.resolve();
+      }
+      
       // Check metadata flags to prevent local AI responses
       const shouldSkipLocalResponse = message.metadata?.skipLocalResponse ||
                                      message.metadata?.preventAutoResponse ||
@@ -210,7 +234,7 @@ export const useChatEngine = ({
 
       return originalAppend(message);
     },
-    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages]
+    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, isCollaborativeSession, chat.sessionId]
   );
 
   // Simple token estimation function (roughly 4 characters per token)
