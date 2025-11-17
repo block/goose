@@ -189,6 +189,13 @@ export const useChatEngine = ({
       const gooseOffPattern = /@goose\s+(off|disable|stop|quiet|sleep)\b/i;
       const isGooseOffCommand = gooseOffPattern.test(messageText);
       
+      // Check if message contains mentions of other Matrix users (not @goose)
+      const mentionPattern = /@([^\s]+)/g;
+      const mentions = Array.from(messageText.matchAll(mentionPattern));
+      const hasNonGooseMentions = mentions.some(match => 
+        !match[1].toLowerCase().startsWith('goose')
+      );
+      
       // If @goose off is mentioned, disable AI for this session
       if (isGooseOffCommand && aiEnabled) {
         console.log('🦆💤 @goose off mentioned - disabling AI for session:', {
@@ -199,6 +206,25 @@ export const useChatEngine = ({
         
         // Update the chat to disable AI
         setChat((prevChat: ChatType) => ({ ...prevChat, aiEnabled: false }));
+        
+        // Add the message to the chat without triggering AI response
+        setMessages(prevMessages => [...prevMessages, message]);
+        
+        // Store in history if it's a user message
+        storeMessageInHistory(message);
+        
+        // Return a promise that resolves immediately (to match originalAppend's interface)
+        return Promise.resolve();
+      }
+      
+      // If message contains mentions of other Matrix users, don't trigger AI response
+      if (hasNonGooseMentions && message.role === 'user') {
+        console.log('👤 Message contains Matrix user mentions - skipping AI response:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          mentions: mentions.map(m => m[1]),
+          contentPreview: messageText.substring(0, 50) + '...'
+        });
         
         // Add the message to the chat without triggering AI response
         setMessages(prevMessages => [...prevMessages, message]);

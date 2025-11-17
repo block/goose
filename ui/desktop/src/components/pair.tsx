@@ -83,6 +83,28 @@ export default function Pair({
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedContentRef = useRef<string>('');
 
+  // Reset state when Matrix room changes (switching between different peer DMs)
+  useEffect(() => {
+    console.log('🔄 Matrix room changed, resetting state for new room:', matrixRoomId);
+    
+    // Reset all Matrix-related state when room changes
+    setHasLoadedMatrixHistory(false);
+    setHasInitializedChat(false);
+    setProcessedMessageIds(new Set());
+    setSyncedMessageIds(new Set());
+    
+    // Clear any pending sync timeout
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
+    
+    // Reset loading state
+    setIsLoadingMatrixHistory(false);
+    
+    console.log('✅ State reset complete for Matrix room:', matrixRoomId);
+  }, [matrixRoomId]); // Only depend on matrixRoomId, not isMatrixMode
+
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
     console.log(`🔍 addMessagesToChat called with source: "${source}", isMatrixMode: ${isMatrixMode}`);
