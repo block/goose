@@ -9,6 +9,7 @@ import {
   Trash2,
   Users,
   Hash,
+  MessageCircle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -433,13 +434,27 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       // Get session display info
       const displayInfo = unifiedSessionService.getSessionDisplayInfo(session);
       const isMatrix = displayInfo.type === 'matrix' || displayInfo.type === 'collaborative';
+      const isMatrixDM = isMatrix && session.extension_data?.matrix?.isDirectMessage;
+      const isCollaborative = displayInfo.type === 'collaborative';
+
+      // Determine styling based on session type
+      let borderStyle = '';
+      let bgStyle = '';
+      if (isMatrixDM) {
+        borderStyle = 'border-l-4 border-l-green-500';
+        bgStyle = 'bg-green-50/30 dark:bg-green-950/20';
+      } else if (isCollaborative) {
+        borderStyle = 'border-l-4 border-l-purple-500';
+        bgStyle = 'bg-purple-50/30 dark:bg-purple-950/20';
+      } else if (isMatrix) {
+        borderStyle = 'border-l-4 border-l-blue-500';
+        bgStyle = 'bg-blue-50/30 dark:bg-blue-950/20';
+      }
 
       return (
         <Card
           onClick={handleCardClick}
-          className={`session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group ${
-            isMatrix ? 'border-l-4 border-l-blue-500' : ''
-          }`}
+          className={`session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group ${borderStyle} ${bgStyle}`}
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -466,10 +481,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </h3>
               {isMatrix && (
                 <div className="flex items-center gap-1">
-                  {displayInfo.type === 'collaborative' ? (
-                    <Users className="w-4 h-4 text-blue-500" title="Collaborative Matrix Session" />
+                  {isMatrixDM ? (
+                    <MessageCircle className="w-4 h-4 text-green-500" title="Matrix Direct Message" />
+                  ) : displayInfo.type === 'collaborative' ? (
+                    <Users className="w-4 h-4 text-purple-500" title="Collaborative Matrix Session" />
                   ) : (
-                    <Hash className="w-4 h-4 text-blue-500" title="Matrix Session" />
+                    <Hash className="w-4 h-4 text-blue-500" title="Matrix Group Chat" />
                   )}
                 </div>
               )}
@@ -505,8 +522,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               )}
             </div>
             {isMatrix && (
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                {displayInfo.type === 'collaborative' ? 'Collaborative' : 'Matrix'}
+              <div className={`text-xs font-medium ${
+                isMatrixDM 
+                  ? 'text-green-600 dark:text-green-400' 
+                  : isCollaborative 
+                    ? 'text-purple-600 dark:text-purple-400'
+                    : 'text-blue-600 dark:text-blue-400'
+              }`}>
+                {isMatrixDM ? 'Direct Message' : isCollaborative ? 'Collaborative' : 'Group Chat'}
               </div>
             )}
           </div>
