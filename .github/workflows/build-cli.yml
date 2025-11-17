@@ -18,6 +18,7 @@ on:
         type: string
         required: false
         default: ""
+  pull_request:
 
 name: "Reusable workflow to build CLI"
 
@@ -29,31 +30,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
-          - os: ubuntu-latest
-            architecture: x86_64
-            target-suffix: unknown-linux-gnu
-            build-on: ubuntu-latest
-            use-cross: true
-            cc: gcc-10
-          - os: ubuntu-latest
-            architecture: aarch64
-            target-suffix: unknown-linux-gnu
-            build-on: ubuntu-latest
-            use-cross: true
-            cc: gcc-10
-          # macOS builds
-          - os: macos-latest
-            architecture: x86_64
-            target-suffix: apple-darwin
-            build-on: macos-latest
-            use-cross: true
-          - os: macos-latest
-            architecture: aarch64
-            target-suffix: apple-darwin
-            build-on: macos-latest
-            use-cross: true
-          # Windows builds (only x86_64 supported)
+          # # Linux builds
+          # - os: ubuntu-latest
+          #   architecture: x86_64
+          #   target-suffix: unknown-linux-gnu
+          #   build-on: ubuntu-latest
+          #   use-cross: true
+          #   cc: gcc-10
+          # - os: ubuntu-latest
+          #   architecture: aarch64
+          #   target-suffix: unknown-linux-gnu
+          #   build-on: ubuntu-latest
+          #   use-cross: true
+          #   cc: gcc-10
+          # # macOS builds
+          # - os: macos-latest
+          #   architecture: x86_64
+          #   target-suffix: apple-darwin
+          #   build-on: macos-latest
+          #   use-cross: true
+          # - os: macos-latest
+          #   architecture: aarch64
+          #   target-suffix: apple-darwin
+          #   build-on: macos-latest
+          #   use-cross: true
           - os: windows
             architecture: x86_64
             target-suffix: pc-windows-gnu
