@@ -12,7 +12,7 @@ workspace = true
 
 [build-dependencies]
 tokio = { version = "1.43", features = ["full"] }
-reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
 lru = "0.12"
@@ -29,7 +29,7 @@ anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
 dirs = "5.0"
-reqwest = { version = "0.12.9", features = [
+reqwest = { version = "0.12", features = [
     "rustls-tls-native-roots",
     "json",
     "cookies",
@@ -79,15 +79,15 @@ rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
+sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
-aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
-aws-smithy-types = "1.2.13"
-aws-sdk-bedrockruntime = "1.106.0"
+aws-config = { version = "1.8", features = ["behavior-version-latest"], default-features = false }
+aws-smithy-types = { version = "1.3", default-features = false }
+aws-sdk-bedrockruntime = { version = "1.113", default-features = false }
 
 # For SageMaker TGI provider
-aws-sdk-sagemakerruntime = "1.62.0"
+aws-sdk-sagemakerruntime = { version = "1.91", default-features = false }
 
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"
