@@ -13,6 +13,40 @@
     "version": "1.15.0"
   },
   "paths": {
+    "/action-required/tool-confirmation": {
+      "post": {
+        "tags": [
+          "super::routes::action_required"
+        ],
+        "operationId": "confirm_tool_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmToolActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tool confirmation action is confirmed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/add_extension": {
       "post": {
         "tags": [
@@ -950,40 +984,6 @@
           },
           "422": {
             "description": "Config file is corrupted"
-          }
-        }
-      }
-    },
-    "/confirm": {
-      "post": {
-        "tags": [
-          "super::routes::reply"
-        ],
-        "operationId": "confirm_permission",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PermissionConfirmationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Permission action is confirmed",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -2353,6 +2353,54 @@
   },
   "components": {
     "schemas": {
+      "ActionRequired": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ActionRequiredData"
+          }
+        }
+      },
+      "ActionRequiredData": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "toolName",
+              "arguments",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "toolConfirmation"
+                ]
+              },
+              "arguments": {
+                "$ref": "#/components/schemas/JsonObject"
+              },
+              "id": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "toolName": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "actionType"
+        }
+      },
       "AddExtensionRequest": {
         "type": "object",
         "required": [
@@ -2513,6 +2561,28 @@
           "config": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "ConfirmToolActionRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "sessionId"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principalType": {
+            "$ref": "#/components/schemas/PrincipalType"
+          },
+          "sessionId": {
+            "type": "string"
           }
         }
       },
@@ -3521,6 +3591,27 @@
           {
             "allOf": [
               {
+                "$ref": "#/components/schemas/ActionRequired"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "actionRequired"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
                 "$ref": "#/components/schemas/FrontendToolRequest"
               },
               {
@@ -3869,28 +3960,6 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
-          }
-        }
-      },
-      "PermissionConfirmationRequest": {
-        "type": "object",
-        "required": [
-          "id",
-          "action",
-          "session_id"
-        ],
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "principal_type": {
-            "$ref": "#/components/schemas/PrincipalType"
-          },
-          "session_id": {
-            "type": "string"
           }
         }
       },

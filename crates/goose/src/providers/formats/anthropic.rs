@@ -91,6 +91,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::ActionRequired(_action_required) => {
+                    // Skip action required messages - they're for UI only
+                }
                 MessageContent::SystemNotification(_) => {
                     // Skip
                 }

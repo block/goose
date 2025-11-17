@@ -73,7 +73,7 @@ impl Agent {
                     });
 
                 let confirmation = Message::assistant()
-                    .with_tool_confirmation_request(
+                    .with_action_required(
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
                         tool_call.arguments.clone().unwrap_or_default(),
