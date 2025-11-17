@@ -200,6 +200,8 @@ jobs:
               ls -la target/x86_64-pc-windows-gnu/release/
             "
 
+          sudo chown -R $USER:$USER target/
+
           # Verify build succeeded
           if [ ! -f "./target/x86_64-pc-windows-gnu/release/goose.exe" ]; then
             echo "❌ Windows CLI binary not found."
