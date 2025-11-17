@@ -49,7 +49,7 @@ Core Maintainers have admin access across all repositories but use standard cont
 
 ### Day-to-Day Decisions
 
-* Most technical and process decisions are made through consensus in pull requests, GitHub discussions, or Discord.
+* Most technical and process decisions are made through consensus in pull requests or GitHub discussions.
 * Core Maintainers can approve and merge changes quickly when there's clear benefit.
 * Significant architectural changes should have discussion in a GitHub issue or discussion before implementation.
 * Core Maintainers may step in when disputes arise or when decisions have project-wide impact.
