@@ -257,7 +257,7 @@ fn generate_secret() -> String {
     hex::encode(bytes)
 }
 
-fn generate_agent_id() -> String {
-    let bytes: [u8; 16] = rand::random();
+pub(super) fn generate_agent_id() -> String {
+    let bytes: [u8; 32] = rand::random();
     hex::encode(bytes)
 }

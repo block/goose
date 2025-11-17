@@ -66,7 +66,8 @@ export default function TunnelSection() {
         const info = await window.electron.getTunnelStatus(baseUrl);
         setTunnelInfo(info);
       } catch (statusErr) {
-        console.error('Failed to fetch tunnel status after error:', statusErr);
+        console.error('Failed to fetch tunnel status after stop error:', statusErr);
+        setTunnelInfo({ state: 'error', error: 'Failed to stop tunnel and get status' });
       }
     }
   };

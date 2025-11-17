@@ -1337,7 +1337,7 @@ ipcMain.handle('get-tunnel-status', async (_event, baseUrl: string) => {
     return await syncTunnelStatus(baseUrl, SERVER_SECRET);
   } catch (error) {
     console.error('Error getting tunnel status:', error);
-    return { state: 'error', info: null, auto_start: false };
+    return { state: 'error', error: String(error) };
   }
 });
 

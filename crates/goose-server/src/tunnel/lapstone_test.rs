@@ -81,7 +81,7 @@ async fn test_tunnel_end_to_end() {
 
     let tunnel_secret = TEST_TUNNEL_SECRET.to_string();
     let server_secret = TEST_SERVER_SECRET.to_string();
-    let agent_id = format!("test-{}", uuid::Uuid::new_v4());
+    let agent_id = super::generate_agent_id();
 
     let tunnel_info = lapstone::start(
         port,
@@ -131,7 +131,7 @@ async fn test_tunnel_post_request() {
 
     let tunnel_secret = TEST_TUNNEL_SECRET.to_string();
     let server_secret = TEST_SERVER_SECRET.to_string();
-    let agent_id = format!("test-{}", uuid::Uuid::new_v4());
+    let agent_id = super::generate_agent_id();
 
     let tunnel_info = lapstone::start(
         port,
