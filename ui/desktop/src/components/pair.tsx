@@ -371,8 +371,8 @@ export default function Pair({
       setIsLoadingMatrixHistory(true);
 
       try {
-        // Fetch room history from Matrix
-        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 100); // Increased limit to get more history
+        // Fetch room history from Matrix - increased limit for DM rooms
+        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 1000); // Much higher limit for DM history
         console.log('📜 Fetched', roomHistory.length, 'messages from Matrix room');
 
         if (roomHistory.length > 0) {
@@ -768,11 +768,49 @@ export default function Pair({
   console.log('🎯 Is Matrix mode:', isMatrixMode);
   console.log('🎯 Loading states:', { loadingChat, isLoadingMatrixHistory });
 
-  // Add a diagnostic function to test Matrix message reception
+  // Add diagnostic functions for debugging blank chat issues
   useEffect(() => {
     if (!isMatrixMode || !matrixRoomId) return;
 
-    // Create a test function that can be called from the browser console
+    // Create diagnostic functions that can be called from the browser console
+    (window as any).debugBlankChat = () => {
+      console.log('🔍 BLANK CHAT DIAGNOSTIC:');
+      console.log('🔍 Loading states:', {
+        loadingChat,
+        isLoadingMatrixHistory,
+        hasLoadedMatrixHistory,
+        hasInitializedChat
+      });
+      console.log('🔍 Matrix connection:', { isConnected, isReady });
+      console.log('🔍 Chat state:', {
+        sessionId: chat.sessionId,
+        messagesCount: chat.messages?.length || 0,
+        messages: chat.messages?.slice(-3).map(m => ({
+          id: m.id,
+          role: m.role,
+          content: Array.isArray(m.content) ? m.content[0]?.text?.substring(0, 30) + '...' : 'N/A'
+        }))
+      });
+      console.log('🔍 Matrix room:', {
+        matrixRoomId,
+        effectiveSessionId,
+        isMatrixMode
+      });
+      console.log('🔍 Agent state:', agentState);
+      
+      // Check what BaseChat will render
+      const shouldShowMessages = chat.messages?.length > 0;
+      const shouldShowPopularTopics = !chat.recipeConfig && true; // showPopularTopics is true in Pair
+      console.log('🔍 Rendering logic:', {
+        shouldShowMessages,
+        shouldShowPopularTopics,
+        hasRecipeConfig: !!chat.recipeConfig,
+        willRenderMessages: !loadingChat && shouldShowMessages,
+        willRenderPopularTopics: !loadingChat && !shouldShowMessages && shouldShowPopularTopics,
+        willRenderNothing: loadingChat || (!shouldShowMessages && !shouldShowPopularTopics)
+      });
+    };
+
     (window as any).testMatrixListeners = () => {
       console.log('🔍 DIAGNOSTIC: Testing Matrix message listeners');
       console.log('🔍 Matrix connection state:', { isConnected, isReady });
@@ -801,9 +839,10 @@ export default function Pair({
     };
 
     return () => {
+      delete (window as any).debugBlankChat;
       delete (window as any).testMatrixListeners;
     };
-  }, [isMatrixMode, matrixRoomId, isConnected, isReady, effectiveSessionId, onMessage, onSessionMessage, chat.messages.length]);
+  }, [isMatrixMode, matrixRoomId, isConnected, isReady, effectiveSessionId, onMessage, onSessionMessage, chat.messages.length, loadingChat, isLoadingMatrixHistory, hasLoadedMatrixHistory, hasInitializedChat, agentState]);
 
   // Create custom chat input props for Matrix mode
   const matrixChatInputProps = useMemo(() => {

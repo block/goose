@@ -125,19 +125,24 @@ export class SessionMappingService {
       // Import startAgent dynamically to avoid circular dependencies
       const { startAgent } = await import('../api');
       
+      // Determine if this is a DM or group room for appropriate instructions
+      const isDM = participants.length === 2;
+      const roomType = isDM ? 'Direct Message' : 'Group Chat';
+      
+      // Create appropriate instructions based on room type
+      const instructions = isDM 
+        ? `You are in a direct message conversation through Matrix. This is a 1:1 chat session. Be helpful and respond naturally to the user's messages.`
+        : `You are participating in a collaborative AI session through Matrix. Multiple users may be participating in this conversation. Be helpful and collaborative in your responses.`;
+
       // Create a backend session for this Matrix room
       const agentResponse = await startAgent({
         body: {
           working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
           // Create a recipe for Matrix collaboration
           recipe: {
-            title: title || `Matrix Collaboration: ${matrixRoomId.substring(1, 8)}`,
-            description: `Collaborative AI session for Matrix room ${matrixRoomId}`,
-            instructions: [
-              'You are participating in a collaborative AI session through Matrix.',
-              'Multiple users may be participating in this conversation.',
-              'Be helpful and collaborative in your responses.',
-            ],
+            title: title || `Matrix ${roomType}: ${matrixRoomId.substring(1, 8)}`,
+            description: `${roomType} session for Matrix room ${matrixRoomId}`,
+            instructions: instructions, // Send as string, not array
           },
         },
         throwOnError: true,
@@ -145,8 +150,15 @@ export class SessionMappingService {
 
       const backendSession = agentResponse.data;
       if (!backendSession?.id) {
-        throw new Error('Failed to create backend session');
+        throw new Error('Backend session creation returned no session ID');
       }
+      
+      console.log('📋 SessionMappingService: Backend session created successfully:', {
+        sessionId: backendSession.id,
+        matrixRoomId: matrixRoomId.substring(0, 20) + '...',
+        title,
+        isDM
+      });
 
       const now = Date.now();
       const mapping: SessionMapping = {

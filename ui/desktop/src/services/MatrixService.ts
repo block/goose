@@ -996,28 +996,54 @@ export class MatrixService extends EventEmitter {
       return;
     }
 
-    // Create new mapping with backend session if none exists
+    // Create new mapping with backend session for ALL rooms (including DMs)
     const participants = room.getMembers().map((member: any) => member.userId);
-    const roomName = room.name || `Matrix Room ${roomId.substring(1, 8)}`;
+    const memberCount = participants.length;
+    const isDM = memberCount === 2;
+    
+    // Generate appropriate room name
+    let roomName: string;
+    if (room.name) {
+      roomName = room.name;
+    } else if (isDM) {
+      // For DMs, create a name based on the other participant
+      const otherParticipant = participants.find(p => p !== this.config.userId);
+      const otherUser = otherParticipant ? this.client?.getUser(otherParticipant) : null;
+      const otherName = otherUser?.displayName || otherParticipant?.split(':')[0].substring(1) || 'Unknown';
+      roomName = `DM with ${otherName}`;
+    } else {
+      roomName = `Matrix Room ${roomId.substring(1, 8)}`;
+    }
+    
+    console.log('📋 Creating session mapping for Matrix room:', {
+      roomId: roomId.substring(0, 20) + '...',
+      roomName,
+      participants: participants.length,
+      isDM,
+      type: isDM ? 'Direct Message' : 'Group Chat'
+    });
     
     try {
+      // Always create backend session mapping for persistence
       const mapping = await sessionMappingService.createMappingWithBackendSession(roomId, participants, roomName);
       
-      console.log('📋 Created backend session mapping for joined room:', {
-        matrixRoomId: roomId,
+      console.log('📋 ✅ Created backend session mapping:', {
+        matrixRoomId: roomId.substring(0, 20) + '...',
         backendSessionId: mapping.gooseSessionId,
         participants: participants.length,
         roomName,
+        isDM,
       });
     } catch (error) {
-      console.error('📋 Failed to create backend session mapping for joined room:', error);
+      console.error('📋 ❌ Failed to create backend session mapping:', error);
       // Fallback to regular mapping if backend session creation fails
       const mapping = sessionMappingService.createMapping(roomId, participants, roomName);
-      console.log('📋 Created fallback mapping for joined room:', {
-        matrixRoomId: roomId,
+      console.log('📋 Created fallback mapping:', {
+        matrixRoomId: roomId.substring(0, 20) + '...',
         gooseSessionId: mapping.gooseSessionId,
         participants: participants.length,
         roomName,
+        isDM,
       });
     }
   }
@@ -1874,47 +1900,39 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
-   * Auto-rejoin Matrix rooms based on stored session mappings
+   * Auto-rejoin Matrix rooms and ensure session mappings for all joined rooms
    * This should be called after Matrix sync is prepared
    */
   private async autoRejoinStoredRooms(): Promise<void> {
     if (!this.client) return;
 
-    console.log('🔄 Auto-rejoining stored Matrix rooms...');
+    console.log('🔄 Auto-rejoining stored Matrix rooms and ensuring session mappings...');
     
     try {
-      // Get all Matrix collaborative sessions from storage
-      const collaborativeSessions = sessionMappingService.getMatrixCollaborativeSessions();
+      // Get all session mappings (including DM rooms)
+      const allMappings = sessionMappingService.getAllMappings();
+      const matrixMappings = allMappings.filter(mapping => mapping.matrixRoomId);
       
-      if (collaborativeSessions.length === 0) {
-        console.log('📋 No Matrix collaborative sessions found to rejoin');
-        return;
-      }
-
-      console.log(`📋 Found ${collaborativeSessions.length} Matrix collaborative sessions to check`);
+      console.log(`📋 Found ${matrixMappings.length} Matrix room mappings to check`);
       
       let rejoinedCount = 0;
       let skippedCount = 0;
       let failedCount = 0;
+      let mappingsCreated = 0;
 
-      for (const mapping of collaborativeSessions) {
+      // First, handle stored mappings
+      for (const mapping of matrixMappings) {
         const { matrixRoomId, roomState } = mapping;
         
-        if (!roomState) {
-          console.log(`⏭️ Skipping ${matrixRoomId} - no room state stored`);
-          skippedCount++;
-          continue;
-        }
-
         try {
           // Check current membership status
           const room = this.client.getRoom(matrixRoomId);
           const currentMembership = room?.getMyMembership();
 
-          console.log(`🔍 Checking room ${matrixRoomId.substring(0, 20)}... - current membership: ${currentMembership}`);
+          console.log(`🔍 Checking stored room ${matrixRoomId.substring(0, 20)}... - current membership: ${currentMembership}`);
 
           // If we're not currently joined but have a stored room state, try to rejoin
-          if (currentMembership !== 'join') {
+          if (currentMembership !== 'join' && roomState) {
             // Check if we were previously joined based on stored participant data
             const myParticipant = roomState.participants.get(this.config.userId!);
             const wasJoined = myParticipant?.membership === 'join';
@@ -1948,28 +1966,51 @@ export class MatrixService extends EventEmitter {
               console.log(`⏭️ Skipping ${matrixRoomId.substring(0, 20)}... - was not previously joined`);
               skippedCount++;
             }
-          } else {
+          } else if (currentMembership === 'join') {
             console.log(`✅ Already joined room: ${matrixRoomId.substring(0, 20)}...`);
             skippedCount++;
           }
         } catch (error) {
-          console.error(`❌ Error processing room ${matrixRoomId.substring(0, 20)}...:`, error);
+          console.error(`❌ Error processing stored room ${matrixRoomId.substring(0, 20)}...:`, error);
           failedCount++;
         }
       }
 
-      console.log(`🎯 Auto-rejoin complete: ${rejoinedCount} rejoined, ${skippedCount} skipped, ${failedCount} failed`);
+      // Second, ensure session mappings exist for ALL currently joined rooms (including DMs)
+      console.log('📋 Ensuring session mappings for all currently joined rooms...');
+      const currentRooms = this.client.getRooms();
       
-      if (rejoinedCount > 0) {
+      for (const room of currentRooms) {
+        if (room.getMyMembership() === 'join') {
+          const existingMapping = sessionMappingService.getMapping(room.roomId);
+          
+          if (!existingMapping) {
+            console.log(`📋 Creating missing session mapping for joined room: ${room.roomId.substring(0, 20)}...`);
+            try {
+              await this.ensureSessionMapping(room.roomId, room);
+              mappingsCreated++;
+            } catch (error) {
+              console.error(`❌ Failed to create session mapping for ${room.roomId.substring(0, 20)}...:`, error);
+            }
+          }
+        }
+      }
+
+      console.log(`🎯 Auto-rejoin and mapping complete: ${rejoinedCount} rejoined, ${skippedCount} skipped, ${failedCount} failed, ${mappingsCreated} new mappings created`);
+      
+      if (rejoinedCount > 0 || mappingsCreated > 0) {
         // Clear caches to refresh room data
         this.cachedRooms = null;
         this.cachedFriends = null;
         
         // Emit an event to notify UI components
-        this.emit('roomsRejoined', { count: rejoinedCount });
+        this.emit('roomsRejoined', { 
+          rejoined: rejoinedCount, 
+          mappingsCreated 
+        });
       }
     } catch (error) {
-      console.error('❌ Error during auto-rejoin process:', error);
+      console.error('❌ Error during auto-rejoin and mapping process:', error);
     }
   }
 

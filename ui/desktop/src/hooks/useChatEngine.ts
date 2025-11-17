@@ -245,6 +245,31 @@ export const useChatEngine = ({
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
 
+  // Sync external chat.messages changes back to the message stream
+  // This is crucial for Matrix mode where messages are added externally via addMessagesToChat
+  useEffect(() => {
+    // Only sync if chat.messages has more messages than our current messages
+    // and the messages are different (to avoid infinite loops)
+    if (chat.messages.length > messages.length) {
+      const chatMessagesJson = JSON.stringify(chat.messages.map(m => ({ id: m.id, content: m.content })));
+      const currentMessagesJson = JSON.stringify(messages.map(m => ({ id: m.id, content: m.content })));
+      
+      if (chatMessagesJson !== currentMessagesJson) {
+        console.log('🔄 useChatEngine: Syncing external chat.messages to message stream', {
+          chatMessagesCount: chat.messages.length,
+          currentMessagesCount: messages.length,
+          newMessages: chat.messages.slice(messages.length).map(m => ({
+            id: m.id,
+            role: m.role,
+            content: Array.isArray(m.content) ? m.content[0]?.text?.substring(0, 30) + '...' : 'N/A'
+          }))
+        });
+        
+        setMessages(chat.messages);
+      }
+    }
+  }, [chat.messages, messages, setMessages]);
+
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
