@@ -66,7 +66,7 @@ def load_team_lists():
                 current_section = 'block_non_goose'
             elif '# External, goose' in line:
                 current_section = 'external_goose'
-            elif '# External' in line and 'goose' not in line:
+            elif line.startswith('# External') and 'goose' not in line.lower():
                 current_section = 'external'
             elif '# Bots' in line:
                 current_section = 'bots'
@@ -154,6 +154,11 @@ def main():
     except FileNotFoundError:
         print(f"Error: GitHub contributor data not found at {github_data_file}")
         print("Please run: curl -s -H 'Accept: application/vnd.github.v3+json' 'https://api.github.com/repos/block/goose/stats/contributors' > /tmp/github_contributors.json")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {github_data_file}")
+        print(f"Details: {e}")
+        print("The GitHub API may have returned an error. Try fetching the data again.")
         sys.exit(1)
 
     # Process contributors
