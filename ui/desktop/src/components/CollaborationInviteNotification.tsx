@@ -50,19 +50,19 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
 
     // Handler for Matrix room invitations
     const handleMatrixRoomInvitation = (invitationData: any) => {
-      console.log('🔔 Received Matrix room invitation:', invitationData);
+      console.log('🚨 FRONTEND: CollaborationInviteNotification received Matrix room invitation:', invitationData);
       
       // Skip notifications for the currently active Matrix room (shared session)
       const activeMatrixRoom = getCurrentActiveMatrixRoom();
       if (activeMatrixRoom && invitationData.roomId === activeMatrixRoom) {
-        console.log('🔔 Skipping Matrix invitation notification for active room:', invitationData.roomId);
+        console.log('🔔 FRONTEND: Skipping Matrix invitation notification for active room:', invitationData.roomId);
         return;
       }
 
       // CRITICAL: Check if this invite should actually be shown according to MatrixInviteStateService
       const shouldShow = matrixInviteStateService.shouldShowInvite(invitationData.roomId, invitationData.inviter);
       if (!shouldShow) {
-        console.log('🔔 Skipping Matrix invitation notification - MatrixInviteStateService says not to show:', {
+        console.log('🔔 FRONTEND: Skipping Matrix invitation notification - MatrixInviteStateService says not to show:', {
           roomId: invitationData.roomId,
           inviter: invitationData.inviter,
           shouldShow
@@ -70,7 +70,7 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         return;
       }
 
-      console.log('🔔 Matrix invitation passed shouldShow check - displaying notification:', invitationData.roomId);
+      console.log('🚨 FRONTEND: Matrix invitation passed shouldShow check - ADDING TO UI:', invitationData.roomId);
 
       // Convert Matrix invitation to GooseChatMessage format for UI compatibility
       const collaborationInvite: GooseChatMessage = {
@@ -105,22 +105,76 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
 
     // Listen for Goose messages that could be collaboration opportunities
     const unsubscribeGooseMessages = onGooseMessage((message: GooseChatMessage) => {
+      console.log('🚨 FRONTEND: CollaborationInviteNotification received Goose message:', message);
+      
+      // CRITICAL FIX: Skip collaboration response messages (accept/decline) - these are not new invitations!
+      if (message.type === 'goose.collaboration.accept' || message.type === 'goose.collaboration.decline') {
+        console.log('💬 FRONTEND: Ignoring collaboration response message (not a new invitation):', message.type);
+        return;
+      }
+      
+      // CRITICAL FIX: Ignore old messages from session history (older than 2 minutes)
+      // This prevents spam from historical messages when the app loads
+      const messageAge = Date.now() - message.timestamp.getTime();
+      const twoMinutesInMs = 2 * 60 * 1000;
+      
+      if (messageAge > twoMinutesInMs) {
+        console.log('💬 FRONTEND: Ignoring old message from session history:', {
+          messageId: message.messageId,
+          type: message.type,
+          ageMinutes: Math.round(messageAge / 60000),
+          timestamp: message.timestamp.toISOString()
+        });
+        return;
+      }
+      
       // Only show messages that are not from self
-      if (message.metadata?.isFromSelf) {
-        console.log('💬 Ignoring message from self');
+      const currentUserId = matrixService.client?.getUserId();
+      const isFromSelf = message.metadata?.isFromSelf || (currentUserId && message.sender === currentUserId);
+      
+      if (isFromSelf) {
+        console.log('💬 FRONTEND: Ignoring message from self:', {
+          sender: message.sender,
+          currentUserId,
+          metadataIsFromSelf: message.metadata?.isFromSelf,
+          calculatedIsFromSelf: isFromSelf
+        });
         return;
       }
 
       // Skip notifications for messages from the currently active Matrix room (shared session)
       const activeMatrixRoom = getCurrentActiveMatrixRoom();
       if (activeMatrixRoom && message.roomId === activeMatrixRoom) {
-        console.log('🔔 Skipping collaboration notification for message from active Matrix room:', message.roomId);
+        console.log('🔔 FRONTEND: Skipping collaboration notification for message from active Matrix room:', message.roomId);
         return;
       }
 
       // Handle explicit collaboration invites (but skip Matrix room invitations since they're handled above)
       if (message.type === 'goose.collaboration.invite' && message.metadata?.invitationType !== 'matrix_room') {
-        console.log('🔔 Received collaboration invite notification:', message);
+        console.log('🚨 FRONTEND: Received collaboration invite notification:', message);
+        
+        // CRITICAL: For goose.collaboration.invite messages, check if we're already joined to the Matrix room
+        if (message.roomId && matrixService.client) {
+          const room = matrixService.client.getRoom(message.roomId);
+          const membership = room?.getMyMembership();
+          
+          if (membership === 'join') {
+            console.log('🔔 FRONTEND: Skipping collaboration invite notification - already joined to room:', {
+              roomId: message.roomId,
+              membership,
+              messageId: message.messageId
+            });
+            return;
+          }
+          
+          console.log('🔔 FRONTEND: Collaboration invite for room we are not joined to:', {
+            roomId: message.roomId,
+            membership: membership || 'not found',
+            messageId: message.messageId
+          });
+        }
+        
+        console.log('🚨 FRONTEND: Collaboration invite passed membership check - ADDING TO UI:', message);
         
         // Add to pending invites if not already dismissed
         setPendingInvites(prev => {

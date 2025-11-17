@@ -82,6 +82,7 @@ export class MatrixService extends EventEmitter {
   private cachedCurrentUser: MatrixUser | null = null;
   private cachedFriends: MatrixUser[] | null = null;
   private cachedRooms: MatrixRoom[] | null = null;
+  private isInitialSync = true; // Track if we're in initial sync to prevent startup notifications
 
   constructor(config: MatrixConfig) {
     super();
@@ -407,6 +408,12 @@ export class MatrixService extends EventEmitter {
           console.error('❌ Error during auto-rejoin:', error);
         });
         
+        // Mark initial sync as complete - now we can process new invitations
+        setTimeout(() => {
+          this.isInitialSync = false;
+          console.log('🔄 Initial sync complete - now processing new invitations');
+        }, 2000); // Give 2 seconds for all initial events to settle
+        
         console.log('✅ MatrixService: Sync prepared, emitting ready event');
         this.emit('ready');
       }
@@ -443,7 +450,8 @@ export class MatrixService extends EventEmitter {
         console.log('🎯 Received Matrix room invitation:', {
           roomId: member.roomId,
           inviter: event.getSender(),
-          membership: member.membership
+          membership: member.membership,
+          isInitialSync: this.isInitialSync
         });
         
         // Emit a collaboration invite event for Matrix room invitations
@@ -504,8 +512,18 @@ export class MatrixService extends EventEmitter {
   private handleMatrixRoomInvitation(roomId: string, inviter: string): void {
     console.log('🎯 Processing Matrix room invitation:', {
       roomId,
-      inviter
+      inviter,
+      isInitialSync: this.isInitialSync
     });
+
+    // CRITICAL FIX: Skip processing invitations during initial sync to prevent startup notifications
+    if (this.isInitialSync) {
+      console.log('🎯 Skipping Matrix room invitation during initial sync - will process after sync complete:', {
+        roomId: roomId.substring(0, 20) + '...',
+        inviter,
+      });
+      return;
+    }
 
     // Check if we're already in this room (joined membership)
     const room = this.client?.getRoom(roomId);
