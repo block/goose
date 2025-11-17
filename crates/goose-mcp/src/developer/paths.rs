@@ -33,7 +33,7 @@ async fn get_shell_path_async() -> Result<String> {
         }
     });
 
-    let path_result = {
+    {
         #[cfg(windows)]
         {
             get_windows_path_async(&shell).await
@@ -42,27 +42,25 @@ async fn get_shell_path_async() -> Result<String> {
         {
             get_unix_path_async(&shell).await
         }
-    };
-
-    match path_result {
-        Ok(path) => {
-            tracing::debug!("Retrieved PATH from shell: {}", path);
-            Ok(path)
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Failed to get PATH from shell ({}), falling back to current PATH",
-                e
-            );
-            env::var("PATH").map_err(|_| anyhow::anyhow!("No PATH variable available"))
-        }
     }
+    .or_else(|e| {
+        tracing::warn!(
+            "Failed to get PATH from shell ({}), falling back to current PATH",
+            e
+        );
+        env::var("PATH").map_err(|_| anyhow::anyhow!("No PATH variable available"))
+    })
 }
 
 #[cfg(not(windows))]
 async fn get_unix_path_async(shell: &str) -> Result<String> {
+    let flags = if shell.ends_with("fish") {
+        vec!["-l", "-c"]
+    } else {
+        vec!["-l", "-i", "-c"]
+    };
     let output = Command::new(shell)
-        .args(["-l", "-i", "-c", "echo $PATH"])
+        .args(flags)
         .output()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to execute shell command: {}", e))?;
@@ -94,7 +92,7 @@ async fn get_windows_path_async(shell: &str) -> Result<String> {
     let output = match shell_name {
         "pwsh" | "powershell" => {
             Command::new(shell)
-                .args(["-NoProfile", "-Command", "$env:PATH"])
+                .args(["-NoLogo", "-Command", "$env:PATH"])
                 .output()
                 .await
         }
