@@ -20,6 +20,7 @@ interface MatrixContextType {
   addFriend: (userId: string) => Promise<void>;
   createAISession: (name: string, inviteUserIds?: string[]) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
+  inviteToRoom: (roomId: string, userId: string) => Promise<void>;
   sendMessage: (roomId: string, message: string) => Promise<void>;
   sendAIPrompt: (roomId: string, prompt: string, sessionId: string, model?: string) => Promise<void>;
   setAvatar: (file: File) => Promise<string>;
@@ -204,6 +205,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     // Data will be updated via the membershipChange event
   };
 
+  const inviteToRoom = async (roomId: string, userId: string) => {
+    await matrixService.inviteToRoom(roomId, userId);
+    // Data will be updated via the membershipChange event
+  };
+
   const sendMessage = async (roomId: string, message: string) => {
     await matrixService.sendMessage(roomId, message);
   };
@@ -331,6 +337,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     addFriend,
     createAISession,
     joinRoom,
+    inviteToRoom,
     sendMessage,
     sendAIPrompt,
     setAvatar,
