@@ -35,12 +35,10 @@ struct Skill {
 
 pub struct SkillsClient {
     info: InitializeResult,
-    #[allow(dead_code)]
-    context: PlatformExtensionContext,
 }
 
 impl SkillsClient {
-    pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+    pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -63,7 +61,7 @@ impl SkillsClient {
             instructions: Some(String::new()),
         };
 
-        let mut client = Self { info, context };
+        let mut client = Self { info };
         client.info.instructions = Some(client.generate_instructions());
         Ok(client)
     }
@@ -185,7 +183,10 @@ impl SkillsClient {
 
         let mut instructions = String::from("You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:\n\n");
 
-        for (name, skill) in skills.iter() {
+        let mut skill_list: Vec<_> = skills.iter().collect();
+        skill_list.sort_by_key(|(name, _)| *name);
+
+        for (name, skill) in skill_list {
             instructions.push_str(&format!("- {}: {}\n", name, skill.metadata.description));
         }
 
@@ -408,42 +409,44 @@ description: A test skill
     fn test_discover_skills() {
         let temp_dir = TempDir::new().unwrap();
 
-        let skill1_dir = temp_dir.path().join("skill1");
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+        fs::create_dir_all(temp_dir.path().join("config/skills")).unwrap();
+
+        let skill1_dir = temp_dir.path().join("config/skills/test-skill-one-a1b2c3");
         fs::create_dir(&skill1_dir).unwrap();
         fs::write(
             skill1_dir.join("SKILL.md"),
             r#"---
-name: skill-one
-description: First skill
+name: test-skill-one-a1b2c3
+description: First test skill
 ---
 Body 1
 "#,
         )
         .unwrap();
 
-        let skill2_dir = temp_dir.path().join("skill2");
+        let skill2_dir = temp_dir.path().join("config/skills/test-skill-two-d4e5f6");
         fs::create_dir(&skill2_dir).unwrap();
         fs::write(
             skill2_dir.join("SKILL.md"),
             r#"---
-name: skill-two
-description: Second skill
+name: test-skill-two-d4e5f6
+description: Second test skill
 ---
 Body 2
 "#,
         )
         .unwrap();
 
-        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
-        fs::create_dir_all(temp_dir.path().join("config/skills")).unwrap();
-
-        let skill3_dir = temp_dir.path().join("config/skills/skill3");
+        let skill3_dir = temp_dir
+            .path()
+            .join("config/skills/test-skill-three-g7h8i9");
         fs::create_dir(&skill3_dir).unwrap();
         fs::write(
             skill3_dir.join("SKILL.md"),
             r#"---
-name: skill-three
-description: Third skill
+name: test-skill-three-g7h8i9
+description: Third test skill
 ---
 Body 3
 "#,
@@ -458,8 +461,9 @@ Body 3
         let client = SkillsClient::new(context).unwrap();
         let skills = client.discover_skills();
 
-        assert_eq!(skills.len(), 1);
-        assert!(skills.contains_key("skill-three"));
+        assert!(skills.contains_key("test-skill-one-a1b2c3"));
+        assert!(skills.contains_key("test-skill-two-d4e5f6"));
+        assert!(skills.contains_key("test-skill-three-g7h8i9"));
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }
