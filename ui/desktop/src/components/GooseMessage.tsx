@@ -202,13 +202,11 @@ export default function GooseMessage({
     <div className="goose-message flex w-[90%] justify-start min-w-0 gap-3">
       {/* AI Avatar on the left side */}
       <div className="flex-shrink-0 mt-1">
-        <div className="w-8 h-8 rounded-full bg-background-accent flex items-center justify-center ring-2 ring-green-500 ring-offset-2">
-          <img 
-            src={GooseIcon} 
-            alt="Goose AI" 
-            className="w-6 h-6"
-          />
-        </div>
+        <img 
+          src={GooseIcon} 
+          alt="Goose AI" 
+          className="w-8 h-8"
+        />
       </div>
       
       <div className="flex flex-col w-full min-w-0">
