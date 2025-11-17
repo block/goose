@@ -95,7 +95,7 @@ def parse_date_range(date_input):
     month_year_pattern = r'^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$'
     match = re.match(month_year_pattern, date_input, re.IGNORECASE)
     if match:
-        month_name = match.group(1)
+        month_name = match.group(1).capitalize()
         year = int(match.group(2))
         start_date = datetime.strptime(f"{month_name} 1 {year}", "%B %d %Y")
         last_day = calendar.monthrange(year, start_date.month)[1]
