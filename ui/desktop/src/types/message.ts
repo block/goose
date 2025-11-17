@@ -1,4 +1,4 @@
-import { Message, MessageEvent, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, MessageEvent, ActionRequired, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
@@ -44,10 +44,11 @@ export function getToolResponses(message: Message): (ToolResponse & { type: 'too
 
 export function getToolConfirmationContent(
   message: Message
-): (ToolConfirmationRequest & { type: 'toolConfirmationRequest' }) | undefined {
+): (ActionRequired & { type: 'actionRequired' }) | undefined {
+  console.log(message.content);
   return message.content.find(
-    (content): content is ToolConfirmationRequest & { type: 'toolConfirmationRequest' } =>
-      content.type === 'toolConfirmationRequest'
+    (content): content is ActionRequired & { type: 'actionRequired' } =>
+      content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
   );
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { snakeToTitleCase } from '../utils';
 import PermissionModal from './settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
-import { confirmPermission, ToolConfirmationRequest } from '../api';
+import { confirmToolAction, ActionRequired } from '../api';
 import { Button } from './ui/button';
 
 const ALLOW_ONCE = 'allow_once';
@@ -24,16 +24,16 @@ interface ToolConfirmationProps {
   sessionId: string;
   isCancelledMessage: boolean;
   isClicked: boolean;
-  toolConfirmationContent: ToolConfirmationRequest & { type: 'toolConfirmationRequest' };
+  actionRequiredContent: ActionRequired & { type: 'actionRequired' };
 }
 
 export default function ToolConfirmation({
   sessionId,
   isCancelledMessage,
   isClicked,
-  toolConfirmationContent,
+  actionRequiredContent,
 }: ToolConfirmationProps) {
-  const { id: toolConfirmationId, toolName, prompt } = toolConfirmationContent;
+  const { id: toolConfirmationId, tool_name: toolName, prompt } = actionRequiredContent.data;
 
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
@@ -96,19 +96,19 @@ export default function ToolConfirmation({
     });
 
     try {
-      const response = await confirmPermission({
+      const response = await confirmToolAction({
         body: {
-          session_id: sessionId,
+          sessionId: sessionId,
           id: toolConfirmationId,
           action: newStatus,
-          principal_type: 'Tool',
+          principalType: 'Tool',
         },
       });
       if (response.error) {
-        console.error('Failed to confirm permission:', response.error);
+        console.error('Failed to confirm tool action:', response.error);
       }
     } catch (err) {
-      console.error('Error confirming permission:', err);
+      console.error('Error confirming tool action:', err);
     }
   };
 
