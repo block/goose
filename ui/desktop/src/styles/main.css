@@ -767,3 +767,34 @@ p > code.bg-inline-code {
 .animate-shimmer {
   animation: shimmer 6s ease-in-out infinite;
 }
+
+/* KaTeX Math Rendering */
+
+.prose .katex {
+  font-size: 1.05em;
+  color: inherit;
+}
+
+.katex-display {
+  margin: 0.75em 0;
+  padding: 1em;
+  background-color: var(--background-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  text-align: center;
+}
+
+.katex-display .katex {
+  color: var(--color-neutral-800);
+}
+
+.dark .katex-display .katex {
+  color: #e6e6e6;
+}
+
+.katex-error {
+  color: var(--text-danger);
+}
