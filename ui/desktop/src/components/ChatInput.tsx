@@ -40,6 +40,7 @@ import SessionSharing from './collaborative/SessionSharing';
 import { CollaborativeButton } from './collaborative';
 import EnhancedMentionPopover from './EnhancedMentionPopover';
 import { useMatrix } from '../contexts/MatrixContext';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 // Force rebuild timestamp: 2025-01-15T01:00:00Z - All .length errors fixed
 
@@ -354,16 +355,23 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // Simple Matrix detection: if sessionId looks like a Matrix room ID, it's a Matrix chat
-  const isMatrixRoom = sessionId && sessionId.startsWith('!');
+  // Import session mapping service
+  const { sessionMappingService } = await import('../services/SessionMappingService');
+  
+  // Check if this session is mapped from a Matrix room
+  const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
+  const isMatrixRoom = sessionId && (sessionId.startsWith('!') || matrixRoomId !== null);
+  
+  // Get the actual Matrix room ID for useSessionSharing
+  const actualMatrixRoomId = sessionId && sessionId.startsWith('!') ? sessionId : matrixRoomId;
   
   // Get Matrix context for current user information
   const { currentUser } = useMatrix();
   
-  // Session sharing hook - simplified approach for Matrix rooms
+  // Session sharing hook - use actual Matrix room ID for Matrix sessions
   const sessionSharing = useSessionSharing({
-    sessionId: sessionId, // Use the sessionId as-is (Matrix room ID or regular session ID)
-    sessionTitle: isMatrixRoom && sessionId ? `Matrix Room ${sessionId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
+    sessionId: actualMatrixRoomId || sessionId, // Use Matrix room ID for Matrix sessions, otherwise use sessionId
+    sessionTitle: isMatrixRoom && actualMatrixRoomId ? `Matrix Room ${actualMatrixRoomId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
     messages: messages, // Always sync messages
     onMessageSync: (message) => {
       console.log('💬 ChatInput: *** RECEIVED MESSAGE FROM useSessionSharing ***', message);
@@ -402,7 +410,7 @@ export default function ChatInput({
         console.warn('⚠️ ChatInput: *** APPEND FUNCTION IS NOT AVAILABLE! ***');
       }
     },
-    initialRoomId: isMatrixRoom ? sessionId : null, // Pass Matrix room ID if it's a Matrix room
+    initialRoomId: isMatrixRoom ? actualMatrixRoomId : null, // Pass actual Matrix room ID if it's a Matrix room
     onParticipantJoin: (participant) => {
       console.log('👥 Participant joined session:', participant);
     },
