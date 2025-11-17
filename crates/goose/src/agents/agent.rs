@@ -69,9 +69,9 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
-/// Maximum number of turns a directory context can be idle before pruning
-/// Can be overridden with DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS environment variable
-const DEFAULT_MAX_IDLE_TURNS: u32 = 10;
+/// Maximum number of turns a directory hint can be idle before pruning
+/// Can be overridden with GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS environment variable
+const DEFAULT_MAX_IDLE_TURNS: u32 = 3;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -1468,7 +1468,7 @@ impl Agent {
         };
 
         // Get max idle turns from environment or use default
-        let max_idle_turns = std::env::var("DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS")
+        let max_idle_turns = std::env::var("GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
             .unwrap_or(DEFAULT_MAX_IDLE_TURNS);
