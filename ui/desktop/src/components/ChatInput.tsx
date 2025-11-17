@@ -1522,6 +1522,36 @@ export default function ChatInput({
   const handleFriendInvite = async (friendUserId: string) => {
     console.log('👥 handleFriendInvite called with:', friendUserId);
     
+    // Handle special case for "goose" mention
+    if (friendUserId === 'goose') {
+      console.log('🦆 Handling @goose mention for AI reinitialization');
+      
+      // Replace the @ mention with @goose
+      const mentionText = '@goose';
+      const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
+      const afterMention = displayValue.slice(
+        mentionPopover.mentionStart + 1 + mentionPopover.query.length
+      );
+      const newValue = `${beforeMention}${mentionText} ${afterMention}`;
+
+      setDisplayValue(newValue);
+      setValue(newValue);
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+      textAreaRef.current?.focus();
+
+      // Set cursor position after the inserted mention and space
+      const newCursorPosition = beforeMention.length + mentionText.length + 1;
+      setTimeout(() => {
+        if (textAreaRef.current) {
+          textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+          textAreaRef.current.focus();
+        }
+      }, 0);
+      
+      console.log('✅ Successfully added @goose mention');
+      return;
+    }
+    
     try {
       // Invite the friend to the current session
       await sessionSharing.inviteToSession(friendUserId);

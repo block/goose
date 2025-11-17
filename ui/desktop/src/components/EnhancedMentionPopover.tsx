@@ -80,9 +80,23 @@ const EnhancedMentionPopover = forwardRef<
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Combine friends and files into mention items
+  // Combine friends, goose, and files into mention items
   const mentionItems = useMemo((): MentionItem[] => {
     const items: MentionItem[] = [];
+    
+    // Add "goose" as a special mention for AI reinitialization
+    const gooseScore = fuzzyMatch(query, 'goose');
+    if (gooseScore > 0 || !query.trim()) {
+      items.push({
+        id: 'goose',
+        type: 'friend', // Use friend type for consistent styling
+        name: 'goose',
+        displayText: 'goose',
+        secondaryText: 'Reinitialize AI assistance',
+        userId: 'goose',
+        matchScore: gooseScore + 100, // Highest priority for goose
+      });
+    }
     
     // Add friends (prioritize if connected)
     if (isConnected && friends.length > 0) {
@@ -237,9 +251,15 @@ const EnhancedMentionPopover = forwardRef<
                   {/* Icon */}
                   <div className="flex-shrink-0">
                     {item.type === 'friend' ? (
-                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                        <Users className="w-3 h-3 text-white" />
-                      </div>
+                      item.userId === 'goose' ? (
+                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">🦆</span>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                          <Users className="w-3 h-3 text-white" />
+                        </div>
+                      )
                     ) : (
                       <div className="w-6 h-6 flex items-center justify-center">
                         <FileIcon fileName={item.name} isDirectory={false} />
@@ -266,9 +286,11 @@ const EnhancedMentionPopover = forwardRef<
                     <div className={`text-xs px-2 py-1 rounded ${
                       index === selectedIndex 
                         ? 'bg-text-on-accent/20 text-text-on-accent' 
-                        : 'bg-blue-100 text-blue-600'
+                        : item.userId === 'goose' 
+                          ? 'bg-green-100 text-green-600' 
+                          : 'bg-blue-100 text-blue-600'
                     }`}>
-                      Invite
+                      {item.userId === 'goose' ? 'Mention' : 'Invite'}
                     </div>
                   )}
                 </div>
