@@ -31,7 +31,7 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+    check_if_compaction_needed, compact_messages, BasePromptTooLargeError, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -907,6 +907,7 @@ impl Agent {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let mut consecutive_compactions = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -971,6 +972,9 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
+                            // Reset consecutive compactions counter on successful response
+                            consecutive_compactions = 0;
+
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
@@ -1150,6 +1154,25 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                            // Check if we've been compacting too many times in a row
+                            consecutive_compactions += 1;
+                            warn!("Context limit exceeded. Consecutive compactions: {}", consecutive_compactions);
+
+                            if consecutive_compactions > 2 {
+                                error!("Compaction doom loop detected: compacted {} times without progress", consecutive_compactions - 1);
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Unable to continue: Even after {} compaction attempts, the context still exceeds the model's limit.\n\n\
+                                         This indicates that your message or the system prompt is too large for the configured model.\n\n\
+                                         Please try:\n\
+                                         - Using a shorter message\n\
+                                         - Configuring a model with a larger context window\n\
+                                         - Starting a new session", consecutive_compactions - 1)
+                                    )
+                                );
+                                break;
+                            }
+
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1173,12 +1196,28 @@ impl Agent {
                                     continue;
                                 }
                                 Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        )
-                                    );
+                                    // Check if this is the specific error for base prompt being too large
+                                    if e.downcast_ref::<BasePromptTooLargeError>().is_some() {
+                                        error!("Base prompt too large for context window");
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                "Unable to continue: Your message or the system prompt is too large for the configured model's context window.\n\n\
+                                                 Even after attempting to compact the conversation history by removing all tool outputs, \
+                                                 the remaining context still exceeds the model's limit.\n\n\
+                                                 Please try:\n\
+                                                 - Using a shorter message\n\
+                                                 - Configuring a model with a larger context window\n\
+                                                 - Starting a new session"
+                                            )
+                                        );
+                                    } else {
+                                        error!("Error: {}", e);
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                            )
+                                        );
+                                    }
                                     break;
                                 }
                             }

@@ -12,6 +12,11 @@ use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+/// Error type for when compaction fails because the base prompt is too large
+#[derive(Debug, thiserror::Error)]
+#[error("Unable to compact conversation: context limit exceeded even after removing all tool responses. Your message or system prompt is too large for the configured model.")]
+pub struct BasePromptTooLargeError;
+
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "The previous message contains a summary that was prepared because a context limit was reached.
 Do not mention that you read a summary or that conversation summarization occurred.
@@ -319,10 +324,9 @@ async fn do_compact(
                     if attempt < removal_percentages.len() - 1 {
                         continue;
                     } else {
-                        return Err(anyhow::anyhow!(
-                            "Failed to compact messages: context length still exceeded after {} attempts with maximum removal",
-                            removal_percentages.len()
-                        ));
+                        // We've exhausted all attempts including 100% tool response removal
+                        // This means the base prompt (system + messages without tool responses) is too large
+                        return Err(BasePromptTooLargeError.into());
                     }
                 }
                 return Err(e.into());
