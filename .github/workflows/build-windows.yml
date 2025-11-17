@@ -80,7 +80,7 @@ jobs:
           $env:CARGO_INCREMENTAL = "1"
 
           Write-Host "Building goose-cli..."
-          cargo build --release -p goose-cli --verbose
+          cargo build --release -p goose-cli
 
           if (Test-Path "target/release/goose.exe") {
             Write-Host "✅ goose.exe built successfully"
