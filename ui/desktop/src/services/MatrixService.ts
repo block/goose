@@ -398,6 +398,10 @@ export class MatrixService extends EventEmitter {
       if (state === 'PREPARED') {
         // Clear all caches when sync is prepared to get fresh data
         this.clearAllCaches();
+        
+        // Clean up invite states for rooms we're already in
+        this.cleanupJoinedRoomInvites();
+        
         console.log('✅ MatrixService: Sync prepared, emitting ready event');
         this.emit('ready');
       }
@@ -494,6 +498,19 @@ export class MatrixService extends EventEmitter {
       roomId,
       inviter
     });
+
+    // Check if we're already in this room (joined membership)
+    const room = this.client?.getRoom(roomId);
+    if (room && room.getMyMembership() === 'join') {
+      console.log('🎯 Skipping Matrix room invitation - already joined this room:', {
+        roomId,
+        membership: room.getMyMembership(),
+      });
+      
+      // Mark as accepted in invite state service to prevent future notifications
+      matrixInviteStateService.acceptInvite(roomId);
+      return;
+    }
 
     // Get inviter information
     const inviterUser = this.client?.getUser(inviter);
@@ -1750,6 +1767,33 @@ export class MatrixService extends EventEmitter {
         isFromSelf: msg.isFromSelf,
       },
     }));
+  }
+
+  /**
+   * Clean up invite states for rooms we're already joined to
+   */
+  private cleanupJoinedRoomInvites(): void {
+    if (!this.client) return;
+
+    console.log('🧹 Cleaning up invite states for joined rooms...');
+    
+    const allInviteStates = matrixInviteStateService.getAllInviteStates();
+    let cleanedCount = 0;
+
+    allInviteStates.forEach(inviteState => {
+      if (inviteState.status === 'pending') {
+        const room = this.client?.getRoom(inviteState.roomId);
+        if (room && room.getMyMembership() === 'join') {
+          console.log('🧹 Marking joined room as accepted:', inviteState.roomId);
+          matrixInviteStateService.acceptInvite(inviteState.roomId);
+          cleanedCount++;
+        }
+      }
+    });
+
+    if (cleanedCount > 0) {
+      console.log(`🧹 Cleaned up ${cleanedCount} invite states for joined rooms`);
+    }
   }
 
   /**
