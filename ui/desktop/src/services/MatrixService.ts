@@ -917,6 +917,9 @@ export class MatrixService extends EventEmitter {
       await this.client.joinRoom(roomId);
       console.log('✅ Successfully joined room:', roomId);
       
+      // Mark the invite state as accepted
+      matrixInviteStateService.acceptInvite(roomId);
+      
       // Clear caches to refresh room data
       this.cachedRooms = null;
       this.cachedFriends = null;
@@ -1905,6 +1908,9 @@ export class MatrixService extends EventEmitter {
                 await this.client.joinRoom(matrixRoomId);
                 rejoinedCount++;
                 console.log(`✅ Successfully rejoined room: ${matrixRoomId.substring(0, 20)}...`);
+                
+                // Mark the invite state as accepted since we successfully rejoined
+                matrixInviteStateService.markAutoJoined(matrixRoomId);
               } catch (joinError: any) {
                 failedCount++;
                 console.warn(`❌ Failed to rejoin room ${matrixRoomId.substring(0, 20)}...:`, joinError.message);
@@ -1951,6 +1957,7 @@ export class MatrixService extends EventEmitter {
 
   /**
    * Clean up invite states for rooms we're already joined to
+   * This is critical for preventing duplicate invite notifications
    */
   private cleanupJoinedRoomInvites(): void {
     if (!this.client) return;
@@ -1958,21 +1965,57 @@ export class MatrixService extends EventEmitter {
     console.log('🧹 Cleaning up invite states for joined rooms...');
     
     const allInviteStates = matrixInviteStateService.getAllInviteStates();
+    const pendingInvites = allInviteStates.filter(state => state.status === 'pending');
+    
+    console.log(`🧹 Found ${allInviteStates.length} total invite states, ${pendingInvites.length} pending`);
+    
     let cleanedCount = 0;
+    let alreadyJoinedCount = 0;
 
-    allInviteStates.forEach(inviteState => {
-      if (inviteState.status === 'pending') {
-        const room = this.client?.getRoom(inviteState.roomId);
-        if (room && room.getMyMembership() === 'join') {
-          console.log('🧹 Marking joined room as accepted:', inviteState.roomId);
-          matrixInviteStateService.acceptInvite(inviteState.roomId);
-          cleanedCount++;
+    // Check all pending invites to see if we're already in those rooms
+    pendingInvites.forEach(inviteState => {
+      const room = this.client?.getRoom(inviteState.roomId);
+      const currentMembership = room?.getMyMembership();
+      
+      console.log(`🧹 Checking invite state for room ${inviteState.roomId.substring(0, 20)}... - membership: ${currentMembership}`);
+      
+      if (room && currentMembership === 'join') {
+        console.log(`🧹 Marking joined room as accepted: ${inviteState.roomId.substring(0, 20)}...`);
+        matrixInviteStateService.acceptInvite(inviteState.roomId);
+        cleanedCount++;
+      } else if (room && (currentMembership === 'leave' || currentMembership === 'ban')) {
+        // If we've left or been banned, mark as declined to prevent showing
+        console.log(`🧹 Marking left/banned room as declined: ${inviteState.roomId.substring(0, 20)}... (${currentMembership})`);
+        matrixInviteStateService.declineInvite(inviteState.roomId);
+        cleanedCount++;
+      } else if (!room) {
+        // Room doesn't exist in our client, might be old or we never joined
+        console.log(`🧹 Room not found in client: ${inviteState.roomId.substring(0, 20)}... - keeping as pending`);
+      }
+    });
+
+    // Also check all rooms we're currently in to ensure their invite states are marked as accepted
+    const currentRooms = this.client.getRooms();
+    currentRooms.forEach(room => {
+      if (room.getMyMembership() === 'join') {
+        const inviteState = matrixInviteStateService.getInviteState(room.roomId);
+        if (inviteState && inviteState.status === 'pending') {
+          console.log(`🧹 Found joined room with pending invite state, marking as accepted: ${room.roomId.substring(0, 20)}...`);
+          matrixInviteStateService.acceptInvite(room.roomId);
+          alreadyJoinedCount++;
         }
       }
     });
 
-    if (cleanedCount > 0) {
-      console.log(`🧹 Cleaned up ${cleanedCount} invite states for joined rooms`);
+    const totalCleaned = cleanedCount + alreadyJoinedCount;
+    if (totalCleaned > 0) {
+      console.log(`🧹 Cleaned up ${totalCleaned} invite states (${cleanedCount} from pending list, ${alreadyJoinedCount} from current rooms)`);
+      
+      // Log final statistics
+      const stats = matrixInviteStateService.getInviteStats();
+      console.log('🧹 Final invite state statistics:', stats);
+    } else {
+      console.log('🧹 No invite states needed cleanup');
     }
   }
 
