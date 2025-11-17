@@ -238,11 +238,20 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let description = provider.generate_session_name(&conversation).await?;
-            Self::update_session(id)
-                .description(description)
-                .apply()
-                .await
+            // Make session description generation non-blocking by catching and logging errors
+            match provider.generate_session_name(&conversation).await {
+                Ok(description) => {
+                    Self::update_session(id)
+                        .description(description)
+                        .apply()
+                        .await
+                }
+                Err(e) => {
+                    // Log the error but don't fail the session creation/update
+                    warn!("Failed to generate session description for session {}: {}. Continuing without description.", id, e);
+                    Ok(())
+                }
+            }
         } else {
             Ok(())
         }
