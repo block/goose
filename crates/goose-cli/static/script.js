@@ -519,6 +519,13 @@ function getQueryParam() {
     const queryParam = urlParams.get('q');
     if (queryParam) {
         messageInput.value = queryParam;
+        urlParams.delete('q');
+        
+        let newUrl = window.location.pathname;
+        if (urlParams.toString()) {
+            newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+        }
+        window.history.replaceState({}, '', newUrl);
     }
 }
 
