@@ -72,7 +72,6 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
             }
         }
     }
-
     extensions_map
 }
 
