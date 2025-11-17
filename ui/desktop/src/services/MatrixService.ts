@@ -430,6 +430,9 @@ export class MatrixService extends EventEmitter {
         this.cachedCurrentUser = null;
       }
       
+      // Update Matrix room state tracking
+      this.updateMatrixRoomStateFromMembership(member.roomId, member, event);
+      
       // Handle Matrix room invitations for collaboration
       if (member.userId === this.config.userId && member.membership === 'invite') {
         console.log('🎯 Received Matrix room invitation:', {
@@ -1767,6 +1770,81 @@ export class MatrixService extends EventEmitter {
         isFromSelf: msg.isFromSelf,
       },
     }));
+  }
+
+  /**
+   * Update Matrix room state tracking from membership events
+   */
+  private updateMatrixRoomStateFromMembership(roomId: string, member: any, event: any): void {
+    if (!this.client) return;
+
+    try {
+      const room = this.client.getRoom(roomId);
+      if (!room) return;
+
+      // Get room information
+      const roomName = room.name;
+      const roomTopic = room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic;
+      const members = room.getMembers();
+      const memberCount = members.length;
+      const isDirectMessage = memberCount === 2;
+      const isEncrypted = room.hasEncryptionStateEvent();
+
+      // Update room metadata
+      sessionMappingService.updateMatrixRoomMetadata(roomId, {
+        name: roomName,
+        topic: roomTopic,
+        memberCount,
+        isDirectMessage,
+        isEncrypted,
+        lastActivity: Date.now(),
+      });
+
+      // Get member information
+      const memberUser = this.client.getUser(member.userId);
+      const memberInfo = {
+        userId: member.userId,
+        displayName: member.name || memberUser?.displayName || member.userId.split(':')[0].substring(1),
+        avatarUrl: member.getMxcAvatarUrl() || memberUser?.avatarUrl || null,
+        joinedAt: member.membership === 'join' ? Date.now() : (member.events?.member?.getTs() || Date.now()),
+        leftAt: member.membership === 'leave' ? Date.now() : undefined,
+        membership: member.membership,
+        lastActivity: Date.now(),
+      };
+
+      // Determine the event type
+      let eventType: 'join' | 'leave' | 'invite' | 'kick' | 'ban' = 'join';
+      if (member.membership === 'leave') {
+        // Check if this was a kick/ban or voluntary leave
+        const prevMembership = event.getPrevContent()?.membership;
+        if (prevMembership === 'join' || prevMembership === 'invite') {
+          eventType = event.getSender() === member.userId ? 'leave' : 'kick';
+        }
+      } else if (member.membership === 'invite') {
+        eventType = 'invite';
+      } else if (member.membership === 'ban') {
+        eventType = 'ban';
+      }
+
+      // Update participant information
+      sessionMappingService.updateMatrixParticipant(
+        roomId,
+        memberInfo,
+        eventType,
+        event.getSender()
+      );
+
+      console.log('📋 Updated Matrix room state from membership event:', {
+        roomId: roomId.substring(0, 20) + '...',
+        userId: member.userId,
+        membership: member.membership,
+        eventType,
+        memberCount,
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to update Matrix room state from membership:', error);
+    }
   }
 
   /**

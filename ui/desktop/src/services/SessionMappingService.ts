@@ -7,13 +7,52 @@
  * - The mapping ensures both systems work harmoniously
  */
 
+export interface MatrixRoomParticipant {
+  userId: string;
+  displayName?: string;
+  avatarUrl?: string;
+  joinedAt: number;
+  leftAt?: number;
+  membership: 'join' | 'leave' | 'invite' | 'ban' | 'knock';
+  lastActivity?: number;
+}
+
+export interface MatrixRoomMetadata {
+  name?: string;
+  topic?: string;
+  avatarUrl?: string;
+  memberCount: number;
+  isDirectMessage: boolean;
+  isEncrypted: boolean;
+  roomType?: string;
+  createdAt?: number;
+  lastActivity?: number;
+}
+
+export interface MatrixRoomState {
+  roomId: string;
+  metadata: MatrixRoomMetadata;
+  participants: Map<string, MatrixRoomParticipant>;
+  membershipHistory: Array<{
+    userId: string;
+    membership: string;
+    timestamp: number;
+    event: 'join' | 'leave' | 'invite' | 'kick' | 'ban';
+    inviter?: string;
+  }>;
+  lastSyncAt: number;
+}
+
 export interface SessionMapping {
   matrixRoomId: string;
   gooseSessionId: string;
   createdAt: number;
   lastUsed: number;
-  participants: string[]; // Matrix user IDs
+  participants: string[]; // Matrix user IDs - kept for backward compatibility
   title?: string;
+  // Enhanced Matrix room state tracking
+  roomState?: MatrixRoomState;
+  isMatrixCollaborative: boolean;
 }
 
 export class SessionMappingService {
@@ -57,6 +96,7 @@ export class SessionMappingService {
       lastUsed: now,
       participants,
       title,
+      isMatrixCollaborative: false, // Will be set to true when room state is updated
     };
 
     this.mappings.set(matrixRoomId, mapping);
@@ -116,6 +156,7 @@ export class SessionMappingService {
         lastUsed: now,
         participants,
         title,
+        isMatrixCollaborative: false, // Will be set to true when room state is updated
       };
 
       this.mappings.set(matrixRoomId, mapping);
@@ -307,7 +348,14 @@ export class SessionMappingService {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const data = JSON.parse(stored);
-        this.mappings = new Map(Object.entries(data));
+        
+        // Deserialize each mapping to handle Map objects
+        const deserializedEntries = Object.entries(data).map(([key, value]) => [
+          key,
+          this.deserializeMapping(value as any),
+        ]);
+        
+        this.mappings = new Map(deserializedEntries);
         console.log(`📋 SessionMappingService: Loaded ${this.mappings.size} mappings from storage`);
         
         // Clean up old mappings on load
@@ -324,11 +372,203 @@ export class SessionMappingService {
    */
   private saveMappingsToStorage(): void {
     try {
-      const data = Object.fromEntries(this.mappings.entries());
+      // Serialize each mapping to handle Map objects
+      const serializedEntries = Array.from(this.mappings.entries()).map(([key, value]) => [
+        key,
+        this.serializeMapping(value),
+      ]);
+      
+      const data = Object.fromEntries(serializedEntries);
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('📋 SessionMappingService: Error saving mappings to storage:', error);
     }
+  }
+
+  /**
+   * Update Matrix room state for a session mapping
+   */
+  public updateMatrixRoomState(matrixRoomId: string, roomState: Partial<MatrixRoomState>): void {
+    const mapping = this.mappings.get(matrixRoomId);
+    if (mapping) {
+      // Initialize room state if it doesn't exist
+      if (!mapping.roomState) {
+        mapping.roomState = {
+          roomId: matrixRoomId,
+          metadata: {
+            memberCount: 0,
+            isDirectMessage: false,
+            isEncrypted: false,
+          },
+          participants: new Map(),
+          membershipHistory: [],
+          lastSyncAt: Date.now(),
+        };
+      }
+
+      // Merge the provided room state
+      mapping.roomState = {
+        ...mapping.roomState,
+        ...roomState,
+        lastSyncAt: Date.now(),
+      };
+
+      mapping.isMatrixCollaborative = true;
+      mapping.lastUsed = Date.now();
+      this.saveMappingsToStorage();
+
+      console.log('📋 SessionMappingService: Updated Matrix room state:', {
+        matrixRoomId,
+        memberCount: mapping.roomState.metadata.memberCount,
+        participantCount: mapping.roomState.participants.size,
+      });
+    }
+  }
+
+  /**
+   * Add or update a participant in a Matrix room
+   */
+  public updateMatrixParticipant(
+    matrixRoomId: string,
+    participant: MatrixRoomParticipant,
+    event?: 'join' | 'leave' | 'invite' | 'kick' | 'ban',
+    inviter?: string
+  ): void {
+    const mapping = this.mappings.get(matrixRoomId);
+    if (mapping) {
+      // Initialize room state if needed
+      if (!mapping.roomState) {
+        this.updateMatrixRoomState(matrixRoomId, {});
+      }
+
+      // Update participant
+      mapping.roomState!.participants.set(participant.userId, participant);
+
+      // Add to membership history if event is provided
+      if (event) {
+        mapping.roomState!.membershipHistory.push({
+          userId: participant.userId,
+          membership: participant.membership,
+          timestamp: Date.now(),
+          event,
+          inviter,
+        });
+      }
+
+      // Update member count
+      const activeMembers = Array.from(mapping.roomState!.participants.values())
+        .filter(p => p.membership === 'join').length;
+      mapping.roomState!.metadata.memberCount = activeMembers;
+
+      mapping.lastUsed = Date.now();
+      this.saveMappingsToStorage();
+
+      console.log('📋 SessionMappingService: Updated Matrix participant:', {
+        matrixRoomId,
+        userId: participant.userId,
+        membership: participant.membership,
+        event,
+        activeMembers,
+      });
+    }
+  }
+
+  /**
+   * Update Matrix room metadata
+   */
+  public updateMatrixRoomMetadata(matrixRoomId: string, metadata: Partial<MatrixRoomMetadata>): void {
+    const mapping = this.mappings.get(matrixRoomId);
+    if (mapping) {
+      // Initialize room state if needed
+      if (!mapping.roomState) {
+        this.updateMatrixRoomState(matrixRoomId, {});
+      }
+
+      // Merge metadata
+      mapping.roomState!.metadata = {
+        ...mapping.roomState!.metadata,
+        ...metadata,
+      };
+
+      mapping.lastUsed = Date.now();
+      this.saveMappingsToStorage();
+
+      console.log('📋 SessionMappingService: Updated Matrix room metadata:', {
+        matrixRoomId,
+        name: metadata.name,
+        topic: metadata.topic,
+        memberCount: metadata.memberCount,
+      });
+    }
+  }
+
+  /**
+   * Get Matrix room state for a session
+   */
+  public getMatrixRoomState(matrixRoomId: string): MatrixRoomState | null {
+    const mapping = this.mappings.get(matrixRoomId);
+    return mapping?.roomState || null;
+  }
+
+  /**
+   * Check if a session is a Matrix collaborative session
+   */
+  public isMatrixCollaborativeSession(sessionId: string): boolean {
+    if (SessionMappingService.isMatrixRoomId(sessionId)) {
+      const mapping = this.mappings.get(sessionId);
+      return mapping?.isMatrixCollaborative || false;
+    }
+    
+    // Check if this is a Goose session ID that maps to a Matrix room
+    const matrixRoomId = this.getMatrixRoomId(sessionId);
+    if (matrixRoomId) {
+      const mapping = this.mappings.get(matrixRoomId);
+      return mapping?.isMatrixCollaborative || false;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Get all Matrix collaborative sessions
+   */
+  public getMatrixCollaborativeSessions(): SessionMapping[] {
+    return Array.from(this.mappings.values())
+      .filter(mapping => mapping.isMatrixCollaborative);
+  }
+
+  /**
+   * Serialize Map objects for storage (Maps don't serialize to JSON by default)
+   */
+  private serializeMapping(mapping: SessionMapping): any {
+    if (!mapping.roomState) {
+      return mapping;
+    }
+
+    return {
+      ...mapping,
+      roomState: {
+        ...mapping.roomState,
+        participants: Array.from(mapping.roomState.participants.entries()),
+      },
+    };
+  }
+
+  /**
+   * Deserialize Map objects from storage
+   */
+  private deserializeMapping(data: any): SessionMapping {
+    if (!data.roomState || !data.roomState.participants) {
+      return data;
+    }
+
+    return {
+      ...data,
+      roomState: {
+        ...data.roomState,
+        participants: new Map(data.roomState.participants),
+      },
+    };
   }
 
   /**

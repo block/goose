@@ -10,6 +10,10 @@ import {
   Target,
   LoaderCircle,
   AlertCircle,
+  Users,
+  Hash,
+  Clock,
+  ExternalLink,
 } from 'lucide-react';
 import { resumeSession } from '../../sessions';
 import { Button } from '../ui/button';
@@ -34,6 +38,8 @@ import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Session } from '../../api';
 import { convertApiMessageToFrontendMessage } from '../context_management';
+import { sessionMappingService, SessionMappingService } from '../../services/SessionMappingService';
+import { matrixService } from '../../services/MatrixService';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -45,6 +51,184 @@ const isUserMessage = (message: Message): boolean => {
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
   return messages;
+};
+
+// Matrix Collaboration Info Component
+const MatrixCollaborationInfo: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+  const [matrixRoomState, setMatrixRoomState] = useState<any>(null);
+  const [matrixRoomId, setMatrixRoomId] = useState<string | null>(null);
+  const [isRejoining, setIsRejoining] = useState(false);
+
+  useEffect(() => {
+    // Check if this session is associated with a Matrix room
+    const checkMatrixAssociation = () => {
+      // First check if this is a Matrix room ID directly
+      if (SessionMappingService.isMatrixRoomId(sessionId)) {
+        const roomState = sessionMappingService.getMatrixRoomState(sessionId);
+        setMatrixRoomId(sessionId);
+        setMatrixRoomState(roomState);
+      } else {
+        // Check if this Goose session ID maps to a Matrix room
+        const roomId = sessionMappingService.getMatrixRoomId(sessionId);
+        if (roomId) {
+          const roomState = sessionMappingService.getMatrixRoomState(roomId);
+          setMatrixRoomId(roomId);
+          setMatrixRoomState(roomState);
+        }
+      }
+    };
+
+    checkMatrixAssociation();
+  }, [sessionId]);
+
+  const handleRejoinRoom = async () => {
+    if (!matrixRoomId) return;
+
+    setIsRejoining(true);
+    try {
+      await matrixService.joinRoom(matrixRoomId);
+      toast.success('Successfully rejoined Matrix room!');
+      
+      // Refresh room state after joining
+      const updatedRoomState = sessionMappingService.getMatrixRoomState(matrixRoomId);
+      setMatrixRoomState(updatedRoomState);
+    } catch (error) {
+      console.error('Failed to rejoin Matrix room:', error);
+      toast.error(`Failed to rejoin room: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsRejoining(false);
+    }
+  };
+
+  const getCurrentMembership = () => {
+    if (!matrixRoomId) return null;
+    
+    try {
+      const room = (matrixService as any).client?.getRoom(matrixRoomId);
+      return room?.getMyMembership() || 'unknown';
+    } catch (error) {
+      return 'unknown';
+    }
+  };
+
+  const isCurrentlyJoined = getCurrentMembership() === 'join';
+
+  if (!matrixRoomState || !matrixRoomId) {
+    return null; // Not a Matrix collaborative session
+  }
+
+  const { metadata, participants, membershipHistory } = matrixRoomState;
+  const participantList = Array.from(participants.values());
+  const activeParticipants = participantList.filter(p => p.membership === 'join');
+
+  return (
+    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-2">
+          <Hash className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-lg font-medium text-blue-900 dark:text-blue-100">
+            Matrix Collaboration
+          </h3>
+        </div>
+        {!isCurrentlyJoined && (
+          <Button
+            onClick={handleRejoinRoom}
+            disabled={isRejoining}
+            size="sm"
+            variant="outline"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-600 dark:text-blue-300 dark:hover:bg-blue-800"
+          >
+            {isRejoining ? (
+              <>
+                <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
+                Rejoining...
+              </>
+            ) : (
+              <>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Rejoin Room
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {/* Room Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <div className="flex items-center space-x-2 text-blue-800 dark:text-blue-200">
+              <Hash className="w-4 h-4" />
+              <span className="font-medium">Room:</span>
+            </div>
+            <p className="text-blue-700 dark:text-blue-300 ml-6 font-mono text-xs">
+              {metadata.name || matrixRoomId.substring(1, 20) + '...'}
+            </p>
+            {metadata.topic && (
+              <p className="text-blue-600 dark:text-blue-400 ml-6 text-xs mt-1">
+                {metadata.topic}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center space-x-2 text-blue-800 dark:text-blue-200">
+              <Users className="w-4 h-4" />
+              <span className="font-medium">Participants:</span>
+            </div>
+            <p className="text-blue-700 dark:text-blue-300 ml-6">
+              {activeParticipants.length} active ({participantList.length} total)
+            </p>
+          </div>
+        </div>
+
+        {/* Membership Status */}
+        <div className="flex items-center space-x-2 text-sm">
+          <div className={`w-2 h-2 rounded-full ${
+            isCurrentlyJoined 
+              ? 'bg-green-500' 
+              : 'bg-yellow-500'
+          }`} />
+          <span className="text-blue-800 dark:text-blue-200">
+            Status: {isCurrentlyJoined ? 'Joined' : 'Not joined'}
+          </span>
+        </div>
+
+        {/* Participants List */}
+        {activeParticipants.length > 0 && (
+          <div>
+            <div className="flex items-center space-x-2 text-sm text-blue-800 dark:text-blue-200 mb-2">
+              <Users className="w-4 h-4" />
+              <span className="font-medium">Active Participants:</span>
+            </div>
+            <div className="flex flex-wrap gap-2 ml-6">
+              {activeParticipants.slice(0, 5).map((participant) => (
+                <div
+                  key={participant.userId}
+                  className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full"
+                >
+                  {participant.displayName || participant.userId.split(':')[0].substring(1)}
+                </div>
+              ))}
+              {activeParticipants.length > 5 && (
+                <div className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full">
+                  +{activeParticipants.length - 5} more
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Last Activity */}
+        {metadata.lastActivity && (
+          <div className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400">
+            <Clock className="w-4 h-4" />
+            <span>Last activity: {formatMessageTimestamp(new Date(metadata.lastActivity))}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 interface SessionHistoryViewProps {
@@ -300,6 +484,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                       {session.working_dir}
                     </span>
                   </div>
+
+                  {/* Matrix Collaboration Info */}
+                  <MatrixCollaborationInfo sessionId={session.id} />
                 </>
               ) : (
                 <div className="flex items-center text-text-muted text-sm">
