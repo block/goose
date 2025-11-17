@@ -359,7 +359,19 @@ export class MatrixService extends EventEmitter {
       throw new Error('Client not initialized');
     }
 
-    await this.client.startClient({ initialSyncLimit: 10 });
+    // Optimized sync settings for better real-time performance
+    await this.client.startClient({ 
+      initialSyncLimit: 50, // Increased from 10 to get more recent messages
+      pollTimeout: 30000,   // 30 second long polling for faster notifications
+      filter: {
+        room: {
+          timeline: {
+            limit: 20, // Get more recent messages per room
+          },
+        },
+      },
+    });
+    
     this.syncState = 'SYNCING';
     this.isConnected = true;
     this.emit('connected');
