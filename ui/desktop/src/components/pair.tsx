@@ -315,6 +315,7 @@ export default function Pair({
           sessionId: gooseSessionId, // Use the proper Goose session ID
           messages: [], // Start empty, Matrix history will populate this
           recipeConfig: null,
+          aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
         };
         setChat(matrixChat);
         setHasInitializedChat(true);

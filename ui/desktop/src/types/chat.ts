@@ -17,4 +17,5 @@ export interface ChatType {
   recipeConfig?: Recipe | null; // Add recipe configuration to chat state
   recipeParameters?: Record<string, string> | null; // Add recipe parameters to chat state
   matrixContext?: MatrixChatContext | null; // Add Matrix chat context
+  aiEnabled?: boolean; // Whether AI responses are enabled for this chat (default: true for regular chats, false for Matrix DMs)
 }

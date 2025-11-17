@@ -346,6 +346,7 @@ export function AppInner() {
     messages: [],
     messageHistoryIndex: 0,
     recipeConfig: null,
+    aiEnabled: true, // AI is enabled by default for regular chats
   });
 
   const { addExtension } = useConfig();

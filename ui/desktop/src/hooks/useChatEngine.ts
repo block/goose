@@ -78,45 +78,23 @@ export const useChatEngine = ({
 
   // Get the appropriate session ID for backend API calls
   const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
-  const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
-  const isMatrixCollaborativeFromService = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
   
-  // Matrix sessions should NEVER make backend calls - they're purely for collaboration
+  // AI is enabled by default for regular chats, disabled by default for Matrix DMs
+  const aiEnabled = chat.aiEnabled ?? true;
+  
+  // Check if this is a Matrix room for logging purposes
   const isMatrixRoom = chat.sessionId && chat.sessionId.startsWith('!');
-  
-  // Also check if this is a regular session that's mapped from a Matrix room
   const matrixRoomId = sessionMappingService.getMatrixRoomId(chat.sessionId);
   
-  // Check if this session has a Matrix mapping (indicating it's a Matrix-backed session)
-  // For Matrix room IDs, check if a mapping exists
-  // For regular session IDs, check if they're mapped FROM a Matrix room
-  const hasMatrixMapping = isMatrixRoom 
-    ? sessionMappingService.getMapping(chat.sessionId) !== null
-    : matrixRoomId !== null;
-  
-  // A session is collaborative if:
-  // 1. It's a Matrix room ID (starts with !)
-  // 2. It's mapped from a Matrix room (has matrixRoomId)
-  // 3. It has a Matrix mapping (created for Matrix collaboration)
-  const isCollaborativeSession = isMatrixRoom || matrixRoomId !== null || hasMatrixMapping;
-  
-  // Block all backend requests for any collaborative session
-  const shouldBlockNewRequests = isCollaborativeSession;
-  
-  console.log('📋 useChatEngine: Session ID mapping:', {
+  console.log('📋 useChatEngine: Session configuration:', {
     originalSessionId: chat.sessionId,
     backendSessionId,
-    isMatrixSession: chat.sessionId && chat.sessionId.startsWith('!'),
-    shouldMakeBackendCalls,
-    isCollaborativeSession,
+    aiEnabled,
     isMatrixRoom,
     matrixRoomId,
-    hasMatrixMapping,
-    shouldBlockNewRequests,
     sessionIdType: typeof chat.sessionId,
     sessionIdLength: chat.sessionId?.length,
-    sessionIdStartsWithExclamation: chat.sessionId?.startsWith('!'),
-    mappingExists: sessionMappingService.getMapping(chat.sessionId) !== null,
+    chatAiEnabled: chat.aiEnabled,
   });
 
   const {
@@ -195,7 +173,7 @@ export const useChatEngine = ({
     },
   });
 
-  // Wrap append to store messages in global history and check metadata flags
+  // Wrap append to store messages in global history and handle AI enable/disable logic
   const append = useCallback(
     (messageOrString: Message | string) => {
       const message =
@@ -207,14 +185,26 @@ export const useChatEngine = ({
         : '';
       const containsGooseMention = /@goose\b/i.test(messageText);
       
-      // Check if this is a Matrix room - if so, skip backend calls for new user messages UNLESS it contains @goose
-      if (shouldBlockNewRequests && message.role === 'user' && !containsGooseMention) {
-        console.log('🚫 Skipping backend call for Matrix room user message:', {
+      // If @goose is mentioned, enable AI for this session
+      if (containsGooseMention && !aiEnabled) {
+        console.log('🦆 @goose mentioned - enabling AI for session:', {
           sessionId: chat.sessionId,
           messageId: message.id,
-          role: message.role,
-          isMatrixRoom,
-          shouldBlockNewRequests,
+          contentPreview: messageText.substring(0, 50) + '...'
+        });
+        
+        // Update the chat to enable AI
+        setChat((prevChat: ChatType) => ({ ...prevChat, aiEnabled: true }));
+        
+        // Continue to normal flow to trigger AI response
+      }
+      
+      // If AI is disabled and no @goose mention, just add message without AI response
+      if (!aiEnabled && !containsGooseMention && message.role === 'user') {
+        console.log('🚫 AI disabled - adding message without AI response:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          aiEnabled,
           containsGooseMention,
           contentPreview: messageText.substring(0, 50) + '...'
         });
@@ -227,18 +217,6 @@ export const useChatEngine = ({
         
         // Return a promise that resolves immediately (to match originalAppend's interface)
         return Promise.resolve();
-      }
-      
-      // If this is a collaborative session with @goose mention, allow the AI response
-      if (shouldBlockNewRequests && message.role === 'user' && containsGooseMention) {
-        console.log('🦆 Allowing AI response for @goose mention in collaborative session:', {
-          sessionId: chat.sessionId,
-          messageId: message.id,
-          role: message.role,
-          containsGooseMention,
-          contentPreview: messageText.substring(0, 50) + '...'
-        });
-        // Continue to normal flow below - don't block this message
       }
       
       // Check metadata flags to prevent local AI responses
@@ -261,7 +239,6 @@ export const useChatEngine = ({
         });
         
         // Add the message to the chat without triggering AI response
-        // We need to update the messages directly instead of using originalAppend
         setMessages(prevMessages => [...prevMessages, message]);
         
         // Store in history if it's a user message
@@ -271,7 +248,7 @@ export const useChatEngine = ({
         return Promise.resolve();
       }
       
-      // Normal flow - store in history and trigger AI response
+      // Normal flow - store in history and trigger AI response (if AI is enabled)
       storeMessageInHistory(message);
 
       // If this is the first message in a new session, trigger a refresh immediately
@@ -283,7 +260,7 @@ export const useChatEngine = ({
 
       return originalAppend(message);
     },
-    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, shouldBlockNewRequests, isMatrixRoom, chat.sessionId]
+    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, aiEnabled, chat.sessionId, setChat]
   );
 
   // Simple token estimation function (roughly 4 characters per token)
@@ -346,12 +323,6 @@ export const useChatEngine = ({
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
-        // Skip backend calls entirely for collaborative sessions
-        if (isCollaborativeSession) {
-          console.log('📋 Skipping session token fetch - collaborative session:', chat.sessionId);
-          return;
-        }
-        
         // Use session mapping service to get the appropriate backend session ID
         const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
         
@@ -359,12 +330,11 @@ export const useChatEngine = ({
           originalSessionId: chat.sessionId,
           backendSessionId,
           isMatrixSession: chat.sessionId.startsWith('!'),
-          shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(chat.sessionId),
         });
         
         // Skip backend calls if no mapping exists for Matrix sessions
         if (backendSessionId === null) {
-          console.log('📋 Skipping session token fetch - no mapping for Matrix session:', chat.sessionId);
+          console.log('📋 Skipping session token fetch - no backend session mapping:', chat.sessionId);
           return;
         }
         
@@ -385,7 +355,7 @@ export const useChatEngine = ({
     if (chat.sessionId && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
-  }, [chat.sessionId, messages, chatState, isCollaborativeSession]);
+  }, [chat.sessionId, messages, chatState]);
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
