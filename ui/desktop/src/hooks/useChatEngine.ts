@@ -89,11 +89,14 @@ export const useChatEngine = ({
   console.log('📋 useChatEngine: Session ID mapping:', {
     originalSessionId: chat.sessionId,
     backendSessionId,
-    isMatrixSession: chat.sessionId.startsWith('!'),
+    isMatrixSession: chat.sessionId && chat.sessionId.startsWith('!'),
     shouldMakeBackendCalls,
     isCollaborativeSession,
     isMatrixRoom,
     shouldBlockNewRequests,
+    sessionIdType: typeof chat.sessionId,
+    sessionIdLength: chat.sessionId?.length,
+    sessionIdStartsWithExclamation: chat.sessionId?.startsWith('!'),
   });
 
   const {
