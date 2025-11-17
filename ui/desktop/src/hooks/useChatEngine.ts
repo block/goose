@@ -81,12 +81,19 @@ export const useChatEngine = ({
   const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
   const isCollaborativeSession = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
   
+  // For Matrix rooms, we want to allow history loading but prevent new LLM requests
+  // So we only consider it "collaborative" if it's a Matrix room AND has active collaboration
+  const isMatrixRoom = chat.sessionId && chat.sessionId.startsWith('!');
+  const shouldBlockNewRequests = isMatrixRoom; // Block new requests for all Matrix rooms
+  
   console.log('📋 useChatEngine: Session ID mapping:', {
     originalSessionId: chat.sessionId,
     backendSessionId,
     isMatrixSession: chat.sessionId.startsWith('!'),
     shouldMakeBackendCalls,
     isCollaborativeSession,
+    isMatrixRoom,
+    shouldBlockNewRequests,
   });
 
   const {
@@ -107,7 +114,7 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
-    disabled: isCollaborativeSession, // Disable API calls for collaborative sessions
+    // Don't disable useMessageStream completely - we need it for history loading
     body: {
       session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
@@ -171,12 +178,14 @@ export const useChatEngine = ({
       const message =
         typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
       
-      // Check if this is a collaborative session - if so, skip backend calls entirely
-      if (isCollaborativeSession) {
-        console.log('🚫 Skipping backend call for collaborative session:', {
+      // Check if this is a Matrix room - if so, skip backend calls for new user messages
+      if (shouldBlockNewRequests && message.role === 'user') {
+        console.log('🚫 Skipping backend call for Matrix room user message:', {
           sessionId: chat.sessionId,
           messageId: message.id,
           role: message.role,
+          isMatrixRoom,
+          shouldBlockNewRequests,
           contentPreview: Array.isArray(message.content) 
             ? message.content[0]?.text?.substring(0, 50) + '...' 
             : 'N/A'
@@ -234,7 +243,7 @@ export const useChatEngine = ({
 
       return originalAppend(message);
     },
-    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, isCollaborativeSession, chat.sessionId]
+    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, shouldBlockNewRequests, isMatrixRoom, chat.sessionId]
   );
 
   // Simple token estimation function (roughly 4 characters per token)
