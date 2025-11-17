@@ -43,6 +43,7 @@ interface MatrixContextType {
   onMessage: ((callback: (data: any) => void) => () => void) & ((eventName: string, callback: (data: any) => void) => () => void);
   onAIMessage: (callback: (message: GooseAIMessage) => void) => () => void;
   onGooseMessage: (callback: (message: GooseChatMessage) => void) => () => void;
+  onGooseMention: (callback: (data: any) => void) => () => void;
   onSessionMessage: (callback: (data: any) => void) => () => void;
   onPresenceChange: (callback: (data: any) => void) => () => void;
   
@@ -305,6 +306,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return () => matrixService.off('gooseMessage', callback);
   };
 
+  const onGooseMention = (callback: (data: any) => void) => {
+    matrixService.on('gooseMention', callback);
+    return () => matrixService.off('gooseMention', callback);
+  };
+
   // Room history methods
   const getRoomHistory = async (roomId: string, limit?: number) => {
     return await matrixService.getRoomHistory(roomId, limit);
@@ -358,6 +364,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     onMessage,
     onAIMessage,
     onGooseMessage,
+    onGooseMention,
     onSessionMessage,
     onPresenceChange,
     // Room history

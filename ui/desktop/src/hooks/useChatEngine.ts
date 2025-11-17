@@ -197,17 +197,22 @@ export const useChatEngine = ({
       const message =
         typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
       
-      // Check if this is a Matrix room - if so, skip backend calls for new user messages
-      if (shouldBlockNewRequests && message.role === 'user') {
+      // Check if this message contains @goose mention
+      const messageText = Array.isArray(message.content) 
+        ? message.content.find(c => c.type === 'text')?.text || ''
+        : '';
+      const containsGooseMention = /@goose\b/i.test(messageText);
+      
+      // Check if this is a Matrix room - if so, skip backend calls for new user messages UNLESS it contains @goose
+      if (shouldBlockNewRequests && message.role === 'user' && !containsGooseMention) {
         console.log('🚫 Skipping backend call for Matrix room user message:', {
           sessionId: chat.sessionId,
           messageId: message.id,
           role: message.role,
           isMatrixRoom,
           shouldBlockNewRequests,
-          contentPreview: Array.isArray(message.content) 
-            ? message.content[0]?.text?.substring(0, 50) + '...' 
-            : 'N/A'
+          containsGooseMention,
+          contentPreview: messageText.substring(0, 50) + '...'
         });
         
         // Add the message to the chat without triggering AI response
@@ -218,6 +223,18 @@ export const useChatEngine = ({
         
         // Return a promise that resolves immediately (to match originalAppend's interface)
         return Promise.resolve();
+      }
+      
+      // If this is a collaborative session with @goose mention, allow the AI response
+      if (shouldBlockNewRequests && message.role === 'user' && containsGooseMention) {
+        console.log('🦆 Allowing AI response for @goose mention in collaborative session:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          role: message.role,
+          containsGooseMention,
+          contentPreview: messageText.substring(0, 50) + '...'
+        });
+        // Continue to normal flow below - don't block this message
       }
       
       // Check metadata flags to prevent local AI responses
