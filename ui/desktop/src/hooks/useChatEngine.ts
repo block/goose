@@ -81,13 +81,20 @@ export const useChatEngine = ({
   const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
   const isMatrixCollaborativeFromService = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
   
-  // For Matrix rooms, we want to allow history loading but prevent new LLM requests
-  // Matrix rooms should NEVER make backend calls - they're purely for collaboration
+  // Matrix sessions should NEVER make backend calls - they're purely for collaboration
   const isMatrixRoom = chat.sessionId && chat.sessionId.startsWith('!');
   
   // Also check if this is a regular session that's mapped from a Matrix room
   const matrixRoomId = sessionMappingService.getMatrixRoomId(chat.sessionId);
-  const isCollaborativeSession = isMatrixRoom || matrixRoomId !== null;
+  
+  // Check if this session has a Matrix mapping (indicating it's a Matrix-backed session)
+  const hasMatrixMapping = sessionMappingService.getMapping(chat.sessionId) !== null;
+  
+  // A session is collaborative if:
+  // 1. It's a Matrix room ID (starts with !)
+  // 2. It's mapped from a Matrix room (has matrixRoomId)
+  // 3. It has a Matrix mapping (created for Matrix collaboration)
+  const isCollaborativeSession = isMatrixRoom || matrixRoomId !== null || hasMatrixMapping;
   
   // Block all backend requests for any collaborative session
   const shouldBlockNewRequests = isCollaborativeSession;
@@ -99,10 +106,13 @@ export const useChatEngine = ({
     shouldMakeBackendCalls,
     isCollaborativeSession,
     isMatrixRoom,
+    matrixRoomId,
+    hasMatrixMapping,
     shouldBlockNewRequests,
     sessionIdType: typeof chat.sessionId,
     sessionIdLength: chat.sessionId?.length,
     sessionIdStartsWithExclamation: chat.sessionId?.startsWith('!'),
+    mappingExists: sessionMappingService.getMapping(chat.sessionId) !== null,
   });
 
   const {
