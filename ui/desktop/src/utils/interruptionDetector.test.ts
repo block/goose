@@ -34,6 +34,22 @@ describe('interruptionDetector', () => {
         expect(result?.shouldInterrupt).toBe(true);
       });
 
+      it('detects exact continuation variations', () => {
+        const result = detectInterruption('for example');
+        expect(result).not.toBeNull();
+        expect(result?.confidence).toBe(1.0);
+        expect(result?.keyword.action).toBe('redirect');
+        expect(result?.shouldInterrupt).toBe(true);
+      });
+
+      it('detects exact elaboration variations', () => {
+        const result = detectInterruption('also');
+        expect(result).not.toBeNull();
+        expect(result?.confidence).toBe(1.0);
+        expect(result?.keyword.action).toBe('redirect');
+        expect(result?.shouldInterrupt).toBe(true);
+      });
+
       it('is case insensitive', () => {
         expect(detectInterruption('STOP')?.confidence).toBe(1.0);
         expect(detectInterruption('Stop')?.confidence).toBe(1.0);
@@ -61,6 +77,22 @@ describe('interruptionDetector', () => {
         expect(result).not.toBeNull();
         expect(result?.confidence).toBe(0.9);
         expect(result?.keyword.action).toBe('stop');
+      });
+
+      it('detects continuation keywords at the beginning', () => {
+        const result = detectInterruption('for example, we could try this');
+        expect(result).not.toBeNull();
+        expect(result?.confidence).toBe(0.9);
+        expect(result?.keyword.action).toBe('redirect');
+        expect(result?.matchedText).toBe('for example');
+      });
+
+      it('detects elaboration keywords at the beginning', () => {
+        const result = detectInterruption('also, what about this approach');
+        expect(result).not.toBeNull();
+        expect(result?.confidence).toBe(0.9);
+        expect(result?.keyword.action).toBe('redirect');
+        expect(result?.matchedText).toBe('also');
       });
     });
 
@@ -155,6 +187,17 @@ describe('interruptionDetector', () => {
 
       // High priority keyword in short text - shouldInterrupt is true
       expect(isInterruptionCommand('oh stop')).toBe(true);
+    });
+
+    it('handles continuation keywords correctly', () => {
+      // Low priority continuation keywords should interrupt when exact or at beginning
+      expect(isInterruptionCommand('for example')).toBe(true);
+      expect(isInterruptionCommand('also')).toBe(true);
+      expect(isInterruptionCommand('or maybe')).toBe(true);
+      
+      // But not when contained in short text (low priority)
+      expect(isInterruptionCommand('oh also')).toBe(false);
+      expect(isInterruptionCommand('like this')).toBe(false);
     });
   });
 

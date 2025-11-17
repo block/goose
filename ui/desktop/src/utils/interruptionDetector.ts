@@ -41,6 +41,33 @@ export const INTERRUPTION_KEYWORDS: InterruptionKeyword[] = [
     priority: 'medium',
     action: 'stop',
   },
+  {
+    keyword: 'also',
+    variations: [
+      'also', 'additionally', 'furthermore', 'moreover', 'plus', 'and also',
+      'in addition', 'on top of that', 'what about', 'how about'
+    ],
+    priority: 'low',
+    action: 'redirect',
+  },
+  {
+    keyword: 'like',
+    variations: [
+      'like', 'for example', 'for instance', 'such as', 'e.g.', 'including',
+      'specifically', 'in particular', 'say', 'let\'s say'
+    ],
+    priority: 'low',
+    action: 'redirect',
+  },
+  {
+    keyword: 'or',
+    variations: [
+      'or', 'alternatively', 'or maybe', 'or perhaps', 'or instead',
+      'what if', 'how about if', 'maybe instead'
+    ],
+    priority: 'low',
+    action: 'redirect',
+  },
 ];
 
 export interface InterruptionMatch {
