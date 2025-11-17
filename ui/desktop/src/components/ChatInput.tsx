@@ -375,7 +375,8 @@ export default function ChatInput({
         hasAppendFunction: !!append,
         appendFunctionType: typeof append,
         sessionId: sessionId,
-        isMatrixRoom: isMatrixRoom
+        isMatrixRoom: isMatrixRoom,
+        timestamp: new Date().toISOString()
       });
       
       // For Matrix rooms, messages from Matrix should appear normally
@@ -383,10 +384,17 @@ export default function ChatInput({
       // The key is that useSessionSharing handles both cases the same way
       if (append) {
         console.log('💬 ChatInput: *** CALLING APPEND FUNCTION WITH MESSAGE ***');
+        console.log('💬 ChatInput: *** MESSAGE BEING SENT TO APPEND ***:', JSON.stringify(message, null, 2));
         try {
           const result = append(message);
           console.log('💬 ChatInput: *** APPEND FUNCTION RETURNED ***:', result);
           console.log('💬 ChatInput: *** APPEND SUCCESSFUL - MESSAGE SHOULD APPEAR IN CHAT ***');
+          
+          // Also dispatch a custom event to verify message was processed
+          window.dispatchEvent(new CustomEvent('matrix-message-received', {
+            detail: { message, timestamp: new Date().toISOString() }
+          }));
+          
         } catch (error) {
           console.error('💬 ChatInput: *** APPEND FUNCTION FAILED ***:', error);
         }
