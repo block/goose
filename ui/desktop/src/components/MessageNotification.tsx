@@ -207,53 +207,53 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 300, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="bg-white border border-blue-200 rounded-lg shadow-lg p-4 max-w-sm min-w-[320px]"
+            className="bg-background-default border border-border-default rounded-lg shadow-lg p-4 max-w-sm min-w-[320px]"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <div className="flex-shrink-0 w-10 h-10 bg-background-accent rounded-full flex items-center justify-center">
                 {notification.senderAvatar ? (
                   <AvatarImage
                     avatarUrl={notification.senderAvatar}
                     displayName={notification.senderName}
                     size="md"
-                    className="ring-1 ring-blue-200"
+                    className="ring-1 ring-border-default"
                   />
                 ) : notification.isGooseMessage ? (
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-600 font-bold text-sm">🦆</span>
+                  <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
+                    <span className="text-text-on-accent font-bold text-sm">🦆</span>
                   </div>
                 ) : (
-                  <User className="w-5 h-5 text-blue-600" />
+                  <User className="w-5 h-5 text-text-on-accent" />
                 )}
               </div>
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-semibold text-gray-900 truncate">
+                  <h4 className="text-sm font-semibold text-text-default truncate">
                     {notification.isGooseMessage ? '🦆 ' : '💬 '}
                     {notification.senderName}
                   </h4>
                   <button
                     onClick={() => handleDismiss(notification.id)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-text-muted hover:text-text-default transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                <p className="text-sm text-text-default mb-3 line-clamp-3">
                   {formatMessagePreview(notification.content)}
                 </p>
                 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-1 text-xs text-text-muted">
                     <Clock className="w-3 h-3" />
                     {getTimeAgo(notification.timestamp)}
                   </div>
                   
                   <button
                     onClick={() => handleOpenChat(notification)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-background-accent text-text-on-accent text-xs rounded hover:bg-background-accent/80 transition-colors"
                   >
                     <MessageCircle className="w-3 h-3" />
                     Open Chat
