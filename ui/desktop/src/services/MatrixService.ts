@@ -1959,7 +1959,7 @@ export class MatrixService extends EventEmitter {
    * Clean up invite states for rooms we're already joined to
    * This is critical for preventing duplicate invite notifications
    */
-  private cleanupJoinedRoomInvites(): void {
+  public cleanupJoinedRoomInvites(): void {
     if (!this.client) return;
 
     console.log('🧹 Cleaning up invite states for joined rooms...');
@@ -2044,4 +2044,36 @@ export const matrixService = new MatrixService({
 // Temporary: Expose for debugging (remove in production)
 if (typeof window !== 'undefined') {
   (window as any).matrixService = matrixService;
+  (window as any).debugInviteStates = () => {
+    console.log('=== DEBUGGING INVITE STATES ===');
+    const allStates = matrixInviteStateService.getAllInviteStates();
+    const stats = matrixInviteStateService.getInviteStats();
+    console.log('All invite states:', allStates);
+    console.log('Stats:', stats);
+    
+    console.log('\n=== CURRENT ROOM MEMBERSHIPS ===');
+    const rooms = matrixService.client?.getRooms() || [];
+    rooms.forEach(room => {
+      const membership = room.getMyMembership();
+      console.log(`Room ${room.roomId}: ${membership} (${room.name || 'Unnamed'})`);
+    });
+    
+    console.log('\n=== INVITE STATE ANALYSIS ===');
+    allStates.forEach(state => {
+      const room = matrixService.client?.getRoom(state.roomId);
+      const currentMembership = room?.getMyMembership() || 'unknown';
+      const shouldShow = matrixInviteStateService.shouldShowInvite(state.roomId);
+      console.log(`${state.roomId}: status=${state.status}, membership=${currentMembership}, shouldShow=${shouldShow}`);
+    });
+    
+    console.log('\n=== FORCE CLEANUP ALL INVITES ===');
+    console.log('This will mark all invites for joined rooms as accepted...');
+    matrixService.cleanupJoinedRoomInvites();
+  };
+  
+  (window as any).clearAllInviteStates = () => {
+    console.log('🗑️ CLEARING ALL INVITE STATES');
+    matrixInviteStateService.clearAllInviteStates();
+    console.log('✅ All invite states cleared');
+  };
 }
