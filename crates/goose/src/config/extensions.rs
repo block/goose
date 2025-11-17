@@ -54,7 +54,6 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
-    let mut needs_save = false;
     if !extensions_map.is_empty() {
         for (name, def) in PLATFORM_EXTENSIONS.iter() {
             if !extensions_map.contains_key(*name) {
@@ -67,16 +66,11 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
                             bundled: Some(true),
                             available_tools: Vec::new(),
                         },
-                        enabled: def.default_enabled,
+                        enabled: true,
                     },
                 );
-                needs_save = true;
             }
         }
-    }
-
-    if needs_save {
-        save_extensions_map(extensions_map.clone());
     }
 
     extensions_map
