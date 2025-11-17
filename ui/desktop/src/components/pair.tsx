@@ -12,6 +12,7 @@ import { ChatType } from '../types/chat';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { Message } from '../types/message';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -241,11 +242,20 @@ export default function Pair({
   }, [setChat, processedMessageIds, isMatrixMode]);
 
   // Session sharing hook for Matrix collaboration
-  // In Matrix mode, we MUST use the Matrix room ID as the session ID for proper message routing
+  // In Matrix mode, we need to get the proper Goose session ID for the Matrix room
   const effectiveSessionId = useMemo(() => {
     if (isMatrixMode && matrixRoomId) {
-      console.log('🔧 Matrix mode: Using Matrix room ID as session ID:', matrixRoomId);
-      return matrixRoomId;
+      // Get the mapped Goose session ID for this Matrix room
+      const gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
+      if (gooseSessionId) {
+        console.log('🔧 Matrix mode: Using mapped Goose session ID:', { matrixRoomId, gooseSessionId });
+        return gooseSessionId;
+      } else {
+        console.log('🔧 Matrix mode: No mapping found for Matrix room, using room ID for session sharing only:', matrixRoomId);
+        // For session sharing (useSessionSharing), we still use the Matrix room ID
+        // This allows message routing to work, but backend calls will be skipped
+        return matrixRoomId;
+      }
     } else {
       console.log('🔧 Regular mode: Using chat session ID:', chat.sessionId);
       return chat.sessionId || 'default';
@@ -273,21 +283,45 @@ export default function Pair({
         currentChatMessagesCount: chat.messages?.length || 0 
       });
       
-      // In Matrix mode, skip local chat initialization entirely - Matrix room is the source of truth
+      // In Matrix mode, ensure we have a proper session mapping and use the Goose session ID
       if (isMatrixMode && matrixRoomId) {
-        console.log('🔄 Matrix mode: Skipping local chat initialization - Matrix room is source of truth');
-        // Create a minimal empty chat state for Matrix mode
+        console.log('🔄 Matrix mode: Ensuring session mapping exists and using proper session ID');
+        
+        // Get or create the session mapping
+        let gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
+        
+        if (!gooseSessionId) {
+          console.log('🔄 No mapping found, creating session mapping for Matrix room:', matrixRoomId);
+          
+          // Create a mapping for this Matrix room
+          const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
+          const roomName = currentRoom?.name || `Matrix Room ${matrixRoomId.substring(1, 8)}`;
+          
+          try {
+            // Try to create with backend session first
+            const mapping = await sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName);
+            gooseSessionId = mapping.gooseSessionId;
+            console.log('✅ Created backend session mapping:', { matrixRoomId, gooseSessionId });
+          } catch (error) {
+            console.error('❌ Failed to create backend session mapping, using fallback:', error);
+            // Fallback to regular mapping
+            const mapping = sessionMappingService.createMapping(matrixRoomId, [], roomName);
+            gooseSessionId = mapping.gooseSessionId;
+          }
+        }
+        
+        // Create a minimal chat state for Matrix mode with proper session ID
         const matrixChat: ChatType = {
-          sessionId: matrixRoomId, // Use Matrix room ID as session ID
+          sessionId: gooseSessionId, // Use the proper Goose session ID
           messages: [], // Start empty, Matrix history will populate this
           recipeConfig: null,
         };
         setChat(matrixChat);
         setHasInitializedChat(true);
         
-        // Update URL params to reflect Matrix room as session
+        // Update URL params to reflect the proper session ID
         setSearchParams((prev) => {
-          prev.set('resumeSessionId', matrixRoomId);
+          prev.set('resumeSessionId', gooseSessionId);
           return prev;
         });
         return;
@@ -847,14 +881,46 @@ export default function Pair({
   // Create custom chat input props for Matrix mode
   const matrixChatInputProps = useMemo(() => {
     if (isMatrixMode && matrixRoomId) {
-      return {
-        ...customChatInputProps,
-        // Override sessionId specifically for ChatInput in Matrix mode
-        sessionId: matrixRoomId,
-      };
+      // Get the proper Goose session ID for backend calls
+      const gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
+      
+      if (gooseSessionId) {
+        console.log('🔧 ChatInput: Using mapped Goose session ID for backend calls:', { matrixRoomId, gooseSessionId });
+        return {
+          ...customChatInputProps,
+          // Use the proper Goose session ID for ChatInput (backend calls)
+          sessionId: gooseSessionId,
+        };
+      } else {
+        console.log('🔧 ChatInput: No mapping found, creating session mapping for Matrix room:', matrixRoomId);
+        
+        // Create a mapping for this Matrix room if it doesn't exist
+        // This will create a backend session that can handle the chat
+        const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
+        const roomName = currentRoom?.name || `Matrix Room ${matrixRoomId.substring(1, 8)}`;
+        
+        // Create the mapping asynchronously and use Matrix room ID as fallback for now
+        sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName)
+          .then(mapping => {
+            console.log('✅ Created backend session mapping for Matrix room:', mapping);
+            // Force a re-render to pick up the new mapping
+            setChat(prevChat => ({ ...prevChat }));
+          })
+          .catch(error => {
+            console.error('❌ Failed to create backend session mapping:', error);
+          });
+        
+        // For now, return without sessionId to prevent backend calls until mapping is created
+        console.log('🔧 ChatInput: Temporarily skipping sessionId until mapping is created');
+        return {
+          ...customChatInputProps,
+          // Don't pass sessionId until we have a proper mapping
+          // This will prevent backend calls from failing with Matrix room ID
+        };
+      }
     }
     return customChatInputProps;
-  }, [customChatInputProps, isMatrixMode, matrixRoomId]);
+  }, [customChatInputProps, isMatrixMode, matrixRoomId, rooms]);
 
   return (
     <BaseChat

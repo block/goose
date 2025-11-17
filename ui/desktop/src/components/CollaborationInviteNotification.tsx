@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { GooseChatMessage, matrixService } from '../services/MatrixService';
 import { matrixInviteStateService } from '../services/MatrixInviteStateService';
+import { useActiveSession } from '../hooks/useActiveSession';
 
 interface CollaborationInviteNotificationProps {
   className?: string;
@@ -23,17 +24,9 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
   
   const navigate = useNavigate();
   const location = useLocation();
+  const { shouldSuppressNotification } = useActiveSession();
   const [pendingInvites, setPendingInvites] = useState<GooseChatMessage[]>([]);
   const [dismissedInvites, setDismissedInvites] = useState<Set<string>>(new Set());
-
-  // Helper function to get current active Matrix room ID if in shared session mode
-  const getCurrentActiveMatrixRoom = () => {
-    const searchParams = new URLSearchParams(location.search);
-    const isMatrixMode = searchParams.get('matrixMode') === 'true';
-    const matrixRoomId = searchParams.get('matrixRoomId');
-    
-    return isMatrixMode && matrixRoomId ? matrixRoomId : null;
-  };
 
   // Listen for Matrix room invitations and Goose messages
   useEffect(() => {
@@ -52,10 +45,9 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
     const handleMatrixRoomInvitation = (invitationData: any) => {
       console.log('🚨 FRONTEND: CollaborationInviteNotification received Matrix room invitation:', invitationData);
       
-      // Skip notifications for the currently active Matrix room (shared session)
-      const activeMatrixRoom = getCurrentActiveMatrixRoom();
-      if (activeMatrixRoom && invitationData.roomId === activeMatrixRoom) {
-        console.log('🔔 FRONTEND: Skipping Matrix invitation notification for active room:', invitationData.roomId);
+      // Use the enhanced notification suppression logic
+      if (shouldSuppressNotification(invitationData.roomId, invitationData.inviter)) {
+        console.log('🔕 FRONTEND: Suppressing Matrix invitation notification for active session:', invitationData.roomId);
         return;
       }
 
@@ -142,10 +134,9 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         return;
       }
 
-      // Skip notifications for messages from the currently active Matrix room (shared session)
-      const activeMatrixRoom = getCurrentActiveMatrixRoom();
-      if (activeMatrixRoom && message.roomId === activeMatrixRoom) {
-        console.log('🔔 FRONTEND: Skipping collaboration notification for message from active Matrix room:', message.roomId);
+      // Use the enhanced notification suppression logic
+      if (shouldSuppressNotification(message.roomId, message.sender)) {
+        console.log('🔕 FRONTEND: Suppressing collaboration notification for active session:', message.roomId);
         return;
       }
 

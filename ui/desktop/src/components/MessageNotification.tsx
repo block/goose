@@ -4,6 +4,7 @@ import { MessageCircle, X, User, Clock } from 'lucide-react';
 import { useMatrix } from '../contexts/MatrixContext';
 import { useLocation } from 'react-router-dom';
 import AvatarImage from './AvatarImage';
+import { useActiveSession } from '../hooks/useActiveSession';
 
 interface MessageNotificationData {
   id: string;
@@ -33,18 +34,10 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
   } = useMatrix();
   
   const location = useLocation();
+  const { shouldSuppressNotification } = useActiveSession();
   
   const [notifications, setNotifications] = useState<MessageNotificationData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-
-  // Helper function to get current active Matrix room ID if in shared session mode
-  const getCurrentActiveMatrixRoom = () => {
-    const searchParams = new URLSearchParams(location.search);
-    const isMatrixMode = searchParams.get('matrixMode') === 'true';
-    const matrixRoomId = searchParams.get('matrixRoomId');
-    
-    return isMatrixMode && matrixRoomId ? matrixRoomId : null;
-  };
 
   // Listen for incoming messages
   useEffect(() => {
@@ -57,10 +50,9 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       // Only show notifications for messages from others
       if (sender === currentUser.userId) return;
       
-      // Skip notifications for messages from the currently active Matrix room (shared session)
-      const activeMatrixRoom = getCurrentActiveMatrixRoom();
-      if (activeMatrixRoom && roomId === activeMatrixRoom) {
-        console.log('📱 Skipping notification for message from active Matrix room:', roomId);
+      // Use the enhanced notification suppression logic
+      if (shouldSuppressNotification(roomId, sender)) {
+        console.log('🔕 Suppressing message notification for active session:', roomId);
         return;
       }
       
@@ -105,10 +97,9 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       // Only show notifications for messages from others
       if (metadata?.isFromSelf) return;
       
-      // Skip notifications for messages from the currently active Matrix room (shared session)
-      const activeMatrixRoom = getCurrentActiveMatrixRoom();
-      if (activeMatrixRoom && roomId === activeMatrixRoom) {
-        console.log('🦆 Skipping Goose notification for message from active Matrix room:', roomId);
+      // Use the enhanced notification suppression logic
+      if (shouldSuppressNotification(roomId, sender)) {
+        console.log('🔕 Suppressing Goose message notification for active session:', roomId);
         return;
       }
       

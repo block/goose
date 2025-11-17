@@ -10,6 +10,8 @@ import {
   Users,
   Hash,
   MessageCircle,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -411,6 +413,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       onEditClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
     }) {
+      const [isRegeneratingTitle, setIsRegeneratingTitle] = useState(false);
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
           e.stopPropagation(); // Prevent card click
@@ -430,6 +433,35 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const handleCardClick = useCallback(() => {
         onSelectSession(session.id);
       }, [session.id]);
+
+      const handleRegenerateTitle = useCallback(async (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click
+        
+        if (isRegeneratingTitle) return;
+        
+        setIsRegeneratingTitle(true);
+        try {
+          const newTitle = await unifiedSessionService.regenerateSessionTitle(session.id);
+          if (newTitle) {
+            // Update the session in the local state
+            setSessions(prevSessions =>
+              prevSessions.map(s => 
+                s.id === session.id 
+                  ? { ...s, description: newTitle }
+                  : s
+              )
+            );
+            toast.success('Session title regenerated successfully');
+          } else {
+            toast.error('Failed to regenerate title - this feature is only available for Matrix sessions');
+          }
+        } catch (error) {
+          console.error('Error regenerating title:', error);
+          toast.error('Failed to regenerate session title');
+        } finally {
+          setIsRegeneratingTitle(false);
+        }
+      }, [session.id, isRegeneratingTitle]);
 
       // Get session display info
       const displayInfo = unifiedSessionService.getSessionDisplayInfo(session);
@@ -458,6 +490,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isMatrix && (
+              <button
+                onClick={handleRegenerateTitle}
+                disabled={isRegeneratingTitle}
+                className="p-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Regenerate title using AI"
+              >
+                {isRegeneratingTitle ? (
+                  <RefreshCw className="w-3 h-3 text-blue-500 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3 text-blue-500 hover:text-blue-600" />
+                )}
+              </button>
+            )}
             <button
               onClick={handleEditClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"

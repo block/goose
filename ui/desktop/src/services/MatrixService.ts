@@ -1753,8 +1753,17 @@ export class MatrixService extends EventEmitter {
               const sessionJson = actualContent.substring(actualContent.indexOf('goose-session-message:') + 'goose-session-message:'.length);
               sessionData = JSON.parse(sessionJson);
               actualContent = sessionData.content || actualContent;
-              messageType = sessionData.role === 'assistant' ? 'assistant' : 'user';
-              console.log('📜 Parsed session message:', sessionData.role, actualContent.substring(0, 50) + '...');
+              
+              // FIXED: Better role detection for session messages
+              if (sessionData.role === 'assistant' || sessionData.role === 'ai' || sessionData.role === 'goose') {
+                messageType = 'assistant';
+              } else if (sessionData.role === 'system') {
+                messageType = 'system';
+              } else {
+                messageType = 'user';
+              }
+              
+              console.log('📜 Parsed session message:', sessionData.role, '→', messageType, actualContent.substring(0, 50) + '...');
             } catch (error) {
               console.warn('Failed to parse session message:', error);
             }
@@ -1766,6 +1775,12 @@ export class MatrixService extends EventEmitter {
             messageType = 'assistant';
           } else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
             messageType = 'system';
+          }
+          
+          // ADDITIONAL FIX: Check if message is from self but contains AI response patterns
+          else if (isFromSelf && this.looksLikeGooseMessage(actualContent)) {
+            // This handles cases where the user's own messages contain AI responses
+            messageType = 'assistant';
           }
 
           return {

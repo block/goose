@@ -184,17 +184,44 @@ export class UnifiedSessionService {
     participants?: string[];
     isCollaborative: boolean;
     hasTokenCounts: boolean;
+    roomType?: 'dm' | 'group' | 'collaborative';
+    titleInfo?: {
+      confidence: 'high' | 'medium' | 'low';
+      source: 'llm' | 'content_analysis' | 'fallback';
+      generatedAt: number;
+    };
   } {
     const type = this.getSessionType(session);
     const isMatrix = type === 'matrix' || type === 'collaborative';
     
+    // Enhanced display info for Matrix sessions
+    if (isMatrix && session.extension_data?.matrix) {
+      const matrixData = session.extension_data.matrix;
+      
+      return {
+        type,
+        displayName: session.description,
+        workingDir: session.working_dir, // Now uses the enhanced working dir from MatrixSessionService
+        participants: matrixData.participants,
+        isCollaborative: type === 'collaborative',
+        hasTokenCounts: false, // Matrix sessions don't have token tracking
+        roomType: matrixData.roomType || (matrixData.isDirectMessage ? 'dm' : 'group'),
+        titleInfo: matrixData.generatedTitle ? {
+          confidence: matrixData.generatedTitle.confidence,
+          source: matrixData.generatedTitle.source,
+          generatedAt: matrixData.generatedTitle.generatedAt,
+        } : undefined,
+      };
+    }
+    
+    // Regular session display info
     return {
       type,
       displayName: session.description,
-      workingDir: isMatrix ? 'Matrix Collaboration' : session.working_dir,
-      participants: isMatrix ? session.extension_data?.matrix?.participants : undefined,
-      isCollaborative: type === 'collaborative',
-      hasTokenCounts: !isMatrix && session.total_tokens !== null,
+      workingDir: session.working_dir,
+      participants: undefined,
+      isCollaborative: false,
+      hasTokenCounts: session.total_tokens !== null,
     };
   }
 
@@ -203,6 +230,18 @@ export class UnifiedSessionService {
    */
   public async createMatrixSession(name: string, inviteUserIds: string[] = []): Promise<string> {
     return await matrixSessionService.createMatrixSession(name, inviteUserIds);
+  }
+
+  /**
+   * Regenerate title for a Matrix session
+   */
+  public async regenerateSessionTitle(sessionId: string): Promise<string | null> {
+    if (matrixSessionService.isMatrixSession(sessionId)) {
+      return await matrixSessionService.regenerateSessionTitle(sessionId);
+    } else {
+      console.warn('📋 UnifiedSessionService: Cannot regenerate title for non-Matrix session:', sessionId);
+      return null;
+    }
   }
 
   /**

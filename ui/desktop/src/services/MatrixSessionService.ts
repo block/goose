@@ -8,6 +8,7 @@
 import { Session, Message, Conversation } from '../api/types.gen';
 import { matrixService } from './MatrixService';
 import { sessionMappingService } from './SessionMappingService';
+import { llmTitleGenerationService } from './LLMTitleGenerationService';
 
 export interface MatrixSessionInfo {
   roomId: string;
@@ -59,11 +60,27 @@ export class MatrixSessionService {
           // Get room history to calculate message count and create conversation
           const history = await matrixService.getRoomHistoryAsGooseMessages(room.roomId, 100);
           
+          // Generate contextual title for the room
+          const roomType = room.isDirectMessage ? 'dm' : (room.members.length > 2 ? 'collaborative' : 'group');
+          const generatedTitle = await llmTitleGenerationService.generateRoomTitle(room.roomId, {
+            roomType,
+            fallbackName: room.name || mapping.title,
+            maxMessages: 15,
+            includeParticipants: true,
+          });
+          
+          // Determine working directory based on room type
+          const workingDir = room.isDirectMessage 
+            ? 'Direct Message' 
+            : room.members.length > 2 
+              ? 'Collaborative Session' 
+              : 'Group Chat';
+          
           // Convert Matrix room to Session format
           const session: Session = {
             id: room.roomId, // Use Matrix room ID as session ID for UI purposes
-            description: room.name || `Matrix: ${room.roomId.substring(1, 8)}...`,
-            working_dir: 'Matrix Collaboration', // Placeholder working directory
+            description: generatedTitle.title,
+            working_dir: workingDir,
             message_count: history.length,
             total_tokens: null, // Matrix sessions don't have token tracking yet
             created_at: new Date(mapping.createdAt).toISOString(),
@@ -77,6 +94,8 @@ export class MatrixSessionService {
                 backendSessionId: mapping.gooseSessionId,
                 matrixRoomName: room.name,
                 participantCount: room.members.length,
+                generatedTitle: generatedTitle,
+                roomType: roomType,
               }
             },
             accumulated_input_tokens: null,
@@ -301,6 +320,95 @@ export class MatrixSessionService {
     } catch (error) {
       console.error('📋 Error updating Matrix session description:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Regenerate title for a Matrix session using LLM analysis
+   */
+  public async regenerateSessionTitle(roomId: string): Promise<string | null> {
+    try {
+      const rooms = matrixService.getRooms();
+      const room = rooms.find(r => r.roomId === roomId);
+      
+      if (!room) {
+        console.warn('📋 Room not found for title regeneration:', roomId);
+        return null;
+      }
+
+      // Determine room type
+      const roomType = room.isDirectMessage ? 'dm' : (room.members.length > 2 ? 'collaborative' : 'group');
+      
+      // Force regenerate title
+      const generatedTitle = await llmTitleGenerationService.regenerateTitle(roomId, {
+        roomType,
+        maxMessages: 20,
+        includeParticipants: true,
+      });
+
+      // Update the session mapping with new title
+      sessionMappingService.updateTitle(roomId, generatedTitle.title);
+
+      console.log('📋 Regenerated title for Matrix session:', {
+        roomId,
+        oldTitle: room.name,
+        newTitle: generatedTitle.title,
+        confidence: generatedTitle.confidence,
+        source: generatedTitle.source,
+      });
+
+      return generatedTitle.title;
+    } catch (error) {
+      console.error('📋 Error regenerating session title:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get enhanced session display info with generated titles
+   */
+  public async getEnhancedSessionDisplayInfo(roomId: string): Promise<{
+    title: string;
+    roomType: 'dm' | 'group' | 'collaborative';
+    workingDir: string;
+    participants: string[];
+    titleInfo?: {
+      confidence: 'high' | 'medium' | 'low';
+      source: 'llm' | 'content_analysis' | 'fallback';
+      generatedAt: number;
+    };
+  } | null> {
+    try {
+      const rooms = matrixService.getRooms();
+      const room = rooms.find(r => r.roomId === roomId);
+      
+      if (!room) {
+        return null;
+      }
+
+      const roomType = room.isDirectMessage ? 'dm' : (room.members.length > 2 ? 'collaborative' : 'group');
+      const generatedTitle = await llmTitleGenerationService.generateRoomTitle(roomId, { roomType });
+      
+      const workingDir = room.isDirectMessage 
+        ? 'Direct Message' 
+        : room.members.length > 2 
+          ? 'Collaborative Session' 
+          : 'Group Chat';
+
+      return {
+        title: generatedTitle.title,
+        roomType: generatedTitle.roomType,
+        workingDir,
+        participants: room.members.map(m => m.userId),
+        titleInfo: {
+          confidence: generatedTitle.confidence,
+          source: generatedTitle.source,
+          generatedAt: generatedTitle.generatedAt,
+        },
+      };
+    } catch (error) {
+      console.error('📋 Error getting enhanced session display info:', error);
+      return null;
     }
   }
 }
