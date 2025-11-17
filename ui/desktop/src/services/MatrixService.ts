@@ -402,6 +402,11 @@ export class MatrixService extends EventEmitter {
         // Clean up invite states for rooms we're already in
         this.cleanupJoinedRoomInvites();
         
+        // Auto-rejoin stored Matrix rooms
+        this.autoRejoinStoredRooms().catch(error => {
+          console.error('❌ Error during auto-rejoin:', error);
+        });
+        
         console.log('✅ MatrixService: Sync prepared, emitting ready event');
         this.emit('ready');
       }
@@ -1844,6 +1849,103 @@ export class MatrixService extends EventEmitter {
 
     } catch (error) {
       console.error('❌ Failed to update Matrix room state from membership:', error);
+    }
+  }
+
+  /**
+   * Auto-rejoin Matrix rooms based on stored session mappings
+   * This should be called after Matrix sync is prepared
+   */
+  private async autoRejoinStoredRooms(): Promise<void> {
+    if (!this.client) return;
+
+    console.log('🔄 Auto-rejoining stored Matrix rooms...');
+    
+    try {
+      // Get all Matrix collaborative sessions from storage
+      const collaborativeSessions = sessionMappingService.getMatrixCollaborativeSessions();
+      
+      if (collaborativeSessions.length === 0) {
+        console.log('📋 No Matrix collaborative sessions found to rejoin');
+        return;
+      }
+
+      console.log(`📋 Found ${collaborativeSessions.length} Matrix collaborative sessions to check`);
+      
+      let rejoinedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      for (const mapping of collaborativeSessions) {
+        const { matrixRoomId, roomState } = mapping;
+        
+        if (!roomState) {
+          console.log(`⏭️ Skipping ${matrixRoomId} - no room state stored`);
+          skippedCount++;
+          continue;
+        }
+
+        try {
+          // Check current membership status
+          const room = this.client.getRoom(matrixRoomId);
+          const currentMembership = room?.getMyMembership();
+
+          console.log(`🔍 Checking room ${matrixRoomId.substring(0, 20)}... - current membership: ${currentMembership}`);
+
+          // If we're not currently joined but have a stored room state, try to rejoin
+          if (currentMembership !== 'join') {
+            // Check if we were previously joined based on stored participant data
+            const myParticipant = roomState.participants.get(this.config.userId!);
+            const wasJoined = myParticipant?.membership === 'join';
+
+            if (wasJoined) {
+              console.log(`🚪 Attempting to rejoin room: ${matrixRoomId.substring(0, 20)}...`);
+              
+              try {
+                await this.client.joinRoom(matrixRoomId);
+                rejoinedCount++;
+                console.log(`✅ Successfully rejoined room: ${matrixRoomId.substring(0, 20)}...`);
+              } catch (joinError: any) {
+                failedCount++;
+                console.warn(`❌ Failed to rejoin room ${matrixRoomId.substring(0, 20)}...:`, joinError.message);
+                
+                // If we can't rejoin, update the stored state to reflect this
+                if (myParticipant) {
+                  myParticipant.membership = 'leave';
+                  myParticipant.leftAt = Date.now();
+                  sessionMappingService.updateMatrixParticipant(
+                    matrixRoomId,
+                    myParticipant,
+                    'leave'
+                  );
+                }
+              }
+            } else {
+              console.log(`⏭️ Skipping ${matrixRoomId.substring(0, 20)}... - was not previously joined`);
+              skippedCount++;
+            }
+          } else {
+            console.log(`✅ Already joined room: ${matrixRoomId.substring(0, 20)}...`);
+            skippedCount++;
+          }
+        } catch (error) {
+          console.error(`❌ Error processing room ${matrixRoomId.substring(0, 20)}...:`, error);
+          failedCount++;
+        }
+      }
+
+      console.log(`🎯 Auto-rejoin complete: ${rejoinedCount} rejoined, ${skippedCount} skipped, ${failedCount} failed`);
+      
+      if (rejoinedCount > 0) {
+        // Clear caches to refresh room data
+        this.cachedRooms = null;
+        this.cachedFriends = null;
+        
+        // Emit an event to notify UI components
+        this.emit('roomsRejoined', { count: rejoinedCount });
+      }
+    } catch (error) {
+      console.error('❌ Error during auto-rejoin process:', error);
     }
   }
 
