@@ -310,21 +310,39 @@ export default function Pair({
           }
         }
         
-        // Create a minimal chat state for Matrix mode with proper session ID
-        const matrixChat: ChatType = {
-          sessionId: gooseSessionId, // Use the proper Goose session ID
-          messages: [], // Start empty, Matrix history will populate this
-          recipeConfig: null,
-          aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
-        };
-        setChat(matrixChat);
-        setHasInitializedChat(true);
-        
-        // Update URL params to reflect the proper session ID
-        setSearchParams((prev) => {
-          prev.set('resumeSessionId', gooseSessionId);
-          return prev;
-        });
+        // Load the backend session for this Matrix DM to get any existing messages
+        setLoadingChat(true);
+        try {
+          const loadedChat = await loadCurrentChat({
+            resumeSessionId: gooseSessionId,
+            setAgentWaitingMessage,
+          });
+          
+          console.log('📥 Matrix DM: loadCurrentChat returned:', { 
+            sessionId: loadedChat.sessionId, 
+            messagesCount: loadedChat.messages?.length || 0,
+          });
+          
+          // Set aiEnabled to false for Matrix DMs (override the default from backend)
+          const matrixChat: ChatType = {
+            ...loadedChat,
+            aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
+          };
+          
+          setChat(matrixChat);
+          setHasInitializedChat(true);
+          
+          // Update URL params to reflect the proper session ID
+          setSearchParams((prev) => {
+            prev.set('resumeSessionId', gooseSessionId);
+            return prev;
+          });
+        } catch (error) {
+          console.log('❌ Matrix DM loadCurrentChat error:', error);
+          setFatalError(`Matrix DM init failure: ${error instanceof Error ? error.message : '' + error}`);
+        } finally {
+          setLoadingChat(false);
+        }
         return;
       }
       
