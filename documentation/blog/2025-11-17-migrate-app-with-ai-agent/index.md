@@ -36,7 +36,7 @@ Before I instructed goose to write any code, I prioritized helping it understand
 
 > Can you get a lay of the land for the two projects found here and how they communicate?
 
-goose employed the [analyze tool](/docs/mcp/developer-mcp#developer-extension-tools) to generate a high-level architectural flow. (The analyze tool is part of the Developer extension, an [MCP server](https://modelcontextprotocol.io/docs/learn/server-concepts) that's built into goose).
+goose employed the [analyze tool](/docs/mcp/developer-mcp#developer-extension-tools) to generate a high-level architectural flow. (The analyze tool is part of the [Developer extension](/docs/mcp/developer-mcp), an [MCP server](https://modelcontextprotocol.io/docs/learn/server-concepts) that's built into goose).
 
 ```
 User Browser
