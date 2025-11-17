@@ -53,7 +53,7 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
-        | New Session with [Quick Launch](#quick-launch) | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+        | New Session with [Quick Launcher](#quick-launcher) | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
         | New Session in Current Directory | `Cmd+N` | `Ctrl+N` |
         | New Session in Current Directory (Same Window) | `Cmd+T` | `Ctrl+T` |
         | New Session in Different Directory | `Cmd+O` | `Ctrl+O` |
@@ -62,7 +62,7 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
         
         <br />
-        #### Quick Launch
+        #### Quick Launcher
         Start a new session by typing your prompt into a popup:
         1. Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) to open the popup
         2. Type your prompt and press `Enter`
