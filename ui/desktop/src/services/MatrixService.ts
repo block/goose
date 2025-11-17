@@ -2044,6 +2044,7 @@ export const matrixService = new MatrixService({
 // Temporary: Expose for debugging (remove in production)
 if (typeof window !== 'undefined') {
   (window as any).matrixService = matrixService;
+  (window as any).sessionMappingService = sessionMappingService;
   (window as any).debugInviteStates = () => {
     console.log('=== DEBUGGING INVITE STATES ===');
     const allStates = matrixInviteStateService.getAllInviteStates();
@@ -2075,5 +2076,137 @@ if (typeof window !== 'undefined') {
     console.log('🗑️ CLEARING ALL INVITE STATES');
     matrixInviteStateService.clearAllInviteStates();
     console.log('✅ All invite states cleared');
+  };
+  
+  (window as any).findChatSession20251114 = () => {
+    console.log('🔍 SEARCHING FOR "Chat Session 20251114"...');
+    
+    // Search in invite states
+    const allStates = matrixInviteStateService.getAllInviteStates();
+    const matchingStates = allStates.filter(state => 
+      state.inviterName?.includes('Chat Session 20251114') ||
+      state.roomId?.includes('20251114')
+    );
+    
+    console.log('📋 Matching invite states:', matchingStates);
+    
+    // Search in Matrix rooms
+    const rooms = matrixService.client?.getRooms() || [];
+    const matchingRooms = rooms.filter(room => 
+      room.name?.includes('Chat Session 20251114') ||
+      room.name?.includes('20251114') ||
+      room.roomId?.includes('20251114')
+    );
+    
+    console.log('🏠 Matching Matrix rooms:', matchingRooms.map(room => ({
+      roomId: room.roomId,
+      name: room.name,
+      membership: room.getMyMembership(),
+      members: room.getMembers().length,
+      lastActivity: new Date(room.getLastActiveTimestamp())
+    })));
+    
+    // Search in session mappings
+    try {
+      const collaborativeSessions = sessionMappingService.getMatrixCollaborativeSessions();
+      const matchingSessions = collaborativeSessions.filter(session =>
+        session.title?.includes('Chat Session 20251114') ||
+        session.title?.includes('20251114') ||
+        session.matrixRoomId?.includes('20251114')
+      );
+      
+      console.log('📝 Matching session mappings:', matchingSessions);
+    } catch (error) {
+      console.log('📝 Could not search session mappings:', error);
+    }
+    
+    // Check each matching state in detail
+    matchingStates.forEach(state => {
+      const shouldShow = matrixInviteStateService.shouldShowInvite(state.roomId, state.inviter);
+      const room = matrixService.client?.getRoom(state.roomId);
+      const membership = room?.getMyMembership();
+      
+      console.log(`🔍 DETAILED ANALYSIS for ${state.roomId}:`, {
+        inviteState: state,
+        shouldShow,
+        currentMembership: membership,
+        roomExists: !!room,
+        roomName: room?.name,
+        lastSeen: state.lastSeen,
+        timeSinceLastSeen: state.lastSeen ? Date.now() - new Date(state.lastSeen).getTime() : 'never',
+      });
+    });
+    
+    return {
+      inviteStates: matchingStates,
+      rooms: matchingRooms,
+      totalFound: matchingStates.length + matchingRooms.length
+    };
+  };
+  
+  (window as any).fixChatSession20251114 = async () => {
+    console.log('🔧 FIXING Chat Session 20251114 persistence issue...');
+    
+    const rooms = matrixService.client?.getRooms() || [];
+    const chatSessionRooms = rooms.filter(room => 
+      room.name?.includes('Chat Session 20251114') ||
+      room.name?.includes('20251114')
+    );
+    
+    console.log(`Found ${chatSessionRooms.length} Chat Session 20251114 rooms`);
+    
+    let joinedCount = 0;
+    let declinedCount = 0;
+    let mappedCount = 0;
+    
+    for (const room of chatSessionRooms) {
+      const roomId = room.roomId;
+      const membership = room.getMyMembership();
+      const roomName = room.name || 'Unnamed Room';
+      
+      console.log(`Processing ${roomId.substring(0, 20)}... (${membership})`);
+      
+      if (membership === 'invite') {
+        // Decline all pending invites except maybe keep one
+        console.log(`❌ Declining invite: ${roomId.substring(0, 20)}...`);
+        try {
+          matrixInviteStateService.declineInvite(roomId);
+          declinedCount++;
+        } catch (error) {
+          console.error(`Failed to decline ${roomId}:`, error);
+        }
+      } else if (membership === 'join') {
+        // Ensure session mapping exists for joined rooms
+        const existingMapping = sessionMappingService.getMapping(roomId);
+        if (!existingMapping) {
+          console.log(`📋 Creating session mapping for: ${roomId.substring(0, 20)}...`);
+          try {
+            const participants = room.getMembers().map(member => member.userId);
+            sessionMappingService.createMapping(roomId, participants, roomName);
+            mappedCount++;
+          } catch (error) {
+            console.error(`Failed to create mapping for ${roomId}:`, error);
+          }
+        } else {
+          console.log(`📋 Session mapping already exists for: ${roomId.substring(0, 20)}...`);
+        }
+        
+        // Clean up any stale invite states
+        const inviteState = matrixInviteStateService.getInviteState(roomId);
+        if (inviteState && inviteState.status === 'pending') {
+          console.log(`🧹 Cleaning stale invite state for: ${roomId.substring(0, 20)}...`);
+          matrixInviteStateService.acceptInvite(roomId);
+        }
+        
+        joinedCount++;
+      }
+    }
+    
+    console.log(`✅ COMPLETED: ${joinedCount} joined rooms processed, ${declinedCount} invites declined, ${mappedCount} new mappings created`);
+    
+    // Force cleanup
+    matrixService.cleanupJoinedRoomInvites();
+    
+    return { joined: joinedCount, declined: declinedCount, mapped: mappedCount };
   };
 }
