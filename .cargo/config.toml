@@ -1,2 +1,2 @@
-[target.'cfg(target_env = "msvc")]
+[target.'cfg(target_env = "msvc")']
 rustflags = ["-l", "advapi32"]
