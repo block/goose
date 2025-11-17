@@ -39,7 +39,10 @@ impl AgentManager {
             default_provider: Arc::new(RwLock::new(None)),
         };
 
-        let _ = manager.configure_default_provider().await;
+        if let Err(e) = manager.configure_default_provider().await {
+            warn!("❌ Failed to configure default provider during AgentManager initialization: {}", e);
+            // Don't fail the entire AgentManager creation, but log the error
+        }
 
         Ok(manager)
     }
@@ -62,25 +65,37 @@ impl AgentManager {
             .or_else(|_| std::env::var("GOOSE_PROVIDER__MODEL"))
             .ok();
 
+        debug!("Configuring default provider - provider_name: {:?}, model_name: {:?}", provider_name, model_name);
+
         if provider_name.is_none() || model_name.is_none() {
+            warn!("Missing provider configuration - provider_name: {:?}, model_name: {:?}", provider_name, model_name);
             return Ok(());
         }
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
+            debug!("Creating provider {} with model {}", provider_name, model_name);
             match ModelConfig::new(&model_name) {
-                Ok(model_config) => match create(&provider_name, model_config) {
-                    Ok(provider) => {
-                        self.set_default_provider(provider).await;
-                        info!(
-                            "Configured default provider: {} with model: {}",
-                            provider_name, model_name
-                        );
-                    }
-                    Err(e) => {
-                        warn!("Failed to create default provider {}: {}", provider_name, e)
+                Ok(model_config) => {
+                    debug!("Created model config for {}: {:?}", model_name, model_config);
+                    match create(&provider_name, model_config) {
+                        Ok(provider) => {
+                            self.set_default_provider(provider).await;
+                            info!(
+                                "✅ Successfully configured default provider: {} with model: {}",
+                                provider_name, model_name
+                            );
+                        }
+                        Err(e) => {
+                            warn!("❌ Failed to create default provider {}: {}", provider_name, e);
+                            // This is critical - if provider creation fails, we need to know about it
+                            return Err(anyhow::anyhow!("Failed to create default provider {}: {}", provider_name, e));
+                        }
                     }
                 },
-                Err(e) => warn!("Failed to create model config for {}: {}", model_name, e),
+                Err(e) => {
+                    warn!("❌ Failed to create model config for {}: {}", model_name, e);
+                    return Err(anyhow::anyhow!("Failed to create model config for {}: {}", model_name, e));
+                }
             }
         }
         Ok(())
@@ -125,7 +140,16 @@ impl AgentManager {
                 "Setting default provider on agent for session {}",
                 session_id
             );
-            let _ = agent.update_provider(Arc::clone(provider)).await;
+            match agent.update_provider(Arc::clone(provider)).await {
+                Ok(_) => {
+                    info!("✅ Successfully set provider on agent for session {}", session_id);
+                }
+                Err(e) => {
+                    warn!("❌ Failed to set provider on agent for session {}: {}", session_id, e);
+                }
+            }
+        } else {
+            warn!("❌ No default provider available for session {}", session_id);
         }
 
         Ok(agent)
