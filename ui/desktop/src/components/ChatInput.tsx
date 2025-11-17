@@ -355,9 +355,6 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // Import session mapping service
-  const { sessionMappingService } = await import('../services/SessionMappingService');
-  
   // Check if this session is mapped from a Matrix room
   const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
   const isMatrixRoom = sessionId && (sessionId.startsWith('!') || matrixRoomId !== null);
