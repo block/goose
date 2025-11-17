@@ -17,7 +17,7 @@ pub async fn run_mcp_server(name: &str) -> Result<()> {
 
     tracing::info!("Starting MCP server");
 
-    match name {
+    match name.to_lowercase().as_str() {
         "autovisualiser" => serve_and_wait(AutoVisualiserRouter::new()).await,
         "computercontroller" => serve_and_wait(ComputerControllerServer::new()).await,
         "developer" => serve_and_wait(DeveloperServer::new()).await,
