@@ -88,7 +88,11 @@ export const useChatEngine = ({
   const matrixRoomId = sessionMappingService.getMatrixRoomId(chat.sessionId);
   
   // Check if this session has a Matrix mapping (indicating it's a Matrix-backed session)
-  const hasMatrixMapping = sessionMappingService.getMapping(chat.sessionId) !== null;
+  // For Matrix room IDs, check if a mapping exists
+  // For regular session IDs, check if they're mapped FROM a Matrix room
+  const hasMatrixMapping = isMatrixRoom 
+    ? sessionMappingService.getMapping(chat.sessionId) !== null
+    : matrixRoomId !== null;
   
   // A session is collaborative if:
   // 1. It's a Matrix room ID (starts with !)
