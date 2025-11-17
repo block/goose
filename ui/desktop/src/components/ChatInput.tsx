@@ -1522,12 +1522,12 @@ export default function ChatInput({
   const handleFriendInvite = async (friendUserId: string) => {
     console.log('👥 handleFriendInvite called with:', friendUserId);
     
-    // Handle special case for "goose" mention
-    if (friendUserId === 'goose') {
-      console.log('🦆 Handling @goose mention for AI reinitialization');
+    // Handle special cases for goose commands - these should NOT trigger Matrix invitations
+    if (friendUserId.startsWith('goose')) {
+      console.log('🦆 Handling @goose command:', friendUserId);
       
-      // Replace the @ mention with @goose
-      const mentionText = '@goose';
+      // Replace the @ mention with the full goose command
+      const mentionText = `@${friendUserId}`;
       const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
       const afterMention = displayValue.slice(
         mentionPopover.mentionStart + 1 + mentionPopover.query.length
@@ -1548,12 +1548,12 @@ export default function ChatInput({
         }
       }, 0);
       
-      console.log('✅ Successfully added @goose mention');
+      console.log('✅ Successfully added @goose command:', friendUserId);
       return;
     }
     
     try {
-      // Invite the friend to the current session
+      // Only attempt Matrix invitation for actual user IDs (not goose commands)
       await sessionSharing.inviteToSession(friendUserId);
       
       // Replace the @ mention with a friend mention format
