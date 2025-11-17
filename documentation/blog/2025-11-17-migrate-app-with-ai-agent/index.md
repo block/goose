@@ -121,7 +121,7 @@ This "copy-and-adapt" strategy was incredibly effective. goose successfully impl
 
 ## The Lesson
 
-I shared my messy, tedious conversation with goose so that readers can confidently ditch one-shot prompts for complex tasks and work incrementally with agents. Just like coding, collaborating with an agent requires patience, but it doesn't have to feel stressful. 
+I shared my messy, tedious conversation with goose (using Claude Sonnet 4.5) so that readers can confidently ditch one-shot prompts for complex tasks and work incrementally with agents. Just like coding, collaborating with an agent requires patience, but it doesn't have to feel stressful. 
 
 I hope this clarifies how to converse with an agent and accomplish complex tasks like migrations. If you want to see this in action, you're in luck; below is a VOD livestream of me navigating the project in real-time.
 
