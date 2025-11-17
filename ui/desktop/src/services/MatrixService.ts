@@ -870,7 +870,17 @@ export class MatrixService extends EventEmitter {
       throw new Error('Client not initialized');
     }
 
-    await this.client.invite(roomId, userId);
+    // Ensure userId starts with '@' as required by Matrix
+    const formattedUserId = userId.startsWith('@') ? userId : `@${userId}`;
+    
+    console.log('🔗 Inviting user to room:', {
+      roomId,
+      originalUserId: userId,
+      formattedUserId,
+      needsFormatting: !userId.startsWith('@')
+    });
+
+    await this.client.invite(roomId, formattedUserId);
   }
 
   /**
