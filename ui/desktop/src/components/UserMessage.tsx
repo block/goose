@@ -270,7 +270,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 avatarUrl={senderInfo.avatarUrl}
                 displayName={senderInfo.displayName || senderInfo.userId}
                 size="md"
-                className="ring-2 ring-background-accent ring-offset-2"
+                className="ring-1 ring-background-accent ring-offset-1"
               />
             </div>
           </div>
