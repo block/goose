@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Ed25519Validator {
     public_key: VerifyingKey,
@@ -31,6 +32,20 @@ impl Ed25519Validator {
 
         let timestamp = parts[0];
         let sig_hex = parts[1];
+
+        let timestamp_secs: i64 = timestamp
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid timestamp format"))?;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+        let age = now - timestamp_secs;
+
+        const MAX_AGE_SECS: i64 = 300;
+        if age > MAX_AGE_SECS {
+            anyhow::bail!("Signature expired (age: {}s)", age);
+        }
+        if age < -MAX_AGE_SECS {
+            anyhow::bail!("Signature timestamp too far in future");
+        }
 
         let body_hash = if let Some(body_content) = body {
             let hash = Sha256::digest(body_content.as_bytes());
@@ -71,7 +86,11 @@ mod tests {
 
         let method = "POST";
         let path = "/api/test";
-        let timestamp = "1731384000";
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
         let body = r#"{"test":"data"}"#;
 
         let body_hash = hex::encode(Sha256::digest(body.as_bytes()));
@@ -98,5 +117,60 @@ mod tests {
         assert!(validator
             .verify(signature_header, "GET", "/test", None)
             .is_err());
+    }
+
+    #[test]
+    fn test_expired_signature() {
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let verifying_key = signing_key.verifying_key();
+        let public_key_hex = hex::encode(verifying_key.as_bytes());
+
+        let validator = Ed25519Validator::new(&public_key_hex).unwrap();
+
+        let method = "GET";
+        let path = "/test";
+        let old_timestamp = "1731384000";
+
+        let message = format!("{}|{}|{}|", method, path, old_timestamp);
+        let signature = signing_key.sign(message.as_bytes());
+        let sig_hex = hex::encode(signature.to_bytes());
+        let signature_header = format!("{}.{}", old_timestamp, sig_hex);
+
+        let result = validator.verify(&signature_header, method, path, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Signature expired"));
+    }
+
+    #[test]
+    fn test_future_timestamp() {
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let verifying_key = signing_key.verifying_key();
+        let public_key_hex = hex::encode(verifying_key.as_bytes());
+
+        let validator = Ed25519Validator::new(&public_key_hex).unwrap();
+
+        let method = "GET";
+        let path = "/test";
+        let future_timestamp = (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 400)
+            .to_string();
+
+        let message = format!("{}|{}|{}|", method, path, future_timestamp);
+        let signature = signing_key.sign(message.as_bytes());
+        let sig_hex = hex::encode(signature.to_bytes());
+        let signature_header = format!("{}.{}", future_timestamp, sig_hex);
+
+        let result = validator.verify(&signature_header, method, path, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too far in future"));
     }
 }
