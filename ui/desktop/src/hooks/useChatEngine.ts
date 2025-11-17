@@ -185,8 +185,33 @@ export const useChatEngine = ({
         : '';
       const containsGooseMention = /@goose\b/i.test(messageText);
       
-      // If @goose is mentioned, enable AI for this session
-      if (containsGooseMention && !aiEnabled) {
+      // Check for @goose off/disable/stop commands
+      const gooseOffPattern = /@goose\s+(off|disable|stop|quiet|sleep)\b/i;
+      const isGooseOffCommand = gooseOffPattern.test(messageText);
+      
+      // If @goose off is mentioned, disable AI for this session
+      if (isGooseOffCommand && aiEnabled) {
+        console.log('🦆💤 @goose off mentioned - disabling AI for session:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          contentPreview: messageText.substring(0, 50) + '...'
+        });
+        
+        // Update the chat to disable AI
+        setChat((prevChat: ChatType) => ({ ...prevChat, aiEnabled: false }));
+        
+        // Add the message to the chat without triggering AI response
+        setMessages(prevMessages => [...prevMessages, message]);
+        
+        // Store in history if it's a user message
+        storeMessageInHistory(message);
+        
+        // Return a promise that resolves immediately (to match originalAppend's interface)
+        return Promise.resolve();
+      }
+      
+      // If @goose is mentioned (but not an off command), enable AI for this session
+      if (containsGooseMention && !isGooseOffCommand && !aiEnabled) {
         console.log('🦆 @goose mentioned - enabling AI for session:', {
           sessionId: chat.sessionId,
           messageId: message.id,

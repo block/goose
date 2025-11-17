@@ -84,19 +84,44 @@ const EnhancedMentionPopover = forwardRef<
   const mentionItems = useMemo((): MentionItem[] => {
     const items: MentionItem[] = [];
     
-    // Add "goose" as a special mention for AI reinitialization
-    const gooseScore = fuzzyMatch(query, 'goose');
-    if (gooseScore > 0 || !query.trim()) {
-      items.push({
-        id: 'goose',
-        type: 'friend', // Use friend type for consistent styling
-        name: 'goose',
-        displayText: 'goose',
-        secondaryText: 'Reinitialize AI assistance',
-        userId: 'goose',
-        matchScore: gooseScore + 100, // Highest priority for goose
-      });
-    }
+    // Add "goose" commands as special mentions for AI control
+    const gooseCommands = [
+      {
+        command: 'goose',
+        description: 'Enable AI assistance',
+        emoji: '🦆'
+      },
+      {
+        command: 'goose off',
+        description: 'Disable AI assistance',
+        emoji: '🦆💤'
+      },
+      {
+        command: 'goose stop',
+        description: 'Stop AI assistance',
+        emoji: '🦆🛑'
+      },
+      {
+        command: 'goose quiet',
+        description: 'Make AI quiet',
+        emoji: '🦆🤫'
+      }
+    ];
+
+    gooseCommands.forEach(({ command, description, emoji }) => {
+      const score = fuzzyMatch(query, command);
+      if (score > 0 || !query.trim()) {
+        items.push({
+          id: command,
+          type: 'friend', // Use friend type for consistent styling
+          name: command,
+          displayText: command,
+          secondaryText: description,
+          userId: command,
+          matchScore: score + 100, // Highest priority for goose commands
+        });
+      }
+    });
     
     // Add friends (prioritize if connected)
     if (isConnected && friends.length > 0) {
@@ -251,9 +276,12 @@ const EnhancedMentionPopover = forwardRef<
                   {/* Icon */}
                   <div className="flex-shrink-0">
                     {item.type === 'friend' ? (
-                      item.userId === 'goose' ? (
+                      item.userId?.startsWith('goose') ? (
                         <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">🦆</span>
+                          <span className="text-white text-xs">
+                            {item.userId === 'goose' ? '🦆' : 
+                             item.userId.includes('off') || item.userId.includes('stop') || item.userId.includes('quiet') ? '🦆💤' : '🦆'}
+                          </span>
                         </div>
                       ) : (
                         <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
@@ -286,11 +314,11 @@ const EnhancedMentionPopover = forwardRef<
                     <div className={`text-xs px-2 py-1 rounded ${
                       index === selectedIndex 
                         ? 'bg-text-on-accent/20 text-text-on-accent' 
-                        : item.userId === 'goose' 
+                        : item.userId?.startsWith('goose')
                           ? 'bg-green-100 text-green-600' 
                           : 'bg-blue-100 text-blue-600'
                     }`}>
-                      {item.userId === 'goose' ? 'Mention' : 'Invite'}
+                      {item.userId?.startsWith('goose') ? 'Mention' : 'Invite'}
                     </div>
                   )}
                 </div>
