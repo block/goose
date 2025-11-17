@@ -76,6 +76,10 @@ pub trait McpClientTrait: Send + Sync {
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
 
     fn get_info(&self) -> Option<&InitializeResult>;
+
+    async fn get_moim(&self) -> Option<String> {
+        None
+    }
 }
 
 pub struct GooseClient {

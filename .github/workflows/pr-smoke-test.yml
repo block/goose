@@ -46,7 +46,7 @@ jobs:
 
   build-binary:
     name: Build Release Binary
-    runs-on: goose
+    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
@@ -55,33 +55,18 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Activate hermit and set CARGO_HOME
-        run: |
-          source bin/activate-hermit
-          echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
-          echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Cache Cargo artifacts
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: |
-            ${{ env.CARGO_HOME }}/bin/
-            ${{ env.CARGO_HOME }}/registry/index/
-            ${{ env.CARGO_HOME }}/registry/cache/
-            ${{ env.CARGO_HOME }}/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Build Release Binary for Smoke Tests
         run: |
-          source ./bin/activate-hermit
           cargo build --release
 
       - name: Upload Binary for Smoke Tests
@@ -118,6 +103,7 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
@@ -139,6 +125,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1

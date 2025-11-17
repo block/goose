@@ -78,29 +78,17 @@ jobs:
         if: matrix.use-cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
-      # Cache Cargo registry and git dependencies for Windows builds
-      - name: Cache Cargo registry (Windows)
-        if: matrix.use-docker
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+      - name: Cache Cargo artifacts (Linux/macOS)
+        if: matrix.use-cross
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+          key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
-      # Cache compiled dependencies (target/release/deps) for Windows builds
-      - name: Cache Cargo build (Windows)
+      - name: Cache Cargo artifacts (Windows)
         if: matrix.use-docker
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-release-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-build-release-
+          key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
       - name: Build CLI (Linux/macOS)
         if: matrix.use-cross

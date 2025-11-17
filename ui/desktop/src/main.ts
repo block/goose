@@ -529,7 +529,7 @@ const createChat = async (
     minWidth: 450,
     resizable: true,
     useContentSize: true,
-    icon: path.join(__dirname, '../images/icon'),
+    icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),

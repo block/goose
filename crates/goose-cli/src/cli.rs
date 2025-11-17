@@ -1170,8 +1170,12 @@ pub async fn cli() -> anyhow::Result<()> {
                         "Recipe execution started"
                     );
 
-                    let (input_config, recipe_info) =
-                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
+                        recipe_name,
+                        params,
+                        additional_sub_recipes,
+                        quiet,
+                    )?;
                     (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {
