@@ -240,6 +240,15 @@ const PeerCard: React.FC<{
           peer.presence === 'online' ? 'bg-green-500' :
           peer.presence === 'unavailable' ? 'bg-yellow-500' : 'bg-gray-400'
         }`} />
+        
+        {/* Unread message indicator below avatar */}
+        {lastMessage && lastMessage.isUnread && (
+          <div className="absolute top-14 left-0">
+            <p className="text-xs text-text-muted">
+              1 unread
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Status tag in top right */}
@@ -315,17 +324,7 @@ const PeerCard: React.FC<{
         </div>
       </div>
 
-      {/* Unread message indicator */}
-      {lastMessage && lastMessage.isUnread && (
-        <div className="absolute left-6 bottom-16 z-10">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-background-accent rounded-full" />
-            <p className="text-xs font-medium text-text-default">
-              1 unread
-            </p>
-          </div>
-        </div>
-      )}
+
 
       {/* Name and info at bottom */}
       <div className="mt-auto w-full">
