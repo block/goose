@@ -276,18 +276,47 @@ export const useChatEngine = ({
                                      message.metadata?.isFromCollaborator ||
                                      message.metadata?.isMatrixSharedSession;
       
-      if (shouldSkipLocalResponse) {
-        console.log('🚫 Skipping local AI response due to metadata flags:', {
+      // Also check if AI is disabled for messages from collaborators/Matrix sessions
+      const shouldSkipDueToAiDisabled = !aiEnabled && (
+        message.metadata?.isFromCollaborator ||
+        message.metadata?.isMatrixSharedSession ||
+        shouldSkipLocalResponse
+      );
+      
+      if (shouldSkipLocalResponse || shouldSkipDueToAiDisabled) {
+        console.log('🚫 Skipping local AI response due to metadata flags or AI disabled:', {
           messageId: message.id,
           role: message.role,
+          aiEnabled,
           skipLocalResponse: message.metadata?.skipLocalResponse,
           preventAutoResponse: message.metadata?.preventAutoResponse,
           isFromCollaborator: message.metadata?.isFromCollaborator,
           isMatrixSharedSession: message.metadata?.isMatrixSharedSession,
+          shouldSkipDueToAiDisabled,
+          containsGooseMention,
           contentPreview: Array.isArray(message.content) 
             ? message.content[0]?.text?.substring(0, 50) + '...' 
             : 'N/A'
         });
+        
+        // Special case: If AI is disabled but message contains @goose mention from collaborator, enable AI
+        if (shouldSkipDueToAiDisabled && containsGooseMention && !isGooseOffCommand) {
+          console.log('🦆 @goose mentioned by collaborator - enabling AI for session:', {
+            sessionId: chat.sessionId,
+            messageId: message.id,
+            contentPreview: messageText.substring(0, 50) + '...'
+          });
+          
+          // Update the chat to enable AI
+          setChat((prevChat: ChatType) => ({ ...prevChat, aiEnabled: true }));
+          
+          // Add the message and continue to trigger AI response
+          setMessages(prevMessages => [...prevMessages, message]);
+          storeMessageInHistory(message);
+          
+          // Continue to normal flow to trigger AI response
+          return originalAppend(message);
+        }
         
         // Add the message to the chat without triggering AI response
         setMessages(prevMessages => [...prevMessages, message]);
