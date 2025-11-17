@@ -12,17 +12,15 @@ workspace = true
 
 [build-dependencies]
 tokio = { version = "1.43", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots-no-provider"], default-features = false }
 
 [dependencies]
 lru = "0.12"
 rmcp = { workspace = true, features = [
     "client",
-    "reqwest",
+    "reqwest-tls-no-provider",
     "transport-child-process",
-    "transport-sse-client",
     "transport-sse-client-reqwest",
-    "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
 anyhow = "1.0"
@@ -30,7 +28,7 @@ thiserror = "1.0"
 futures = "0.3"
 dirs = "5.0"
 reqwest = { version = "0.12", features = [
-    "rustls-tls-native-roots",
+    "rustls-tls-native-roots-no-provider",
     "json",
     "cookies",
     "gzip",
@@ -79,7 +77,7 @@ rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
-sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
 aws-config = { version = "1.8", features = ["behavior-version-latest"], default-features = false }
@@ -90,7 +88,7 @@ aws-sdk-bedrockruntime = { version = "1.113", default-features = false }
 aws-sdk-sagemakerruntime = { version = "1.91", default-features = false }
 
 # For GCP Vertex AI provider auth
-jsonwebtoken = "9.3.1"
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 
 blake3 = "1.5"
 fs2 = "0.4.3"
@@ -103,7 +101,7 @@ unicode-normalization = "0.1"
 zip = "0.6"
 sys-info = "0.9"
 
-oauth2 = "5.0.0"
+oauth2 = { version = "5.0.0", default-features = false }
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
 paste = "1.0.0"

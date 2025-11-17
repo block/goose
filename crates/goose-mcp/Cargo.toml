@@ -31,7 +31,7 @@ indoc = "2.0.5"
 xcap = "0.0.14"
 reqwest = { version = "0.12", features = [
     "json",
-    "rustls-tls-native-roots",
+    "rustls-tls-native-roots-no-provider",
 ], default-features = false }
 async-trait = "0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -53,7 +53,6 @@ keyring = { version = "3.6.2", features = [
     "sync-secret-service",
     "vendored",
 ] }
-oauth2 = { version = "5.0.0", features = ["reqwest"] }
 utoipa = { version = "4.1", optional = true }
 hyper = "1"
 serde_with = "3"
