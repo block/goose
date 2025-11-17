@@ -79,6 +79,8 @@ So the instructions are a list of skills
 
 * Should be simply and meaningfully unit tested
 
+* avoid making changes outside of the new extension, it should be a fairly additive change and not need anything or a lot that is cross cutting to make it work (just the same as what todo and chatrecall need really - similar to them)
+
 End to end testing: 
 
 when you think it should work, you can build or work out how to run the goose binary, you can run it from a tmp dir or your making with a .goose/skills dir with a skill in it and use `... goose --run -t 'please use skill x to y'` for whatever the skill does, to check that it uses that skill (vs other tools).
