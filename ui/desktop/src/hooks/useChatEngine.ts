@@ -114,7 +114,7 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
-    // Don't disable useMessageStream completely - we need it for history loading
+    disabled: isMatrixRoom, // Completely disable useMessageStream for Matrix rooms
     body: {
       session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
@@ -306,6 +306,12 @@ export const useChatEngine = ({
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
+        // Skip backend calls entirely for Matrix rooms
+        if (isMatrixRoom) {
+          console.log('📋 Skipping session token fetch - Matrix room:', chat.sessionId);
+          return;
+        }
+        
         // Use session mapping service to get the appropriate backend session ID
         const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
         
@@ -339,7 +345,7 @@ export const useChatEngine = ({
     if (chat.sessionId && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
-  }, [chat.sessionId, messages, chatState]);
+  }, [chat.sessionId, messages, chatState, isMatrixRoom]);
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
