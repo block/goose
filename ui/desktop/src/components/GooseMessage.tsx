@@ -23,6 +23,7 @@ import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
 import AvatarImage from './AvatarImage';
+import GooseIcon from '../images/loading-goose/1.svg';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -201,12 +202,13 @@ export default function GooseMessage({
     <div className="goose-message flex w-[90%] justify-start min-w-0 gap-3">
       {/* AI Avatar on the left side */}
       <div className="flex-shrink-0 mt-1">
-        <AvatarImage
-          avatarUrl={undefined} // AI doesn't have a Matrix avatar
-          displayName="Goose AI"
-          size="md"
-          className="ring-2 ring-green-500 ring-offset-2"
-        />
+        <div className="w-8 h-8 rounded-full bg-background-accent flex items-center justify-center ring-2 ring-green-500 ring-offset-2">
+          <img 
+            src={GooseIcon} 
+            alt="Goose AI" 
+            className="w-6 h-6"
+          />
+        </div>
       </div>
       
       <div className="flex flex-col w-full min-w-0">
