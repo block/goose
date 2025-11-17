@@ -1060,21 +1060,27 @@ export class MatrixService extends EventEmitter {
 
   /**
    * Check if a room is a true direct message room
-   * True DMs have exactly 2 members AND no explicit room name (auto-generated from usernames)
+   * True DMs have exactly 2 members. We'll be more flexible about room names
+   * since some Matrix clients might set names for DMs.
    */
   private isDirectMessageRoom(room: any): boolean {
     const memberCount = room.getMembers().length;
     const hasExplicitName = room.name && room.name.trim() !== '';
     
-    // True DM: exactly 2 members + no explicit name (Matrix auto-generates display name)
-    const isTrueDM = memberCount === 2 && !hasExplicitName;
+    // Primary check: exactly 2 members (this is the most reliable indicator)
+    const isTrueDM = memberCount === 2;
+    
+    // Additional context for debugging
+    const roomDisplayName = room.name || room.getDefaultRoomName?.() || '(auto-generated)';
     
     console.log('🔍 DM Detection:', {
       roomId: room.roomId.substring(0, 20) + '...',
       memberCount,
-      roomName: room.name || '(auto-generated)',
+      roomName: room.name || '(none)',
+      roomDisplayName,
       hasExplicitName,
-      isTrueDM
+      isTrueDM,
+      members: room.getMembers().map((m: any) => m.userId)
     });
     
     return isTrueDM;
