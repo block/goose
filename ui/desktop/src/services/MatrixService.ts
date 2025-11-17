@@ -1766,3 +1766,8 @@ export class MatrixService extends EventEmitter {
 export const matrixService = new MatrixService({
   homeserverUrl: 'https://matrix.tchncs.de', // Tchncs.de homeserver with open registration
 });
+
+// Temporary: Expose for debugging (remove in production)
+if (typeof window !== 'undefined') {
+  (window as any).matrixService = matrixService;
+}

@@ -946,7 +946,7 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background-muted">
+    <div className="relative flex flex-col h-screen bg-background-muted">
 
 
       {/* Current User Info */}

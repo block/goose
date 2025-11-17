@@ -81,9 +81,9 @@ export class MatrixInviteStateService {
       return false;
     }
 
-    // Don't show if we've seen it recently (within last 5 minutes)
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-    if (state.lastSeen > fiveMinutesAgo) {
+    // Don't show if we've seen it recently (within last 1 minute)
+    const oneMinuteAgo = Date.now() - (1 * 60 * 1000);
+    if (state.lastSeen > oneMinuteAgo) {
       console.log('📋 MatrixInviteStateService: Hiding invite - seen recently:', {
         roomId,
         lastSeen: new Date(state.lastSeen).toISOString(),
@@ -273,3 +273,8 @@ export class MatrixInviteStateService {
 
 // Export singleton instance
 export const matrixInviteStateService = MatrixInviteStateService.getInstance();
+
+// Temporary: Expose for debugging (remove in production)
+if (typeof window !== 'undefined') {
+  (window as any).matrixInviteStateService = matrixInviteStateService;
+}
