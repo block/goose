@@ -317,14 +317,12 @@ const PeerCard: React.FC<{
 
       {/* Unread message indicator */}
       {lastMessage && lastMessage.isUnread && (
-        <div className="absolute inset-x-4 bottom-16 z-10">
-          <div className="bg-background-accent rounded-full px-3 py-2 shadow-lg">
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 bg-text-on-accent rounded-full" />
-              <p className="text-xs font-medium text-text-on-accent">
-                1 unread
-              </p>
-            </div>
+        <div className="absolute left-6 bottom-16 z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-background-accent rounded-full" />
+            <p className="text-xs font-medium text-text-default">
+              1 unread
+            </p>
           </div>
         </div>
       )}
