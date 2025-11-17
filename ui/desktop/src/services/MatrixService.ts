@@ -2209,4 +2209,65 @@ if (typeof window !== 'undefined') {
     
     return { joined: joinedCount, declined: declinedCount, mapped: mappedCount };
   };
+  
+  (window as any).debugLiveNotifications = () => {
+    console.log('🔍 DEBUGGING LIVE NOTIFICATIONS...');
+    
+    let notificationCount = 0;
+    
+    // Monitor matrixRoomInvitation events
+    const originalEmit = matrixService.emit;
+    matrixService.emit = function(event, ...args) {
+      if (event === 'matrixRoomInvitation') {
+        notificationCount++;
+        console.log(`🚨 LIVE NOTIFICATION #${notificationCount}:`, {
+          event,
+          data: args[0],
+          shouldShow: matrixInviteStateService.shouldShowInvite(args[0]?.roomId, args[0]?.inviter),
+          inviteState: matrixInviteStateService.getInviteState(args[0]?.roomId),
+          roomMembership: matrixService.client?.getRoom(args[0]?.roomId)?.getMyMembership()
+        });
+      }
+      return originalEmit.apply(this, [event, ...args]);
+    };
+    
+    // Also monitor RoomMember.membership events that trigger invitations
+    const client = matrixService.client;
+    if (client) {
+      client.on('RoomMember.membership', (event, member) => {
+        if (member.userId === matrixService.getCurrentUser()?.userId && member.membership === 'invite') {
+          console.log(`👤 MEMBERSHIP EVENT - INVITE:`, {
+            roomId: member.roomId.substring(0, 20) + '...',
+            roomName: client.getRoom(member.roomId)?.name,
+            inviter: event.getSender(),
+            membership: member.membership,
+            shouldShow: matrixInviteStateService.shouldShowInvite(member.roomId, event.getSender())
+          });
+        }
+      });
+    }
+    
+    console.log('✅ Monitoring live notifications. Watch console for activity.');
+    
+    // Return function to stop monitoring
+    return () => {
+      matrixService.emit = originalEmit;
+      console.log('🛑 Stopped monitoring live notifications');
+    };
+  };
+  
+  (window as any).clearUINotifications = () => {
+    console.log('🧹 CLEARING UI NOTIFICATION STATE...');
+    
+    // Force clear all invite states
+    matrixInviteStateService.clearAllInviteStates();
+    
+    // Emit a custom event to tell UI components to clear their state
+    window.dispatchEvent(new CustomEvent('clearNotifications'));
+    
+    // Also force a cleanup
+    matrixService.cleanupJoinedRoomInvites();
+    
+    console.log('✅ UI notification clear event dispatched');
+  };
 }

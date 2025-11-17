@@ -39,6 +39,15 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
   useEffect(() => {
     if (!isConnected) return;
 
+    // Listen for clear notifications event
+    const handleClearNotifications = () => {
+      console.log('🧹 CollaborationInviteNotification: Clearing all pending invites due to clear event');
+      setPendingInvites([]);
+      setDismissedInvites(new Set());
+    };
+
+    window.addEventListener('clearNotifications', handleClearNotifications);
+
     // Handler for Matrix room invitations
     const handleMatrixRoomInvitation = (invitationData: any) => {
       console.log('🔔 Received Matrix room invitation:', invitationData);
@@ -168,6 +177,8 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
       matrixService.off('matrixRoomInvitation', handleMatrixRoomInvitation);
       // Remove Goose message listener
       unsubscribeGooseMessages();
+      // Remove clear notifications listener
+      window.removeEventListener('clearNotifications', handleClearNotifications);
     };
   }, [isConnected, onGooseMessage, dismissedInvites]);
 
