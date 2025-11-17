@@ -67,6 +67,7 @@ import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { SidecarInvoker } from './Layout/SidecarInvoker';
 import { useSidecar } from './SidecarLayout';
+import ParticipantsBar from './ParticipantsBar';
 
 
 // Context for sharing current model info
@@ -91,6 +92,8 @@ interface BaseChatProps {
   suppressEmptyState?: boolean;
   autoSubmit?: boolean;
   loadingChat: boolean;
+  showParticipantsBar?: boolean;
+  matrixRoomId?: string;
 }
 
 function BaseChatContent({
@@ -111,6 +114,8 @@ function BaseChatContent({
   suppressEmptyState = false,
   autoSubmit = false,
   loadingChat = false,
+  showParticipantsBar = false,
+  matrixRoomId,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -370,6 +375,11 @@ function BaseChatContent({
 
         {/* Custom header */}
         {renderHeader && renderHeader()}
+
+        {/* Participants Bar - shows who's in the conversation for Matrix sessions */}
+        {showParticipantsBar && matrixRoomId && (
+          <ParticipantsBar matrixRoomId={matrixRoomId} />
+        )}
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">

@@ -1007,6 +1007,8 @@ export default function Pair({
       contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
       showPopularTopics={!isTransitioningFromHub} // Show popular topics in all modes, including Matrix
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
+      showParticipantsBar={isMatrixMode} // Show participants bar when in Matrix mode
+      matrixRoomId={matrixRoomId || undefined} // Pass the Matrix room ID
     />
   );
 }
