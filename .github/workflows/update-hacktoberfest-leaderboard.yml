@@ -8,6 +8,8 @@ on:
 
 jobs:
   update-leaderboard:
+    # Only run in the upstream repository, not in forks
+    if: github.repository == 'block/goose'
     runs-on: ubuntu-latest
     permissions:
       contents: read

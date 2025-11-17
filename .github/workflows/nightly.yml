@@ -21,6 +21,8 @@ concurrency:
 jobs:
   prepare-version:
     name: Prepare Version
+    # Only run in the upstream repository, not in forks
+    if: github.repository == 'block/goose'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-version.outputs.version }}

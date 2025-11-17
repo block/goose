@@ -11,6 +11,8 @@ on:
 
 jobs:
   release:
+    # Only run in the upstream repository, not in forks
+    if: github.repository == 'block/goose'
     uses: ./.github/workflows/create-release-pr.yaml
     with:
       bump_type: "minor"

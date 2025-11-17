@@ -22,6 +22,8 @@ permissions:
 jobs:
   update-dashboard:
     name: 'Update Health Dashboard'
+    # Only run in the upstream repository, not in forks
+    if: github.repository == 'block/goose'
     runs-on: ubuntu-latest
     
     steps:

@@ -18,6 +18,8 @@ permissions:
 
 jobs:
   find-untested-code:
+    # Only run in the upstream repository, not in forks
+    if: github.repository == 'block/goose'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/block/goose:latest
