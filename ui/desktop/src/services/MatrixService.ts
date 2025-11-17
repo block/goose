@@ -581,7 +581,7 @@ export class MatrixService extends EventEmitter {
       /@goose/i,  // @goose mentions
       /collaborative.*session/i,
       /task.*request/i,
-      /collaboration.*invite/i,
+      // REMOVED: /collaboration.*invite/i, - this was catching Matrix room invitations
       /goose-session-message:/i,  // Session messages from useSessionSharing
     ];
     
