@@ -85,7 +85,11 @@ export default function Pair({
 
   // Reset state when Matrix room changes (switching between different peer DMs)
   useEffect(() => {
-    console.log('🔄 Matrix room changed, resetting state for new room:', matrixRoomId);
+    if (!isMatrixMode || !matrixRoomId) {
+      return;
+    }
+    
+    console.log('🔄 Matrix room changed, resetting state and loading new session for room:', matrixRoomId);
     
     // Reset all Matrix-related state when room changes
     setHasLoadedMatrixHistory(false);
@@ -102,8 +106,82 @@ export default function Pair({
     // Reset loading state
     setIsLoadingMatrixHistory(false);
     
+    // CRITICAL: Clear the current chat messages to prevent showing wrong session
+    setChat(prevChat => ({
+      ...prevChat,
+      messages: [], // Clear messages immediately
+      sessionId: matrixRoomId, // Set to Matrix room ID temporarily
+    }));
+    
     console.log('✅ State reset complete for Matrix room:', matrixRoomId);
-  }, [matrixRoomId]); // Only depend on matrixRoomId, not isMatrixMode
+    
+    // Force initialization of the new session
+    const initializeNewSession = async () => {
+      console.log('🔄 Force initializing new session for Matrix room:', matrixRoomId);
+      
+      // Get or create the session mapping
+      let gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
+      
+      if (!gooseSessionId) {
+        console.log('🔄 No mapping found, creating session mapping for Matrix room:', matrixRoomId);
+        
+        // Create a mapping for this Matrix room
+        const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
+        const roomName = currentRoom?.name || `DM with ${matrixRecipientId || 'User'}`;
+        
+        try {
+          // Try to create with backend session first
+          const mapping = await sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName);
+          gooseSessionId = mapping.gooseSessionId;
+          console.log('✅ Created backend session mapping:', { matrixRoomId, gooseSessionId });
+        } catch (error) {
+          console.error('❌ Failed to create backend session mapping, using fallback:', error);
+          // Fallback to regular mapping
+          const mapping = sessionMappingService.createMapping(matrixRoomId, [], roomName);
+          gooseSessionId = mapping.gooseSessionId;
+        }
+      }
+      
+      // Load the backend session for this Matrix DM to get any existing messages
+      setLoadingChat(true);
+      try {
+        const loadedChat = await loadCurrentChat({
+          resumeSessionId: gooseSessionId,
+          setAgentWaitingMessage,
+        });
+        
+        console.log('📥 Matrix DM: loadCurrentChat returned for new room:', { 
+          sessionId: loadedChat.sessionId, 
+          messagesCount: loadedChat.messages?.length || 0,
+          matrixRoomId,
+        });
+        
+        // Set aiEnabled to false for Matrix DMs (override the default from backend)
+        const matrixChat: ChatType = {
+          ...loadedChat,
+          aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
+        };
+        
+        setChat(matrixChat);
+        setHasInitializedChat(true);
+        
+        // Update URL params to reflect the proper session ID
+        setSearchParams((prev) => {
+          prev.set('resumeSessionId', gooseSessionId);
+          return prev;
+        });
+      } catch (error) {
+        console.log('❌ Matrix DM loadCurrentChat error for new room:', error);
+        setFatalError(`Matrix DM init failure: ${error instanceof Error ? error.message : '' + error}`);
+      } finally {
+        setLoadingChat(false);
+      }
+    };
+    
+    // Initialize the new session after a short delay to ensure state is reset
+    setTimeout(initializeNewSession, 100);
+    
+  }, [matrixRoomId, isMatrixMode]); // Depend on both matrixRoomId and isMatrixMode
 
   // Centralized message management function
   const addMessagesToChat = useCallback((newMessages: Message[], source: string) => {
@@ -296,6 +374,13 @@ export default function Pair({
   // This is simpler and more reliable than trying to sync individual messages
 
   useEffect(() => {
+    // Skip this initialization effect if we're in Matrix mode and already have initialized chat
+    // The Matrix room change effect handles initialization for Matrix mode
+    if (isMatrixMode && hasInitializedChat) {
+      console.log('⚠️ Skipping initializeFromState in Matrix mode - already initialized');
+      return;
+    }
+    
     const initializeFromState = async () => {
       console.log('🔄 initializeFromState called with:', { 
         agentState, 
@@ -305,72 +390,9 @@ export default function Pair({
         currentChatMessagesCount: chat.messages?.length || 0 
       });
       
-      // In Matrix mode, ensure we have a proper session mapping and use the Goose session ID
+      // Skip if we're in Matrix mode - handled by the Matrix room change effect
       if (isMatrixMode && matrixRoomId) {
-        console.log('🔄 Matrix mode: Ensuring session mapping exists and using proper session ID');
-        
-        // Get or create the session mapping
-        let gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
-        
-        if (!gooseSessionId) {
-          console.log('🔄 No mapping found, creating session mapping for Matrix room:', matrixRoomId);
-          
-          // Create a mapping for this Matrix room
-          const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
-          const roomName = currentRoom?.name || `Matrix Room ${matrixRoomId.substring(1, 8)}`;
-          
-          try {
-            // Try to create with backend session first
-            const mapping = await sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName);
-            gooseSessionId = mapping.gooseSessionId;
-            console.log('✅ Created backend session mapping:', { matrixRoomId, gooseSessionId });
-          } catch (error) {
-            console.error('❌ Failed to create backend session mapping, using fallback:', error);
-            // Fallback to regular mapping
-            const mapping = sessionMappingService.createMapping(matrixRoomId, [], roomName);
-            gooseSessionId = mapping.gooseSessionId;
-          }
-        }
-        
-        // Load the backend session for this Matrix DM to get any existing messages
-        setLoadingChat(true);
-        try {
-          const loadedChat = await loadCurrentChat({
-            resumeSessionId: gooseSessionId,
-            setAgentWaitingMessage,
-          });
-          
-          console.log('📥 Matrix DM: loadCurrentChat returned:', { 
-            sessionId: loadedChat.sessionId, 
-            messagesCount: loadedChat.messages?.length || 0,
-          });
-          
-          // Set aiEnabled to false for Matrix DMs (override the default from backend)
-          const matrixChat: ChatType = {
-            ...loadedChat,
-            aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
-          };
-          
-          setChat(matrixChat);
-          setHasInitializedChat(true);
-          
-          // Update URL params to reflect the proper session ID
-          setSearchParams((prev) => {
-            prev.set('resumeSessionId', gooseSessionId);
-            return prev;
-          });
-        } catch (error) {
-          console.log('❌ Matrix DM loadCurrentChat error:', error);
-          setFatalError(`Matrix DM init failure: ${error instanceof Error ? error.message : '' + error}`);
-        } finally {
-          setLoadingChat(false);
-        }
-        return;
-      }
-      
-      // Skip initialization if we're in Matrix mode and have already initialized
-      if (isMatrixMode && hasInitializedChat && chat.messages.length > 0) {
-        console.log('⚠️ Skipping chat reload in Matrix mode - already initialized with messages');
+        console.log('⚠️ Skipping initializeFromState - Matrix mode handled by room change effect');
         return;
       }
       
@@ -410,8 +432,7 @@ export default function Pair({
     loadCurrentChat,
     resumeSessionId,
     setSearchParams,
-    isMatrixMode,
-    matrixRoomId,
+    // Removed isMatrixMode and matrixRoomId to prevent conflicts with Matrix room change effect
   ]);
 
   // Followed by sending the initialMessage if we have one. This will happen
