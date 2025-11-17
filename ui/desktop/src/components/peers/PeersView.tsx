@@ -318,7 +318,7 @@ const PeerCard: React.FC<{
       {/* Message bubble (only if there's an unread message) */}
       {lastMessage && lastMessage.isUnread && (
         <div className="absolute inset-x-4 bottom-16 z-10">
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-border-default">
+          <div className="bg-background-default/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-border-default">
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-text-default mb-1">
@@ -337,7 +337,7 @@ const PeerCard: React.FC<{
                 </p>
               </div>
               {!lastMessage.isFromSelf && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+                <div className="w-2 h-2 bg-background-accent rounded-full flex-shrink-0 mt-1" />
               )}
             </div>
           </div>
