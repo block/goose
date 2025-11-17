@@ -1009,7 +1009,7 @@ export class MatrixService extends EventEmitter {
     // Create new mapping with backend session for ALL rooms (including DMs)
     const participants = room.getMembers().map((member: any) => member.userId);
     const memberCount = participants.length;
-    const isDM = memberCount === 2;
+    const isDM = this.isDirectMessageRoom(room);
     
     // Generate appropriate room name
     let roomName: string;
@@ -1059,6 +1059,28 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Check if a room is a true direct message room
+   * True DMs have exactly 2 members AND no explicit room name (auto-generated from usernames)
+   */
+  private isDirectMessageRoom(room: any): boolean {
+    const memberCount = room.getMembers().length;
+    const hasExplicitName = room.name && room.name.trim() !== '';
+    
+    // True DM: exactly 2 members + no explicit name (Matrix auto-generates display name)
+    const isTrueDM = memberCount === 2 && !hasExplicitName;
+    
+    console.log('🔍 DM Detection:', {
+      roomId: room.roomId.substring(0, 20) + '...',
+      memberCount,
+      roomName: room.name || '(auto-generated)',
+      hasExplicitName,
+      isTrueDM
+    });
+    
+    return isTrueDM;
+  }
+
+  /**
    * Get all rooms the user is in
    */
   getRooms(): MatrixRoom[] {
@@ -1087,7 +1109,7 @@ export class MatrixService extends EventEmitter {
           presence: this.client?.getUser(member.userId)?.presence,
         };
       }),
-      isDirectMessage: room.getMembers().length === 2,
+      isDirectMessage: this.isDirectMessageRoom(room), // Use improved DM detection
       lastActivity: new Date(room.getLastActiveTimestamp()),
     }));
 
@@ -1864,7 +1886,7 @@ export class MatrixService extends EventEmitter {
       const roomTopic = room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic;
       const members = room.getMembers();
       const memberCount = members.length;
-      const isDirectMessage = memberCount === 2;
+      const isDirectMessage = this.isDirectMessageRoom(room);
       const isEncrypted = room.hasEncryptionStateEvent();
 
       // Update room metadata
