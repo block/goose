@@ -363,13 +363,8 @@ export class MatrixService extends EventEmitter {
     await this.client.startClient({ 
       initialSyncLimit: 50, // Increased from 10 to get more recent messages
       pollTimeout: 30000,   // 30 second long polling for faster notifications
-      filter: {
-        room: {
-          timeline: {
-            limit: 20, // Get more recent messages per room
-          },
-        },
-      },
+      // Remove filter for now - it was causing sync errors
+      // We'll rely on the increased sync limits for better performance
     });
     
     this.syncState = 'SYNCING';
