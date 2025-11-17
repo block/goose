@@ -155,6 +155,11 @@ def main():
         print(f"Error: GitHub contributor data not found at {github_data_file}")
         print("Please run: curl -s -H 'Accept: application/vnd.github.v3+json' 'https://api.github.com/repos/block/goose/stats/contributors' > /tmp/github_contributors.json")
         sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {github_data_file}")
+        print(f"Details: {e}")
+        print("Please ensure the file contains valid JSON from the GitHub API.")
+        sys.exit(1)
 
     # Process contributors
     contributor_stats = []
