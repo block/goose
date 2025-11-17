@@ -57,6 +57,10 @@ Explain that minimizing extensions helps with the recall of the correct tools to
 {% endif %}
 
 {{tool_selection_strategy}}
+{% if operating_principles %}
+
+{{ operating_principles }}
+{% endif %}
 
 # Response Guidelines
 

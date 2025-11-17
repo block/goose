@@ -44,6 +44,8 @@ struct SystemPromptContext {
     enable_subagents: bool,
     max_extensions: usize,
     max_tools: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    operating_principles: Option<String>,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
@@ -145,6 +147,16 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .extension_tool_count
             .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS);
 
+        let operating_principles = if sanitized_extensions_info
+            .iter()
+            .any(|e| e.name == "developer")
+        {
+            let empty_context: HashMap<String, Value> = HashMap::new();
+            prompt_template::render_global_file("operating_principles.md", &empty_context).ok()
+        } else {
+            None
+        };
+
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
             tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
@@ -155,6 +167,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             enable_subagents: should_enabled_subagents(self.model_name.as_str()),
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
+            operating_principles,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
