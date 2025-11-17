@@ -123,23 +123,27 @@ export default function Pair({
       let gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
       
       if (!gooseSessionId) {
-        console.log('🔄 No mapping found, creating session mapping for Matrix room:', matrixRoomId);
+        console.log('🔄 No mapping found, creating NEW DM-specific session mapping for Matrix room:', matrixRoomId);
         
-        // Create a mapping for this Matrix room
+        // Create a mapping for this Matrix room - ensure it's DM-specific
         const currentRoom = rooms.find(room => room.roomId === matrixRoomId);
-        const roomName = currentRoom?.name || `DM with ${matrixRecipientId || 'User'}`;
+        const isDM = currentRoom?.members?.length === 2 || true; // Assume DM for peer chats
+        const roomName = isDM ? `DM with ${matrixRecipientId || 'User'}` : currentRoom?.name || `Matrix Room ${matrixRoomId.substring(1, 8)}`;
         
         try {
-          // Try to create with backend session first
+          // ALWAYS create a NEW backend session for DMs to avoid shared session contamination
+          console.log('🔄 Creating FRESH backend session for DM:', { matrixRoomId, roomName, isDM });
           const mapping = await sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName);
           gooseSessionId = mapping.gooseSessionId;
-          console.log('✅ Created backend session mapping:', { matrixRoomId, gooseSessionId });
+          console.log('✅ Created NEW backend session mapping for DM:', { matrixRoomId, gooseSessionId });
         } catch (error) {
           console.error('❌ Failed to create backend session mapping, using fallback:', error);
           // Fallback to regular mapping
           const mapping = sessionMappingService.createMapping(matrixRoomId, [], roomName);
           gooseSessionId = mapping.gooseSessionId;
         }
+      } else {
+        console.log('🔄 Found existing session mapping for Matrix room:', { matrixRoomId, gooseSessionId });
       }
       
       // Load the backend session for this Matrix DM to get any existing messages
@@ -150,15 +154,18 @@ export default function Pair({
           setAgentWaitingMessage,
         });
         
-        console.log('📥 Matrix DM: loadCurrentChat returned for new room:', { 
+        console.log('📥 Matrix DM: loadCurrentChat returned for room:', { 
           sessionId: loadedChat.sessionId, 
           messagesCount: loadedChat.messages?.length || 0,
           matrixRoomId,
+          gooseSessionId,
         });
         
-        // Set aiEnabled to false for Matrix DMs (override the default from backend)
+        // IMPORTANT: For DMs, start with empty messages and only load from Matrix history
+        // This prevents loading shared session history that might not belong to this DM
         const matrixChat: ChatType = {
           ...loadedChat,
+          messages: [], // Start empty - Matrix history will be loaded separately
           aiEnabled: false, // AI is disabled by default for Matrix DMs - use @goose to enable
         };
         
@@ -170,6 +177,8 @@ export default function Pair({
           prev.set('resumeSessionId', gooseSessionId);
           return prev;
         });
+        
+        console.log('✅ Matrix DM session initialized with empty messages - Matrix history will load separately');
       } catch (error) {
         console.log('❌ Matrix DM loadCurrentChat error for new room:', error);
         setFatalError(`Matrix DM init failure: ${error instanceof Error ? error.message : '' + error}`);
@@ -457,13 +466,13 @@ export default function Pair({
   // Load Matrix room history when in Matrix mode
   useEffect(() => {
     const loadMatrixHistory = async () => {
-      // In Matrix mode, load history as soon as Matrix is ready, don't wait for regular chat
-      if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory) {
+      // In Matrix mode, load history ONLY after backend session is initialized
+      if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory || !hasInitializedChat) {
         return;
       }
 
-      // For Matrix mode, we don't need to wait for chat.sessionId since we're using the Matrix room as the session
-      console.log('📜 Loading Matrix room history for collaboration:', matrixRoomId);
+      // Wait for the backend session to be properly set up before loading Matrix history
+      console.log('📜 Loading Matrix room history for DM (after backend session init):', matrixRoomId);
       setIsLoadingMatrixHistory(true);
 
       try {
@@ -538,6 +547,7 @@ export default function Pair({
     isConnected,
     isReady,
     hasLoadedMatrixHistory,
+    hasInitializedChat, // Wait for backend session to be initialized
     getRoomHistoryAsGooseMessages,
     // Removed addMessagesToChat from dependencies to prevent re-render loop
   ]);
