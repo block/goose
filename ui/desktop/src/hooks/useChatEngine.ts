@@ -79,12 +79,18 @@ export const useChatEngine = ({
   // Get the appropriate session ID for backend API calls
   const backendSessionId = sessionMappingService.getBackendSessionId(chat.sessionId);
   const shouldMakeBackendCalls = sessionMappingService.shouldMakeBackendCalls(chat.sessionId);
-  const isCollaborativeSession = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
+  const isMatrixCollaborativeFromService = sessionMappingService.isMatrixCollaborativeSession(chat.sessionId);
   
   // For Matrix rooms, we want to allow history loading but prevent new LLM requests
-  // So we only consider it "collaborative" if it's a Matrix room AND has active collaboration
+  // Matrix rooms should NEVER make backend calls - they're purely for collaboration
   const isMatrixRoom = chat.sessionId && chat.sessionId.startsWith('!');
-  const shouldBlockNewRequests = isMatrixRoom; // Block new requests for all Matrix rooms
+  
+  // Also check if this is a regular session that's mapped from a Matrix room
+  const matrixRoomId = sessionMappingService.getMatrixRoomId(chat.sessionId);
+  const isCollaborativeSession = isMatrixRoom || matrixRoomId !== null;
+  
+  // Block all backend requests for any collaborative session
+  const shouldBlockNewRequests = isCollaborativeSession;
   
   console.log('📋 useChatEngine: Session ID mapping:', {
     originalSessionId: chat.sessionId,
@@ -117,7 +123,7 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
-    disabled: isMatrixRoom, // Completely disable useMessageStream for Matrix rooms
+    disabled: isCollaborativeSession, // Completely disable useMessageStream for collaborative sessions
     body: {
       session_id: backendSessionId || chat.sessionId, // Use mapped session ID for backend, fallback to original
       session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
@@ -309,9 +315,9 @@ export const useChatEngine = ({
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
-        // Skip backend calls entirely for Matrix rooms
-        if (isMatrixRoom) {
-          console.log('📋 Skipping session token fetch - Matrix room:', chat.sessionId);
+        // Skip backend calls entirely for collaborative sessions
+        if (isCollaborativeSession) {
+          console.log('📋 Skipping session token fetch - collaborative session:', chat.sessionId);
           return;
         }
         
@@ -348,7 +354,7 @@ export const useChatEngine = ({
     if (chat.sessionId && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
-  }, [chat.sessionId, messages, chatState, isMatrixRoom]);
+  }, [chat.sessionId, messages, chatState, isCollaborativeSession]);
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
