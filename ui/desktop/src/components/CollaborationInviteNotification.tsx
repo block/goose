@@ -4,6 +4,7 @@ import { Users, X, Check, Clock } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { GooseChatMessage, matrixService } from '../services/MatrixService';
+import { matrixInviteStateService } from '../services/MatrixInviteStateService';
 
 interface CollaborationInviteNotificationProps {
   className?: string;
@@ -48,6 +49,19 @@ const CollaborationInviteNotification: React.FC<CollaborationInviteNotificationP
         console.log('🔔 Skipping Matrix invitation notification for active room:', invitationData.roomId);
         return;
       }
+
+      // CRITICAL: Check if this invite should actually be shown according to MatrixInviteStateService
+      const shouldShow = matrixInviteStateService.shouldShowInvite(invitationData.roomId, invitationData.inviter);
+      if (!shouldShow) {
+        console.log('🔔 Skipping Matrix invitation notification - MatrixInviteStateService says not to show:', {
+          roomId: invitationData.roomId,
+          inviter: invitationData.inviter,
+          shouldShow
+        });
+        return;
+      }
+
+      console.log('🔔 Matrix invitation passed shouldShow check - displaying notification:', invitationData.roomId);
 
       // Convert Matrix invitation to GooseChatMessage format for UI compatibility
       const collaborationInvite: GooseChatMessage = {
