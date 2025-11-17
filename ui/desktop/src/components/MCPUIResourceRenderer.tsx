@@ -98,14 +98,14 @@ export default function MCPUIResourceRenderer({
     const theme = localStorage.getItem('theme') || 'light';
     setCurrentThemeValue(theme);
 
-    // Fetch the MCP-UI proxy URL from the main process
     const fetchProxyUrl = async () => {
       try {
-        const url = await window.electron.getMcpUIProxyUrl();
-        if (url) {
-          setProxyUrl(url);
+        const baseUrl = await window.electron.getGoosedHostPort();
+        const secretKey = await window.electron.getSecretKey();
+        if (baseUrl && secretKey) {
+          setProxyUrl(`${baseUrl}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
         } else {
-          console.error('Failed to get MCP-UI Proxy URL');
+          console.error('Failed to get goosed host/port or secret key');
         }
       } catch (error) {
         console.error('Error fetching MCP-UI Proxy URL:', error);
