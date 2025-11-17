@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeH
 import { FileIcon } from './FileIcon';
 import { Users, UserPlus, File } from 'lucide-react';
 import { useMatrix } from '../contexts/MatrixContext';
+import GooseIcon from '../images/loading-goose/1.svg';
 
 interface MentionItem {
   id: string;
@@ -277,11 +278,16 @@ const EnhancedMentionPopover = forwardRef<
                   <div className="flex-shrink-0">
                     {item.type === 'friend' ? (
                       item.userId?.startsWith('goose') ? (
-                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs">
-                            {item.userId === 'goose' ? '🦆' : 
-                             item.userId.includes('off') || item.userId.includes('stop') || item.userId.includes('quiet') ? '🦆💤' : '🦆'}
-                          </span>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          item.userId.includes('off') || item.userId.includes('stop') || item.userId.includes('quiet') 
+                            ? 'bg-gray-500' 
+                            : 'bg-green-500'
+                        }`}>
+                          <img 
+                            src={GooseIcon} 
+                            alt="Goose" 
+                            className="w-4 h-4 brightness-0 invert"
+                          />
                         </div>
                       ) : (
                         <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
