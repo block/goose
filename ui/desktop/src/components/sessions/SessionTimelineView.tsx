@@ -342,15 +342,23 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     onSelectSession(nodeId);
   };
 
+  console.log('SessionTimelineView: About to render, treeData.nodes.length =', treeData.nodes.length);
+
   if (treeData.nodes.length === 0) {
+    console.log('SessionTimelineView: Rendering fallback - no nodes');
     return (
       <div className={`flex flex-col items-center justify-center h-full text-text-muted ${className}`}>
         <Calendar className="h-12 w-12 mb-4" />
         <p className="text-lg mb-2">No sessions to display</p>
         <p className="text-sm">Your session tree will appear here</p>
+        <p className="text-xs mt-4 bg-red-100 p-2 rounded">
+          DEBUG: {sessions.length} sessions passed, {treeData.nodes.length} nodes created
+        </p>
       </div>
     );
   }
+
+  console.log('SessionTimelineView: Rendering tree with', treeData.nodes.length, 'nodes');
 
   return (
     <div className={`${className}`}>
@@ -359,6 +367,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         <h3 className="text-lg font-medium text-text-standard mb-2">Session Tangled Tree</h3>
         <p className="text-sm text-text-muted">
           Tree visualization of {sessions.length} sessions showing temporal and topical relationships with curved connections.
+        </p>
+        <p className="text-xs mt-2 bg-green-100 p-2 rounded">
+          DEBUG: Rendering {treeData.nodes.length} nodes, canvas: {treeData.width}x{treeData.height}
         </p>
       </div>
 
