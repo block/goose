@@ -2,6 +2,10 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
+use goose_mcp::mcp_server_runner::{serve, McpCommand};
+use goose_mcp::{
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+};
 
 use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
@@ -420,7 +424,7 @@ enum Command {
 
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp { name: String },
+    Mcp { server: McpCommand },
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
@@ -877,16 +881,15 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Command::Configure {}) => {
-            handle_configure().await?;
-        }
-        Some(Command::Info { verbose }) => {
-            handle_info(verbose)?;
-        }
-        Some(Command::Mcp { name }) => {
-            crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
-        }
+        Some(Command::Configure {}) => handle_configure().await?,
+        Some(Command::Info { verbose }) => handle_info(verbose)?,
+        Some(Command::Mcp { server }) => match server {
+            McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+            McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+            McpCommand::Memory => serve(MemoryServer::new()).await?,
+            McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+            McpCommand::Developer => serve(DeveloperServer::new()).await?,
+        },
         Some(Command::Acp {}) => {
             run_acp_agent().await?;
         }

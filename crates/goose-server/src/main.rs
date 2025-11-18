@@ -7,6 +7,11 @@ mod routes;
 mod state;
 
 use clap::{Parser, Subcommand};
+use goose::config::paths::Paths;
+use goose_mcp::{
+    mcp_server_runner::{serve, McpCommand},
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -21,23 +26,34 @@ enum Commands {
     /// Run the agent server
     Agent,
     /// Run the MCP server
-    Mcp {
-        /// Name of the MCP server type
-        name: String,
-    },
+    Mcp { server: McpCommand },
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match &cli.command {
+    match cli.command {
         Commands::Agent => {
             commands::agent::run().await?;
         }
-        Commands::Mcp { name } => {
-            logging::setup_logging(Some(&format!("mcp-{name}")))?;
-            goose_mcp::mcp_server_runner::run_mcp_server(name).await?;
+        Commands::Mcp { server } => {
+            logging::setup_logging(Some(&format!("mcp-{}", server.name())))?;
+            match server {
+                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+                McpCommand::Memory => serve(MemoryServer::new()).await?,
+                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+                McpCommand::Developer => {
+                    let bash_env = Paths::config_dir().join(".bash_env");
+                    serve(
+                        DeveloperServer::new()
+                            .extend_path_with_shell(true)
+                            .bash_env_file(Some(bash_env)),
+                    )
+                    .await?
+                }
+            }
         }
     }
 

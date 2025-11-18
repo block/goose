@@ -54,13 +54,8 @@ async fn get_shell_path_async() -> Result<String> {
 
 #[cfg(not(windows))]
 async fn get_unix_path_async(shell: &str) -> Result<String> {
-    let flags = if shell.ends_with("fish") {
-        vec!["-l", "-c"]
-    } else {
-        vec!["-l", "-i", "-c"]
-    };
     let output = Command::new(shell)
-        .args(flags)
+        .args(["-l", "-i", "-c", "echo $PATH"])
         .output()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to execute shell command: {}", e))?;
