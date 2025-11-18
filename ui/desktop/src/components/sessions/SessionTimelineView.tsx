@@ -40,8 +40,8 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
 
     // Sort sessions by creation date (newest first)
     const sortedSessions = [...sessions]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 200); // Limit for performance
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Show ALL sessions - no limit
 
     // Convert sessions to points for hexbin
     const points: HexbinPoint[] = sortedSessions.map((session, index) => {
