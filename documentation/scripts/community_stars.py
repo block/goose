@@ -73,7 +73,8 @@ def load_team_lists():
                 current_section = 'bots'
             continue
         
-        # Add username to appropriate set
+        # Add username to appropriate set (lowercase for case-insensitive matching)
+        # This handles bot names like "dependabot[bot]" -> "dependabot[bot]"
         username = line.lower()
         if current_section == 'goose_maintainers':
             goose_maintainers.add(username)
@@ -176,7 +177,7 @@ def main():
         username = contributor['author']['login']
         username_lower = username.lower()
         
-        # Skip excluded categories
+        # Skip excluded categories (case-insensitive matching)
         if username_lower in bots or username_lower in goose_maintainers or username_lower in external_goose:
             continue
         
