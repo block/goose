@@ -68,7 +68,7 @@ pub fn resolve_slash_command(command: &str) -> Option<Recipe> {
         return None;
     }
     let recipe_content = std::fs::read_to_string(&recipe_path).ok()?;
-    let recipe: Recipe = serde_yaml::from_str(&recipe_content).ok()?;
+    let recipe = Recipe::from_content(&recipe_content).ok()?;
 
     Some(recipe)
 }
