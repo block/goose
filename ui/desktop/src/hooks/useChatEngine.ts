@@ -196,11 +196,54 @@ export const useChatEngine = ({
         !match[1].toLowerCase().startsWith('goose')
       );
       
+      // **PRIMARY USER CHECK**: Determine if this message is from the primary user
+      const isPrimaryUserMessage = (() => {
+        // For Matrix sessions, check if the message is from a collaborator
+        if (message.metadata?.isFromCollaborator || message.metadata?.isMatrixSharedSession) {
+          // If the message has sender info, it's from a Matrix collaborator (not primary user)
+          if (message.sender?.userId) {
+            console.log('👥 Message from Matrix collaborator - not primary user:', {
+              senderUserId: message.sender.userId,
+              senderDisplayName: message.sender.displayName,
+              messageId: message.id,
+              contentPreview: messageText.substring(0, 50) + '...'
+            });
+            return false;
+          }
+        }
+        
+        // If no sender info or not from Matrix, assume it's from the primary user (local message)
+        return true;
+      })();
+      
+      // **CORE RULE**: Only respond to primary user messages (unless @goose is mentioned)
+      if (!isPrimaryUserMessage && !containsGooseMention && message.role === 'user') {
+        console.log('🚫 BLOCKING: Message from non-primary user without @goose mention:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          senderUserId: message.sender?.userId,
+          senderDisplayName: message.sender?.displayName,
+          isPrimaryUser: isPrimaryUserMessage,
+          containsGooseMention,
+          contentPreview: messageText.substring(0, 50) + '...'
+        });
+        
+        // Add the message to the chat without triggering AI response
+        setMessages(prevMessages => [...prevMessages, message]);
+        
+        // Store in history if it's a user message
+        storeMessageInHistory(message);
+        
+        // Return a promise that resolves immediately (to match originalAppend's interface)
+        return Promise.resolve();
+      }
+      
       // If @goose off is mentioned, disable AI for this session
       if (isGooseOffCommand && aiEnabled) {
         console.log('🦆💤 @goose off mentioned - disabling AI for session:', {
           sessionId: chat.sessionId,
           messageId: message.id,
+          isPrimaryUser: isPrimaryUserMessage,
           contentPreview: messageText.substring(0, 50) + '...'
         });
         
@@ -223,6 +266,7 @@ export const useChatEngine = ({
           sessionId: chat.sessionId,
           messageId: message.id,
           mentions: mentions.map(m => m[1]),
+          isPrimaryUser: isPrimaryUserMessage,
           contentPreview: messageText.substring(0, 50) + '...'
         });
         
@@ -241,6 +285,7 @@ export const useChatEngine = ({
         console.log('🦆 @goose mentioned - enabling AI for session:', {
           sessionId: chat.sessionId,
           messageId: message.id,
+          isPrimaryUser: isPrimaryUserMessage,
           contentPreview: messageText.substring(0, 50) + '...'
         });
         
@@ -257,6 +302,7 @@ export const useChatEngine = ({
           messageId: message.id,
           aiEnabled,
           containsGooseMention,
+          isPrimaryUser: isPrimaryUserMessage,
           contentPreview: messageText.substring(0, 50) + '...'
         });
         
@@ -270,53 +316,21 @@ export const useChatEngine = ({
         return Promise.resolve();
       }
       
-      // Check metadata flags to prevent local AI responses
+      // Check metadata flags to prevent local AI responses (legacy support)
       const shouldSkipLocalResponse = message.metadata?.skipLocalResponse ||
-                                     message.metadata?.preventAutoResponse ||
-                                     message.metadata?.isFromCollaborator ||
-                                     message.metadata?.isMatrixSharedSession;
+                                     message.metadata?.preventAutoResponse;
       
-      // Also check if AI is disabled for messages from collaborators/Matrix sessions
-      const shouldSkipDueToAiDisabled = !aiEnabled && (
-        message.metadata?.isFromCollaborator ||
-        message.metadata?.isMatrixSharedSession ||
-        shouldSkipLocalResponse
-      );
-      
-      if (shouldSkipLocalResponse || shouldSkipDueToAiDisabled) {
-        console.log('🚫 Skipping local AI response due to metadata flags or AI disabled:', {
+      if (shouldSkipLocalResponse) {
+        console.log('🚫 Skipping local AI response due to legacy metadata flags:', {
           messageId: message.id,
           role: message.role,
-          aiEnabled,
           skipLocalResponse: message.metadata?.skipLocalResponse,
           preventAutoResponse: message.metadata?.preventAutoResponse,
-          isFromCollaborator: message.metadata?.isFromCollaborator,
-          isMatrixSharedSession: message.metadata?.isMatrixSharedSession,
-          shouldSkipDueToAiDisabled,
-          containsGooseMention,
+          isPrimaryUser: isPrimaryUserMessage,
           contentPreview: Array.isArray(message.content) 
             ? message.content[0]?.text?.substring(0, 50) + '...' 
             : 'N/A'
         });
-        
-        // Special case: If AI is disabled but message contains @goose mention from collaborator, enable AI
-        if (shouldSkipDueToAiDisabled && containsGooseMention && !isGooseOffCommand) {
-          console.log('🦆 @goose mentioned by collaborator - enabling AI for session:', {
-            sessionId: chat.sessionId,
-            messageId: message.id,
-            contentPreview: messageText.substring(0, 50) + '...'
-          });
-          
-          // Update the chat to enable AI
-          setChat((prevChat: ChatType) => ({ ...prevChat, aiEnabled: true }));
-          
-          // Add the message and continue to trigger AI response
-          setMessages(prevMessages => [...prevMessages, message]);
-          storeMessageInHistory(message);
-          
-          // Continue to normal flow to trigger AI response
-          return originalAppend(message);
-        }
         
         // Add the message to the chat without triggering AI response
         setMessages(prevMessages => [...prevMessages, message]);
