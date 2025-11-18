@@ -1,13 +1,13 @@
 import {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
   forwardRef,
-  useImperativeHandle,
   useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
-import { FileIcon } from './FileIcon';
+import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
@@ -19,7 +19,7 @@ const typeOrder: Record<DisplayItemType, number> = {
   Recipe: 3,
 };
 
-interface DisplayItem {
+export interface DisplayItem {
   name: string;
   extra: string;
   itemType: DisplayItemType;
@@ -130,123 +130,6 @@ const MentionPopover = forwardRef<
     const listRef = useRef<HTMLDivElement>(null);
 
     const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
-
-    const compareByType = (a: DisplayItemWithMatch, b: DisplayItemWithMatch) => {
-      const orderA = typeOrder[a.itemType] ?? Number.MAX_SAFE_INTEGER;
-      const orderB = typeOrder[b.itemType] ?? Number.MAX_SAFE_INTEGER;
-      return orderA - orderB;
-    };
-
-    const displayItems = useMemo((): DisplayItemWithMatch[] => {
-      if (!query.trim()) {
-        return files
-          .map((file) => ({
-            ...file,
-            matchScore: 0,
-            matches: [],
-            matchedText: file.name,
-            depth: currentWorkingDir
-              ? file.extra.replace(currentWorkingDir, '').split('/').length - 1
-              : 0,
-          }))
-          .sort((a, b) => {
-            if (a.depth !== b.depth) return a.depth - b.depth;
-            const typeComparison = compareByType(a, b);
-            return typeComparison || a.name.localeCompare(b.name);
-          });
-      }
-
-      const results = files
-        .map((file) => {
-          const matches = [
-            { match: fuzzyMatch(query, file.name), text: file.name },
-            { match: fuzzyMatch(query, file.relativePath), text: file.relativePath },
-            { match: fuzzyMatch(query, file.extra), text: file.extra },
-          ];
-
-          const { match: bestMatch, text: matchedText } = matches.reduce((best, current) =>
-            current.match.score > best.match.score ? current : best
-          );
-
-          let finalScore = bestMatch.score;
-          if (finalScore > 0 && currentWorkingDir) {
-            const depth = file.extra.replace(currentWorkingDir, '').split('/').length - 1;
-            finalScore += depth <= 1 ? 50 : depth <= 2 ? 30 : depth <= 3 ? 15 : 0;
-          }
-
-          return {
-            ...file,
-            matchScore: finalScore,
-            matches: bestMatch.matches,
-            matchedText,
-          };
-        })
-        .filter((file) => file.matchScore > 0)
-        .sort((a, b) => {
-          // Sort by score first, then prefer files over directories, then alphabetically
-          const scoreDiff = b.matchScore - a.matchScore;
-          if (Math.abs(scoreDiff) >= 1) return scoreDiff;
-          const typeComparison = compareByType(a, b);
-          return typeComparison || a.name.localeCompare(b.name);
-        });
-
-      return results;
-    }, [files, query, currentWorkingDir]);
-
-    // Expose methods to parent component
-    useImperativeHandle(
-      ref,
-      () => ({
-        getDisplayFiles: () => displayItems,
-        selectFile: (index: number) => {
-          if (displayItems[index]) {
-            onSelect(displayItems[index].extra);
-            onClose();
-          }
-        },
-      }),
-      [displayItems, onSelect, onClose]
-    );
-
-    useEffect(() => {
-      const loadData = async () => {
-        if (isSlashCommand) {
-          const response = await getSlashCommands({ throwOnError: true });
-          const commandItems: DisplayItem[] = (response.data?.commands || []).map((cmd) => ({
-            name: cmd.command,
-            extra: cmd.help,
-            itemType: cmd.command_type,
-            relativePath: cmd.command,
-            isCommand: true,
-          }));
-          setFiles(commandItems);
-        } else {
-          scanFilesFromRoot();
-        }
-      };
-
-      if (isOpen && files.length === 0) {
-        loadData();
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, isSlashCommand, files.length]); // scanFilesFromRoot intentionally omitted to avoid circular dependency
-
-    // Handle clicks outside the popover
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-          onClose();
-        }
-      };
-
-      if (isOpen) {
-        document.addEventListener('mousedown', handleClickOutside);
-      }
-
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, [isOpen, onClose]);
 
     const scanDirectoryFromRoot = useCallback(
       async (dirPath: string, relativePath = '', depth = 0): Promise<DisplayItem[]> => {
@@ -482,6 +365,118 @@ const MentionPopover = forwardRef<
       }
     }, [scanDirectoryFromRoot, currentWorkingDir]);
 
+    const compareByType = (a: DisplayItemWithMatch, b: DisplayItemWithMatch) => {
+      const orderA = typeOrder[a.itemType] ?? Number.MAX_SAFE_INTEGER;
+      const orderB = typeOrder[b.itemType] ?? Number.MAX_SAFE_INTEGER;
+      return orderA - orderB;
+    };
+
+    const displayItems = useMemo((): DisplayItemWithMatch[] => {
+      if (!query.trim()) {
+        return files
+          .map((file) => ({
+            ...file,
+            matchScore: 0,
+            matches: [],
+            matchedText: file.name,
+            depth: currentWorkingDir
+              ? file.extra.replace(currentWorkingDir, '').split('/').length - 1
+              : 0,
+          }))
+          .sort((a, b) => {
+            if (a.depth !== b.depth) return a.depth - b.depth;
+            const typeComparison = compareByType(a, b);
+            return typeComparison || a.name.localeCompare(b.name);
+          });
+      }
+
+      return files
+        .map((file) => {
+          const matches = [
+            { match: fuzzyMatch(query, file.name), text: file.name },
+            { match: fuzzyMatch(query, file.relativePath), text: file.relativePath },
+            { match: fuzzyMatch(query, file.extra), text: file.extra },
+          ];
+
+          const { match: bestMatch, text: matchedText } = matches.reduce((best, current) =>
+            current.match.score > best.match.score ? current : best
+          );
+
+          let finalScore = bestMatch.score;
+          if (finalScore > 0 && currentWorkingDir) {
+            const depth = file.extra.replace(currentWorkingDir, '').split('/').length - 1;
+            finalScore += depth <= 1 ? 50 : depth <= 2 ? 30 : depth <= 3 ? 15 : 0;
+          }
+
+          return {
+            ...file,
+            matchScore: finalScore,
+            matches: bestMatch.matches,
+            matchedText,
+          };
+        })
+        .filter((file) => file.matchScore > 0)
+        .sort((a, b) => {
+          // Sort by score first, then prefer files over directories, then alphabetically
+          const scoreDiff = b.matchScore - a.matchScore;
+          if (Math.abs(scoreDiff) >= 1) return scoreDiff;
+          const typeComparison = compareByType(a, b);
+          return typeComparison || a.name.localeCompare(b.name);
+        });
+    }, [files, query, currentWorkingDir]);
+
+    // Expose methods to parent component
+    useImperativeHandle(
+      ref,
+      () => ({
+        getDisplayFiles: () => displayItems,
+        selectFile: (index: number) => {
+          if (displayItems[index]) {
+            onSelect(displayItems[index].extra);
+            onClose();
+          }
+        },
+      }),
+      [displayItems, onSelect, onClose]
+    );
+
+    useEffect(() => {
+      const loadData = async () => {
+        if (isSlashCommand) {
+          const response = await getSlashCommands({ throwOnError: true });
+          const commandItems: DisplayItem[] = (response.data?.commands || []).map((cmd) => ({
+            name: cmd.command,
+            extra: cmd.help,
+            itemType: cmd.command_type,
+            relativePath: cmd.command,
+          }));
+          setFiles(commandItems);
+        } else {
+          await scanFilesFromRoot();
+        }
+      };
+
+      if (isOpen) {
+        loadData();
+      }
+    }, [isOpen, isSlashCommand, scanFilesFromRoot]);
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+          onClose();
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [isOpen, onClose]);
+
     // Scroll selected item into view
     useEffect(() => {
       if (listRef.current && selectedIndex >= 0 && selectedIndex < displayItems.length) {
@@ -498,7 +493,12 @@ const MentionPopover = forwardRef<
     const handleItemClick = (index: number) => {
       if (index >= 0 && index < displayItems.length) {
         onSelectedIndexChange(index);
-        onSelect(displayItems[index].extra);
+        const displayItem = displayItems[index];
+        onSelect(
+          ['Builtin', 'Recipe'].includes(displayItem.itemType)
+            ? '/' + displayItem.name
+            : displayItem.extra
+        );
         onClose();
       }
     };
@@ -533,9 +533,9 @@ const MentionPopover = forwardRef<
                 className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
                 style={{ maxHeight: '280px' }}
               >
-                {displayItems.map((file, index) => (
+                {displayItems.map((item, index) => (
                   <div
-                    key={file.extra}
+                    key={item.extra}
                     onClick={() => handleItemClick(index)}
                     className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
                       index === selectedIndex
@@ -544,11 +544,11 @@ const MentionPopover = forwardRef<
                     }`}
                   >
                     <div className="flex-shrink-0 text-textSubtle">
-                      <FileIcon fileName={file.name} isDirectory={file.itemType === 'Directory'} />
+                      <ItemIcon item={item} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate text-textStandard">{file.name}</div>
-                      <div className="text-xs text-textSubtle truncate">{file.extra}</div>
+                      <div className="text-sm truncate text-textStandard">{item.name}</div>
+                      <div className="text-xs text-textSubtle truncate">{item.extra}</div>
                     </div>
                   </div>
                 ))}

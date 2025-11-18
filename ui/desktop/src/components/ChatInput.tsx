@@ -573,24 +573,9 @@ export default function ChatInput({
     cursorPosition: number,
     textArea: HTMLTextAreaElement
   ) => {
-    if (text.startsWith('/')) {
-      const afterSlash = text.slice(1, cursorPosition);
-      if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
-        const textAreaRect = textArea.getBoundingClientRect();
-        setMentionPopover({
-          isOpen: true,
-          position: { x: textAreaRect.left, y: textAreaRect.top },
-          query: afterSlash,
-          mentionStart: 0,
-          selectedIndex: 0,
-          isSlashCommand: true,
-        });
-        return;
-      }
-    }
-
+    const isSlashCommand = text.startsWith('/');
     const beforeCursor = text.slice(0, cursorPosition);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const lastAtIndex = isSlashCommand ? 0 : beforeCursor.lastIndexOf('@');
 
     if (lastAtIndex === -1) {
       // No @ found, close mention popover
@@ -618,6 +603,7 @@ export default function ChatInput({
       query: afterAt,
       mentionStart: lastAtIndex,
       selectedIndex: 0, // Reset selection when query changes
+      isSlashCommand,
       // filteredFiles will be populated by the MentionPopover component
     }));
   };
@@ -1045,13 +1031,13 @@ export default function ChatInput({
     }
   };
 
-  const handleMentionFileSelect = (filePath: string) => {
+  const handleMentionItemSelect = (itemText: string) => {
     // Replace the @ mention with the file path
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    const newValue = `${beforeMention}${itemText}${afterMention}`;
 
     setDisplayValue(newValue);
     setValue(newValue);
@@ -1061,7 +1047,7 @@ export default function ChatInput({
     // Set cursor position after the inserted file path
     setTimeout(() => {
       if (textAreaRef.current) {
-        const newCursorPosition = beforeMention.length + filePath.length;
+        const newCursorPosition = beforeMention.length + itemText.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
       }
     }, 0);
@@ -1573,7 +1559,7 @@ export default function ChatInput({
           isOpen={mentionPopover.isOpen}
           isSlashCommand={mentionPopover.isSlashCommand}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
-          onSelect={handleMentionFileSelect}
+          onSelect={handleMentionItemSelect}
           position={mentionPopover.position}
           query={mentionPopover.query}
           selectedIndex={mentionPopover.selectedIndex}
