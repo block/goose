@@ -319,8 +319,6 @@ async fn do_compact(
                     if attempt < removal_percentages.len() - 1 {
                         continue;
                     } else {
-                        // We've exhausted all attempts including 100% tool response removal
-                        // This means the base prompt (system + messages without tool responses) is too large
                         return Err(anyhow::anyhow!(
                             "Failed to compact: context limit exceeded even after removing all tool responses"
                         ));

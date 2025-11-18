@@ -972,7 +972,7 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
-                            // Reset consecutive compactions counter on successful response
+                            // Reset counter on successful response
                             consecutive_compactions = 0;
 
                             // Emit model change event if provider is lead-worker
@@ -1154,21 +1154,22 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
-                            // Check if we've been compacting too many times in a row
                             consecutive_compactions += 1;
-                            warn!("Context limit exceeded. Consecutive compactions: {}", consecutive_compactions);
 
-                            if consecutive_compactions > 2 {
-                                error!("Compaction doom loop detected: compacted {} times without progress", consecutive_compactions - 1);
+                            // Stop after 1 compaction attempt (when counter > 1)
+                            if consecutive_compactions > 1 {
+                                error!("Context limit exceeded after compaction - prompt too large");
                                 yield AgentEvent::Message(
                                     Message::assistant().with_system_notification(
                                         SystemNotificationType::InlineMessage,
-                                        &format!("Unable to continue: Even after {} compaction attempts, the context still exceeds the model's limit.\n\n\
-                                         This indicates that your message or the system prompt is too large for the configured model.\n\n\
-                                         Please try:\n\
-                                         - Using a shorter message\n\
-                                         - Configuring a model with a larger context window\n\
-                                         - Starting a new session", consecutive_compactions - 1)
+                                        "Unable to continue: Even after compacting the conversation, the context still exceeds the model's limit.
+
+This indicates that your message or the system prompt is too large for the configured model.
+
+Please try:
+- Using a shorter message
+- Configuring a model with a larger context window
+- Starting a new session"
                                     )
                                 );
                                 break;
@@ -1197,20 +1198,8 @@ impl Agent {
                                     continue;
                                 }
                                 Err(e) => {
+                                    // Just log compaction failure - the doom loop check above will catch it on retry
                                     error!("Compaction failed: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_system_notification(
-                                            SystemNotificationType::InlineMessage,
-                                            &format!("Unable to continue: Compaction failed.\n\n\
-                                                     Error: {}\n\n\
-                                                     If this is a context limit error, your message or system prompt may be too large for the configured model.\n\n\
-                                                     Please try:\n\
-                                                     - Using a shorter message\n\
-                                                     - Configuring a model with a larger context window\n\
-                                                     - Starting a new session\n\
-                                                     - Retrying if this was a transient error", e)
-                                        )
-                                    );
                                     break;
                                 }
                             }
