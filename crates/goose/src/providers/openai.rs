@@ -44,7 +44,8 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
-    ("gpt-5.1-codex", 128_000),
+    ("gpt-5.1-codex", 400_000),
+    ("gpt-5-codex", 400_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -189,7 +190,9 @@ impl OpenAiProvider {
     }
 
     fn uses_responses_api(model_name: &str) -> bool {
-        model_name.starts_with("gpt-5")
+        model_name.starts_with("gpt-5-codex")
+            || model_name.starts_with("gpt-5.1-codex")
+            || model_name.starts_with("gpt-5-codex")
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {

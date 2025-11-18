@@ -681,7 +681,6 @@ where
 // Responses API Helper Functions
 // ============================================================================
 
-/// Create a request for the Responses API endpoint
 pub fn create_responses_request(
     model_config: &ModelConfig,
     system: &str,
@@ -744,7 +743,6 @@ pub fn create_responses_request(
         "instructions": system,
     });
 
-    // Format tools for responses API - flat structure without nested "function"
     if !tools.is_empty() {
         let tools_spec: Vec<Value> = tools
             .iter()
@@ -781,7 +779,6 @@ pub fn create_responses_request(
     Ok(payload)
 }
 
-/// Convert Responses API response to internal Message format
 pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
     let mut content = Vec::new();
 
@@ -838,13 +835,11 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
     let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
 
-    // Add response ID if available
     message = message.with_id(response.id.clone());
 
     Ok(message)
 }
 
-/// Get usage from Responses API response
 pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
     response.usage.as_ref().map_or_else(Usage::default, |u| {
         Usage::new(
