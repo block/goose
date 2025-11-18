@@ -192,70 +192,62 @@ const PendingInvitesInHistory: React.FC<PendingInvitesInHistoryProps> = ({
     );
   }
 
-  // Separate section style (shows as a dedicated section)
+  // Separate section style (shows as a dedicated section matching PopularChatTopics)
   return (
-    <div className={`bg-background-default rounded-lg border border-border-default p-4 ${className}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="w-5 h-5 text-text-prominent" />
-        <h3 className="text-lg font-semibold text-text-default">
-          Outstanding Invitations ({pendingInvites.length})
-        </h3>
-      </div>
-      
-      <div className="space-y-3">
+    <div className={`absolute bottom-0 right-0 p-6 max-w-md ${className}`}>
+      <h3 className="text-text-muted text-sm mb-1">
+        Outstanding invitations ({pendingInvites.length})
+      </h3>
+      <div className="space-y-1">
         <AnimatePresence>
           {pendingInvites.map((invite) => (
             <motion.div
               key={invite.roomId}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center justify-between p-3 bg-background-medium rounded-lg border border-border-default"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="flex items-center justify-between py-1.5 hover:bg-bgSubtle rounded-md cursor-pointer transition-colors"
+              onClick={() => handleAcceptInvite(invite)}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-text-on-accent" />
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="flex-shrink-0 text-text-muted">
+                  <UserPlus className="w-5 h-5" />
                 </div>
-                
-                <div>
-                  <p className="text-sm font-medium text-text-default">
-                    {getSenderDisplayName(invite)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-text-default text-sm leading-tight">
+                    <span className="font-medium">{getSenderDisplayName(invite)}</span> invited you to collaborate
                   </p>
                   <p className="text-xs text-text-muted">
-                    Invited you to collaborate • {formatTimestamp(invite.timestamp)}
+                    {formatTimestamp(invite.timestamp)}
                   </p>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-2">
+              <div className="flex-shrink-0 ml-4 flex items-center gap-2">
                 <button
-                  onClick={() => handleAcceptInvite(invite)}
+                  className="text-sm text-text-muted hover:text-text-default transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAcceptInvite(invite);
+                  }}
                   disabled={loading}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors disabled:opacity-50"
                 >
-                  <Check className="w-3 h-3" />
-                  Accept
+                  Join
                 </button>
-                
                 <button
-                  onClick={() => handleDeclineInvite(invite)}
+                  className="text-xs text-text-muted hover:text-red-500 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeclineInvite(invite);
+                  }}
                   disabled={loading}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-border-default text-text-default text-xs rounded hover:bg-background-medium transition-colors disabled:opacity-50"
                 >
                   <X className="w-3 h-3" />
-                  Decline
                 </button>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
-      
-      {pendingInvites.length === 0 && (
-        <p className="text-sm text-text-muted text-center py-4">
-          No outstanding invitations
-        </p>
-      )}
     </div>
   );
 };
