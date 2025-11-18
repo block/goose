@@ -15,7 +15,10 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::formats::openai::{
+    create_request, create_responses_request, get_responses_usage, get_usage, response_to_message,
+    responses_api_to_message, ResponsesApiResponse,
+};
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
@@ -41,6 +44,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5.1-codex", 128_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -184,10 +188,23 @@ impl OpenAiProvider {
         })
     }
 
+    /// Check if the model should use the Responses API instead of Chat Completions API
+    fn uses_responses_api(model_name: &str) -> bool {
+        model_name.starts_with("gpt-5")
+    }
+
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(&self.base_path, payload)
+            .await?;
+        handle_response_openai_compat(response).await
+    }
+
+    async fn post_responses(&self, payload: &Value) -> Result<Value, ProviderError> {
+        let response = self
+            .api_client
+            .response_post("v1/responses", payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -238,31 +255,65 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        // Check if we should use the Responses API
+        if Self::uses_responses_api(&model_config.model_name) {
+            let payload = create_responses_request(model_config, system, messages, tools)?;
+            let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let json_response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(&payload_clone).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post_responses(&payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
 
-        let message = response_to_message(&json_response)?;
-        let usage = json_response
-            .get("usage")
-            .map(get_usage)
-            .unwrap_or_else(|| {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            });
+            // Deserialize the responses API response
+            let responses_api_response: ResponsesApiResponse =
+                serde_json::from_value(json_response.clone()).map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to parse responses API response: {}",
+                        e
+                    ))
+                })?;
 
-        let model = get_model(&json_response);
-        log.write(&json_response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(model, usage)))
+            let message = responses_api_to_message(&responses_api_response)?;
+            let usage = get_responses_usage(&responses_api_response);
+            let model = responses_api_response.model.clone();
+
+            log.write(&json_response, Some(&usage))?;
+            Ok((message, ProviderUsage::new(model, usage)))
+        } else {
+            // Use standard chat completions API
+            let payload =
+                create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+
+            let mut log = RequestLog::start(&self.model, &payload)?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post(&payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            let message = response_to_message(&json_response)?;
+            let usage = json_response
+                .get("usage")
+                .map(get_usage)
+                .unwrap_or_else(|| {
+                    tracing::debug!("Failed to get usage data");
+                    Usage::default()
+                });
+
+            let model = get_model(&json_response);
+            log.write(&json_response, Some(&usage))?;
+            Ok((message, ProviderUsage::new(model, usage)))
+        }
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
@@ -319,48 +370,63 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload =
-            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        payload["stream"] = serde_json::Value::Bool(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        // Check if we should use the Responses API
+        if Self::uses_responses_api(&self.model.model_name) {
+            // Responses API doesn't support streaming yet, so fall back to non-streaming
+            // and wrap the result in a stream
+            let (message, usage) = self
+                .complete_with_model(&self.model, system, messages, tools)
+                .await?;
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(&self.base_path, &payload)
-                    .await?;
-                let status = resp.status();
-                if !status.is_success() {
-                    return Err(super::utils::map_http_error_to_provider_error(
-                        status, None, // We'll let handle_status_openai_compat parse the error
-                    ));
+            Ok(Box::pin(try_stream! {
+                yield (Some(message), Some(usage));
+            }))
+        } else {
+            // Use standard chat completions streaming API
+            let mut payload =
+                create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+            payload["stream"] = serde_json::Value::Bool(true);
+            payload["stream_options"] = json!({
+                "include_usage": true,
+            });
+            let mut log = RequestLog::start(&self.model, &payload)?;
+
+            let response = self
+                .with_retry(|| async {
+                    let resp = self
+                        .api_client
+                        .response_post(&self.base_path, &payload)
+                        .await?;
+                    let status = resp.status();
+                    if !status.is_success() {
+                        return Err(super::utils::map_http_error_to_provider_error(
+                            status,
+                            None, // We'll let handle_status_openai_compat parse the error
+                        ));
+                    }
+                    Ok(resp)
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+            let response = handle_status_openai_compat(response).await?;
+
+            let stream = response.bytes_stream().map_err(io::Error::other);
+
+            Ok(Box::pin(try_stream! {
+                let stream_reader = StreamReader::new(stream);
+                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+                let message_stream = response_to_streaming_message(framed);
+                pin!(message_stream);
+                while let Some(message) = message_stream.next().await {
+                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                    yield (message, usage);
                 }
-                Ok(resp)
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-        let response = handle_status_openai_compat(response).await?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+            }))
+        }
     }
 }
 

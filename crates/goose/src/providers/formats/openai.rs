@@ -18,6 +18,79 @@ use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::ops::Deref;
 
+// ============================================================================
+// Responses API Types (for gpt-5.1-codex and similar models)
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponsesApiResponse {
+    pub id: String,
+    pub object: String,
+    pub created_at: i64,
+    pub status: String,
+    pub model: String,
+    pub output: Vec<ResponseOutputItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ResponseReasoningInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<ResponseUsage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseOutputItem {
+    Reasoning {
+        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        summary: Option<Vec<String>>,
+    },
+    Message {
+        id: String,
+        status: String,
+        role: String,
+        content: Vec<ResponseContentBlock>,
+    },
+    FunctionCall {
+        id: String,
+        status: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
+        name: String,
+        arguments: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseContentBlock {
+    OutputText {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        annotations: Option<Vec<Value>>,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        input: Value,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseReasoningInfo {
+    pub effort: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseUsage {
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub total_tokens: i32,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
     name: Option<String>,
@@ -602,6 +675,194 @@ where
             }
         }
     }
+}
+
+// ============================================================================
+// Responses API Helper Functions
+// ============================================================================
+
+/// Create a request for the Responses API endpoint
+pub fn create_responses_request(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
+    // For responses API, build the full conversation context
+    // The responses API expects messages in a different format - we need to serialize the conversation
+    // to provide context. We'll combine all messages into a structured input.
+    let mut conversation_parts = Vec::new();
+
+    // Add conversation history
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        for content in &message.content {
+            match content {
+                MessageContent::Text(text) if !text.text.is_empty() => {
+                    let role_str = match message.role {
+                        Role::User => "User",
+                        Role::Assistant => "Assistant",
+                        _ => "System",
+                    };
+                    conversation_parts.push(format!("{}: {}", role_str, text.text));
+                }
+                MessageContent::ToolRequest(request) => {
+                    if let Ok(tool_call) = &request.tool_call {
+                        conversation_parts.push(format!(
+                            "Tool Call: {} with arguments {:?}",
+                            tool_call.name, tool_call.arguments
+                        ));
+                    }
+                }
+                MessageContent::ToolResponse(response) => {
+                    if let Ok(contents) = &response.tool_result {
+                        let text_content: Vec<String> = contents
+                            .iter()
+                            .filter_map(|c| {
+                                if let RawContent::Text(t) = c.deref() {
+                                    Some(t.text.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        if !text_content.is_empty() {
+                            conversation_parts
+                                .push(format!("Tool Result: {}", text_content.join(" ")));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let input = if conversation_parts.is_empty() {
+        "Hello".to_string()
+    } else {
+        conversation_parts.join("\n\n")
+    };
+
+    let mut payload = json!({
+        "model": model_config.model_name,
+        "input": input,
+        "instructions": system,
+    });
+
+    // Format tools for responses API - flat structure without nested "function"
+    if !tools.is_empty() {
+        let tools_spec: Vec<Value> = tools
+            .iter()
+            .map(|tool| {
+                json!({
+                    "type": "function",
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.input_schema,
+                })
+            })
+            .collect();
+
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("tools".to_string(), json!(tools_spec));
+    }
+
+    if let Some(temp) = model_config.temperature {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("temperature".to_string(), json!(temp));
+    }
+
+    if let Some(tokens) = model_config.max_tokens {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_output_tokens".to_string(), json!(tokens));
+    }
+
+    Ok(payload)
+}
+
+/// Convert Responses API response to internal Message format
+pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
+    let mut content = Vec::new();
+
+    // Process output items in order
+    for item in &response.output {
+        match item {
+            ResponseOutputItem::Reasoning { .. } => {
+                // We could map reasoning to MessageContent::Thinking, but for now skip
+                // as goose doesn't directly expose reasoning blocks
+                continue;
+            }
+            ResponseOutputItem::Message {
+                content: msg_content,
+                ..
+            } => {
+                // Process message content blocks
+                for block in msg_content {
+                    match block {
+                        ResponseContentBlock::OutputText { text, .. } => {
+                            if !text.is_empty() {
+                                content.push(MessageContent::text(text));
+                            }
+                        }
+                        ResponseContentBlock::ToolCall { id, name, input } => {
+                            // Convert tool call to tool request
+                            content.push(MessageContent::tool_request(
+                                id.clone(),
+                                Ok(CallToolRequestParam {
+                                    name: name.clone().into(),
+                                    arguments: Some(object(input.clone())),
+                                }),
+                            ));
+                        }
+                    }
+                }
+            }
+            ResponseOutputItem::FunctionCall {
+                id,
+                name,
+                arguments,
+                ..
+            } => {
+                // Parse arguments string to JSON
+                let parsed_args = if arguments.is_empty() {
+                    json!({})
+                } else {
+                    serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
+                };
+
+                content.push(MessageContent::tool_request(
+                    id.clone(),
+                    Ok(CallToolRequestParam {
+                        name: name.clone().into(),
+                        arguments: Some(object(parsed_args)),
+                    }),
+                ));
+            }
+        }
+    }
+
+    let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+
+    // Add response ID if available
+    message = message.with_id(response.id.clone());
+
+    Ok(message)
+}
+
+/// Get usage from Responses API response
+pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
+    response.usage.as_ref().map_or_else(Usage::default, |u| {
+        Usage::new(
+            Some(u.input_tokens),
+            Some(u.output_tokens),
+            Some(u.total_tokens),
+        )
+    })
 }
 
 pub fn create_request(
