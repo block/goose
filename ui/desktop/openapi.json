@@ -386,7 +386,6 @@
           "super::routes::tunnel"
         ],
         "summary": "Get tunnel info",
-        "description": "Returns the current tunnel state and connection information if running.",
         "operationId": "get_tunnel_status",
         "responses": {
           "200": {
@@ -408,7 +407,6 @@
           "super::routes::tunnel"
         ],
         "summary": "Stop the tunnel",
-        "description": "Stops the currently running tunnel and optionally clears the auto-start setting.",
         "operationId": "stop_tunnel",
         "responses": {
           "200": {

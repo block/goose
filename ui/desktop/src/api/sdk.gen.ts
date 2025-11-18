@@ -114,8 +114,6 @@ export const startTunnel = <ThrowOnError extends boolean = false>(options?: Opti
 
 /**
  * Get tunnel info
- *
- * Returns the current tunnel state and connection information if running.
  */
 export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: Options<GetTunnelStatusData, ThrowOnError>) => {
     return (options?.client ?? client).get<GetTunnelStatusResponses, unknown, ThrowOnError>({
@@ -126,8 +124,6 @@ export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: 
 
 /**
  * Stop the tunnel
- *
- * Stops the currently running tunnel and optionally clears the auto-start setting.
  */
 export const stopTunnel = <ThrowOnError extends boolean = false>(options?: Options<StopTunnelData, ThrowOnError>) => {
     return (options?.client ?? client).post<StopTunnelResponses, StopTunnelErrors, ThrowOnError>({

@@ -1,6 +1,5 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
-import type { TunnelInfo } from './utils/tunnel';
 
 interface NotificationData {
   title: string;
@@ -120,9 +119,6 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
-  startTunnel: (baseUrl: string) => Promise<TunnelInfo>;
-  stopTunnel: (baseUrl: string) => Promise<void>;
-  getTunnelStatus: (baseUrl: string) => Promise<TunnelInfo>;
 };
 
 type AppConfigAPI = {
@@ -258,9 +254,6 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
-  startTunnel: (baseUrl: string) => ipcRenderer.invoke('start-tunnel', baseUrl),
-  stopTunnel: (baseUrl: string) => ipcRenderer.invoke('stop-tunnel', baseUrl),
-  getTunnelStatus: (baseUrl: string) => ipcRenderer.invoke('get-tunnel-status', baseUrl),
 };
 
 const appConfigAPI: AppConfigAPI = {

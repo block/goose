@@ -5,7 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { QRCodeSVG } from 'qrcode.react';
 import { Loader2, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
-import type { TunnelInfo } from '../../../utils/tunnel';
+import { startTunnel, stopTunnel, getTunnelStatus } from '../../../api/sdk.gen';
+import type { TunnelInfo } from '../../../api/types.gen';
+
+const STATUS_MESSAGES = {
+  idle: 'Tunnel is not running',
+  starting: 'Starting tunnel...',
+  running: 'Tunnel is active',
+  error: 'Tunnel encountered an error',
+} as const;
 
 export default function TunnelSection() {
   const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
@@ -20,54 +28,51 @@ export default function TunnelSection() {
   useEffect(() => {
     const loadTunnelInfo = async () => {
       try {
-        const baseUrl = await window.electron.getGoosedHostPort();
-        if (!baseUrl) throw new Error('goose server not available');
-        const info = await window.electron.getTunnelStatus(baseUrl);
-        setTunnelInfo(info);
+        const { data } = await getTunnelStatus();
+        if (data) {
+          setTunnelInfo(data);
+        }
       } catch (err) {
         const errorMsg = errorMessage(err, 'Failed to load tunnel status');
         setError(errorMsg);
-        setTunnelInfo({ state: 'error', error: errorMsg });
+        setTunnelInfo({ state: 'error' });
       }
     };
 
     loadTunnelInfo();
   }, []);
 
-  const handleStartTunnel = async () => {
-    setError(null);
-    setTunnelInfo({ state: 'starting' });
-
-    try {
-      const baseUrl = await window.electron.getGoosedHostPort();
-      if (!baseUrl) throw new Error('goose server not available');
-      const info = await window.electron.startTunnel(baseUrl);
-      setTunnelInfo(info);
-      setShowQRModal(true);
-    } catch (err) {
-      const errorMsg = errorMessage(err, 'Failed to start tunnel');
-      setError(errorMsg);
-      setTunnelInfo({ state: 'error', error: errorMsg });
-    }
-  };
-
-  const handleStopTunnel = async () => {
-    try {
-      const baseUrl = await window.electron.getGoosedHostPort();
-      if (!baseUrl) throw new Error('goose server not available');
-      await window.electron.stopTunnel(baseUrl);
-      setTunnelInfo({ state: 'idle' });
-      setShowQRModal(false);
-    } catch (err) {
-      setError(errorMessage(err, 'Failed to stop tunnel'));
+  const handleToggleTunnel = async () => {
+    if (tunnelInfo.state === 'running') {
       try {
-        const baseUrl = await window.electron.getGoosedHostPort();
-        if (!baseUrl) throw new Error('goose server not available');
-        const info = await window.electron.getTunnelStatus(baseUrl);
-        setTunnelInfo(info);
-      } catch (statusErr) {
-        console.error('Failed to fetch tunnel status after stop error:', statusErr);
-        setTunnelInfo({ state: 'error', error: 'Failed to stop tunnel and get status' });
+        await stopTunnel();
+        setTunnelInfo({ state: 'idle' });
+        setShowQRModal(false);
+      } catch (err) {
+        setError(errorMessage(err, 'Failed to stop tunnel'));
+        try {
+          const { data } = await getTunnelStatus();
+          if (data) {
+            setTunnelInfo(data);
+          }
+        } catch (statusErr) {
+          console.error('Failed to fetch tunnel status after stop error:', statusErr);
+        }
+      }
+    } else {
+      setError(null);
+      setTunnelInfo({ state: 'starting' });
+
+      try {
+        const { data } = await startTunnel();
+        if (data) {
+          setTunnelInfo(data);
+          setShowQRModal(true);
+        }
+      } catch (err) {
+        const errorMsg = errorMessage(err, 'Failed to start tunnel');
+        setError(errorMsg);
+        setTunnelInfo({ state: 'error' });
       }
     }
   };
@@ -118,37 +123,27 @@ export default function TunnelSection() {
             <div>
               <h3 className="text-text-default text-xs">Tunnel Status</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                {tunnelInfo.state === 'idle' && 'Tunnel is not running'}
-                {tunnelInfo.state === 'starting' && 'Starting tunnel...'}
-                {tunnelInfo.state === 'running' && 'Tunnel is active'}
-                {tunnelInfo.state === 'error' && 'Tunnel encountered an error'}
+                {STATUS_MESSAGES[tunnelInfo.state]}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {tunnelInfo.state === 'idle' && (
-                <Button onClick={handleStartTunnel} variant="default" size="sm">
-                  Start Tunnel
-                </Button>
-              )}
-              {tunnelInfo.state === 'starting' && (
+              {tunnelInfo.state === 'starting' ? (
                 <Button disabled variant="secondary" size="sm">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Starting...
                 </Button>
-              )}
-              {tunnelInfo.state === 'running' && (
+              ) : tunnelInfo.state === 'running' ? (
                 <>
                   <Button onClick={() => setShowQRModal(true)} variant="default" size="sm">
                     Show QR Code
                   </Button>
-                  <Button onClick={handleStopTunnel} variant="destructive" size="sm">
+                  <Button onClick={handleToggleTunnel} variant="destructive" size="sm">
                     Stop Tunnel
                   </Button>
                 </>
-              )}
-              {tunnelInfo.state === 'error' && (
-                <Button onClick={handleStartTunnel} variant="default" size="sm">
-                  Retry
+              ) : (
+                <Button onClick={handleToggleTunnel} variant="default" size="sm">
+                  {tunnelInfo.state === 'error' ? 'Retry' : 'Start Tunnel'}
                 </Button>
               )}
             </div>
@@ -208,7 +203,7 @@ export default function TunnelSection() {
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelInfo.url, 'url')}
+                          onClick={() => tunnelInfo.url && copyToClipboard(tunnelInfo.url, 'url')}
                         >
                           {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
@@ -225,7 +220,9 @@ export default function TunnelSection() {
                           size="sm"
                           variant="ghost"
                           className="flex-shrink-0"
-                          onClick={() => copyToClipboard(tunnelInfo.secret, 'secret')}
+                          onClick={() =>
+                            tunnelInfo.secret && copyToClipboard(tunnelInfo.secret, 'secret')
+                          }
                         >
                           {copiedSecret ? (
                             <Check className="h-4 w-4" />
@@ -245,7 +242,7 @@ export default function TunnelSection() {
             <Button variant="outline" onClick={() => setShowQRModal(false)}>
               Close
             </Button>
-            <Button variant="destructive" onClick={handleStopTunnel}>
+            <Button variant="destructive" onClick={handleToggleTunnel}>
               Stop Tunnel
             </Button>
           </DialogFooter>

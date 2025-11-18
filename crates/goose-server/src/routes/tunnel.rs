@@ -43,8 +43,6 @@ pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
 }
 
 /// Stop the tunnel
-///
-/// Stops the currently running tunnel and optionally clears the auto-start setting.
 #[utoipa::path(
     post,
     path = "/api/tunnel/stop",
@@ -59,8 +57,6 @@ pub async fn stop_tunnel(State(state): State<Arc<AppState>>) -> Response {
 }
 
 /// Get tunnel info
-///
-/// Returns the current tunnel state and connection information if running.
 #[utoipa::path(
     get,
     path = "/api/tunnel/status",
