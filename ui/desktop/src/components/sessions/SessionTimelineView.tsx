@@ -47,12 +47,22 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   const [hoveredSession, setHoveredSession] = useState<string | null>(null);
 
   const treeData = useMemo(() => {
-    if (sessions.length === 0) return { nodes: [], paths: [], width: 800, height: 600 };
+    console.log('SessionTimelineView: Processing sessions', { 
+      sessionCount: sessions.length,
+      sessions: sessions.map(s => ({ id: s.id, created_at: s.created_at, message_count: s.message_count }))
+    });
+
+    if (sessions.length === 0) {
+      console.log('SessionTimelineView: No sessions found');
+      return { nodes: [], paths: [], width: 800, height: 600 };
+    }
 
     // Sort sessions by start time (newest first - today at top)
     const sortedSessions = [...sessions].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
+
+    console.log('SessionTimelineView: Sorted sessions', sortedSessions.length);
 
     // Group sessions by day for initial positioning
     const dayGroups = new Map<string, Session[]>();
@@ -238,15 +248,29 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     });
 
     // Calculate canvas dimensions
-    const maxX = Math.max(...nodes.map(n => n.x + n.nodeSize + 100));
-    const maxY = Math.max(...nodes.map(n => n.y + n.nodeSize + 50));
+    const maxX = nodes.length > 0 ? Math.max(...nodes.map(n => n.x + n.nodeSize + 100)) : 800;
+    const maxY = nodes.length > 0 ? Math.max(...nodes.map(n => n.y + n.nodeSize + 50)) : 600;
 
-    return {
+    const result = {
       nodes,
       paths,
       width: Math.max(800, maxX),
       height: Math.max(600, maxY),
     };
+
+    console.log('SessionTimelineView: Final tree data', {
+      nodeCount: result.nodes.length,
+      pathCount: result.paths.length,
+      dimensions: { width: result.width, height: result.height },
+      firstNode: result.nodes[0] ? { 
+        id: result.nodes[0].id, 
+        x: result.nodes[0].x, 
+        y: result.nodes[0].y, 
+        nodeSize: result.nodes[0].nodeSize 
+      } : null
+    });
+
+    return result;
   }, [sessions]);
 
   const getNodeIcon = (node: TreeNode) => {
