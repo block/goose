@@ -688,20 +688,16 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
-    // For responses API, build the full conversation context
-    // The responses API expects messages in a different format - we need to serialize the conversation
-    // to provide context. We'll combine all messages into a structured input.
     let mut conversation_parts = Vec::new();
 
-    // Add conversation history
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         for content in &message.content {
             match content {
                 MessageContent::Text(text) if !text.text.is_empty() => {
-                    let role_str = match message.role {
-                        Role::User => "User",
-                        Role::Assistant => "Assistant",
-                        _ => "System",
+                    let role_str = if message.role == Role::User {
+                        "User"
+                    } else {
+                        "Assistant"
                     };
                     conversation_parts.push(format!("{}: {}", role_str, text.text));
                 }
@@ -789,19 +785,15 @@ pub fn create_responses_request(
 pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
     let mut content = Vec::new();
 
-    // Process output items in order
     for item in &response.output {
         match item {
             ResponseOutputItem::Reasoning { .. } => {
-                // We could map reasoning to MessageContent::Thinking, but for now skip
-                // as goose doesn't directly expose reasoning blocks
                 continue;
             }
             ResponseOutputItem::Message {
                 content: msg_content,
                 ..
             } => {
-                // Process message content blocks
                 for block in msg_content {
                     match block {
                         ResponseContentBlock::OutputText { text, .. } => {
@@ -810,7 +802,6 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                             }
                         }
                         ResponseContentBlock::ToolCall { id, name, input } => {
-                            // Convert tool call to tool request
                             content.push(MessageContent::tool_request(
                                 id.clone(),
                                 Ok(CallToolRequestParam {
@@ -828,7 +819,6 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
-                // Parse arguments string to JSON
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {

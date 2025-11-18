@@ -188,7 +188,6 @@ impl OpenAiProvider {
         })
     }
 
-    /// Check if the model should use the Responses API instead of Chat Completions API
     fn uses_responses_api(model_name: &str) -> bool {
         model_name.starts_with("gpt-5")
     }
@@ -255,7 +254,6 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if we should use the Responses API
         if Self::uses_responses_api(&model_config.model_name) {
             let payload = create_responses_request(model_config, system, messages, tools)?;
             let mut log = RequestLog::start(&self.model, &payload)?;
@@ -270,7 +268,6 @@ impl Provider for OpenAiProvider {
                     let _ = log.error(e);
                 })?;
 
-            // Deserialize the responses API response
             let responses_api_response: ResponsesApiResponse =
                 serde_json::from_value(json_response.clone()).map_err(|e| {
                     ProviderError::ExecutionError(format!(
@@ -286,7 +283,6 @@ impl Provider for OpenAiProvider {
             log.write(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         } else {
-            // Use standard chat completions API
             let payload =
                 create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
@@ -370,10 +366,7 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Check if we should use the Responses API
         if Self::uses_responses_api(&self.model.model_name) {
-            // Responses API doesn't support streaming yet, so fall back to non-streaming
-            // and wrap the result in a stream
             let (message, usage) = self
                 .complete_with_model(&self.model, system, messages, tools)
                 .await?;
@@ -382,7 +375,6 @@ impl Provider for OpenAiProvider {
                 yield (Some(message), Some(usage));
             }))
         } else {
-            // Use standard chat completions streaming API
             let mut payload =
                 create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
             payload["stream"] = serde_json::Value::Bool(true);
