@@ -156,9 +156,7 @@ def main():
             contributors_data = json.load(f)
     except FileNotFoundError:
         print(f"Error: GitHub contributor data not found at {github_data_file}")
-        print("Please run the following command to fetch contributor data (replace YOUR_TOKEN with a GitHub personal access token):")
-        print("  curl -s -H 'Authorization: token YOUR_TOKEN' -H 'Accept: application/vnd.github.v3+json' 'https://api.github.com/repos/block/goose/stats/contributors' > /tmp/github_contributors.json")
-        print("Note: Using a token avoids hitting GitHub's low unauthenticated rate limits. You can create a token at https://github.com/settings/tokens (no scopes required).")
+        print("Please run: curl -s -H 'Accept: application/vnd.github.v3+json' 'https://api.github.com/repos/block/goose/stats/contributors' > /tmp/github_contributors.json")
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON in {github_data_file}")
