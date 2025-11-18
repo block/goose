@@ -13,6 +13,8 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
+import AvatarImage from '../AvatarImage';
+import { useMatrix } from '../../contexts/MatrixContext';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -186,6 +188,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       count: number;
       currentIndex: number;
     } | null>(null);
+
+    // Matrix context for getting participant details
+    const { rooms, currentUser } = useMatrix();
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
@@ -404,6 +409,76 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
     }, []);
 
+    // Helper function to get participant details for Matrix sessions
+    const getParticipantDetails = useCallback((session: Session) => {
+      if (!session.extension_data?.matrix?.roomId) return [];
+      
+      const roomId = session.extension_data.matrix.roomId;
+      const room = rooms.find(r => r.roomId === roomId);
+      
+      if (!room || !room.members) return [];
+      
+      // Filter out current user and return participant details
+      return room.members
+        .filter(member => member.userId !== currentUser?.userId)
+        .map(member => ({
+          userId: member.userId,
+          displayName: member.displayName || member.userId.split(':')[0].substring(1),
+          avatarUrl: member.avatarUrl,
+        }));
+    }, [rooms, currentUser]);
+
+    // Component to display participant avatars
+    const ParticipantAvatars = React.memo(({ session }: { session: Session }) => {
+      const participants = getParticipantDetails(session);
+      
+      if (participants.length === 0) return null;
+      
+      // For DMs (1 other participant), show single avatar
+      if (participants.length === 1) {
+        const participant = participants[0];
+        return (
+          <div className="flex items-center gap-1">
+            <AvatarImage
+              avatarUrl={participant.avatarUrl}
+              displayName={participant.displayName}
+              size="sm"
+              className="ring-1 ring-border-subtle"
+            />
+          </div>
+        );
+      }
+      
+      // For group chats, show overlapping avatars (max 3 + counter)
+      const visibleParticipants = participants.slice(0, 3);
+      const remainingCount = participants.length - 3;
+      
+      return (
+        <div className="flex items-center">
+          <div className="flex -space-x-1">
+            {visibleParticipants.map((participant) => (
+              <AvatarImage
+                key={participant.userId}
+                avatarUrl={participant.avatarUrl}
+                displayName={participant.displayName}
+                size="sm"
+                className="ring-2 ring-background-default"
+              />
+            ))}
+            {remainingCount > 0 && (
+              <div className="w-6 h-6 rounded-full bg-background-accent flex items-center justify-center ring-2 ring-background-default">
+                <span className="text-xs font-medium text-text-on-accent">
+                  +{remainingCount}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    });
+
+    ParticipantAvatars.displayName = 'ParticipantAvatars';
+
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
@@ -469,19 +544,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const isMatrixDM = isMatrix && session.extension_data?.matrix?.isDirectMessage;
       const isCollaborative = displayInfo.type === 'collaborative';
 
-      // Determine styling based on session type
-      let borderStyle = '';
-      let bgStyle = '';
-      if (isMatrixDM) {
-        borderStyle = 'border-l-4 border-l-green-500';
-        bgStyle = 'bg-green-50/30 dark:bg-green-950/20';
-      } else if (isCollaborative) {
-        borderStyle = 'border-l-4 border-l-purple-500';
-        bgStyle = 'bg-purple-50/30 dark:bg-purple-950/20';
-      } else if (isMatrix) {
-        borderStyle = 'border-l-4 border-l-blue-500';
-        bgStyle = 'bg-blue-50/30 dark:bg-blue-950/20';
-      }
+      // All sessions use the same neutral styling
+      const borderStyle = '';
+      const bgStyle = '';
 
       return (
         <Card
@@ -489,7 +554,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           className={`session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group ${borderStyle} ${bgStyle}`}
           ref={(el) => setSessionRefs(session.id, el)}
         >
-          <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Session type icon in uppermost right corner */}
+          <div className="absolute top-3 right-3">
+            {isMatrix && (
+              <div className="flex items-center gap-1">
+                {isMatrixDM ? (
+                  <MessageCircle className="w-4 h-4 text-green-500" title="Matrix Direct Message" />
+                ) : displayInfo.type === 'collaborative' ? (
+                  <Users className="w-4 h-4 text-purple-500" title="Collaborative Matrix Session" />
+                ) : (
+                  <Hash className="w-4 h-4 text-blue-500" title="Matrix Group Chat" />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons on hover */}
+          <div className="absolute top-3 right-8 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {isMatrix && (
               <button
                 onClick={handleRegenerateTitle}
@@ -525,17 +606,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <h3 className="text-base break-words flex-1">
                 {session.description || session.id}
               </h3>
-              {isMatrix && (
-                <div className="flex items-center gap-1">
-                  {isMatrixDM ? (
-                    <MessageCircle className="w-4 h-4 text-green-500" title="Matrix Direct Message" />
-                  ) : displayInfo.type === 'collaborative' ? (
-                    <Users className="w-4 h-4 text-purple-500" title="Collaborative Matrix Session" />
-                  ) : (
-                    <Hash className="w-4 h-4 text-blue-500" title="Matrix Group Chat" />
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
@@ -568,15 +638,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               )}
             </div>
             {isMatrix && (
-              <div className={`text-xs font-medium ${
-                isMatrixDM 
-                  ? 'text-green-600 dark:text-green-400' 
-                  : isCollaborative 
-                    ? 'text-purple-600 dark:text-purple-400'
-                    : 'text-blue-600 dark:text-blue-400'
-              }`}>
-                {isMatrixDM ? 'Direct Message' : isCollaborative ? 'Collaborative' : 'Group Chat'}
-              </div>
+              <ParticipantAvatars session={session} />
             )}
           </div>
         </Card>
