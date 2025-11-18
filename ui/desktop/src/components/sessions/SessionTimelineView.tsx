@@ -48,11 +48,11 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       const sessionDate = new Date(session.created_at);
       const now = new Date();
       
-      // X axis: Days ago (0 = today, 1 = yesterday, etc.)
-      const daysAgo = Math.floor((now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // Y axis: Hour of day (0-23)
+      // X axis: Hour of day (0-23)
       const hourOfDay = sessionDate.getHours();
+      
+      // Y axis: Days ago (0 = today, 1 = yesterday, etc.)
+      const daysAgo = Math.floor((now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
       
       // Add some jitter to avoid exact overlaps
       const jitterX = (Math.random() - 0.5) * 0.8;
@@ -62,8 +62,8 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
                    `Chat ${session.id.slice(0, 8)}` || 'Untitled Session';
 
       return {
-        x: daysAgo + jitterX,
-        y: hourOfDay + jitterY,
+        x: hourOfDay + jitterX,
+        y: daysAgo + jitterY,
         session: {
           id: session.id,
           title: title,
@@ -106,35 +106,42 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     const mutedColor = computedStyle.getPropertyValue('--muted-foreground') || '#6b7280';
     const borderColor = computedStyle.getPropertyValue('--border') || '#e5e7eb';
 
-    // Set up dimensions
+    // Set up dimensions - natural sizing based on data
     const containerRect = container.getBoundingClientRect();
-    const margin = { top: 60, right: 60, bottom: 80, left: 80 };
-    const width = Math.max(800, containerRect.width - 40) - margin.left - margin.right;
-    const height = Math.max(500, containerRect.height - 200) - margin.top - margin.bottom;
+    const padding = 40;
+    
+    // Calculate natural dimensions based on data range
+    const maxHour = Math.max(...hexbinData.map(d => d.x));
+    const maxDaysAgo = Math.max(...hexbinData.map(d => d.y));
+    
+    const hexRadius = 15;
+    const hexSpacing = hexRadius * 1.8;
+    
+    const width = Math.max(600, (maxHour + 2) * hexSpacing);
+    const height = Math.max(400, (maxDaysAgo + 2) * hexSpacing);
 
-    svg.attr("width", width + margin.left + margin.right)
-       .attr("height", height + margin.top + margin.bottom)
+    svg.attr("width", width + padding * 2)
+       .attr("height", height + padding * 2)
        .style("background-color", `hsl(${backgroundColor})`);
 
     const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+      .attr("transform", `translate(${padding},${padding})`);
 
-    // Create scales
-    const maxDaysAgo = Math.max(...hexbinData.map(d => d.x));
+    // Create scales - natural 1:1 mapping
     const xScale = d3.scaleLinear()
-      .domain([0, Math.max(30, maxDaysAgo)]) // Show at least 30 days
-      .range([0, width]);
+      .domain([0, 24]) // 24 hours
+      .range([0, 24 * hexSpacing]);
 
     const yScale = d3.scaleLinear()
-      .domain([0, 24]) // 24 hours
-      .range([height, 0]);
+      .domain([0, maxDaysAgo + 1])
+      .range([0, (maxDaysAgo + 1) * hexSpacing]);
 
     // Create hexbin generator
     const hexbinGenerator = hexbin()
       .x((d: any) => xScale(d.x))
       .y((d: any) => yScale(d.y))
-      .radius(12)
-      .extent([[0, 0], [width, height]]);
+      .radius(hexRadius)
+      .extent([[0, 0], [24 * hexSpacing, (maxDaysAgo + 1) * hexSpacing]]);
 
     // Generate hexbins
     const bins = hexbinGenerator(hexbinData as any);
@@ -226,78 +233,11 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       .append("text")
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
-      .style("font-size", "10px")
+      .style("font-size", "11px")
       .style("font-weight", "bold")
       .style("fill", d => d.length > 3 ? "white" : `hsl(${foregroundColor})`)
       .style("pointer-events", "none")
       .text(d => d.length);
-
-    // Create axes
-    const xAxis = d3.axisBottom(xScale)
-      .tickFormat(d => {
-        const days = +d;
-        if (days === 0) return 'Today';
-        if (days === 1) return 'Yesterday';
-        return `${days}d ago`;
-      });
-
-    const yAxis = d3.axisLeft(yScale)
-      .tickFormat(d => {
-        const hour = +d;
-        if (hour === 0) return '12 AM';
-        if (hour === 12) return '12 PM';
-        if (hour < 12) return `${hour} AM`;
-        return `${hour - 12} PM`;
-      });
-
-    // Add axes
-    g.append("g")
-      .attr("class", "x-axis")
-      .attr("transform", `translate(0,${height})`)
-      .call(xAxis)
-      .selectAll("text")
-      .style("fill", `hsl(${foregroundColor})`)
-      .style("font-size", "11px");
-
-    g.append("g")
-      .attr("class", "y-axis")
-      .call(yAxis)
-      .selectAll("text")
-      .style("fill", `hsl(${foregroundColor})`)
-      .style("font-size", "11px");
-
-    // Style axis lines
-    g.selectAll(".domain, .tick line")
-      .attr("stroke", `hsl(${borderColor})`);
-
-    // Add axis labels
-    g.append("text")
-      .attr("transform", `translate(${width / 2}, ${height + 50})`)
-      .style("text-anchor", "middle")
-      .style("font-size", "14px")
-      .style("font-weight", "bold")
-      .style("fill", `hsl(${foregroundColor})`)
-      .text("Days Ago");
-
-    g.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", -50)
-      .attr("x", -height / 2)
-      .style("text-anchor", "middle")
-      .style("font-size", "14px")
-      .style("font-weight", "bold")
-      .style("fill", `hsl(${foregroundColor})`)
-      .text("Time of Day");
-
-    // Add title
-    g.append("text")
-      .attr("x", width / 2)
-      .attr("y", -30)
-      .attr("text-anchor", "middle")
-      .style("font-size", "16px")
-      .style("font-weight", "bold")
-      .style("fill", `hsl(${foregroundColor})`)
-      .text("Session Activity Heatmap");
 
     console.log('SessionTimelineView: Hexbin rendered', { 
       binCount: bins.length,
