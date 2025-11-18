@@ -1,22 +1,10 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import * as d3 from 'd3';
+import React, { useMemo } from 'react';
 import { Session } from '../../api/types.gen';
 import { formatDistanceToNow } from 'date-fns';
 
 interface SessionTimelineViewProps {
   sessions: Session[];
   onSessionClick: (sessionId: string) => void;
-}
-
-interface TreeNode {
-  id: string;
-  title: string;
-  level: number;
-  x: number;
-  y: number;
-  data: SessionData;
-  children?: TreeNode[];
-  parent?: TreeNode;
 }
 
 interface SessionData {
@@ -26,22 +14,26 @@ interface SessionData {
   updated_at: string;
   message_count: number;
   chat_type: string;
-  day?: string;
+  day: string;
+}
+
+interface DayGroup {
+  day: string;
+  title: string;
+  sessions: SessionData[];
+  color: string;
 }
 
 const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({ 
   sessions, 
   onSessionClick 
 }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Process sessions into hierarchical tree structure
-  const treeData = useMemo(() => {
+  // Process sessions into day groups
+  const dayGroups = useMemo(() => {
     console.log('SessionTimelineView: Processing sessions', { sessionCount: sessions.length });
     
     if (sessions.length === 0) {
-      return null;
+      return [];
     }
 
     // Sort sessions by creation date (newest first)
@@ -82,15 +74,13 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       });
     });
 
-    // Sort days (newest first)
+    // Sort days (newest first) and create groups with colors
+    const colors = ['border-red-400', 'border-blue-400', 'border-green-400', 'border-yellow-400', 'border-purple-400', 'border-pink-400', 'border-indigo-400'];
+    
     const sortedDays = Array.from(sessionsByDay.keys())
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
-    // Create tree nodes
-    const nodes: TreeNode[] = [];
-    let yOffset = 50;
-
-    sortedDays.forEach((day, dayIndex) => {
+    const groups: DayGroup[] = sortedDays.map((day, index) => {
       const dayDate = new Date(day);
       const today = new Date();
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -107,221 +97,36 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         });
       }
 
-      // Create day node on the left spine
-      const dayNode: TreeNode = {
-        id: `day-${day}`,
+      return {
+        day,
         title: dayTitle,
-        level: 0,
-        x: 100,
-        y: yOffset,
-        data: {
-          id: `day-${day}`,
-          title: dayTitle,
-          created_at: day,
-          updated_at: day,
-          message_count: sessionsByDay.get(day)!.reduce((sum, s) => sum + s.message_count, 0),
-          chat_type: 'day',
-          day
-        },
-        children: []
+        sessions: sessionsByDay.get(day)!,
+        color: colors[index % colors.length]
       };
-      nodes.push(dayNode);
-
-      // Create session nodes stacked vertically to the right
-      const daySessions = sessionsByDay.get(day)!;
-      daySessions.forEach((session, sessionIndex) => {
-        const sessionNode: TreeNode = {
-          id: session.id,
-          title: session.title,
-          level: 1,
-          x: 300, // Keep all sessions at same x position
-          y: yOffset + 40 + (sessionIndex * 35), // Stack vertically with 35px spacing
-          data: session,
-          parent: dayNode
-        };
-        nodes.push(sessionNode);
-        dayNode.children!.push(sessionNode);
-      });
-
-      // Increase yOffset to account for all sessions in this day plus spacing
-      yOffset += Math.max(80, daySessions.length * 35 + 60);
     });
 
-    console.log('SessionTimelineView: Created tree structure', { 
-      nodeCount: nodes.length,
-      dayCount: sortedDays.length
+    console.log('SessionTimelineView: Created day groups', { 
+      dayCount: groups.length,
+      totalSessions: sortedSessions.length,
+      sessionsPerDay: Object.fromEntries(groups.map(group => [group.title, group.sessions.length]))
     });
 
-    return nodes;
+    return groups;
   }, [sessions]);
 
-  useEffect(() => {
-    if (!treeData || !svgRef.current || !containerRef.current) return;
-
-    const svg = d3.select(svgRef.current);
-    const container = containerRef.current;
-    
-    // Clear previous content
-    svg.selectAll("*").remove();
-
-    // Calculate dimensions
-    const containerRect = container.getBoundingClientRect();
-    const maxX = Math.max(...treeData.map(n => n.x)) + 200;
-    const maxY = Math.max(...treeData.map(n => n.y)) + 100;
-    
-    const width = Math.max(800, maxX, containerRect.width - 40);
-    const height = Math.max(600, maxY);
-
-    svg.attr("width", width).attr("height", height);
-
-    // Create container group
-    const g = svg.append("g").attr("transform", "translate(20, 20)");
-
-    // Define colors for different connection types
-    const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
-
-    // Draw curved connections (tangled tree style)
-    const dayNodes = treeData.filter(n => n.level === 0);
-    dayNodes.forEach((dayNode, dayIndex) => {
-      if (!dayNode.children) return;
-
-      dayNode.children.forEach((sessionNode, sessionIndex) => {
-        // Create curved path from day to session
-        const path = g.append("path")
-          .attr("d", () => {
-            const sx = dayNode.x;
-            const sy = dayNode.y;
-            const tx = sessionNode.x;
-            const ty = sessionNode.y;
-            
-            // Create smooth curve similar to the image
-            const midX = sx + (tx - sx) * 0.5;
-            const controlX1 = sx + (tx - sx) * 0.3;
-            const controlX2 = sx + (tx - sx) * 0.7;
-            
-            return `M${sx},${sy}C${controlX1},${sy} ${controlX2},${ty} ${tx},${ty}`;
-          })
-          .attr("fill", "none")
-          .attr("stroke", colors[dayIndex % colors.length])
-          .attr("stroke-width", 2)
-          .attr("opacity", 0.7);
-      });
-    });
-
-    // Add tangled connections between similar sessions
-    const sessionNodes = treeData.filter(n => n.level === 1);
-    const tangledConnections: Array<[TreeNode, TreeNode]> = [];
-    
-    for (let i = 0; i < sessionNodes.length; i++) {
-      for (let j = i + 1; j < sessionNodes.length; j++) {
-        const nodeA = sessionNodes[i];
-        const nodeB = sessionNodes[j];
-        
-        // Skip if same day
-        if (nodeA.parent?.id === nodeB.parent?.id) continue;
-        
-        // Calculate similarity
-        const titleSimilarity = calculateTitleSimilarity(nodeA.data.title, nodeB.data.title);
-        const typeSimilarity = nodeA.data.chat_type === nodeB.data.chat_type ? 0.4 : 0;
-        
-        if (titleSimilarity + typeSimilarity > 0.3 && tangledConnections.length < 10) {
-          tangledConnections.push([nodeA, nodeB]);
-        }
-      }
+  // Helper function to get chat type styling
+  const getChatTypeStyle = (chatType: string) => {
+    switch (chatType) {
+      case 'collaborative': return 'bg-green-500 border-green-600';
+      case 'direct_message': return 'bg-yellow-500 border-yellow-600';
+      case 'group_chat': return 'bg-red-500 border-red-600';
+      default: return 'bg-blue-500 border-blue-600';
     }
+  };
 
-    // Draw tangled connections
-    tangledConnections.forEach(([nodeA, nodeB], index) => {
-      g.append("path")
-        .attr("d", () => {
-          const sx = nodeA.x;
-          const sy = nodeA.y;
-          const tx = nodeB.x;
-          const ty = nodeB.y;
-          
-          // Create curved tangled connection
-          const midY = (sy + ty) / 2;
-          const offset = 50;
-          
-          return `M${sx},${sy}Q${sx + offset},${midY} ${tx},${ty}`;
-        })
-        .attr("fill", "none")
-        .attr("stroke", colors[(index + 3) % colors.length])
-        .attr("stroke-width", 1.5)
-        .attr("stroke-dasharray", "4,4")
-        .attr("opacity", 0.5);
-    });
-
-    // Draw nodes
-    const nodeGroups = g.selectAll(".node")
-      .data(treeData)
-      .enter()
-      .append("g")
-      .attr("class", "node")
-      .attr("transform", d => `translate(${d.x},${d.y})`);
-
-    // Add circles for nodes
-    nodeGroups.append("circle")
-      .attr("r", d => d.level === 0 ? 6 : 4)
-      .attr("fill", d => {
-        if (d.level === 0) return "#34495e"; // Day nodes
-        
-        // Session nodes colored by chat type
-        switch (d.data.chat_type) {
-          case 'collaborative': return "#2ecc71";
-          case 'direct_message': return "#f39c12";
-          case 'group_chat': return "#e74c3c";
-          default: return "#3498db";
-        }
-      })
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1)
-      .style("cursor", d => d.level === 1 ? "pointer" : "default")
-      .on("click", (event, d) => {
-        if (d.level === 1) {
-          onSessionClick(d.data.id);
-        }
-      });
-
-    // Add labels
-    nodeGroups.append("text")
-      .attr("dx", d => d.level === 0 ? -10 : 10)
-      .attr("dy", 4)
-      .attr("text-anchor", d => d.level === 0 ? "end" : "start")
-      .style("font-size", "11px")
-      .style("font-family", "system-ui, sans-serif")
-      .style("fill", "#2c3e50")
-      .text(d => {
-        if (d.level === 1 && d.title.length > 20) {
-          return d.title.substring(0, 20) + "...";
-        }
-        return d.title;
-      });
-
-    console.log('SessionTimelineView: Rendered tangled tree', { 
-      nodeCount: treeData.length,
-      tangledConnections: tangledConnections.length,
-      dimensions: { width, height }
-    });
-
-  }, [treeData, onSessionClick]);
-
-  // Helper function to calculate title similarity
-  function calculateTitleSimilarity(title1: string, title2: string): number {
-    const words1 = title1.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    const words2 = title2.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    
-    if (words1.length === 0 || words2.length === 0) return 0;
-    
-    const commonWords = words1.filter(word => words2.includes(word));
-    const totalWords = new Set([...words1, ...words2]).size;
-    
-    return commonWords.length / totalWords;
-  }
-
-  if (!treeData) {
+  if (dayGroups.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
         <div className="text-center">
           <p className="text-lg font-medium">No sessions to display</p>
           <p className="text-sm">Start a conversation to see your tangled tree timeline</p>
@@ -331,23 +136,123 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className="w-full h-full min-h-[600px] bg-white rounded-lg border overflow-auto"
-    >
-      <div className="p-4 border-b bg-gray-50">
-        <h3 className="text-lg font-semibold text-gray-900">Tangled Tree Timeline</h3>
-        <p className="text-sm text-gray-600">
-          Days on the left spine, sessions branching out with curved connections showing relationships
+    <div className="w-full h-full min-h-[600px] bg-background rounded-lg border overflow-auto">
+      <div className="p-4 border-b bg-muted/50">
+        <h3 className="text-lg font-semibold text-foreground">Tangled Tree Timeline</h3>
+        <p className="text-sm text-muted-foreground">
+          Days on the left spine, sessions stacked vertically with connections showing relationships
         </p>
       </div>
       
-      <div className="p-4">
-        <svg
-          ref={svgRef}
-          className="w-full"
-          style={{ minHeight: '600px' }}
-        />
+      <div className="relative p-6 bg-background">
+        {/* Main spine line */}
+        <div className="absolute left-16 top-6 bottom-6 w-0.5 bg-border"></div>
+        
+        {dayGroups.map((group, groupIndex) => (
+          <div key={group.day} className="relative mb-8 last:mb-0">
+            {/* Day node */}
+            <div className="flex items-start">
+              <div className="relative z-10 flex items-center">
+                <div className="w-3 h-3 bg-foreground rounded-full border-2 border-background shadow-sm"></div>
+                <div className="ml-4 min-w-0">
+                  <h4 className="text-sm font-semibold text-foreground">{group.title}</h4>
+                  <p className="text-xs text-muted-foreground">
+                    {group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sessions for this day */}
+            <div className="ml-20 mt-4 space-y-3">
+              {group.sessions.map((session, sessionIndex) => (
+                <div key={session.id} className="relative group">
+                  {/* Connection line from spine to session */}
+                  <div className={`absolute -left-16 top-3 w-12 h-0.5 ${group.color} opacity-70`}></div>
+                  <div className={`absolute -left-4 top-2.5 w-1 h-1 rounded-full ${group.color.replace('border-', 'bg-')}`}></div>
+                  
+                  {/* Session card */}
+                  <div 
+                    className={`
+                      relative p-3 rounded-lg border bg-card hover:bg-accent/50 
+                      cursor-pointer transition-all duration-200 hover:shadow-md
+                      border-l-4 ${group.color}
+                    `}
+                    onClick={() => onSessionClick(session.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h5 className="text-sm font-medium text-card-foreground truncate">
+                          {session.title}
+                        </h5>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {session.message_count} message{session.message_count !== 1 ? 's' : ''}
+                          </span>
+                          <div className={`w-2 h-2 rounded-full ${getChatTypeStyle(session.chat_type).split(' ')[0]}`}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tangled connections to similar sessions */}
+                  {groupIndex < dayGroups.length - 1 && (
+                    dayGroups.slice(groupIndex + 1).map(otherGroup => 
+                      otherGroup.sessions
+                        .filter(otherSession => {
+                          // Simple similarity check
+                          const titleSimilarity = session.title.toLowerCase().includes(otherSession.title.toLowerCase().split(' ')[0]) ||
+                                                 otherSession.title.toLowerCase().includes(session.title.toLowerCase().split(' ')[0]);
+                          const typeSimilarity = session.chat_type === otherSession.chat_type;
+                          return titleSimilarity || typeSimilarity;
+                        })
+                        .slice(0, 1) // Limit to one connection per day to avoid clutter
+                        .map(similarSession => (
+                          <div 
+                            key={`tangle-${session.id}-${similarSession.id}`}
+                            className="absolute top-3 left-full w-8 h-0.5 bg-yellow-400 opacity-40 transform rotate-12 pointer-events-none"
+                            style={{ 
+                              transformOrigin: 'left center',
+                              width: '60px'
+                            }}
+                          />
+                        ))
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Legend */}
+        <div className="mt-8 pt-4 border-t border-border">
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-foreground rounded-full"></div>
+              <span className="text-muted-foreground">Day</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-muted-foreground">Regular Chat</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-muted-foreground">Collaborative</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <span className="text-muted-foreground">Direct Message</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span className="text-muted-foreground">Group Chat</span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground mt-2">
+            Click sessions to open • Colored connections show day relationships • Similar sessions have tangled connections
+          </div>
+        </div>
       </div>
     </div>
   );
