@@ -27,7 +27,7 @@ To use with Goose, set the provider host environment variables:
 import asyncio
 import logging
 import os
-import sys
+import random
 import threading
 from argparse import ArgumentParser
 from enum import Enum
@@ -286,8 +286,6 @@ class ErrorProxy:
         Returns:
             True if an error should be injected, False otherwise
         """
-        import random
-        
         with self.lock:
             if self.error_mode == ErrorMode.NO_ERROR:
                 return False
