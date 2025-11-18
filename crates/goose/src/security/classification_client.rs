@@ -2,20 +2,21 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+/// Request format following HuggingFace Inference API specification
 #[derive(Debug, Serialize)]
 struct ClassificationRequest {
-    text: String,
+    inputs: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    options: Option<serde_json::Value>,
+    parameters: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ClassificationResponse {
+struct ClassificationLabel {
+    label: String,
     score: f32,
-    label: Option<String>,
 }
+
+type ClassificationResponse = Vec<Vec<ClassificationLabel>>;
 
 pub struct ClassificationClient {
     endpoint_url: String,
@@ -49,9 +50,8 @@ impl ClassificationClient {
         );
 
         let request = ClassificationRequest {
-            text: text.to_string(),
-            model: None,   // Reserved for future use
-            options: None, // Reserved for future use
+            inputs: text.to_string(),
+            parameters: None, // Reserved for future use (e.g., truncation, max_length)
         };
 
         let response = self
@@ -80,23 +80,49 @@ impl ClassificationClient {
             .await
             .context("Failed to parse classification response")?;
 
-        let score = classification_response.score;
+        let batch_result = classification_response
+            .first()
+            .context("Classification API returned empty response")?;
 
-        if !(0.0..=1.0).contains(&score) {
+        let top_label = batch_result
+            .iter()
+            .max_by(|a, b| {
+                a.score
+                    .partial_cmp(&b.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .context("Classification API returned no labels")?;
+
+        let injection_score = match top_label.label.as_str() {
+            "INJECTION" | "LABEL_1" => top_label.score,
+            "SAFE" | "LABEL_0" => 1.0 - top_label.score,
+            _ => {
+                tracing::warn!(
+                    label = %top_label.label,
+                    score = %top_label.score,
+                    "Unknown classification label, defaulting to safe"
+                );
+                0.0
+            }
+        };
+
+        if !(0.0..=1.0).contains(&injection_score) {
             anyhow::bail!(
-                "Classification API returned invalid score: {} (must be between 0.0 and 1.0)",
-                score
+                "Calculated injection score is invalid: {} (must be between 0.0 and 1.0)",
+                injection_score
             );
         }
 
         tracing::info!(
-            score = %score,
-            label = ?classification_response.label,
+            injection_score = %injection_score,
+            top_label = %top_label.label,
+            top_score = %top_label.score,
+            all_labels = ?batch_result,
             endpoint = %self.endpoint_url,
             "HTTP classification detector results"
         );
 
-        Ok(score)
+        Ok(injection_score)
     }
 }
 
