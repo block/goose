@@ -1,14 +1,30 @@
+use std::str::FromStr;
+
 use anyhow::Result;
-use clap::ValueEnum;
 use rmcp::{transport::stdio, ServiceExt};
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Debug)]
 pub enum McpCommand {
     AutoVisualiser,
     ComputerController,
     Developer,
     Memory,
     Tutorial,
+}
+
+impl FromStr for McpCommand {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().replace(' ', "").as_str() {
+            "autovisualiser" => Ok(McpCommand::AutoVisualiser),
+            "computercontroller" => Ok(McpCommand::ComputerController),
+            "developer" => Ok(McpCommand::Developer),
+            "memory" => Ok(McpCommand::Memory),
+            "tutorial" => Ok(McpCommand::Tutorial),
+            _ => Err(format!("Invalid command: {}", s)),
+        }
+    }
 }
 
 impl McpCommand {

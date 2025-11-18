@@ -424,7 +424,10 @@ enum Command {
 
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp { server: McpCommand },
+    Mcp {
+        #[arg(value_parser = clap::value_parser!(McpCommand))]
+        server: McpCommand,
+    },
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]

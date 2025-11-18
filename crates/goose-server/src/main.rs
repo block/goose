@@ -26,7 +26,10 @@ enum Commands {
     /// Run the agent server
     Agent,
     /// Run the MCP server
-    Mcp { server: McpCommand },
+    Mcp {
+        #[arg(value_parser = clap::value_parser!(McpCommand))]
+        server: McpCommand,
+    },
 }
 
 #[tokio::main]
