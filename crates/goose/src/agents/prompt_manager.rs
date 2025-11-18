@@ -19,9 +19,16 @@ use std::path::Path;
 const MAX_EXTENSIONS: usize = 5;
 const MAX_TOOLS: usize = 50;
 
+/// A system prompt extra with optional tag for removal
+#[derive(Debug, Clone)]
+pub struct SystemPromptExtra {
+    pub content: String,
+    pub tag: Option<String>,
+}
+
 pub struct PromptManager {
     system_prompt_override: Option<String>,
-    system_prompt_extras: Vec<(String, Option<String>)>, // (content, optional_tag)
+    system_prompt_extras: Vec<SystemPromptExtra>,
     current_date_timestamp: String,
 }
 
@@ -159,7 +166,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .manager
             .system_prompt_extras
             .iter()
-            .map(|(content, _tag)| content.clone())
+            .map(|extra| extra.content.clone())
             .collect();
 
         // Add hints if provided (from .goosehints/AGENTS.md files)
@@ -213,18 +220,24 @@ impl PromptManager {
 
     /// Add an additional instruction to the system prompt
     pub fn add_system_prompt_extra(&mut self, instruction: String) {
-        self.system_prompt_extras.push((instruction, None));
+        self.system_prompt_extras.push(SystemPromptExtra {
+            content: instruction,
+            tag: None,
+        });
     }
 
     /// Add an additional instruction with a tag for later removal
     pub fn add_system_prompt_extra_with_tag(&mut self, instruction: String, tag: String) {
-        self.system_prompt_extras.push((instruction, Some(tag)));
+        self.system_prompt_extras.push(SystemPromptExtra {
+            content: instruction,
+            tag: Some(tag),
+        });
     }
 
     /// Remove all system prompt extras with a specific tag
     pub fn remove_system_prompt_extras_by_tag(&mut self, tag: &str) {
         self.system_prompt_extras
-            .retain(|(_, t)| t.as_ref().map(|s| s.as_str()) != Some(tag));
+            .retain(|extra| extra.tag.as_deref() != Some(tag));
     }
 
     /// Override the system prompt with custom text
@@ -400,9 +413,9 @@ mod tests {
         );
 
         assert_eq!(manager.system_prompt_extras.len(), 2);
-        assert_eq!(manager.system_prompt_extras[0].1, None);
+        assert_eq!(manager.system_prompt_extras[0].tag, None);
         assert_eq!(
-            manager.system_prompt_extras[1].1,
+            manager.system_prompt_extras[1].tag,
             Some("test_tag".to_string())
         );
     }
@@ -424,17 +437,17 @@ mod tests {
         assert!(manager
             .system_prompt_extras
             .iter()
-            .any(|(c, _)| c == "Context 2"));
+            .any(|(extra)| extra.content == "Context 2"));
         assert!(manager
             .system_prompt_extras
             .iter()
-            .any(|(c, _)| c == "Untagged"));
+            .any(|(extra)| extra.content == "Untagged"));
 
         // Verify dir1 is gone
         assert!(!manager
             .system_prompt_extras
             .iter()
-            .any(|(c, _)| c == "Context 1"));
+            .any(|(extra)| extra.content == "Context 1"));
     }
 
     #[test]
