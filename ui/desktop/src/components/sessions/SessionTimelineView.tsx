@@ -127,15 +127,15 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       };
       nodes.push(dayNode);
 
-      // Create session nodes branching to the right
+      // Create session nodes stacked vertically to the right
       const daySessions = sessionsByDay.get(day)!;
       daySessions.forEach((session, sessionIndex) => {
         const sessionNode: TreeNode = {
           id: session.id,
           title: session.title,
           level: 1,
-          x: 300 + (sessionIndex % 3) * 200, // Spread sessions horizontally
-          y: yOffset + Math.floor(sessionIndex / 3) * 40,
+          x: 300, // Keep all sessions at same x position
+          y: yOffset + 40 + (sessionIndex * 35), // Stack vertically with 35px spacing
           data: session,
           parent: dayNode
         };
@@ -143,7 +143,8 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         dayNode.children!.push(sessionNode);
       });
 
-      yOffset += Math.max(80, Math.ceil(daySessions.length / 3) * 40 + 40);
+      // Increase yOffset to account for all sessions in this day plus spacing
+      yOffset += Math.max(80, daySessions.length * 35 + 60);
     });
 
     console.log('SessionTimelineView: Created tree structure', { 
