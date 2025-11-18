@@ -59,7 +59,7 @@ Add goose to your Zed settings:
 ```json
 {
   "agent_servers": {
-    "goose CLI 🪿": {
+    "goose": {
       "command": "goose",
       "args": ["acp"],
       "env": {}
@@ -75,7 +75,7 @@ You should now be able to interact with goose directly in Zed. Your ACP sessions
 
 1. **Open the Agent Panel**: Click the sparkles agent icon in Zed's status bar
 2. **Create New Thread**: Click the `+` button to show thread options
-3. **Select goose**: Choose `New goose CLI 🪿` to start a new conversation with goose
+3. **Select goose**: Choose `New goose` to start a new conversation with goose
 4. **Start Chatting**: Interact with goose directly from the agent panel
 
 #### Advanced Configuration
@@ -89,12 +89,12 @@ The following Zed settings example configures two goose agent instances. This is
 ```json
 {
   "agent_servers": {
-    "goose CLI 🪿": {
+    "goose": {
       "command": "goose",
       "args": ["acp"],
       "env": {}
     },
-    "goose CLI (GPT-4o)": {
+    "goose (GPT-4o)": {
       "command": "goose",
       "args": ["acp"],
       "env": {
@@ -106,3 +106,31 @@ The following Zed settings example configures two goose agent instances. This is
   // more settings
 }
 ```
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import chooseYourIde from '@site/blog/2025-10-24-intro-to-agent-client-protocol-acp/choose-your-ide.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'video',
+      title: 'Intro to Agent Client Protocol (ACP) | Vibe Code with goose',
+      description: 'Watch how ACP lets you seamlessly integrate goose into your code editor to streamline fragmented workflows.',
+      thumbnailUrl: 'https://img.youtube.com/vi/Hvu5KDTb6JE/maxresdefault.jpg',
+      linkUrl: 'https://www.youtube.com/watch?v=Hvu5KDTb6JE',
+      date: '2025-10-16',
+      duration: '50:23'
+    },
+   {
+      type: 'blog',
+      title: 'Intro to Agent Client Protocol (ACP): The Standard for AI Agent-Editor Integration',
+      description: 'Learn how to integrate AI agents like goose directly into your code editor via ACP, eliminating window-switching and vendor lock-in.',
+      thumbnailUrl: chooseYourIde,
+      linkUrl: '/goose/blog/2025/10/24/intro-to-agent-client-protocol-acp',
+      date: '2025-10-24',
+      duration: '7 min read'
+    }
+  ]}
+/>
