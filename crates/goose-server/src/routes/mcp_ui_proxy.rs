@@ -34,7 +34,13 @@ async fn mcp_ui_proxy(
     }
 
     (
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (
+                header::HeaderName::from_static("referrer-policy"),
+                "no-referrer",
+            ),
+        ],
         Html(MCP_UI_PROXY_HTML),
     )
         .into_response()
