@@ -31,7 +31,7 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, BasePromptTooLargeError, DEFAULT_COMPACTION_THRESHOLD,
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -1161,8 +1161,9 @@ impl Agent {
                             if consecutive_compactions > 2 {
                                 error!("Compaction doom loop detected: compacted {} times without progress", consecutive_compactions - 1);
                                 yield AgentEvent::Message(
-                                    Message::assistant().with_text(
-                                        format!("Unable to continue: Even after {} compaction attempts, the context still exceeds the model's limit.\n\n\
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        &format!("Unable to continue: Even after {} compaction attempts, the context still exceeds the model's limit.\n\n\
                                          This indicates that your message or the system prompt is too large for the configured model.\n\n\
                                          Please try:\n\
                                          - Using a shorter message\n\
@@ -1196,28 +1197,20 @@ impl Agent {
                                     continue;
                                 }
                                 Err(e) => {
-                                    // Check if this is the specific error for base prompt being too large
-                                    if e.downcast_ref::<BasePromptTooLargeError>().is_some() {
-                                        error!("Base prompt too large for context window");
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "Unable to continue: Your message or the system prompt is too large for the configured model's context window.\n\n\
-                                                 Even after attempting to compact the conversation history by removing all tool outputs, \
-                                                 the remaining context still exceeds the model's limit.\n\n\
-                                                 Please try:\n\
-                                                 - Using a shorter message\n\
-                                                 - Configuring a model with a larger context window\n\
-                                                 - Starting a new session"
-                                            )
-                                        );
-                                    } else {
-                                        error!("Error: {}", e);
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                            )
-                                        );
-                                    }
+                                    error!("Compaction failed: {}", e);
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_system_notification(
+                                            SystemNotificationType::InlineMessage,
+                                            &format!("Unable to continue: Compaction failed.\n\n\
+                                                     Error: {}\n\n\
+                                                     If this is a context limit error, your message or system prompt may be too large for the configured model.\n\n\
+                                                     Please try:\n\
+                                                     - Using a shorter message\n\
+                                                     - Configuring a model with a larger context window\n\
+                                                     - Starting a new session\n\
+                                                     - Retrying if this was a transient error", e)
+                                        )
+                                    );
                                     break;
                                 }
                             }
