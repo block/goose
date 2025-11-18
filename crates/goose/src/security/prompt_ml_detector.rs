@@ -1,79 +1,28 @@
 use crate::config::Config;
-use crate::security::gondola::GondolaProvider;
+use crate::security::classification_client::ClassificationClient;
 use anyhow::{Context, Result};
-use std::collections::HashMap;
-
-// TODO: Not sure if this is the right approach or if there's a better way
-pub const GONDOLA_KNOWN_MODELS: &[(&str, &str, &str)] = &[(
-    "deberta-prompt-injection-v2",
-    "gmv-zve9abhxe9s7fq1zep5dxd807",
-    "text_input",
-)];
 
 pub struct MlDetector {
-    provider: GondolaProvider,
-    config: ModelConfig,
-}
-
-pub struct ModelConfig {
-    pub model: String,
-    pub version: String,
-    pub input_name: String,
-}
-
-impl ModelConfig {
-    fn model_registry() -> HashMap<&'static str, (&'static str, &'static str)> {
-        GONDOLA_KNOWN_MODELS
-            .iter()
-            .map(|(name, version, input)| (*name, (*version, *input)))
-            .collect()
-    }
-
-    pub fn from_model_name(model_name: &str) -> Result<Self> {
-        let registry = Self::model_registry();
-
-        let (version, input_name) = registry.get(model_name).ok_or_else(|| {
-            anyhow::anyhow!(
-                "Unknown model '{}'. Available models: {}",
-                model_name,
-                registry.keys().copied().collect::<Vec<_>>().join(", ")
-            )
-        })?;
-
-        Ok(Self {
-            model: model_name.to_string(),
-            version: version.to_string(),
-            input_name: input_name.to_string(),
-        })
-    }
-
-    pub fn from_config() -> Result<Self> {
-        let config = Config::global();
-
-        let model_name = config
-            .get_param::<String>("SECURITY_PROMPT_ML_MODEL")
-            .context(
-                "ML model name not configured. Please set 'SECURITY_PROMPT_ML_MODEL' in settings.",
-            )?;
-
-        Self::from_model_name(&model_name)
-    }
+    client: ClassificationClient,
 }
 
 impl MlDetector {
-    pub fn new(provider: GondolaProvider, config: ModelConfig) -> Self {
-        Self { provider, config }
+    pub fn new(client: ClassificationClient) -> Self {
+        Self { client }
     }
 
     pub fn new_from_config() -> Result<Self> {
-        let provider = GondolaProvider::new().context("Failed to initialize Gondola provider")?;
+        let config = Config::global();
 
-        let config = ModelConfig::from_config().context("Failed to load ML model configuration")?;
+        let endpoint = config
+            .get_param::<String>("SECURITY_PROMPT_ML_ENDPOINT")
+            .context("ML endpoint not configured.")?;
 
-        Ok(Self::new(provider, config))
+        let client = ClassificationClient::new(endpoint, None)?;
+
+        Ok(Self::new(client))
     }
 
-    // TODO: truncation + whitespace elimination (leave for a follow-up PR)
     pub async fn scan(&self, text: &str) -> Result<f32> {
         tracing::debug!(
             text_length = text.len(),
@@ -81,45 +30,13 @@ impl MlDetector {
             "ML detection scanning text"
         );
 
-        let response = self
-            .provider
-            .batch_infer(
-                &self.config.model,
-                &self.config.version,
-                &self.config.input_name,
-                &[text.to_string()],
-            )
-            .await
-            .context("ML inference failed")?;
-
-        let item = response
-            .response_items
-            .first()
-            .context("No response items from ML model")?;
-
-        let logits = item
-            .double_list_value
-            .as_ref()
-            .context("No logits in response")?
-            .double_values
-            .as_slice();
-
-        if logits.len() < 2 {
-            anyhow::bail!("Expected 2 logits (safe, malicious), got {}", logits.len());
-        }
-
-        let exp_safe = logits[0].exp();
-        let exp_malicious = logits[1].exp();
-        let sum = exp_safe + exp_malicious;
-        let confidence = (exp_malicious / sum) as f32;
+        let score = self.client.classify(text).await?;
 
         tracing::info!(
-            prob_safe = %(exp_safe / sum),
-            prob_malicious = %(exp_malicious / sum),
-            confidence = %confidence,
-            "ML detection raw results"
+            score = %score,
+            "ML detection result"
         );
 
-        Ok(confidence)
+        Ok(score)
     }
 }
