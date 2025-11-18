@@ -10,6 +10,7 @@ This script analyzes GitHub contributor statistics and generates rankings for:
 Usage:
     python3 community_stars.py "November 2025"
     python3 community_stars.py "November 1, 2025 - November 17, 2025"
+    python3 community_stars.py "2025-11-01 - 2025-11-17"
 
 Requirements:
     - GitHub contributor data at /tmp/github_contributors.json
@@ -102,12 +103,12 @@ def parse_date_range(date_input):
         end_date = datetime(year, start_date.month, last_day, 23, 59, 59)
         return start_date.timestamp(), end_date.timestamp(), date_input
     
-    # Format: "Date1 - Date2" (e.g., "November 1, 2025 - November 17, 2025")
+    # Format: "Date1 - Date2" (e.g., "November 1, 2025 - November 17, 2025" or "2025-11-01 - 2025-11-17")
     if ' - ' in date_input or ' to ' in date_input:
         separator = ' - ' if ' - ' in date_input else ' to '
         parts = date_input.split(separator)
         if len(parts) == 2:
-            date_formats = ["%B %d, %Y", "%b %d, %Y", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"]
+            date_formats = ["%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"]
             start_date = None
             end_date = None
             
@@ -123,7 +124,7 @@ def parse_date_range(date_input):
                 end_date = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
                 return start_date.timestamp(), end_date.timestamp(), date_input
     
-    raise ValueError(f"Could not parse date input: {date_input}\nSupported formats:\n  - 'Month YYYY' (e.g., 'November 2025')\n  - 'Month Day, YYYY - Month Day, YYYY' (e.g., 'November 1, 2025 - November 17, 2025')")
+    raise ValueError(f"Could not parse date input: {date_input}\nSupported formats:\n  - 'Month YYYY' (e.g., 'November 2025')\n  - 'Month Day, YYYY - Month Day, YYYY' (e.g., 'November 1, 2025 - November 17, 2025')\n  - 'YYYY-MM-DD - YYYY-MM-DD' (e.g., '2025-11-01 - 2025-11-17')")
 
 def main():
     # Parse command line arguments
@@ -132,6 +133,7 @@ def main():
         print("Examples:")
         print("  python3 community_stars.py 'November 2025'")
         print("  python3 community_stars.py 'November 1, 2025 - November 17, 2025'")
+        print("  python3 community_stars.py '2025-11-01 - 2025-11-17'")
         sys.exit(1)
 
     date_input = sys.argv[1]
