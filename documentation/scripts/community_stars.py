@@ -74,7 +74,8 @@ def load_team_lists():
             continue
         
         # Add username to appropriate set (lowercase for case-insensitive matching)
-        # This handles bot names like "dependabot[bot]" -> "dependabot[bot]"
+        # Apply .lower() to entire username including brackets (e.g., "dependabot[bot]")
+        # This matches the pattern used above: 'goose' not in line.lower()
         username = line.lower()
         if current_section == 'goose_maintainers':
             goose_maintainers.add(username)
