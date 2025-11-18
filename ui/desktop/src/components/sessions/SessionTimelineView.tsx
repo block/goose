@@ -91,27 +91,12 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       }
     });
 
-    // Create root node
-    const rootNode: ForceNode = {
-      id: 'root',
-      title: 'Timeline',
-      level: 0,
-      data: {
-        id: 'root',
-        title: 'Timeline',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        message_count: 0,
-        chat_type: 'root'
-      },
-      children: []
-    };
-
-    const nodes: ForceNode[] = [rootNode];
+    const nodes: ForceNode[] = [];
     const links: ForceLink[] = [];
+    let previousDayNode: ForceNode | null = null;
 
     // Create day nodes and session nodes
-    sortedDays.forEach((day) => {
+    sortedDays.forEach((day, dayIndex) => {
       const dayDate = new Date(day);
       const today = new Date();
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -132,7 +117,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       const dayNode: ForceNode = {
         id: `day-${day}`,
         title: dayTitle,
-        level: 1,
+        level: 0, // Days are now level 0 (main thread)
         data: {
           id: `day-${day}`,
           title: dayTitle,
@@ -142,18 +127,20 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
           chat_type: 'day',
           day
         },
-        parent: rootNode,
         children: []
       };
       
       nodes.push(dayNode);
-      rootNode.children!.push(dayNode);
       
-      // Create link from root to day
-      links.push({
-        source: rootNode,
-        target: dayNode
-      });
+      // Link to previous day to create timeline thread
+      if (previousDayNode) {
+        links.push({
+          source: previousDayNode,
+          target: dayNode
+        });
+      }
+      
+      previousDayNode = dayNode;
 
       // Create session nodes for this day
       const daySessions = sessionsByDay.get(day)!;
@@ -161,7 +148,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         const sessionNode: ForceNode = {
           id: session.id,
           title: session.title,
-          level: 2,
+          level: 1, // Sessions are now level 1 (branches)
           data: session,
           parent: dayNode
         };
@@ -254,13 +241,11 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     // Add circles to nodes
     node.append("circle")
       .attr("r", d => {
-        if (d.level === 0) return 12; // Root
-        if (d.level === 1) return 8;  // Day nodes
+        if (d.level === 0) return 10; // Day nodes (main thread)
         return Math.max(4, Math.min(10, Math.sqrt(d.data.message_count || 1) + 2)); // Session nodes
       })
       .attr("fill", d => {
-        if (d.level === 0) return "#6366f1"; // Root - indigo
-        if (d.level === 1) return "#3b82f6"; // Day nodes - blue
+        if (d.level === 0) return "#3b82f6"; // Day nodes - blue
         
         // Session nodes colored by chat type
         switch (d.data.chat_type) {
@@ -272,9 +257,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       })
       .attr("stroke", `hsl(${backgroundColor})`)
       .attr("stroke-width", 2)
-      .style("cursor", d => d.level === 2 ? "pointer" : "default")
+      .style("cursor", d => d.level === 1 ? "pointer" : "default")
       .on("click", (event, d) => {
-        if (d.level === 2) {
+        if (d.level === 1) {
           onSessionClick(d.data.id);
         }
       });
@@ -282,21 +267,21 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     // Add labels to nodes
     node.append("text")
       .text(d => {
-        if (d.level === 2 && d.title.length > 15) {
+        if (d.level === 1 && d.title.length > 15) {
           return d.title.substring(0, 15) + "...";
         }
         return d.title;
       })
       .attr("x", 0)
-      .attr("y", d => d.level === 0 ? -18 : d.level === 1 ? -12 : 18)
+      .attr("y", d => d.level === 0 ? -15 : 18)
       .attr("text-anchor", "middle")
-      .style("font-size", d => d.level === 0 ? "14px" : d.level === 1 ? "12px" : "10px")
-      .style("font-weight", d => d.level <= 1 ? "bold" : "normal")
+      .style("font-size", d => d.level === 0 ? "12px" : "10px")
+      .style("font-weight", d => d.level === 0 ? "bold" : "normal")
       .style("fill", `hsl(${foregroundColor})`)
       .style("pointer-events", "none");
 
     // Add message count for session nodes
-    node.filter(d => d.level === 2)
+    node.filter(d => d.level === 1)
       .append("text")
       .text(d => `${d.data.message_count}`)
       .attr("x", 0)
@@ -377,10 +362,6 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
           <div className="text-xs font-semibold text-foreground mb-2">Legend</div>
           <div className="space-y-1 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
-              <span>Timeline Root</span>
-            </div>
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
               <span>Day</span>
