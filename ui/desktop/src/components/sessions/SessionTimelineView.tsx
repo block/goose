@@ -239,6 +239,27 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       .style("pointer-events", "none")
       .text(d => d.length);
 
+    // Add X-axis label (Hours)
+    g.append("text")
+      .attr("x", (24 * hexSpacing) / 2)
+      .attr("y", -15)
+      .attr("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("font-weight", "500")
+      .style("fill", `hsl(${mutedColor})`)
+      .text("Hours");
+
+    // Add Y-axis label (Days)
+    g.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -(((maxDaysAgo + 1) * hexSpacing) / 2))
+      .attr("y", -15)
+      .attr("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("font-weight", "500")
+      .style("fill", `hsl(${mutedColor})`)
+      .text("Days");
+
     console.log('SessionTimelineView: Hexbin rendered', { 
       binCount: bins.length,
       nonEmptyBins: bins.filter(d => d.length > 0).length,
