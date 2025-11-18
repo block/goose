@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Baseline clippy rules - only fail on NEW violations
-# 
+#
 # Format: "rule_name|violation_parser"
 #
 # Violation parsers (run clippy on your rule to see which fits):
-#   function_name - When spans show: "fn my_function(..." 
+#   function_name - When spans show: "fn my_function(..."
 #   type_name     - When spans show: "struct MyStruct" or "enum MyEnum"
 #   file_only     - When spans show file-level issues
 #
@@ -23,18 +23,18 @@ BASELINE_RULES=(
 parse_violation() {
     local rule_code="$1"
     local violation_parser="$2"
-    
+
     case "$violation_parser" in
         "function_name")
-            jq -r 'select(.message.code.code == "'"$rule_code"'") | 
+            jq -r 'select(.message.code.code == "'"$rule_code"'") |
                    "\(.message.spans[0].file_name)::\(.message.spans[0].text[0].text | split("fn ")[1] | split("(")[0])"'
             ;;
         "type_name")
-            jq -r 'select(.message.code.code == "'"$rule_code"'") | 
+            jq -r 'select(.message.code.code == "'"$rule_code"'") |
                    "\(.message.spans[0].file_name)::\(.message.spans[0].text[0].text | split(" ")[1] | split(" ")[0])"'
             ;;
         "file_only")
-            jq -r 'select(.message.code.code == "'"$rule_code"'") | 
+            jq -r 'select(.message.code.code == "'"$rule_code"'") |
                    "\(.message.spans[0].file_name)"'
             ;;
         *)
@@ -53,22 +53,22 @@ get_baseline_file() {
 
 generate_baseline() {
     local rule_name="$1"
-    
+
     [[ -z "$rule_name" ]] && { echo "Missing rule name"; return 1; }
-    
+
     local violation_parser=""
     for rule in "${BASELINE_RULES[@]}"; do
         [[ "${rule%|*}" == "$rule_name" ]] && { violation_parser="${rule#*|}"; break; }
     done
-    
+
     [[ -z "$violation_parser" ]] && { echo "Unknown rule: $rule_name"; return 1; }
-    
+
     local baseline_file=$(get_baseline_file "$rule_name")
-    
+
     cargo clippy --jobs 2 --message-format=json -- -W "$rule_name" | \
         parse_violation "$rule_name" "$violation_parser" | \
         sort > "$baseline_file"
-    
+
     echo "✅ Generated baseline for $rule_name ($(wc -l < "$baseline_file") violations)"
 }
 
@@ -79,23 +79,23 @@ check_rule_from_json() {
     local rule_name="$2"
     local violation_parser="$3"
     local baseline_file="$4"
-    
+
     echo "  → Checking $rule_name"
-    
+
     if [[ ! -f "$baseline_file" ]]; then
         echo "  ❌ $rule_name: baseline file not found"
         return 1
     fi
-    
+
     local temp_parsed=$(mktemp)
     cat "$temp_json" | parse_violation "$rule_name" "$violation_parser" | sort > "$temp_parsed"
-    
+
     local new_violations_file=$(mktemp)
     diff <(sort "$baseline_file") <(sort "$temp_parsed") | grep "^>" | cut -c3- > "$new_violations_file"
-    
+
     if [[ -s "$new_violations_file" ]]; then
         echo "  ❌ $rule_name: NEW violations found:"
-        
+
         while IFS= read -r violation; do
             # Extract all violations for this rule and find the matching one
             cat "$temp_json" | jq -c 'select(.message.code.code == "'"$rule_name"'")' 2>/dev/null | while read -r json_line; do
@@ -105,13 +105,13 @@ check_rule_from_json() {
                 fi
             done
         done < "$new_violations_file"
-        
+
         rm "$temp_parsed" "$new_violations_file"
         return 1
     fi
-    
+
     rm "$new_violations_file"
-    
+
     echo "  ✅ $rule_name: ok"
     rm "$temp_parsed"
     return 0
@@ -119,31 +119,31 @@ check_rule_from_json() {
 
 check_all_baseline_rules() {
     echo "🔍 Checking baseline clippy rules..."
-    
+
     local clippy_flags=""
     for rule in "${BASELINE_RULES[@]}"; do
         local rule_name="${rule%|*}"
         clippy_flags="$clippy_flags -W $rule_name"
     done
-    
+
     local temp_json=$(mktemp)
-    cargo clippy --jobs 2 --message-format=json -- $clippy_flags > "$temp_json"
-    
+    cargo clippy --jobs 2 --message-format=json -- $clippy_flags | tee "$temp_json"
+
     local failed_rules=()
-    
+
     # Check each rule against its baseline
     for rule in "${BASELINE_RULES[@]}"; do
         local rule_name="${rule%|*}"
         local violation_parser="${rule#*|}"
         local baseline_file=$(get_baseline_file "$rule_name")
-        
+
         if ! check_rule_from_json "$temp_json" "$rule_name" "$violation_parser" "$baseline_file"; then
             failed_rules+=("$rule_name")
         fi
     done
-    
+
     rm "$temp_json"
-    
+
     if [[ ${#failed_rules[@]} -gt 0 ]]; then
         echo ""
         echo "❌ Failed baseline checks for: ${failed_rules[*]}"

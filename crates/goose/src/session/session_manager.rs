@@ -970,6 +970,8 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
         sqlx::query(
@@ -983,14 +985,15 @@ impl SessionStorage {
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
         .bind(metadata_json)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -1049,10 +1052,12 @@ impl SessionStorage {
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let exists =
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
                 .bind(session_id)
-                .fetch_one(&self.pool)
+                .fetch_one(&mut *tx)
                 .await?;
 
         if !exists {
@@ -1061,14 +1066,15 @@ impl SessionStorage {
 
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 

@@ -16,7 +16,7 @@ paste = "1.0"
 ctor = "0.2.7"
 goose = { path = "../goose" }
 rmcp = { workspace = true }
-async-trait = "0.1.86"
+async-trait = "0.1.89"
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

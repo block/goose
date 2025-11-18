@@ -1,22 +1,22 @@
 ---
 title: Building Custom Extensions
-description: Create your own custom MCP Server to use as a Goose extension
+description: Create your own custom MCP Server to use as a goose extension
 ---
 
 import { PanelLeft } from 'lucide-react';
 
-# Building Custom Extensions with Goose
+# Building Custom Extensions with goose
 
 
-Goose allows you to extend its functionality by creating your own custom extensions, which are built as MCP servers. These extensions are compatible with Goose because it adheres to the [Model Context Protocol (MCP)][mcp-docs]. MCP is an open protocol that standardizes how applications provide context to LLMs. It enables a consistent way to connect LLMs to various data sources and tools, making it ideal for extending functionality in a structured and interoperable way. 
+goose allows you to extend its functionality by creating your own custom extensions, which are built as MCP servers. These extensions are compatible with goose because it adheres to the [Model Context Protocol (MCP)][mcp-docs]. MCP is an open protocol that standardizes how applications provide context to LLMs. It enables a consistent way to connect LLMs to various data sources and tools, making it ideal for extending functionality in a structured and interoperable way. 
 
-In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in Goose. You can follow a similar process to develop your own custom extensions for Goose.
+In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in goose. You can follow a similar process to develop your own custom extensions for goose.
 
 You can checkout other examples in this [MCP servers repository][mcp-servers]. MCP SDKs are also available in [Typescript][mcp-typescript] and [Kotlin][mcp-kotlin].
 
 :::info
 
-Goose currently supports Tools and Resources for [MCP Server features](https://spec.modelcontextprotocol.io/specification/2024-11-05/server/). 
+goose currently supports Tools and Resources for [MCP Server features](https://spec.modelcontextprotocol.io/specification/2024-11-05/server/). 
 We will be adding support for MCP Prompts soon.
 
 :::
@@ -243,9 +243,9 @@ build-backend = "hatchling.build"
 
 ---
 
-## Step 5: Integrate with Goose
+## Step 5: Integrate with goose
 
-To add your MCP server as an extension in Goose:
+To add your MCP server as an extension in goose:
 
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
 2. Click `Extensions` in the sidebar
@@ -269,21 +269,64 @@ uvx mcp-wiki
 
 ---
 
-## Step 6: Use Your Extension in Goose
+## Step 6: Use Your Extension in goose
 
-Once integrated, you can start using your extension in Goose. Open the Goose chat interface and call your tool as needed.
+Once integrated, you can start using your extension in goose. Open the goose chat interface and call your tool as needed.
 
-You can verify that Goose has picked up the tools from your custom extension by asking it "what tools do you have?"
+You can verify that goose has picked up the tools from your custom extension by asking it "what tools do you have?"
 
-![Goose Chat - Ask about tools](../assets/guides/custom-extension-tools.png)
+![goose Chat - Ask about tools](../assets/guides/custom-extension-tools.png)
 
 Then, you can try asking questions that require using the extension you added.
 
-![Goose Chat - Use custom extension](../assets/guides/custom-extension-chat.png)
+![goose Chat - Use custom extension](../assets/guides/custom-extension-chat.png)
 
-🎉 **Congratulations!** You’ve successfully built and integrated a custom MCP server with Goose.
+🎉 **Congratulations!** You’ve successfully built and integrated a custom MCP server with goose.
 
+---
 
+## Advanced Features for MCP Extensions
+
+goose supports advanced MCP features that can enhance your extensions.
+
+### MCP Sampling: AI-Powered Tools
+
+**[MCP Sampling](/docs/guides/mcp-sampling)** allows your MCP servers to request AI completions from goose's LLM, transforming simple tools into intelligent agents.
+
+**Key Benefits:**
+- Your MCP server doesn't need its own OpenAI/Anthropic API key
+- Tools can analyze data, provide explanations, and make intelligent decisions
+- Enhanced user experience with smarter, more contextual responses
+- Secure by design: requests are isolated and attributed automatically
+
+**Getting Started:**
+- Use the `sampling/createMessage` method in your MCP server to request AI assistance
+- [goose's implementation](https://github.com/block/goose/blob/main/crates/goose/src/agents/mcp_client.rs) currently supports text and image content types
+- goose automatically advertises sampling capability to all MCP servers
+
+**Use Cases:** Document summarization, smart search filtering, code analysis, data insights
+
+**Learn More:** See the [MCP Specification](https://modelcontextprotocol.io/specification/draft/client/sampling) for technical details.
+
+### MCP-UI: Interactive Extensions
+
+**[MCP-UI Extensions](/docs/guides/interactive-chat/mcp-ui)** enable rich, interactive user interfaces instead of text-only responses, transforming static MCP servers into dynamic, engaging experiences.
+
+**Key Benefits:**
+- Your MCP server can return interactive UI components alongside or instead of text
+- Components render securely in isolated environments within goose Desktop
+- Real-time user interactions trigger callbacks to your MCP server
+- Standardized protocol ensures consistent behavior across different clients
+
+**Getting Started:**
+- Use MCP-UI SDKs in multiple programming languages to create `UIResource` objects in your MCP server
+- Return UI components from tools or resources using the standardized specification
+- goose Desktop automatically renders MCP-UI components when detected
+- Components support multiple rendering approaches for flexible styling
+
+**Use Cases:** Interactive forms, seat selection maps, data visualization dashboards, booking interfaces, configuration wizards
+
+**Learn More:** See the [MCP-UI Specification](https://mcpui.dev/guide/introduction) for technical details and implementation examples.
 
 [mcp-docs]: https://modelcontextprotocol.io/
 [mcp-python]: https://github.com/modelcontextprotocol/python-sdk

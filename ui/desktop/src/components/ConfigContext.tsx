@@ -186,9 +186,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     try {
       const response = await apiGetProviderModels({
         path: { name: providerName },
-        headers: {
-          'X-Secret-Key': await window.electron.getSecretKey(),
-        },
+        throwOnError: true,
       });
       return response.data || [];
     } catch (error) {
