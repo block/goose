@@ -7,7 +7,6 @@ use crate::config::paths::Paths;
 use crate::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
 use crate::recipe::Recipe;
 use crate::recipe::RECIPE_FILE_EXTENSIONS;
-use serde_yaml;
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
 
@@ -187,7 +186,7 @@ pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow
         fs::create_dir_all(parent)?;
     }
 
-    let yaml_content = serde_yaml::to_string(&recipe)?;
+    let yaml_content = recipe.to_yaml()?;
     fs::write(&file_path_value, yaml_content)?;
     Ok(file_path_value)
 }
