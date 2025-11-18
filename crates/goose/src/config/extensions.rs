@@ -54,22 +54,21 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
-    if !extensions_map.is_empty() {
-        for (name, def) in PLATFORM_EXTENSIONS.iter() {
-            if !extensions_map.contains_key(*name) {
-                extensions_map.insert(
-                    name.to_string(),
-                    ExtensionEntry {
-                        config: ExtensionConfig::Platform {
-                            name: def.name.to_string(),
-                            description: def.description.to_string(),
-                            bundled: Some(true),
-                            available_tools: Vec::new(),
-                        },
-                        enabled: true,
+    // Always add platform extensions if they're not already present
+    for (name, def) in PLATFORM_EXTENSIONS.iter() {
+        if !extensions_map.contains_key(*name) {
+            extensions_map.insert(
+                name.to_string(),
+                ExtensionEntry {
+                    config: ExtensionConfig::Platform {
+                        name: def.name.to_string(),
+                        description: def.description.to_string(),
+                        bundled: Some(true),
+                        available_tools: Vec::new(),
                     },
-                );
-            }
+                    enabled: true,
+                },
+            );
         }
     }
     extensions_map
