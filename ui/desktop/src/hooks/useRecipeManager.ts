@@ -22,6 +22,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
   const chatContext = useChatContext();
   const messages = chat.messages;
 
+  // Get recipe parameters from deeplink if available
+  const paramsFromConfig =
+    (window.appConfig?.get('recipeParameters') as Record<string, string> | null | undefined) ??
+    null;
+  const recipeParametersFromConfig = useRef<Record<string, string> | null>(paramsFromConfig);
+
   const messagesRef = useRef(messages);
   const isCreatingRecipeRef = useRef(false);
   const hasCheckedRecipeRef = useRef(false);
@@ -32,6 +38,27 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const finalRecipe = chat.recipe;
   const resolvedRecipe = chat.resolvedRecipe;
+
+  // Initialize parameters from deeplink when recipe is loaded (from backend/deeplink)
+  useEffect(() => {
+    if (!chatContext || !finalRecipe) {
+      return;
+    }
+
+    // Only initialize if we have params from config and haven't set them yet
+    const hasNoParameters =
+      !chat.recipeParameterValues ||
+      (typeof chat.recipeParameterValues === 'object' &&
+        Object.keys(chat.recipeParameterValues).length === 0);
+
+    if (recipeParametersFromConfig.current && hasNoParameters) {
+      chatContext.setChat({
+        ...chatContext.chat,
+        recipeParameterValues: recipeParametersFromConfig.current,
+      });
+    }
+  }, [chatContext, finalRecipe, chat]);
+
   useEffect(() => {
     if (!chatContext) return;
 
@@ -55,10 +82,13 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
         setIsRecipeWarningModalOpen(false);
         hasCheckedRecipeRef.current = false; // Reset check flag for new recipe
 
+        // Initialize with parameters from deeplink if available
+        const initialParameterValues = recipeParametersFromConfig.current || null;
+
         chatContext.setChat({
           ...chatContext.chat,
           recipe: recipe,
-          recipeParameterValues: null,
+          recipeParameterValues: initialParameterValues,
           messages: [],
         });
       }
