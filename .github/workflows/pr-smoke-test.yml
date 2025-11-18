@@ -143,6 +143,9 @@ jobs:
         run: |
           bash scripts/test_subrecipes.sh
 
+      - name: Install uv (for error proxy)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # pin@v6
+
       - name: Run Compaction Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
