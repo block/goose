@@ -117,10 +117,8 @@ impl EnabledExtensionsState {
 /// Metadata for a loaded directory context
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DirectoryContext {
-    /// Turn number when this directory was first loaded
-    pub load_turn: u32,
     /// Turn number when this directory was last accessed
-    pub last_access_turn: u32,
+    pub access_turn: u32,
     /// Unique tag for identifying this context in system prompt extras
     pub tag: String,
 }
@@ -158,8 +156,7 @@ impl LoadedAgentsState {
         self.loaded_directories.insert(
             path_str,
             DirectoryContext {
-                load_turn: turn,
-                last_access_turn: turn,
+                access_turn: turn,
                 tag: tag.clone(),
             },
         );
@@ -171,7 +168,7 @@ impl LoadedAgentsState {
     pub fn mark_accessed(&mut self, directory: &Path, turn: u32) {
         let path_str = directory.to_string_lossy().to_string();
         if let Some(context) = self.loaded_directories.get_mut(&path_str) {
-            context.last_access_turn = turn;
+            context.access_turn = turn;
         }
     }
 
@@ -184,7 +181,7 @@ impl LoadedAgentsState {
         self.loaded_directories
             .iter()
             .filter(|(_, context)| {
-                current_turn.saturating_sub(context.last_access_turn) >= max_idle_turns
+                current_turn.saturating_sub(context.access_turn) >= max_idle_turns
             })
             .map(|(path, context)| (path.clone(), context.tag.clone()))
             .collect()
@@ -193,11 +190,6 @@ impl LoadedAgentsState {
     /// Remove a directory from tracking
     pub fn remove_directory(&mut self, directory: &str) {
         self.loaded_directories.remove(directory);
-    }
-
-    /// Get all loaded directories
-    pub fn get_loaded_directories(&self) -> Vec<String> {
-        self.loaded_directories.keys().cloned().collect()
     }
 }
 
@@ -223,7 +215,7 @@ pub fn save_loaded_agents_state(
 /// Conversation turn counter state (survives compaction)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ConversationTurnState {
-    /// Current turn number (increments on each user message)
+    /// Current turn number (increments on each agent iteration)
     pub turn: u32,
 }
 
@@ -239,10 +231,6 @@ impl ConversationTurnState {
 
     pub fn increment(&mut self) -> u32 {
         self.turn += 1;
-        self.turn
-    }
-
-    pub fn get(&self) -> u32 {
         self.turn
     }
 }
@@ -364,8 +352,7 @@ mod tests {
 
         // Verify context details
         let context = state.loaded_directories.get("/repo/features/auth").unwrap();
-        assert_eq!(context.load_turn, 1);
-        assert_eq!(context.last_access_turn, 1);
+        assert_eq!(context.access_turn, 1);
     }
 
     #[test]
@@ -377,8 +364,7 @@ mod tests {
         state.mark_accessed(path, 5);
 
         let context = state.loaded_directories.get("/repo/features/auth").unwrap();
-        assert_eq!(context.load_turn, 1);
-        assert_eq!(context.last_access_turn, 5);
+        assert_eq!(context.access_turn, 5);
     }
 
     #[test]

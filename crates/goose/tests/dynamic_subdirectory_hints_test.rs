@@ -56,8 +56,8 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
             .loaded_directories
             .get(&auth_dir.to_string_lossy().to_string())
             .unwrap();
-        assert_eq!(context.load_turn, 1);
-        assert_eq!(context.last_access_turn, 1);
+        assert_eq!(context.access_turn, 1);
+        assert_eq!(context.access_turn, 1);
     }
 
     // Turn 2: Access again (should update access time)
@@ -74,7 +74,7 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
             .loaded_directories
             .get(&auth_dir.to_string_lossy().to_string())
             .unwrap();
-        assert_eq!(context.last_access_turn, 2, "Access time should update");
+        assert_eq!(context.access_turn, 2, "Access time should update");
     }
 
     // Turn 5: Prune (last access was turn 2, so 3 turns idle)
@@ -99,14 +99,14 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
 #[test]
 fn test_conversation_turn_state_increment() {
     let mut state = ConversationTurnState::new();
-    assert_eq!(state.get(), 0);
+    assert_eq!(state.turn, 0);
 
     assert_eq!(state.increment(), 1);
-    assert_eq!(state.get(), 1);
+    assert_eq!(state.turn, 1);
 
     assert_eq!(state.increment(), 2);
     assert_eq!(state.increment(), 3);
-    assert_eq!(state.get(), 3);
+    assert_eq!(state.turn, 3);
 }
 
 #[test]
@@ -120,14 +120,14 @@ fn test_conversation_turn_state_serialization() {
     save_conversation_turn_state(&mut extension_data, &state).unwrap();
 
     let restored = get_or_create_conversation_turn_state(&extension_data);
-    assert_eq!(restored.get(), 3);
+    assert_eq!(restored.turn, 3);
 }
 
 #[test]
 fn test_conversation_turn_state_default() {
     let extension_data = ExtensionData::default();
     let state = get_or_create_conversation_turn_state(&extension_data);
-    assert_eq!(state.get(), 0, "Should default to turn 0");
+    assert_eq!(state.turn, 0, "Should default to turn 0");
 }
 
 #[test]
