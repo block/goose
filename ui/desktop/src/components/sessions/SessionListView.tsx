@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Sparkles,
   Grid3X3,
-  Timeline,
+  Clock,
 } from 'lucide-react';
 import AvatarImage from '../AvatarImage';
 import { useMatrix } from '../../contexts/MatrixContext';
@@ -795,7 +795,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                       onClick={() => setViewMode('timeline')}
                       className="px-3 py-1.5 h-auto"
                     >
-                      <Timeline className="w-4 h-4 mr-2" />
+                      <Clock className="w-4 h-4 mr-2" />
                       Timeline
                     </Button>
                   </div>
