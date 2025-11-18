@@ -200,14 +200,9 @@ pub fn load_hints_from_directory(
     if contents.is_empty() {
         None
     } else {
-        // Include directory path in header with clear scoping
-        let directory_str = directory.display();
         Some(format!(
-            "### Directory-Specific Hints: {}\n\
-            **Scope**: The following instructions apply when working with files in the `{}` directory and its subdirectories.\n\n\
-            {}",
-            directory_str,
-            directory_str,
+            "### Directory-Specific Hints: {}\n\n{}",
+            directory.display(),
             contents.join("\n")
         ))
     }
@@ -621,7 +616,6 @@ End of hints"#;
             let content = result.unwrap();
             assert!(content.contains("Test content"));
             assert!(content.contains("### Directory-Specific Hints:"));
-            assert!(content.contains("**Scope**: The following instructions apply when working"));
         });
     }
 
