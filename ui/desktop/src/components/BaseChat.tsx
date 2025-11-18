@@ -487,6 +487,7 @@ function BaseChatContent({
           parameters={filteredParameters}
           onSubmit={handleParameterSubmit}
           onClose={() => setIsParameterModalOpen(false)}
+          initialValues={recipeParameterValues ?? undefined}
         />
       )}
 
