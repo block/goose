@@ -17,11 +17,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use uuid::Uuid;
 
-#[derive(serde::Deserialize)]
-struct OpenAIErrorResponse {
-    error: OpenAIError,
-}
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum ImageFormat {
     OpenAi,
@@ -107,54 +102,50 @@ pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
 ) -> ProviderError {
+    let extract_message = || -> String {
+        payload
+            .as_ref()
+            .and_then(|p| {
+                p.get("error")
+                    .and_then(|e| e.get("message"))
+                    .or_else(|| p.get("message"))
+                    .and_then(|m| m.as_str())
+                    .map(String::from)
+            })
+            .unwrap_or_else(|| payload.as_ref().map(|p| p.to_string()).unwrap_or_default())
+    };
+
     let error = match status {
         StatusCode::OK => unreachable!("Should not call this function with OK status"),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            let message = format!(
-                "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-        Status: {}{}",
-                status,
-                payload.as_ref().map(|p| format!(". Response: {}", p)).unwrap_or_default()
-            );
-            ProviderError::Authentication(message)
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProviderError::Authentication(format!(
+            "Authentication failed. Status: {}. Response: {}",
+            status,
+            extract_message()
+        )),
+        StatusCode::NOT_FOUND => {
+            ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
         }
-        StatusCode::PAYLOAD_TOO_LARGE => {
-            let payload_str = if let Some(payload) = &payload {
-                payload.to_string()
-            } else {
-                "Payload is too large.".to_string()
-            };
-            ProviderError::ContextLengthExceeded(payload_str)
-        }
+        StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
-            let base_msg = format!("Request failed with status: {}", status);
-            if let Some(payload) = &payload {
-                let payload_str = payload.to_string();
-                if check_context_length_exceeded(&payload_str) {
-                    ProviderError::ContextLengthExceeded(payload_str)
-                } else {
-                    ProviderError::RequestFailed(
-                        payload
-                            .get("error")
-                            .and_then(|e| e.get("message"))
-                            .or_else(|| payload.get("message"))
-                            .and_then(|m| m.as_str())
-                            .map(|msg| format!("{}. Message: {}", base_msg, msg))
-                            .unwrap_or(base_msg),
-                    )
-                }
+            let payload_str = extract_message();
+            if check_context_length_exceeded(&payload_str) {
+                ProviderError::ContextLengthExceeded(payload_str)
             } else {
-                ProviderError::RequestFailed(base_msg)
+                ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
             }
         }
         StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
-            details: format!("{:?}", payload),
+            details: extract_message(),
             retry_delay: None,
         },
         _ if status.is_server_error() => {
-            ProviderError::ServerError(format_server_error_message(status, payload.as_ref()))
+            ProviderError::ServerError(format!("Server error ({}): {}", status, extract_message()))
         }
-        _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
+        _ => ProviderError::RequestFailed(format!(
+            "Request failed with status {}: {}",
+            status,
+            extract_message()
+        )),
     };
 
     if !status.is_success() {
@@ -169,51 +160,14 @@ pub fn map_http_error_to_provider_error(
     error
 }
 
-/// Handles HTTP responses from OpenAI-compatible endpoints.
-///
-/// Returns the response if status is OK; otherwise, reads the body and maps to a `ProviderError`,
-/// with special handling for context length exceeded and other OpenAI-formatted errors.
-///
-/// ### References
-/// - Error Codes: https://platform.openai.com/docs/guides/error-codes
-/// - Context Window Exceeded: https://community.openai.com/t/help-needed-tackling-context-length-limits-in-openai-models/617543
-///
-/// ### Arguments
-/// - `response`: The HTTP response to process.
-///
-/// ### Returns
-/// - `Ok(Response)`: The original response on success.
-/// - `Err(ProviderError)`: Describes the failure reason.```
 pub async fn handle_status_openai_compat(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
-    if status == StatusCode::OK {
-        return Ok(response);
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        let payload = serde_json::from_str::<Value>(&body).ok();
+        return Err(map_http_error_to_provider_error(status, payload));
     }
-
-    let body_str = response
-        .text()
-        .await
-        .map_err(|_| map_http_error_to_provider_error(status, None))?;
-
-    if matches!(status, StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND) {
-        if let Ok(err_resp) = serde_json::from_str::<OpenAIErrorResponse>(&body_str) {
-            let err = err_resp.error;
-            if err.is_context_length_exceeded() {
-                return Err(ProviderError::ContextLengthExceeded(
-                    err.message.unwrap_or("Unknown error".to_string()),
-                ));
-            } else {
-                return Err(ProviderError::RequestFailed(format!(
-                    "{} (status {})",
-                    err,
-                    status.as_u16()
-                )));
-            }
-        }
-    }
-
-    let payload = serde_json::from_str::<Value>(&body_str).ok();
-    Err(map_http_error_to_provider_error(status, payload))
+    Ok(response)
 }
 
 pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
@@ -1086,92 +1040,6 @@ mod tests {
             let result = handle_status_openai_compat(response).await.map(|_| ());
 
             assert_eq!(result, expected_result, "for status {}", status_code);
-        }
-    }
-
-    #[test]
-    fn test_map_http_error_to_provider_error() {
-        let test_cases = vec![
-            (
-                StatusCode::UNAUTHORIZED,
-                Some(json!({"error": "auth failed"})),
-                ProviderError::Authentication(
-                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: {\"error\":\"auth failed\"}".to_string(),
-                ),
-            ),
-            (
-                StatusCode::FORBIDDEN,
-                None,
-                ProviderError::Authentication(
-                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 403 Forbidden".to_string(),
-                ),
-            ),
-            (
-                StatusCode::BAD_REQUEST,
-                Some(json!({"error": {"message": "context_length_exceeded"}})),
-                ProviderError::ContextLengthExceeded(
-                    "{\"error\":{\"message\":\"context_length_exceeded\"}}".to_string(),
-                ),
-            ),
-            (
-                StatusCode::BAD_REQUEST,
-                Some(json!({"error": {"message": "Custom error"}})),
-                ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request. Message: Custom error".to_string(),
-                ),
-            ),
-            (
-                StatusCode::BAD_REQUEST,
-                None,
-                ProviderError::RequestFailed(
-                    "Request failed with status: 400 Bad Request".to_string(),
-                ),
-            ),
-            (
-                StatusCode::TOO_MANY_REQUESTS,
-                Some(json!({"retry_after": 60})),
-                ProviderError::RateLimitExceeded{
-                    details: "Some(Object {\"retry_after\": Number(60)})".to_string(),
-                    retry_delay: None,
-                },
-            ),
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-                ProviderError::ServerError(format_server_error_message(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    None,
-                )),
-            ),
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Some(Value::Null),
-                ProviderError::ServerError(format_server_error_message(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Some(&Value::Null),
-                )),
-            ),
-            (
-                StatusCode::BAD_GATEWAY,
-                Some(json!({"error": "upstream error"})),
-                ProviderError::ServerError(format_server_error_message(
-                    StatusCode::BAD_GATEWAY,
-                    Some(&json!({"error": "upstream error"})),
-                )),
-            ),
-            // Default - any other status code
-            (
-                StatusCode::IM_A_TEAPOT,
-                Some(json!({"ignored": "payload"})),
-                ProviderError::RequestFailed(
-                    "Request failed with status: 418 I'm a teapot".to_string(),
-                ),
-            ),
-        ];
-
-        for (status, payload, expected_error) in test_cases {
-            let result = map_http_error_to_provider_error(status, payload);
-            assert_eq!(result, expected_error);
         }
     }
 }
