@@ -235,6 +235,10 @@ else
   OUTPUT=$(mktemp)
   PROXY_LOG=$(mktemp)
 
+  # Pre-install proxy dependencies (so first run doesn't take forever)
+  echo "Installing proxy dependencies..."
+  (cd "$PROXY_DIR" && uv sync --quiet 2>&1) > /dev/null || true
+
   # Start the error proxy in context-length error mode (3 errors)
   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
   (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
@@ -243,7 +247,7 @@ else
   # Wait for proxy to be ready (check if port is listening)
   echo "Waiting for proxy to be ready..."
   PROXY_READY=false
-  for i in {1..30}; do
+  for i in {1..60}; do
     if kill -0 $PROXY_PID 2>/dev/null; then
       # Check if port is listening using /dev/tcp
       if timeout 1 bash -c "echo -n > /dev/tcp/localhost/$PROXY_PORT" 2>/dev/null; then
