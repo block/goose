@@ -69,6 +69,10 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
+/// Maximum number of turns a directory hint can be idle before pruning
+/// Can be overridden with GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS environment variable
+const DEFAULT_MAX_IDLE_TURNS: u32 = 3;
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -933,6 +937,32 @@ impl Agent {
                     break;
                 }
 
+                // Increment turn counter and prune stale hints
+                // This happens on every agent iteration (tool calls, responses, etc.)
+                let conversation_turn = {
+                    use crate::session::extension_data::{
+                        get_or_create_conversation_turn_state, save_conversation_turn_state,
+                    };
+
+                    let mut session = SessionManager::get_session(&session_config.id, false).await?;
+                    let mut turn_state = get_or_create_conversation_turn_state(&session.extension_data);
+                    let current_turn = turn_state.increment();
+                    save_conversation_turn_state(&mut session.extension_data, &turn_state)?;
+                    SessionManager::update_session(&session_config.id)
+                        .extension_data(session.extension_data)
+                        .apply()
+                        .await?;
+                    current_turn
+                };
+
+                // Prune stale hints (after incrementing)
+                if let Err(e) = self
+                    .prune_stale_directory_hints(&session_config, conversation_turn)
+                    .await
+                {
+                    warn!("Failed to prune stale directory hints: {}", e);
+                }
+
                 {
                     let mut autopilot = self.autopilot.lock().await;
                     if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
@@ -1122,6 +1152,37 @@ impl Agent {
                                                 {
                                                     all_install_successful = false;
                                                 }
+
+                                                // Check if we should load directory context for this tool call
+                                                let mut context_loaded = false;
+                                                if let Some(tool_request) = remaining_requests.iter().find(|tr| tr.id == request_id) {
+                                                    if let Ok(tool_call) = &tool_request.tool_call {
+                                                        if tool_call.name == "developer__text_editor" {
+                                                            if let Some(file_path) = Self::extract_file_path_from_args(&tool_call.arguments) {
+                                                                // Attempt to load directory hints
+                                                                match self.maybe_load_directory_hints(&file_path, &session_config, conversation_turn).await {
+                                                                    Ok(true) => {
+                                                                        context_loaded = true;
+                                                                        info!("Directory hints loaded, will rebuild system prompt");
+                                                                    }
+                                                                    Ok(false) => {
+                                                                        // No hints loaded or access time updated
+                                                                    }
+                                                                    Err(e) => {
+                                                                        warn!("Failed to load directory hints for {}: {}", file_path.display(), e);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // If context was loaded, mark that we need to rebuild the system prompt
+                                                // This ensures the new context is available for the next LLM request in THIS turn
+                                                if context_loaded {
+                                                    tools_updated = true;
+                                                }
+
                                                 let mut response = message_tool_response.lock().await;
                                                 *response =
                                                     response.clone().with_tool_response(request_id, output);
@@ -1252,6 +1313,205 @@ impl Agent {
     pub async fn extend_system_prompt(&self, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(instruction);
+    }
+
+    /// Extract file path from tool call arguments if present
+    ///
+    /// Looks for common path parameters: "path", "file_path", "file"
+    fn extract_file_path_from_args(
+        arguments: &Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Option<std::path::PathBuf> {
+        let args = arguments.as_ref()?;
+
+        // Try common parameter names
+        for param_name in ["path", "file_path", "file"] {
+            if let Some(value) = args.get(param_name) {
+                if let Some(path_str) = value.as_str() {
+                    return Some(std::path::PathBuf::from(path_str));
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Check if a file path's directory needs hints loading and load if necessary
+    ///
+    /// This is called after tool execution to detect when new directories are accessed.
+    /// If the directory hasn't been loaded yet, loads its hint files (agents.md, .goosehints)
+    /// and extends the system prompt.
+    ///
+    /// Security: Only loads hints from directories within the git repository or
+    /// working directory to prevent loading untrusted hints from arbitrary paths.
+    ///
+    /// Note: This method is public for testing purposes only.
+    pub async fn maybe_load_directory_hints(
+        &self,
+        file_path: &std::path::Path,
+        session_config: &SessionConfig,
+        current_turn: u32,
+    ) -> Result<bool> {
+        use crate::hints::{
+            build_gitignore, find_git_root, get_context_filenames, load_hints_from_directory,
+        };
+        use crate::session::extension_data::{
+            get_or_create_loaded_agents_state, save_loaded_agents_state,
+        };
+
+        // Extract directory from file path
+        let directory = if file_path.is_file() {
+            match file_path.parent() {
+                Some(parent) => parent,
+                None => return Ok(false),
+            }
+        } else if file_path.is_dir() {
+            file_path
+        } else {
+            return Ok(false);
+        };
+
+        // Only process absolute paths
+        if !directory.is_absolute() {
+            return Ok(false);
+        }
+
+        // Security check: Verify directory is within git root or working directory
+        let session = SessionManager::get_session(&session_config.id, false).await?;
+        let working_dir = &session.working_dir;
+
+        // Find git root starting from working directory
+        let git_root = find_git_root(working_dir);
+
+        // Determine the trust boundary
+        let trust_boundary = git_root.unwrap_or(working_dir.as_path());
+
+        // Check if directory is within trust boundary
+        if !directory.starts_with(trust_boundary) {
+            debug!(
+                "Skipping hint loading for {} - outside trust boundary ({})",
+                directory.display(),
+                trust_boundary.display()
+            );
+            return Ok(false);
+        }
+
+        // Check session state to see if already loaded (reuse session from above)
+        let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+
+        if loaded_state.is_loaded(directory) {
+            // Update access time
+            loaded_state.mark_accessed(directory, current_turn);
+
+            // Save updated access time
+            let mut session = SessionManager::get_session(&session_config.id, false).await?;
+            save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
+            SessionManager::update_session(&session_config.id)
+                .extension_data(session.extension_data)
+                .apply()
+                .await?;
+
+            return Ok(false); // Already loaded, but access time updated
+        }
+
+        // Build gitignore from working directory
+        let gitignore = build_gitignore(working_dir);
+
+        // Get configured filenames
+        let hints_filenames = get_context_filenames();
+
+        // Try to load hint files from directory (hierarchical from working_dir to directory)
+        match load_hints_from_directory(directory, working_dir, &hints_filenames, &gitignore) {
+            Some(content) => {
+                // Mark directory as loaded and get the tag
+                let tag = loaded_state.mark_loaded(directory, current_turn);
+
+                // Extend system prompt with loaded content AND tag
+                let mut prompt_manager = self.prompt_manager.lock().await;
+                prompt_manager.add_system_prompt_extra_with_tag(content, tag);
+                drop(prompt_manager);
+
+                // Save updated state back to session
+                let mut session = SessionManager::get_session(&session_config.id, false).await?;
+                save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
+                SessionManager::update_session(&session_config.id)
+                    .extension_data(session.extension_data)
+                    .apply()
+                    .await?;
+
+                info!(
+                    "Loaded directory hints from {} (turn {})",
+                    directory.display(),
+                    current_turn
+                );
+
+                Ok(true) // Hints were loaded
+            }
+            None => {
+                // No hint files found, but mark as checked to avoid repeated attempts
+                let _tag = loaded_state.mark_loaded(directory, current_turn);
+
+                let mut session = SessionManager::get_session(&session_config.id, false).await?;
+                save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
+                SessionManager::update_session(&session_config.id)
+                    .extension_data(session.extension_data)
+                    .apply()
+                    .await?;
+
+                Ok(false)
+            }
+        }
+    }
+
+    /// Prune stale directory hints that haven't been accessed recently
+    ///
+    /// Note: This method is public for testing purposes only.
+    pub async fn prune_stale_directory_hints(
+        &self,
+        session_config: &SessionConfig,
+        current_turn: u32,
+    ) -> Result<usize> {
+        use crate::session::extension_data::{
+            get_or_create_loaded_agents_state, save_loaded_agents_state,
+        };
+
+        // Get max idle turns from environment or use default
+        let max_idle_turns = std::env::var("GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(DEFAULT_MAX_IDLE_TURNS);
+
+        // Get session state
+        let session = SessionManager::get_session(&session_config.id, false).await?;
+        let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+
+        // Find stale directories
+        let stale_dirs = loaded_state.get_stale_directories(current_turn, max_idle_turns);
+
+        if stale_dirs.is_empty() {
+            return Ok(0);
+        }
+
+        // Remove from prompt manager
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        for (path, tag) in &stale_dirs {
+            prompt_manager.remove_system_prompt_extras_by_tag(tag);
+            loaded_state.remove_directory(path);
+            info!(
+                "Pruned stale directory hints: {} (idle for {} turns)",
+                path, max_idle_turns
+            );
+        }
+        drop(prompt_manager);
+
+        // Save updated state
+        let mut session = SessionManager::get_session(&session_config.id, false).await?;
+        save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
+        SessionManager::update_session(&session_config.id)
+            .extension_data(session.extension_data)
+            .apply()
+            .await?;
+
+        Ok(stale_dirs.len())
     }
 
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
