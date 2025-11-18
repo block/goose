@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
+import { hexbin } from 'd3-hexbin';
 import { Session } from '../../api/types.gen';
 
 interface SessionTimelineViewProps {
@@ -7,18 +8,10 @@ interface SessionTimelineViewProps {
   onSessionClick: (sessionId: string) => void;
 }
 
-interface ForceNode extends d3.SimulationNodeDatum {
-  id: string;
-  title: string;
-  level: number;
-  data: SessionData;
-  children?: ForceNode[];
-  parent?: ForceNode;
-}
-
-interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
-  source: ForceNode;
-  target: ForceNode;
+interface HexbinPoint {
+  x: number;
+  y: number;
+  session: SessionData;
 }
 
 interface SessionData {
@@ -28,7 +21,6 @@ interface SessionData {
   updated_at: string;
   message_count: number;
   chat_type: string;
-  day?: string;
 }
 
 const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({ 
@@ -38,143 +30,68 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Process sessions into hierarchical data for force simulation
-  const { nodes, links } = useMemo(() => {
-    console.log('SessionTimelineView: Processing sessions', { sessionCount: sessions.length });
+  // Process sessions into hexbin data points
+  const hexbinData = useMemo(() => {
+    console.log('SessionTimelineView: Processing sessions for hexbin', { sessionCount: sessions.length });
     
     if (sessions.length === 0) {
-      return { nodes: [], links: [] };
+      return [];
     }
 
     // Sort sessions by creation date (newest first)
-    const allSessions = [...sessions]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const sortedSessions = [...sessions]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 200); // Limit for performance
 
-    // Group sessions by day first to ensure we get multiple days
-    const sessionsByDay = new Map<string, SessionData[]>();
-    
-    allSessions.forEach(session => {
-      const day = new Date(session.created_at).toDateString();
-      if (!sessionsByDay.has(day)) {
-        sessionsByDay.set(day, []);
-      }
+    // Convert sessions to points for hexbin
+    const points: HexbinPoint[] = sortedSessions.map((session, index) => {
+      const sessionDate = new Date(session.created_at);
+      const now = new Date();
       
-      // Use description as title, or generate a meaningful title
+      // X axis: Days ago (0 = today, 1 = yesterday, etc.)
+      const daysAgo = Math.floor((now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Y axis: Hour of day (0-23)
+      const hourOfDay = sessionDate.getHours();
+      
+      // Add some jitter to avoid exact overlaps
+      const jitterX = (Math.random() - 0.5) * 0.8;
+      const jitterY = (Math.random() - 0.5) * 0.8;
+
       const title = session.description || 
                    `Chat ${session.id.slice(0, 8)}` || 'Untitled Session';
-      
-      sessionsByDay.get(day)!.push({
-        id: session.id,
-        title: title,
-        created_at: session.created_at,
-        updated_at: session.updated_at,
-        message_count: session.message_count || 0,
-        chat_type: session.chat_type || 'regular',
-        day
-      });
-    });
 
-    // Limit sessions per day to keep visualization manageable
-    // but ensure we show up to 15 days
-    const maxDays = 15;
-    const maxSessionsPerDay = 8;
-    
-    const sortedDays = Array.from(sessionsByDay.keys())
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-      .slice(0, maxDays);
-
-    // Limit sessions within each day
-    sortedDays.forEach(day => {
-      const sessions = sessionsByDay.get(day)!;
-      if (sessions.length > maxSessionsPerDay) {
-        sessionsByDay.set(day, sessions.slice(0, maxSessionsPerDay));
-      }
-    });
-
-    const nodes: ForceNode[] = [];
-    const links: ForceLink[] = [];
-    let previousDayNode: ForceNode | null = null;
-
-    // Create day nodes and session nodes
-    sortedDays.forEach((day, dayIndex) => {
-      const dayDate = new Date(day);
-      const today = new Date();
-      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      let dayTitle;
-      if (day === today.toDateString()) {
-        dayTitle = 'Today';
-      } else if (day === yesterday.toDateString()) {
-        dayTitle = 'Yesterday';
-      } else {
-        dayTitle = dayDate.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric'
-        });
-      }
-
-      // Create day node
-      const dayNode: ForceNode = {
-        id: `day-${day}`,
-        title: dayTitle,
-        level: 0, // Days are now level 0 (main thread)
-        data: {
-          id: `day-${day}`,
-          title: dayTitle,
-          created_at: day,
-          updated_at: day,
-          message_count: sessionsByDay.get(day)!.reduce((sum, s) => sum + s.message_count, 0),
-          chat_type: 'day',
-          day
-        },
-        children: []
-      };
-      
-      nodes.push(dayNode);
-      
-      // Link to previous day to create timeline thread
-      if (previousDayNode) {
-        links.push({
-          source: previousDayNode,
-          target: dayNode
-        });
-      }
-      
-      previousDayNode = dayNode;
-
-      // Create session nodes for this day
-      const daySessions = sessionsByDay.get(day)!;
-      daySessions.forEach((session) => {
-        const sessionNode: ForceNode = {
+      return {
+        x: daysAgo + jitterX,
+        y: hourOfDay + jitterY,
+        session: {
           id: session.id,
-          title: session.title,
-          level: 1, // Sessions are now level 1 (branches)
-          data: session,
-          parent: dayNode
-        };
-        
-        nodes.push(sessionNode);
-        dayNode.children!.push(sessionNode);
-        
-        // Create link from day to session
-        links.push({
-          source: dayNode,
-          target: sessionNode
-        });
-      });
+          title: title,
+          created_at: session.created_at,
+          updated_at: session.updated_at,
+          message_count: session.message_count || 0,
+          chat_type: session.chat_type || 'regular'
+        }
+      };
     });
 
-    console.log('SessionTimelineView: Created force graph data', { 
-      nodeCount: nodes.length,
-      linkCount: links.length,
-      dayCount: sortedDays.length
+    console.log('SessionTimelineView: Created hexbin data', { 
+      pointCount: points.length,
+      dateRange: {
+        oldest: Math.max(...points.map(p => p.x)),
+        newest: Math.min(...points.map(p => p.x))
+      },
+      hourRange: {
+        min: Math.min(...points.map(p => p.y)),
+        max: Math.max(...points.map(p => p.y))
+      }
     });
 
-    return { nodes, links };
+    return points;
   }, [sessions]);
 
   useEffect(() => {
-    if (nodes.length === 0 || !svgRef.current || !containerRef.current) return;
+    if (hexbinData.length === 0 || !svgRef.current || !containerRef.current) return;
 
     const svg = d3.select(svgRef.current);
     const container = containerRef.current;
@@ -191,149 +108,212 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
 
     // Set up dimensions
     const containerRect = container.getBoundingClientRect();
-    const width = Math.max(800, containerRect.width - 40);
-    const height = Math.max(600, containerRect.height - 100);
+    const margin = { top: 60, right: 60, bottom: 80, left: 80 };
+    const width = Math.max(800, containerRect.width - 40) - margin.left - margin.right;
+    const height = Math.max(500, containerRect.height - 200) - margin.top - margin.bottom;
 
-    svg.attr("width", width).attr("height", height)
+    svg.attr("width", width + margin.left + margin.right)
+       .attr("height", height + margin.top + margin.bottom)
        .style("background-color", `hsl(${backgroundColor})`);
 
-    // Create force simulation
-    const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(80).strength(0.8))
-      .force("charge", d3.forceManyBody().strength(-300))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(30));
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Create container group
-    const g = svg.append("g");
+    // Create scales
+    const maxDaysAgo = Math.max(...hexbinData.map(d => d.x));
+    const xScale = d3.scaleLinear()
+      .domain([0, Math.max(30, maxDaysAgo)]) // Show at least 30 days
+      .range([0, width]);
 
-    // Add zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
-      });
+    const yScale = d3.scaleLinear()
+      .domain([0, 24]) // 24 hours
+      .range([height, 0]);
 
-    svg.call(zoom);
+    // Create hexbin generator
+    const hexbinGenerator = hexbin()
+      .x((d: any) => xScale(d.x))
+      .y((d: any) => yScale(d.y))
+      .radius(12)
+      .extent([[0, 0], [width, height]]);
 
-    // Create links
-    const link = g.append("g")
-      .attr("class", "links")
-      .selectAll("line")
-      .data(links)
-      .enter().append("line")
-      .attr("stroke", `hsl(${borderColor})`)
-      .attr("stroke-opacity", 0.6)
-      .attr("stroke-width", 2);
+    // Generate hexbins
+    const bins = hexbinGenerator(hexbinData as any);
 
-    // Create nodes
-    const node = g.append("g")
-      .attr("class", "nodes")
-      .selectAll("g")
-      .data(nodes)
+    // Create color scale based on bin density
+    const colorScale = d3.scaleSequential(d3.interpolateBlues)
+      .domain([0, d3.max(bins, d => d.length) || 1]);
+
+    // Draw hexbins
+    const hexagons = g.selectAll(".hexagon")
+      .data(bins)
       .enter().append("g")
-      .attr("class", "node")
-      .call(d3.drag<SVGGElement, ForceNode>()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended));
+      .attr("class", "hexagon")
+      .attr("transform", d => `translate(${d.x},${d.y})`);
 
-    // Add circles to nodes
-    node.append("circle")
-      .attr("r", d => {
-        if (d.level === 0) return 10; // Day nodes (main thread)
-        return Math.max(4, Math.min(10, Math.sqrt(d.data.message_count || 1) + 2)); // Session nodes
-      })
-      .attr("fill", d => {
-        if (d.level === 0) return "#3b82f6"; // Day nodes - blue
-        
-        // Session nodes colored by chat type
-        switch (d.data.chat_type) {
-          case 'collaborative': return "#10b981"; // green
-          case 'direct_message': return "#f59e0b"; // amber
-          case 'group_chat': return "#ef4444"; // red
-          default: return "#8b5cf6"; // purple
+    hexagons.append("path")
+      .attr("d", hexbinGenerator.hexagon())
+      .attr("fill", d => d.length > 0 ? colorScale(d.length) : "none")
+      .attr("stroke", `hsl(${borderColor})`)
+      .attr("stroke-width", 0.5)
+      .attr("opacity", 0.8)
+      .style("cursor", "pointer")
+      .on("mouseover", function(event, d) {
+        if (d.length > 0) {
+          d3.select(this)
+            .attr("stroke-width", 2)
+            .attr("opacity", 1);
+
+          // Show tooltip
+          const tooltip = g.append("g")
+            .attr("class", "tooltip")
+            .attr("transform", `translate(${d.x + 15},${d.y - 15})`);
+
+          const rect = tooltip.append("rect")
+            .attr("fill", `hsl(${backgroundColor})`)
+            .attr("stroke", `hsl(${borderColor})`)
+            .attr("rx", 4)
+            .attr("opacity", 0.95);
+
+          const text = tooltip.append("text")
+            .attr("fill", `hsl(${foregroundColor})`)
+            .style("font-size", "12px")
+            .attr("x", 8)
+            .attr("y", 16);
+
+          text.append("tspan")
+            .text(`${d.length} session${d.length !== 1 ? 's' : ''}`);
+
+          if (d.length <= 3) {
+            d.forEach((point: any, i: number) => {
+              text.append("tspan")
+                .attr("x", 8)
+                .attr("dy", 14)
+                .style("font-size", "10px")
+                .text(`• ${point.session.title.substring(0, 25)}${point.session.title.length > 25 ? '...' : ''}`);
+            });
+          }
+
+          // Size the rectangle to fit the text
+          const bbox = text.node()?.getBBox();
+          if (bbox) {
+            rect.attr("width", bbox.width + 16)
+                .attr("height", bbox.height + 12);
+          }
         }
       })
-      .attr("stroke", `hsl(${backgroundColor})`)
-      .attr("stroke-width", 2)
-      .style("cursor", d => d.level === 1 ? "pointer" : "default")
+      .on("mouseout", function(event, d) {
+        if (d.length > 0) {
+          d3.select(this)
+            .attr("stroke-width", 0.5)
+            .attr("opacity", 0.8);
+        }
+        g.selectAll(".tooltip").remove();
+      })
       .on("click", (event, d) => {
-        if (d.level === 1) {
-          onSessionClick(d.data.id);
+        if (d.length === 1) {
+          onSessionClick((d[0] as any).session.id);
+        } else if (d.length > 1) {
+          // For multiple sessions, open the most recent one
+          const mostRecent = d.reduce((latest: any, current: any) => 
+            new Date(current.session.created_at) > new Date(latest.session.created_at) ? current : latest
+          );
+          onSessionClick(mostRecent.session.id);
         }
       });
 
-    // Add labels to nodes
-    node.append("text")
-      .text(d => {
-        if (d.level === 1 && d.title.length > 15) {
-          return d.title.substring(0, 15) + "...";
-        }
-        return d.title;
-      })
-      .attr("x", 0)
-      .attr("y", d => d.level === 0 ? -15 : 18)
-      .attr("text-anchor", "middle")
-      .style("font-size", d => d.level === 0 ? "12px" : "10px")
-      .style("font-weight", d => d.level === 0 ? "bold" : "normal")
-      .style("fill", `hsl(${foregroundColor})`)
-      .style("pointer-events", "none");
-
-    // Add message count for session nodes
-    node.filter(d => d.level === 1)
+    // Add text labels for non-empty hexbins
+    hexagons.filter(d => d.length > 0)
       .append("text")
-      .text(d => `${d.data.message_count}`)
-      .attr("x", 0)
-      .attr("y", 28)
       .attr("text-anchor", "middle")
-      .style("font-size", "8px")
-      .style("fill", `hsl(${mutedColor})`)
-      .style("pointer-events", "none");
+      .attr("dy", "0.35em")
+      .style("font-size", "10px")
+      .style("font-weight", "bold")
+      .style("fill", d => d.length > 3 ? "white" : `hsl(${foregroundColor})`)
+      .style("pointer-events", "none")
+      .text(d => d.length);
 
-    // Update positions on simulation tick
-    simulation.on("tick", () => {
-      link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y);
+    // Create axes
+    const xAxis = d3.axisBottom(xScale)
+      .tickFormat(d => {
+        const days = +d;
+        if (days === 0) return 'Today';
+        if (days === 1) return 'Yesterday';
+        return `${days}d ago`;
+      });
 
-      node
-        .attr("transform", d => `translate(${d.x},${d.y})`);
+    const yAxis = d3.axisLeft(yScale)
+      .tickFormat(d => {
+        const hour = +d;
+        if (hour === 0) return '12 AM';
+        if (hour === 12) return '12 PM';
+        if (hour < 12) return `${hour} AM`;
+        return `${hour - 12} PM`;
+      });
+
+    // Add axes
+    g.append("g")
+      .attr("class", "x-axis")
+      .attr("transform", `translate(0,${height})`)
+      .call(xAxis)
+      .selectAll("text")
+      .style("fill", `hsl(${foregroundColor})`)
+      .style("font-size", "11px");
+
+    g.append("g")
+      .attr("class", "y-axis")
+      .call(yAxis)
+      .selectAll("text")
+      .style("fill", `hsl(${foregroundColor})`)
+      .style("font-size", "11px");
+
+    // Style axis lines
+    g.selectAll(".domain, .tick line")
+      .attr("stroke", `hsl(${borderColor})`);
+
+    // Add axis labels
+    g.append("text")
+      .attr("transform", `translate(${width / 2}, ${height + 50})`)
+      .style("text-anchor", "middle")
+      .style("font-size", "14px")
+      .style("font-weight", "bold")
+      .style("fill", `hsl(${foregroundColor})`)
+      .text("Days Ago");
+
+    g.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", -50)
+      .attr("x", -height / 2)
+      .style("text-anchor", "middle")
+      .style("font-size", "14px")
+      .style("font-weight", "bold")
+      .style("fill", `hsl(${foregroundColor})`)
+      .text("Time of Day");
+
+    // Add title
+    g.append("text")
+      .attr("x", width / 2)
+      .attr("y", -30)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("font-weight", "bold")
+      .style("fill", `hsl(${foregroundColor})`)
+      .text("Session Activity Heatmap");
+
+    console.log('SessionTimelineView: Hexbin rendered', { 
+      binCount: bins.length,
+      nonEmptyBins: bins.filter(d => d.length > 0).length,
+      maxDensity: d3.max(bins, d => d.length),
+      dimensions: { width, height }
     });
 
-    // Drag functions
-    function dragstarted(event: any, d: ForceNode) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
+  }, [hexbinData, onSessionClick]);
 
-    function dragged(event: any, d: ForceNode) {
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-
-    function dragended(event: any, d: ForceNode) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
-
-    // Cleanup function
-    return () => {
-      simulation.stop();
-    };
-
-  }, [nodes, links, onSessionClick]);
-
-  if (nodes.length === 0) {
+  if (hexbinData.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         <div className="text-center">
           <p className="text-lg font-medium">No sessions to display</p>
-          <p className="text-sm">Start a conversation to see your force-directed timeline</p>
+          <p className="text-sm">Start a conversation to see your activity heatmap</p>
         </div>
       </div>
     );
@@ -345,50 +325,30 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       className="w-full h-full min-h-[600px] bg-background rounded-lg border overflow-hidden"
     >
       <div className="p-4 border-b bg-muted/50">
-        <h3 className="text-lg font-semibold text-foreground">Force-Directed Timeline</h3>
+        <h3 className="text-lg font-semibold text-foreground">Hexbin Timeline</h3>
         <p className="text-sm text-muted-foreground">
-          Interactive network showing session relationships • Drag nodes to explore • Zoom and pan to navigate
+          Hexagonal heatmap showing session density by time and day • Hover for details • Click to open sessions
         </p>
       </div>
       
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full overflow-auto">
         <svg
           ref={svgRef}
-          className="w-full h-full"
-          style={{ minHeight: '500px' }}
+          className="w-full"
+          style={{ minHeight: '600px' }}
         />
         
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
-          <div className="text-xs font-semibold text-foreground mb-2">Legend</div>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
-              <span>Day</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-              <span>Regular Chat</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>Collaborative</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-              <span>Direct Message</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span>Group Chat</span>
-            </div>
+        <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
+          <div className="text-xs font-semibold text-foreground mb-2">Density</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-4 h-4 bg-blue-100 border border-border rounded-sm"></div>
+            <span>Low</span>
+            <div className="w-4 h-4 bg-blue-500 border border-border rounded-sm"></div>
+            <span>High</span>
           </div>
-        </div>
-
-        {/* Controls */}
-        <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
-          <div className="text-xs text-muted-foreground">
-            Drag • Zoom • Click sessions
+          <div className="text-xs text-muted-foreground mt-2">
+            Numbers show session count per hexagon
           </div>
         </div>
       </div>
