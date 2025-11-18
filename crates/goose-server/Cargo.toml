@@ -47,6 +47,9 @@ socket2 = "0.6.1"
 ed25519-dalek = "2.1"
 sha2 = "0.10.9"
 
+[target.'cfg(windows)'.dependencies]
+winreg = { version = "0.55.0" }
+
 [[bin]]
 name = "goosed"
 path = "src/main.rs"
@@ -57,5 +60,5 @@ path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
 tower = "0.5"
-async-trait = "0.1"
+async-trait = "0.1.89"
 tempfile = "3.15.0"
