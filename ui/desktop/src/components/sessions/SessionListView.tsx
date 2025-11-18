@@ -12,6 +12,8 @@ import {
   MessageCircle,
   RefreshCw,
   Sparkles,
+  Grid3X3,
+  Timeline,
 } from 'lucide-react';
 import AvatarImage from '../AvatarImage';
 import { useMatrix } from '../../contexts/MatrixContext';
@@ -29,6 +31,7 @@ import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { Session } from '../../api';
 import { unifiedSessionService } from '../../services/UnifiedSessionService';
+import SessionTimelineView from './SessionTimelineView';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -204,6 +207,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const [searchTerm, setSearchTerm] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
+
+    // View toggle state
+    const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -707,7 +713,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      if (dateGroups.length === 0 && searchResults !== null) {
+      if (filteredSessions.length === 0 && searchResults !== null) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
             <MessageSquareText className="h-12 w-12 mb-4" />
@@ -717,7 +723,29 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      // For regular rendering in grid layout
+      // Render timeline view
+      if (viewMode === 'timeline') {
+        return (
+          <SessionTimelineView
+            sessions={filteredSessions}
+            onSelectSession={onSelectSession}
+            selectedSessionId={selectedSessionId}
+            className="h-full"
+          />
+        );
+      }
+
+      // Render grid view (default)
+      if (dateGroups.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
+            <MessageSquareText className="h-12 w-12 mb-4" />
+            <p className="text-lg mb-2">No sessions to display</p>
+            <p className="text-sm">Your chat history will appear here</p>
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-8">
           {dateGroups.map((group) => (
@@ -749,9 +777,34 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
+                  
+                  {/* View toggle buttons */}
+                  <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                      className="px-3 py-1.5 h-auto"
+                    >
+                      <Grid3X3 className="w-4 h-4 mr-2" />
+                      Grid
+                    </Button>
+                    <Button
+                      variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('timeline')}
+                      className="px-3 py-1.5 h-auto"
+                    >
+                      <Timeline className="w-4 h-4 mr-2" />
+                      Timeline
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose.
+                  {viewMode === 'timeline' 
+                    ? 'View your chat sessions on a visual timeline showing when they started and ended.'
+                    : 'View and search your past conversations with Goose.'
+                  }
                 </p>
               </div>
             </div>
