@@ -1,7 +1,100 @@
+use goose::agents::types::SessionConfig;
+use goose::agents::Agent;
 use goose::session::extension_data::{
-    get_or_create_conversation_turn_state, save_conversation_turn_state, ConversationTurnState,
-    ExtensionData,
+    get_or_create_conversation_turn_state, get_or_create_loaded_agents_state,
+    save_conversation_turn_state, ConversationTurnState, ExtensionData,
 };
+use goose::session::{SessionManager, SessionType};
+
+#[tokio::test]
+async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
+    // This test directly calls the pub(crate) methods to verify integration
+    // Tests: loading, state tracking, access time updates, and pruning
+
+    // Setup: Create test directory with hints
+    let temp_dir = tempfile::TempDir::new()?;
+    let repo_root = temp_dir.path();
+    std::fs::create_dir(repo_root.join(".git"))?;
+
+    let auth_dir = repo_root.join("auth");
+    std::fs::create_dir(&auth_dir)?;
+    std::fs::write(auth_dir.join("AGENTS.md"), "# Auth Hints\nUse JWT tokens")?;
+    std::fs::write(auth_dir.join("login.py"), "def login(): pass")?;
+
+    // Create agent and session
+    let agent = Agent::new();
+
+    let session = SessionManager::create_session(
+        repo_root.to_path_buf(),
+        "hint-integration-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: Some(10),
+        retry_config: None,
+    };
+
+    let file_path = auth_dir.join("login.py");
+
+    // Turn 1: Load hints
+    let loaded = agent
+        .maybe_load_directory_hints(&file_path, &session_config, 1)
+        .await?;
+    assert!(loaded, "Should load hints on first access");
+
+    // Verify state after loading
+    {
+        let session = SessionManager::get_session(&session.id, false).await?;
+        let loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+        assert!(loaded_state.is_loaded(&auth_dir));
+
+        let context = loaded_state
+            .loaded_directories
+            .get(&auth_dir.to_string_lossy().to_string())
+            .unwrap();
+        assert_eq!(context.load_turn, 1);
+        assert_eq!(context.last_access_turn, 1);
+    }
+
+    // Turn 2: Access again (should update access time)
+    let loaded = agent
+        .maybe_load_directory_hints(&file_path, &session_config, 2)
+        .await?;
+    assert!(!loaded, "Should not reload (already loaded)");
+
+    {
+        let session = SessionManager::get_session(&session.id, false).await?;
+        let loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+
+        let context = loaded_state
+            .loaded_directories
+            .get(&auth_dir.to_string_lossy().to_string())
+            .unwrap();
+        assert_eq!(context.last_access_turn, 2, "Access time should update");
+    }
+
+    // Turn 5: Prune (last access was turn 2, so 3 turns idle)
+    let pruned = agent
+        .prune_stale_directory_hints(&session_config, 5)
+        .await?;
+    assert_eq!(pruned, 1, "Should prune 1 directory");
+
+    // Verify hints were removed
+    {
+        let session = SessionManager::get_session(&session.id, false).await?;
+        let loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+        assert!(!loaded_state.is_loaded(&auth_dir), "Should be pruned");
+    }
+
+    // Cleanup
+    SessionManager::delete_session(&session.id).await?;
+
+    Ok(())
+}
 
 #[test]
 fn test_conversation_turn_state_increment() {

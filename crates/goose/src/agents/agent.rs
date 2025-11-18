@@ -1343,7 +1343,9 @@ impl Agent {
     ///
     /// Security: Only loads hints from directories within the git repository or
     /// working directory to prevent loading untrusted hints from arbitrary paths.
-    pub(crate) async fn maybe_load_directory_hints(
+    ///
+    /// Note: This method is public for testing purposes only.
+    pub async fn maybe_load_directory_hints(
         &self,
         file_path: &std::path::Path,
         session_config: &SessionConfig,
@@ -1476,7 +1478,9 @@ impl Agent {
     }
 
     /// Prune stale directory hints that haven't been accessed recently
-    pub(crate) async fn prune_stale_directory_hints(
+    ///
+    /// Note: This method is public for testing purposes only.
+    pub async fn prune_stale_directory_hints(
         &self,
         session_config: &SessionConfig,
         current_turn: u32,

@@ -187,13 +187,8 @@ pub fn load_hints_from_directory(
 
             // Check if file exists and is not ignored
             if hints_path.is_file() && !gitignore.matched(&hints_path, false).is_ignore() {
-                let expanded_content = read_referenced_files(
-                    &hints_path,
-                    import_boundary,
-                    &mut visited,
-                    0,
-                    gitignore,
-                );
+                let expanded_content =
+                    read_referenced_files(&hints_path, import_boundary, &mut visited, 0, gitignore);
 
                 if !expanded_content.is_empty() {
                     contents.push(expanded_content);

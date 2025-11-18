@@ -363,10 +363,7 @@ mod tests {
         assert!(state.is_loaded(path));
 
         // Verify context details
-        let context = state
-            .loaded_directories
-            .get("/repo/features/auth")
-            .unwrap();
+        let context = state.loaded_directories.get("/repo/features/auth").unwrap();
         assert_eq!(context.load_turn, 1);
         assert_eq!(context.last_access_turn, 1);
     }
@@ -379,10 +376,7 @@ mod tests {
         state.mark_loaded(path, 1);
         state.mark_accessed(path, 5);
 
-        let context = state
-            .loaded_directories
-            .get("/repo/features/auth")
-            .unwrap();
+        let context = state.loaded_directories.get("/repo/features/auth").unwrap();
         assert_eq!(context.load_turn, 1);
         assert_eq!(context.last_access_turn, 5);
     }
