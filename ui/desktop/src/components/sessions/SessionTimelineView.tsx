@@ -49,7 +49,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   const treeData = useMemo(() => {
     console.log('SessionTimelineView: Processing sessions', { 
       sessionCount: sessions.length,
-      sessions: sessions.map(s => ({ id: s.id, created_at: s.created_at, message_count: s.message_count }))
+      sessions: sessions.slice(0, 3).map(s => ({ id: s.id, created_at: s.created_at, message_count: s.message_count }))
     });
 
     if (sessions.length === 0) {
@@ -57,8 +57,12 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       return { nodes: [], paths: [], width: 800, height: 600 };
     }
 
+    // Limit to first 50 sessions for performance and debugging
+    const limitedSessions = sessions.slice(0, 50);
+    console.log('SessionTimelineView: Limited to', limitedSessions.length, 'sessions for performance');
+
     // Sort sessions by start time (newest first - today at top)
-    const sortedSessions = [...sessions].sort((a, b) => 
+    const sortedSessions = [...limitedSessions].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
@@ -267,7 +271,14 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         x: result.nodes[0].x, 
         y: result.nodes[0].y, 
         nodeSize: result.nodes[0].nodeSize 
-      } : null
+      } : null,
+      sampleNodes: result.nodes.slice(0, 5).map(n => ({ 
+        id: n.id, 
+        x: n.x, 
+        y: n.y, 
+        nodeSize: n.nodeSize,
+        messageCount: n.session.message_count 
+      }))
     });
 
     return result;
