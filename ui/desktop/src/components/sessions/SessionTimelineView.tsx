@@ -262,34 +262,25 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full min-h-[600px] bg-background rounded-lg border overflow-hidden"
+      className="w-full h-full min-h-[600px] bg-background overflow-auto"
     >
-      <div className="p-4 border-b bg-muted/50">
-        <h3 className="text-lg font-semibold text-foreground">Hexbin Timeline</h3>
-        <p className="text-sm text-muted-foreground">
-          Hexagonal heatmap showing session density by time and day • Hover for details • Click to open sessions
-        </p>
-      </div>
+      <svg
+        ref={svgRef}
+        className="w-full"
+        style={{ minHeight: '600px' }}
+      />
       
-      <div className="relative w-full h-full overflow-auto">
-        <svg
-          ref={svgRef}
-          className="w-full"
-          style={{ minHeight: '600px' }}
-        />
-        
-        {/* Legend */}
-        <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
-          <div className="text-xs font-semibold text-foreground mb-2">Density</div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className="w-4 h-4 bg-blue-100 border border-border rounded-sm"></div>
-            <span>Low</span>
-            <div className="w-4 h-4 bg-blue-500 border border-border rounded-sm"></div>
-            <span>High</span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-2">
-            Numbers show session count per hexagon
-          </div>
+      {/* Legend */}
+      <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
+        <div className="text-xs font-semibold text-foreground mb-2">Density</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="w-4 h-4 bg-blue-100 border border-border rounded-sm"></div>
+          <span>Low</span>
+          <div className="w-4 h-4 bg-blue-500 border border-border rounded-sm"></div>
+          <span>High</span>
+        </div>
+        <div className="text-xs text-muted-foreground mt-2">
+          Numbers show session count per hexagon
         </div>
       </div>
     </div>
