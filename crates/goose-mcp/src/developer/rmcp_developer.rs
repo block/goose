@@ -530,6 +530,12 @@ impl ServerHandler for DeveloperServer {
     }
 }
 
+impl Default for DeveloperServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[tool_router(router = tool_router)]
 impl DeveloperServer {
     pub fn new() -> Self {
