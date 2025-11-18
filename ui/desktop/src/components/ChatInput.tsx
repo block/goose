@@ -1460,7 +1460,6 @@ export default function ChatInput({
         {/* Directory path */}
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1475,9 +1474,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
-
         <div className="w-px h-4 bg-border-default mx-2" />
-
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
@@ -1545,7 +1542,6 @@ export default function ChatInput({
             </Tooltip>
           )}
         </div>
-
         {sessionId && diagnosticsOpen && (
           <DiagnosticsModal
             isOpen={diagnosticsOpen}
@@ -1553,7 +1549,6 @@ export default function ChatInput({
             sessionId={sessionId}
           />
         )}
-
         <MentionPopover
           ref={mentionPopoverRef}
           isOpen={mentionPopover.isOpen}

@@ -124,7 +124,7 @@ const MentionPopover = forwardRef<
     },
     ref
   ) => {
-    const [files, setFiles] = useState<DisplayItem[]>([]);
+    const [items, setItems] = useState<DisplayItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -172,7 +172,7 @@ const MentionPopover = forwardRef<
             '.Trash',
           ];
 
-          // Don't skip as many directories at deeper levels to find more files
+          // Don't skip as many directories at deeper levels to find more items
           const skipDirsAtDepth =
             depth > 2 ? ['.git', '.svn', '.hg', 'node_modules', '__pycache__'] : skipDirs;
 
@@ -192,7 +192,7 @@ const MentionPopover = forwardRef<
             const fullPath = `${dirPath}/${item}`;
             const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
 
-            // Skip hidden files and common ignore patterns
+            // Skip hidden items and common ignore patterns
             if (item.startsWith('.') || skipDirsAtDepth.includes(item)) {
               continue;
             }
@@ -201,7 +201,7 @@ const MentionPopover = forwardRef<
             const hasExtension = item.includes('.');
             const ext = item.split('.').pop()?.toLowerCase();
             const commonExtensions = [
-              // Code files
+              // Code items
               'txt',
               'md',
               'js',
@@ -245,7 +245,7 @@ const MentionPopover = forwardRef<
               'license',
               'changelog',
               'contributing',
-              // Config files
+              // Config items
               'gitignore',
               'dockerignore',
               'editorconfig',
@@ -262,14 +262,14 @@ const MentionPopover = forwardRef<
               'bmp',
               'tiff',
               'tif',
-              // Vector and design files
+              // Vector and design items
               'ai',
               'eps',
               'sketch',
               'fig',
               'xd',
               'psd',
-              // Other common files
+              // Other common items
               'pdf',
               'doc',
               'docx',
@@ -356,10 +356,10 @@ const MentionPopover = forwardRef<
         }
 
         const scannedFiles = await scanDirectoryFromRoot(startPath);
-        setFiles(scannedFiles);
+        setItems(scannedFiles);
       } catch (error) {
-        console.error('Error scanning files from root:', error);
-        setFiles([]);
+        console.error('Error scanning items from root:', error);
+        setItems([]);
       } finally {
         setIsLoading(false);
       }
@@ -373,7 +373,7 @@ const MentionPopover = forwardRef<
 
     const displayItems = useMemo((): DisplayItemWithMatch[] => {
       if (!query.trim()) {
-        return files
+        return items
           .map((file) => ({
             ...file,
             matchScore: 0,
@@ -390,7 +390,7 @@ const MentionPopover = forwardRef<
           });
       }
 
-      return files
+      return items
         .map((file) => {
           const matches = [
             { match: fuzzyMatch(query, file.name), text: file.name },
@@ -417,13 +417,13 @@ const MentionPopover = forwardRef<
         })
         .filter((file) => file.matchScore > 0)
         .sort((a, b) => {
-          // Sort by score first, then prefer files over directories, then alphabetically
+          // Sort by score first, then prefer items over directories, then alphabetically
           const scoreDiff = b.matchScore - a.matchScore;
           if (Math.abs(scoreDiff) >= 1) return scoreDiff;
           const typeComparison = compareByType(a, b);
           return typeComparison || a.name.localeCompare(b.name);
         });
-    }, [files, query, currentWorkingDir]);
+    }, [items, query, currentWorkingDir]);
 
     // Expose methods to parent component
     useImperativeHandle(
@@ -450,7 +450,7 @@ const MentionPopover = forwardRef<
             itemType: cmd.command_type,
             relativePath: cmd.command,
           }));
-          setFiles(commandItems);
+          setItems(commandItems);
         } else {
           await scanFilesFromRoot();
         }
@@ -525,7 +525,7 @@ const MentionPopover = forwardRef<
             <>
               {displayItems.length > 0 && (
                 <div className="text-xs text-textSubtle mb-2 px-1">
-                  {displayItems.length} file{displayItems.length !== 1 ? 's' : ''} found
+                  {displayItems.length} item{displayItems.length !== 1 ? 's' : ''} found
                 </div>
               )}
               <div
@@ -555,13 +555,13 @@ const MentionPopover = forwardRef<
 
                 {!isLoading && displayItems.length === 0 && query && (
                   <div className="p-4 text-center text-textSubtle text-sm">
-                    No files found matching "{query}"
+                    No items found matching "{query}"
                   </div>
                 )}
 
                 {!isLoading && displayItems.length === 0 && !query && (
                   <div className="p-4 text-center text-textSubtle text-sm">
-                    Start typing to search for files
+                    Start typing to search
                   </div>
                 )}
               </div>
