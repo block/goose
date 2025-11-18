@@ -40,9 +40,26 @@ LOCAL_TEAMS_FILE = Path(__file__).parent / "community_stars_teams.txt"
 BLOCK_ORGS = {'square', 'block', 'squareup', 'block-ghc', 'cashapp'}
 
 def is_block_employee(username):
-    """Check if a user is a Block employee by checking their public org memberships."""
+    """Check if a user is a Block employee by checking their profile and org memberships.
+    
+    Makes a single API call to get user profile (includes company field),
+    then only calls orgs endpoint if company field doesn't match.
+    """
     try:
-        # Check public org memberships
+        # First check the user's profile (single API call)
+        url = f"https://api.github.com/users/{username}"
+        with urllib.request.urlopen(url) as response:
+            user_data = json.loads(response.read().decode('utf-8'))
+        
+        # Check company field first (no additional API call needed)
+        company = user_data.get('company', '').lower() if user_data.get('company') else ''
+        if company:
+            # Check for Block-related keywords in company field
+            block_keywords = ['block', 'square', 'cash app', 'cashapp', 'tidal']
+            if any(keyword in company for keyword in block_keywords):
+                return True
+        
+        # Only check orgs if company field didn't match (second API call only when needed)
         url = f"https://api.github.com/users/{username}/orgs"
         with urllib.request.urlopen(url) as response:
             orgs = json.loads(response.read().decode('utf-8'))
@@ -51,24 +68,12 @@ def is_block_employee(username):
         user_orgs = {org['login'].lower() for org in orgs}
         if user_orgs & BLOCK_ORGS:
             return True
-            
-        # Also check the user's company field
-        url = f"https://api.github.com/users/{username}"
-        with urllib.request.urlopen(url) as response:
-            user_data = json.loads(response.read().decode('utf-8'))
-            
-        company = user_data.get('company', '').lower()
-        if company:
-            # Check for Block-related keywords in company field
-            block_keywords = ['block', 'square', 'cash app', 'cashapp', 'tidal']
-            if any(keyword in company for keyword in block_keywords):
-                return True
                 
         return False
         
     except Exception as e:
-        # If we can't check (rate limit, network error, etc.), log the error and return False
-        print(f"[Error] Could not determine Block employee status for '{username}': {e}", file=sys.stderr)
+        # If we can't check (rate limit, network error, etc.), return False
+        # This means we'll default to treating them as external
         return False
 
 def load_team_lists():
