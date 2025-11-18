@@ -8,10 +8,19 @@ interface SessionTimelineViewProps {
   onSessionClick: (sessionId: string) => void;
 }
 
-interface TreeNode extends d3.HierarchyNode<SessionData> {
+interface TangledNode {
+  id: string;
+  title: string;
+  level: number;
   x: number;
   y: number;
-  session: SessionData;
+  data: SessionData;
+}
+
+interface TangledLink {
+  source: TangledNode;
+  target: TangledNode;
+  type: 'tree' | 'tangle';
 }
 
 interface SessionData {
@@ -21,7 +30,7 @@ interface SessionData {
   updated_at: string;
   message_count: number;
   chat_type: string;
-  children?: SessionData[];
+  day?: string;
 }
 
 const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({ 
@@ -31,20 +40,18 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Process sessions into hierarchical data
-  const treeData = useMemo(() => {
+  // Process sessions into tangled tree data structure
+  const { nodes, links } = useMemo(() => {
     console.log('SessionTimelineView: Processing sessions', { sessionCount: sessions.length });
     
     if (sessions.length === 0) {
-      return null;
+      return { nodes: [], links: [] };
     }
 
-    // Sort sessions by creation date (newest first for "today at top")
+    // Sort sessions by creation date (newest first)
     const sortedSessions = [...sessions]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 100); // Limit for performance
-
-    console.log('SessionTimelineView: Sorted sessions', sortedSessions.length);
+      .slice(0, 50); // Limit for performance
 
     // Group sessions by day
     const sessionsByDay = new Map<string, SessionData[]>();
@@ -60,45 +67,110 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         created_at: session.created_at,
         updated_at: session.updated_at,
         message_count: session.message_count || 0,
-        chat_type: session.chat_type || 'regular'
+        chat_type: session.chat_type || 'regular',
+        day
       });
     });
 
-    // Create hierarchical structure
-    const days = Array.from(sessionsByDay.entries())
-      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime()) // Newest first
-      .map(([day, daySessions]) => ({
+    // Create nodes array
+    const nodes: TangledNode[] = [];
+    const links: TangledLink[] = [];
+
+    // Sort days (newest first)
+    const sortedDays = Array.from(sessionsByDay.keys())
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    let sessionIndex = 0;
+
+    // Create date nodes (level 0) and session nodes (level 1)
+    sortedDays.forEach((day, dayIndex) => {
+      const dayTitle = day === new Date().toDateString() ? 'Today' : 
+                      day === new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString() ? 'Yesterday' :
+                      formatDistanceToNow(new Date(day), { addSuffix: true });
+
+      // Create day node
+      const dayNode: TangledNode = {
         id: `day-${day}`,
-        title: day === new Date().toDateString() ? 'Today' : 
-               day === new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString() ? 'Yesterday' :
-               formatDistanceToNow(new Date(day), { addSuffix: true }),
-        created_at: day,
-        updated_at: day,
-        message_count: daySessions.reduce((sum, s) => sum + s.message_count, 0),
-        chat_type: 'day',
-        children: daySessions
-      }));
+        title: dayTitle,
+        level: 0,
+        x: 100, // Will be positioned properly later
+        y: dayIndex * 120 + 60,
+        data: {
+          id: `day-${day}`,
+          title: dayTitle,
+          created_at: day,
+          updated_at: day,
+          message_count: sessionsByDay.get(day)!.reduce((sum, s) => sum + s.message_count, 0),
+          chat_type: 'day',
+          day
+        }
+      };
+      nodes.push(dayNode);
 
-    const rootData: SessionData = {
-      id: 'root',
-      title: 'Timeline',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      message_count: sessions.length,
-      chat_type: 'root',
-      children: days
-    };
+      // Create session nodes for this day
+      const daySessions = sessionsByDay.get(day)!;
+      daySessions.forEach((session, sessionInDayIndex) => {
+        const sessionNode: TangledNode = {
+          id: session.id,
+          title: session.title,
+          level: 1,
+          x: 300, // Will be positioned properly later
+          y: dayIndex * 120 + 60 + (sessionInDayIndex - (daySessions.length - 1) / 2) * 25,
+          data: session
+        };
+        nodes.push(sessionNode);
 
-    console.log('SessionTimelineView: Created tree data', { 
-      dayCount: days.length,
-      totalSessions: sortedSessions.length 
+        // Create tree link from day to session
+        links.push({
+          source: dayNode,
+          target: sessionNode,
+          type: 'tree'
+        });
+
+        sessionIndex++;
+      });
     });
 
-    return rootData;
+    // Create tangled links between similar sessions
+    const sessionNodes = nodes.filter(n => n.level === 1);
+    
+    for (let i = 0; i < sessionNodes.length; i++) {
+      for (let j = i + 1; j < sessionNodes.length; j++) {
+        const nodeA = sessionNodes[i];
+        const nodeB = sessionNodes[j];
+        
+        // Skip if same day (already connected via tree)
+        if (nodeA.data.day === nodeB.data.day) continue;
+        
+        // Calculate similarity
+        const titleSimilarity = calculateTitleSimilarity(nodeA.data.title, nodeB.data.title);
+        const typeSimilarity = nodeA.data.chat_type === nodeB.data.chat_type ? 0.3 : 0;
+        const messageSimilarity = Math.min(nodeA.data.message_count, nodeB.data.message_count) / 
+                                 Math.max(nodeA.data.message_count, nodeB.data.message_count) * 0.2;
+        
+        const totalSimilarity = titleSimilarity + typeSimilarity + messageSimilarity;
+        
+        if (totalSimilarity > 0.4 && links.filter(l => l.type === 'tangle').length < 15) {
+          links.push({
+            source: nodeA,
+            target: nodeB,
+            type: 'tangle'
+          });
+        }
+      }
+    }
+
+    console.log('SessionTimelineView: Created tangled tree', { 
+      nodeCount: nodes.length,
+      treeLinks: links.filter(l => l.type === 'tree').length,
+      tangleLinks: links.filter(l => l.type === 'tangle').length
+    });
+
+    return { nodes, links };
   }, [sessions]);
 
   useEffect(() => {
-    if (!treeData || !svgRef.current || !containerRef.current) return;
+    if (nodes.length === 0 || !svgRef.current || !containerRef.current) return;
 
     const svg = d3.select(svgRef.current);
     const container = containerRef.current;
@@ -108,121 +180,108 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
 
     // Set up dimensions
     const containerRect = container.getBoundingClientRect();
-    const width = Math.max(800, containerRect.width);
-    const height = Math.max(600, treeData.children!.length * 200);
+    const width = Math.max(800, containerRect.width - 40);
+    const height = Math.max(600, nodes.filter(n => n.level === 0).length * 120 + 100);
 
     svg.attr("width", width).attr("height", height);
 
-    // Create hierarchy
-    const root = d3.hierarchy(treeData);
-    
-    // Create tree layout
-    const treeLayout = d3.tree<SessionData>()
-      .size([height - 100, width - 200])
-      .separation((a, b) => {
-        // More separation for day nodes
-        if (a.parent === root || b.parent === root) return 2;
-        return 1;
-      });
+    // Position nodes properly for tangled tree layout
+    const dayNodes = nodes.filter(n => n.level === 0);
+    const sessionNodes = nodes.filter(n => n.level === 1);
 
-    // Apply layout
-    const treeNodes = treeLayout(root);
+    // Position day nodes vertically
+    dayNodes.forEach((node, index) => {
+      node.x = 100;
+      node.y = index * 120 + 60;
+    });
 
-    // Create curved link generator
-    const linkGenerator = d3.linkHorizontal<any, TreeNode>()
-      .x(d => d.y + 100)
-      .y(d => d.x + 50);
+    // Position session nodes
+    sessionNodes.forEach(node => {
+      const dayNode = dayNodes.find(d => d.id === `day-${node.data.day}`);
+      if (dayNode) {
+        const daySessionNodes = sessionNodes.filter(s => s.data.day === node.data.day);
+        const sessionIndex = daySessionNodes.indexOf(node);
+        
+        node.x = 300;
+        node.y = dayNode.y + (sessionIndex - (daySessionNodes.length - 1) / 2) * 25;
+      }
+    });
 
     // Create container group
-    const g = svg.append("g");
+    const g = svg.append("g").attr("transform", "translate(20, 20)");
 
-    // Draw links
-    const links = g.selectAll(".link")
-      .data(treeNodes.links())
+    // Draw tree links (day to sessions)
+    const treeLinks = links.filter(l => l.type === 'tree');
+    g.selectAll(".tree-link")
+      .data(treeLinks)
       .enter()
       .append("path")
-      .attr("class", "link")
-      .attr("d", linkGenerator as any)
-      .attr("fill", "none")
-      .attr("stroke", (d: any) => {
-        // Different colors for different levels
-        if (d.source.depth === 0) return "#6366f1"; // Root to day
-        return "#94a3b8"; // Day to session
-      })
-      .attr("stroke-width", (d: any) => {
-        if (d.source.depth === 0) return 3;
-        return 2;
-      })
-      .attr("opacity", 0.7);
-
-    // Add tangled connections between similar sessions
-    const sessionNodes = treeNodes.descendants().filter(d => d.depth === 2);
-    
-    // Create tangled connections based on similar titles or types
-    const tangledConnections: Array<[TreeNode, TreeNode]> = [];
-    
-    for (let i = 0; i < sessionNodes.length; i++) {
-      for (let j = i + 1; j < sessionNodes.length; j++) {
-        const nodeA = sessionNodes[i] as TreeNode;
-        const nodeB = sessionNodes[j] as TreeNode;
+      .attr("class", "tree-link")
+      .attr("d", d => {
+        const sx = d.source.x;
+        const sy = d.source.y;
+        const tx = d.target.x;
+        const ty = d.target.y;
         
-        // Connect sessions with similar characteristics
-        const titleSimilarity = calculateTitleSimilarity(nodeA.data.title, nodeB.data.title);
-        const typeSimilarity = nodeA.data.chat_type === nodeB.data.chat_type ? 0.5 : 0;
-        
-        if (titleSimilarity + typeSimilarity > 0.3 && tangledConnections.length < 20) {
-          tangledConnections.push([nodeA, nodeB]);
-        }
-      }
-    }
-
-    // Draw tangled connections
-    g.selectAll(".tangled-link")
-      .data(tangledConnections)
-      .enter()
-      .append("path")
-      .attr("class", "tangled-link")
-      .attr("d", ([source, target]) => {
-        const sx = source.y + 100;
-        const sy = source.x + 50;
-        const tx = target.y + 100;
-        const ty = target.x + 50;
-        
-        // Create curved path
+        // Horizontal tree connection
         const mx = (sx + tx) / 2;
-        const my = (sy + ty) / 2;
+        return `M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+      })
+      .attr("fill", "none")
+      .attr("stroke", "#6366f1")
+      .attr("stroke-width", 2)
+      .attr("opacity", 0.6);
+
+    // Draw tangled links (session to session)
+    const tangleLinks = links.filter(l => l.type === 'tangle');
+    g.selectAll(".tangle-link")
+      .data(tangleLinks)
+      .enter()
+      .append("path")
+      .attr("class", "tangle-link")
+      .attr("d", d => {
+        const sx = d.source.x;
+        const sy = d.source.y;
+        const tx = d.target.x;
+        const ty = d.target.y;
+        
+        // Curved tangled connection
         const dx = tx - sx;
         const dy = ty - sy;
         const dr = Math.sqrt(dx * dx + dy * dy);
         
-        return `M${sx},${sy}Q${mx + dr * 0.1},${my - dr * 0.1} ${tx},${ty}`;
+        // Control points for more organic curves
+        const cx1 = sx + dx * 0.3 + dr * 0.1;
+        const cy1 = sy + dy * 0.3 - dr * 0.2;
+        const cx2 = sx + dx * 0.7 - dr * 0.1;
+        const cy2 = sy + dy * 0.7 + dr * 0.2;
+        
+        return `M${sx},${sy}C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
       })
       .attr("fill", "none")
       .attr("stroke", "#f59e0b")
-      .attr("stroke-width", 1)
-      .attr("stroke-dasharray", "3,3")
-      .attr("opacity", 0.4);
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "4,4")
+      .attr("opacity", 0.5);
 
     // Draw nodes
-    const nodes = g.selectAll(".node")
-      .data(treeNodes.descendants())
+    const nodeGroups = g.selectAll(".node")
+      .data(nodes)
       .enter()
       .append("g")
       .attr("class", "node")
-      .attr("transform", (d: any) => `translate(${d.y + 100},${d.x + 50})`);
+      .attr("transform", d => `translate(${d.x},${d.y})`);
 
     // Add circles for nodes
-    nodes.append("circle")
-      .attr("r", (d: any) => {
-        if (d.depth === 0) return 8; // Root
-        if (d.depth === 1) return 6; // Day
-        return Math.max(3, Math.min(8, Math.sqrt(d.data.message_count))); // Session
+    nodeGroups.append("circle")
+      .attr("r", d => {
+        if (d.level === 0) return 8; // Day nodes
+        return Math.max(4, Math.min(10, Math.sqrt(d.data.message_count) + 2)); // Session nodes
       })
-      .attr("fill", (d: any) => {
-        if (d.depth === 0) return "#4f46e5";
-        if (d.depth === 1) return "#6366f1";
+      .attr("fill", d => {
+        if (d.level === 0) return "#4f46e5"; // Day nodes
         
-        // Color by chat type
+        // Session nodes colored by chat type
         switch (d.data.chat_type) {
           case 'collaborative': return "#10b981";
           case 'direct_message': return "#f59e0b";
@@ -232,53 +291,62 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       })
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
-      .style("cursor", (d: any) => d.depth === 2 ? "pointer" : "default")
-      .on("click", (event: any, d: any) => {
-        if (d.depth === 2) {
+      .style("cursor", d => d.level === 1 ? "pointer" : "default")
+      .on("click", (event, d) => {
+        if (d.level === 1) {
           onSessionClick(d.data.id);
+        }
+      })
+      .on("mouseover", function(event, d) {
+        if (d.level === 1) {
+          d3.select(this).attr("stroke-width", 3);
+        }
+      })
+      .on("mouseout", function(event, d) {
+        if (d.level === 1) {
+          d3.select(this).attr("stroke-width", 2);
         }
       });
 
     // Add labels
-    nodes.append("text")
-      .attr("dx", 12)
+    nodeGroups.append("text")
+      .attr("dx", d => d.level === 0 ? -8 : 15)
       .attr("dy", 4)
-      .style("font-size", (d: any) => {
-        if (d.depth === 0) return "14px";
-        if (d.depth === 1) return "12px";
-        return "10px";
-      })
-      .style("font-weight", (d: any) => d.depth <= 1 ? "bold" : "normal")
+      .attr("text-anchor", d => d.level === 0 ? "end" : "start")
+      .style("font-size", d => d.level === 0 ? "12px" : "10px")
+      .style("font-weight", d => d.level === 0 ? "bold" : "normal")
       .style("fill", "#374151")
-      .text((d: any) => {
-        if (d.depth === 2 && d.data.title.length > 20) {
-          return d.data.title.substring(0, 20) + "...";
+      .text(d => {
+        if (d.level === 1 && d.title.length > 25) {
+          return d.title.substring(0, 25) + "...";
         }
-        return d.data.title;
+        return d.title;
       });
 
-    // Add message count labels for sessions
-    nodes.filter((d: any) => d.depth === 2)
+    // Add message count for session nodes
+    nodeGroups.filter(d => d.level === 1)
       .append("text")
-      .attr("dx", 12)
+      .attr("dx", 15)
       .attr("dy", 16)
       .style("font-size", "8px")
       .style("fill", "#6b7280")
-      .text((d: any) => `${d.data.message_count} msgs`);
+      .text(d => `${d.data.message_count} msgs`);
 
-    console.log('SessionTimelineView: D3 tree rendered', { 
-      nodeCount: treeNodes.descendants().length,
-      linkCount: treeNodes.links().length,
-      tangledCount: tangledConnections.length,
+    console.log('SessionTimelineView: Tangled tree rendered', { 
+      nodeCount: nodes.length,
+      treeLinks: treeLinks.length,
+      tangleLinks: tangleLinks.length,
       dimensions: { width, height }
     });
 
-  }, [treeData, onSessionClick]);
+  }, [nodes, links, onSessionClick]);
 
   // Helper function to calculate title similarity
   function calculateTitleSimilarity(title1: string, title2: string): number {
-    const words1 = title1.toLowerCase().split(/\s+/);
-    const words2 = title2.toLowerCase().split(/\s+/);
+    const words1 = title1.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const words2 = title2.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    
+    if (words1.length === 0 || words2.length === 0) return 0;
     
     const commonWords = words1.filter(word => words2.includes(word));
     const totalWords = new Set([...words1, ...words2]).size;
@@ -286,12 +354,12 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     return commonWords.length / totalWords;
   }
 
-  if (!treeData) {
+  if (nodes.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
         <div className="text-center">
           <p className="text-lg font-medium">No sessions to display</p>
-          <p className="text-sm">Start a conversation to see your timeline</p>
+          <p className="text-sm">Start a conversation to see your tangled tree timeline</p>
         </div>
       </div>
     );
@@ -303,9 +371,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       className="w-full h-full min-h-[600px] bg-white rounded-lg border overflow-auto"
     >
       <div className="p-4 border-b bg-gray-50">
-        <h3 className="text-lg font-semibold text-gray-900">Session Timeline</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Tangled Tree Timeline</h3>
         <p className="text-sm text-gray-600">
-          Tangled tree visualization of your conversation history
+          Dates on the left, sessions branching out, with tangled connections showing relationships
         </p>
       </div>
       
