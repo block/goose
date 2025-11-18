@@ -195,12 +195,20 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     // Clear previous content
     svg.selectAll("*").remove();
 
+    // Get theme colors from CSS custom properties
+    const computedStyle = getComputedStyle(container);
+    const backgroundColor = computedStyle.getPropertyValue('--background') || '#ffffff';
+    const foregroundColor = computedStyle.getPropertyValue('--foreground') || '#000000';
+    const mutedColor = computedStyle.getPropertyValue('--muted-foreground') || '#6b7280';
+    const borderColor = computedStyle.getPropertyValue('--border') || '#e5e7eb';
+
     // Set up dimensions
     const containerRect = container.getBoundingClientRect();
     const width = Math.max(800, containerRect.width - 40);
     const height = Math.max(600, containerRect.height - 100);
 
-    svg.attr("width", width).attr("height", height);
+    svg.attr("width", width).attr("height", height)
+       .style("background-color", `hsl(${backgroundColor})`);
 
     // Create force simulation
     const simulation = d3.forceSimulation(nodes)
@@ -227,7 +235,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       .selectAll("line")
       .data(links)
       .enter().append("line")
-      .attr("stroke", "#999")
+      .attr("stroke", `hsl(${borderColor})`)
       .attr("stroke-opacity", 0.6)
       .attr("stroke-width", 2);
 
@@ -262,7 +270,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
           default: return "#8b5cf6"; // purple
         }
       })
-      .attr("stroke", "#fff")
+      .attr("stroke", `hsl(${backgroundColor})`)
       .attr("stroke-width", 2)
       .style("cursor", d => d.level === 2 ? "pointer" : "default")
       .on("click", (event, d) => {
@@ -284,7 +292,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       .attr("text-anchor", "middle")
       .style("font-size", d => d.level === 0 ? "14px" : d.level === 1 ? "12px" : "10px")
       .style("font-weight", d => d.level <= 1 ? "bold" : "normal")
-      .style("fill", "#374151")
+      .style("fill", `hsl(${foregroundColor})`)
       .style("pointer-events", "none");
 
     // Add message count for session nodes
@@ -295,7 +303,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       .attr("y", 28)
       .attr("text-anchor", "middle")
       .style("font-size", "8px")
-      .style("fill", "#6b7280")
+      .style("fill", `hsl(${mutedColor})`)
       .style("pointer-events", "none");
 
     // Update positions on simulation tick
@@ -337,7 +345,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
 
   if (nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
         <div className="text-center">
           <p className="text-lg font-medium">No sessions to display</p>
           <p className="text-sm">Start a conversation to see your force-directed timeline</p>
@@ -349,11 +357,11 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full min-h-[600px] bg-white rounded-lg border overflow-hidden"
+      className="w-full h-full min-h-[600px] bg-background rounded-lg border overflow-hidden"
     >
-      <div className="p-4 border-b bg-gray-50">
-        <h3 className="text-lg font-semibold text-gray-900">Force-Directed Timeline</h3>
-        <p className="text-sm text-gray-600">
+      <div className="p-4 border-b bg-muted/50">
+        <h3 className="text-lg font-semibold text-foreground">Force-Directed Timeline</h3>
+        <p className="text-sm text-muted-foreground">
           Interactive network showing session relationships • Drag nodes to explore • Zoom and pan to navigate
         </p>
       </div>
@@ -366,9 +374,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         />
         
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
-          <div className="text-xs font-semibold text-gray-700 mb-2">Legend</div>
-          <div className="space-y-1 text-xs">
+        <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border shadow-sm">
+          <div className="text-xs font-semibold text-foreground mb-2">Legend</div>
+          <div className="space-y-1 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
               <span>Timeline Root</span>
@@ -397,8 +405,8 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
         </div>
 
         {/* Controls */}
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
-          <div className="text-xs text-gray-600">
+        <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
+          <div className="text-xs text-muted-foreground">
             Drag • Zoom • Click sessions
           </div>
         </div>
