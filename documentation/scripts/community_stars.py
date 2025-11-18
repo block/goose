@@ -98,7 +98,6 @@ def load_team_lists():
     goose_maintainers = set()
     block_non_goose = set()
     external_goose = set()
-    external = set()
     bots = set()
     
     current_section = None
@@ -114,15 +113,11 @@ def load_team_lists():
                 current_section = 'block_non_goose'
             elif '# External, goose' in line:
                 current_section = 'external_goose'
-            elif line.startswith('# External') and 'goose' not in line.lower():
-                current_section = 'external'
             elif '# Bots' in line:
                 current_section = 'bots'
             continue
         
         # Add username to appropriate set (lowercase for case-insensitive matching)
-        # Apply .lower() to entire username including brackets (e.g., "dependabot[bot]")
-        # This matches the pattern used above: 'goose' not in line.lower()
         username = line.lower()
         if current_section == 'goose_maintainers':
             goose_maintainers.add(username)
@@ -130,12 +125,10 @@ def load_team_lists():
             block_non_goose.add(username)
         elif current_section == 'external_goose':
             external_goose.add(username)
-        elif current_section == 'external':
-            external.add(username)
         elif current_section == 'bots':
             bots.add(username)
     
-    return goose_maintainers, block_non_goose, external_goose, external, bots
+    return goose_maintainers, block_non_goose, external_goose, bots
 
 def parse_date_range(date_input):
     """Parse various date input formats and return start/end timestamps."""
@@ -195,7 +188,7 @@ def main():
         sys.exit(1)
 
     # Load team lists
-    goose_maintainers, block_non_goose, external_goose, external, bots = load_team_lists()
+    goose_maintainers, block_non_goose, external_goose, bots = load_team_lists()
 
     # Load GitHub data
     github_data_file = '/tmp/github_contributors.json'
