@@ -17,6 +17,7 @@ import { ChatType } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import { getSession } from '../api';
 import { sessionMappingService } from '../services/SessionMappingService';
+import { useUserContext } from './useUserContext';
 
 // Force rebuild timestamp: 2025-01-15T02:45:00Z - Enhanced Matrix session error handling
 
@@ -51,6 +52,9 @@ export const useChatEngine = ({
 
   // Track pending edited message
   const [pendingEdit, setPendingEdit] = useState<{ id: string; content: string } | null>(null);
+
+  // User context integration
+  const userContext = useUserContext();
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -96,6 +100,21 @@ export const useChatEngine = ({
     sessionIdLength: chat.sessionId?.length,
     chatAiEnabled: chat.aiEnabled,
   });
+
+  // Generate user context for AI
+  const generateUserContextForAI = useCallback(async (): Promise<string> => {
+    if (!userContext.isInitialized) {
+      return '';
+    }
+    
+    try {
+      const contextSummary = await userContext.generateContextSummary(chat.sessionId);
+      return contextSummary;
+    } catch (error) {
+      console.warn('Failed to generate user context for AI:', error);
+      return '';
+    }
+  }, [userContext, chat.sessionId]);
 
   const {
     messages,
@@ -228,6 +247,13 @@ export const useChatEngine = ({
           contentPreview: messageText.substring(0, 50) + '...'
         });
         
+        // Update last seen for collaborator users
+        if (message.sender?.userId) {
+          userContext.updateLastSeen(message.sender.userId).catch(err => 
+            console.warn('Failed to update last seen for user:', message.sender?.userId, err)
+          );
+        }
+        
         // Add the message to the chat without triggering AI response
         setMessages(prevMessages => [...prevMessages, message]);
         
@@ -236,6 +262,37 @@ export const useChatEngine = ({
         
         // Return a promise that resolves immediately (to match originalAppend's interface)
         return Promise.resolve();
+      }
+
+      // **USER CONTEXT PROCESSING**: Check for user introductions and process them
+      if (message.role === 'user' && userContext.containsIntroductions(messageText)) {
+        console.log('👋 Processing user introductions in message:', {
+          sessionId: chat.sessionId,
+          messageId: message.id,
+          isPrimaryUser: isPrimaryUserMessage,
+          contentPreview: messageText.substring(0, 100) + '...'
+        });
+        
+        // Process introductions asynchronously
+        const introducedBy = isPrimaryUserMessage ? 'primary-user' : (message.sender?.userId || 'unknown-user');
+        const mentionedUserIds = mentions
+          .filter(match => !match[1].toLowerCase().startsWith('goose'))
+          .map(match => match[1]);
+        
+        userContext.processIntroduction(
+          messageText,
+          introducedBy,
+          chat.sessionId,
+          mentionedUserIds.length > 0 ? mentionedUserIds : undefined
+        ).then(introductions => {
+          if (introductions.length > 0) {
+            console.log('👋 Processed', introductions.length, 'user introductions:', 
+              introductions.map(i => i.extractedInfo?.name).join(', ')
+            );
+          }
+        }).catch(err => {
+          console.warn('Failed to process user introductions:', err);
+        });
       }
       
       // If @goose off is mentioned, disable AI for this session
@@ -352,9 +409,53 @@ export const useChatEngine = ({
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
+      // **USER CONTEXT INJECTION**: Add user context to the message if available
+      const enhanceMessageWithUserContext = async (originalMessage: Message): Promise<Message> => {
+        try {
+          const userContextSummary = await generateUserContextForAI();
+          
+          if (!userContextSummary.trim()) {
+            return originalMessage;
+          }
+
+          console.log('👤 Injecting user context into message:', {
+            sessionId: chat.sessionId,
+            messageId: originalMessage.id,
+            contextLength: userContextSummary.length,
+            contentPreview: userContextSummary.substring(0, 100) + '...'
+          });
+
+          // Create enhanced message with user context prepended
+          const enhancedMessage: Message = {
+            ...originalMessage,
+            content: originalMessage.content.map(content => {
+              if (content.type === 'text') {
+                return {
+                  ...content,
+                  text: `${userContextSummary}\n\n---\n\n${content.text}`
+                };
+              }
+              return content;
+            })
+          };
+
+          return enhancedMessage;
+        } catch (error) {
+          console.warn('Failed to enhance message with user context:', error);
+          return originalMessage;
+        }
+      };
+
+      // For user messages, enhance with context before sending to AI
+      if (message.role === 'user') {
+        return enhanceMessageWithUserContext(message).then(enhancedMessage => {
+          return originalAppend(enhancedMessage);
+        });
+      }
+
       return originalAppend(message);
     },
-    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, aiEnabled, chat.sessionId, setChat]
+    [originalAppend, storeMessageInHistory, messages.length, chat.messages.length, setMessages, aiEnabled, chat.sessionId, setChat, userContext, generateUserContextForAI]
   );
 
   // Simple token estimation function (roughly 4 characters per token)
