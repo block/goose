@@ -42,7 +42,7 @@ export default function PopularChatTopics({ append }: PopularChatTopicsProps) {
   };
 
   return (
-    <div className="absolute bottom-0 left-0 p-6 max-w-md">
+    <div className="p-6 max-w-md">
       <h3 className="text-text-muted text-sm mb-1">Popular chat topics</h3>
       <div className="space-y-1">
         {POPULAR_TOPICS.map((topic) => (
