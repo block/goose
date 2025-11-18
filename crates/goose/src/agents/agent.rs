@@ -937,9 +937,26 @@ impl Agent {
                     break;
                 }
 
+                // Increment conversation turn counter (persisted in session state, survives compaction)
+                let conversation_turn = {
+                    use crate::session::extension_data::{
+                        get_or_create_conversation_turn_state, save_conversation_turn_state,
+                    };
+
+                    let mut session = SessionManager::get_session(&session_config.id, false).await?;
+                    let mut turn_state = get_or_create_conversation_turn_state(&session.extension_data);
+                    let current_turn = turn_state.increment();
+                    save_conversation_turn_state(&mut session.extension_data, &turn_state)?;
+                    SessionManager::update_session(&session_config.id)
+                        .extension_data(session.extension_data)
+                        .apply()
+                        .await?;
+                    current_turn
+                };
+
                 // Prune stale hint contexts periodically (every turn, but only if needed)
                 if let Err(e) = self
-                    .prune_stale_directory_hints(&session_config, turns_taken)
+                    .prune_stale_directory_hints(&session_config, conversation_turn)
                     .await
                 {
                     warn!("Failed to prune stale directory hints: {}", e);
@@ -1142,7 +1159,7 @@ impl Agent {
                                                         if tool_call.name == "developer__text_editor" {
                                                             if let Some(file_path) = Self::extract_file_path_from_args(&tool_call.arguments) {
                                                                 // Attempt to load directory hints
-                                                                match self.maybe_load_directory_hints(&file_path, &session_config, turns_taken).await {
+                                                                match self.maybe_load_directory_hints(&file_path, &session_config, conversation_turn).await {
                                                                     Ok(true) => {
                                                                         context_loaded = true;
                                                                         info!("Directory hints loaded, will rebuild system prompt");
@@ -1325,7 +1342,7 @@ impl Agent {
     ///
     /// Security: Only loads hints from directories within the git repository or
     /// working directory to prevent loading untrusted hints from arbitrary paths.
-    async fn maybe_load_directory_hints(
+    pub(crate) async fn maybe_load_directory_hints(
         &self,
         file_path: &std::path::Path,
         session_config: &SessionConfig,
@@ -1458,7 +1475,7 @@ impl Agent {
     }
 
     /// Prune stale directory hints that haven't been accessed recently
-    async fn prune_stale_directory_hints(
+    pub(crate) async fn prune_stale_directory_hints(
         &self,
         session_config: &SessionConfig,
         current_turn: u32,

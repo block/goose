@@ -220,6 +220,55 @@ pub fn save_loaded_agents_state(
     state.to_extension_data(extension_data)
 }
 
+/// Conversation turn counter state (survives compaction)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConversationTurnState {
+    /// Current turn number (increments on each user message)
+    pub turn: u32,
+}
+
+impl ExtensionState for ConversationTurnState {
+    const EXTENSION_NAME: &'static str = "conversation_turn";
+    const VERSION: &'static str = "v0";
+}
+
+impl ConversationTurnState {
+    pub fn new() -> Self {
+        Self { turn: 0 }
+    }
+
+    pub fn increment(&mut self) -> u32 {
+        self.turn += 1;
+        self.turn
+    }
+
+    pub fn get(&self) -> u32 {
+        self.turn
+    }
+}
+
+impl Default for ConversationTurnState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Helper to get or create conversation turn state
+pub fn get_or_create_conversation_turn_state(
+    extension_data: &ExtensionData,
+) -> ConversationTurnState {
+    ConversationTurnState::from_extension_data(extension_data)
+        .unwrap_or_else(ConversationTurnState::new)
+}
+
+/// Helper to save conversation turn state
+pub fn save_conversation_turn_state(
+    extension_data: &mut ExtensionData,
+    state: &ConversationTurnState,
+) -> Result<()> {
+    state.to_extension_data(extension_data)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
