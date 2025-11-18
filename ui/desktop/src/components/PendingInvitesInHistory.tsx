@@ -192,13 +192,13 @@ const PendingInvitesInHistory: React.FC<PendingInvitesInHistoryProps> = ({
     );
   }
 
-  // Separate section style (shows as a dedicated section matching PopularChatTopics)
+  // Separate section style (shows above PopularChatTopics with same styling)
   return (
-    <div className={`absolute bottom-0 right-0 p-6 max-w-md ${className}`}>
+    <div className={`p-6 max-w-md ${className}`}>
       <h3 className="text-text-muted text-sm mb-1">
         Outstanding invitations ({pendingInvites.length})
       </h3>
-      <div className="space-y-1">
+      <div className="space-y-1 mb-8">
         <AnimatePresence>
           {pendingInvites.map((invite) => (
             <motion.div

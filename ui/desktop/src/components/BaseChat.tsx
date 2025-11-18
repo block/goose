@@ -533,17 +533,17 @@ function BaseChatContent({
                 </>
               ) : !recipeConfig && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
-                <div className="relative">
-                  <PopularChatTopics append={(text: string) => append(text)} />
-                  
-                  {/* Show pending invites if enabled - positioned on the right side */}
+                <div className="absolute bottom-0 left-0">
+                  {/* Show pending invites above popular topics if enabled */}
                   {showPendingInvites && (
                     <PendingInvitesInHistory showInChatHistory={false} />
                   )}
+                  
+                  <PopularChatTopics append={(text: string) => append(text)} />
                 </div>
               ) : showPendingInvites ? (
                 /* Show only pending invites when no messages and showPendingInvites is true */
-                <div className="relative">
+                <div className="absolute bottom-0 left-0">
                   <PendingInvitesInHistory showInChatHistory={false} />
                 </div>
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
