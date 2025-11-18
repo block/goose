@@ -107,7 +107,5 @@ ayax79
 
 # Bots (excluded from rankings)
 dependabot[bot]
-Copilot
-claude
 SquareGist
 github-actions[bot]
