@@ -68,26 +68,26 @@ Start the proxy with an initial error mode (for automated testing):
 
 ```bash
 # Start with context length error (3 times)
-uv run proxy.py --mode c --count 3
+uv run proxy.py --mode "c 3"
 
 # Start with rate limit error (30% of requests)
-uv run proxy.py --mode r --count 30%
+uv run proxy.py --mode "r 30%"
 
 # Start with server error (all requests)
-uv run proxy.py --mode u --count "*"
+uv run proxy.py --mode "u *"
 ```
 
 Command-line options:
 - `--port PORT` - Port to listen on (default: 8888)
-- `--mode {n,c,r,u}` - Initial error mode: n=no error, c=context length, r=rate limit, u=server error
-- `--count COUNT` - Error count or percentage (e.g., "3", "0.3", "30%", "*")
+- `--mode COMMAND` - Initial error mode command (e.g., "c 3", "r 30%", "u *", "n")
+  - Same syntax as interactive commands
 - `--no-stdin` - Disable stdin reader (for background/automated mode)
 
 For automated tests or background usage, combine `--no-stdin` with `--mode`:
 
 ```bash
 # Run in background for automated testing
-uv run proxy.py --mode c --count 3 --no-stdin &
+uv run proxy.py --mode "c 3" --no-stdin &
 PROXY_PID=$!
 
 # ... run your tests ...

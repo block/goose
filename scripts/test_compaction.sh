@@ -253,7 +253,7 @@ else
 
     # Start the error proxy in context-length error mode (3 errors)
     echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
-    (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode c --count 3 --no-stdin > "$PROXY_LOG" 2>&1) &
+    (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
     PROXY_PID=$!
 
     # Wait for proxy to start
