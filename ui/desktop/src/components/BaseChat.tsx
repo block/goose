@@ -68,6 +68,8 @@ import { useToolCount } from './alerts/useToolCount';
 import { SidecarInvoker } from './Layout/SidecarInvoker';
 import { useSidecar } from './SidecarLayout';
 import ParticipantsBar from './ParticipantsBar';
+import PendingInvitesInHistory from './PendingInvitesInHistory';
+import { usePendingInvites } from '../hooks/usePendingInvites';
 
 
 // Context for sharing current model info
@@ -94,6 +96,7 @@ interface BaseChatProps {
   loadingChat: boolean;
   showParticipantsBar?: boolean;
   matrixRoomId?: string;
+  showPendingInvites?: boolean; // Show outstanding Matrix invites in chat history
 }
 
 function BaseChatContent({
@@ -116,6 +119,7 @@ function BaseChatContent({
   loadingChat = false,
   showParticipantsBar = false,
   matrixRoomId,
+  showPendingInvites = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -529,7 +533,21 @@ function BaseChatContent({
                 </>
               ) : !recipeConfig && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
-                <PopularChatTopics append={(text: string) => append(text)} />
+                <>
+                  <PopularChatTopics append={(text: string) => append(text)} />
+                  
+                  {/* Show pending invites if enabled */}
+                  {showPendingInvites && (
+                    <div className="mt-8">
+                      <PendingInvitesInHistory showInChatHistory={false} />
+                    </div>
+                  )}
+                </>
+              ) : showPendingInvites ? (
+                /* Show only pending invites when no messages and showPendingInvites is true */
+                <div className="pt-12">
+                  <PendingInvitesInHistory showInChatHistory={false} />
+                </div>
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
             }
 

@@ -1009,6 +1009,7 @@ export default function Pair({
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
       showParticipantsBar={isMatrixMode} // Show participants bar when in Matrix mode
       matrixRoomId={matrixRoomId || undefined} // Pass the Matrix room ID
+      showPendingInvites={isConnected} // Show pending invites when connected to Matrix
     />
   );
 }
