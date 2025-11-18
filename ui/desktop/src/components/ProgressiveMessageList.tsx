@@ -14,7 +14,7 @@
  * - Configurable batch size and delay
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
@@ -22,6 +22,7 @@ import { SystemNotificationInline } from './context_management/SystemNotificatio
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
+import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaining';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
@@ -161,6 +162,9 @@ export default function ProgressiveMessageList({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLoading, messages.length]);
 
+  // Detect tool call chains
+  const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
+
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
@@ -195,11 +199,12 @@ export default function ProgressiveMessageList({
         }
 
         const isUser = isUserMessage(message);
+        const messageIsInChain = isInChain(index, toolCallChains);
 
         return (
           <div
             key={message.id && `${message.id}-${message.content.length}`}
-            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
+            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
             data-testid="message-container"
           >
             {isUser ? (
@@ -238,6 +243,7 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
+    toolCallChains,
   ]);
 
   return (

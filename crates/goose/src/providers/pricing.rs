@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -70,13 +70,8 @@ impl PricingCache {
                         let age_days = (now - cached.fetched_at) / (24 * 60 * 60);
 
                         if age_days < CACHE_TTL_DAYS {
-                            tracing::debug!(
-                                "Loaded pricing data from disk cache (age: {} days)",
-                                age_days
-                            );
                             Ok(Some(cached))
                         } else {
-                            tracing::debug!("Disk cache expired (age: {} days)", age_days);
                             Ok(None)
                         }
                     }
@@ -101,8 +96,6 @@ impl PricingCache {
         let cache_path = cache_dir.join(CACHE_FILE_NAME);
         let json_data = serde_json::to_vec_pretty(data)?;
         tokio::fs::write(&cache_path, json_data).await?;
-
-        tracing::debug!("Saved pricing data to disk cache");
         Ok(())
     }
 
@@ -171,22 +164,8 @@ impl PricingCache {
             fetched_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         };
 
-        // Log how many models we fetched
-        let total_models: usize = cached_data
-            .pricing
-            .values()
-            .map(|models| models.len())
-            .sum();
-        tracing::debug!(
-            "Fetched pricing for {} providers with {} total models from OpenRouter",
-            cached_data.pricing.len(),
-            total_models
-        );
-
-        // Save to disk
         self.save_to_disk(&cached_data).await?;
 
-        // Update memory cache
         {
             let mut cache = self.memory_cache.write().await;
             *cache = Some(cached_data);
@@ -199,15 +178,6 @@ impl PricingCache {
     pub async fn initialize(&self) -> Result<()> {
         // Try loading from disk first
         if let Ok(Some(cached)) = self.load_from_disk().await {
-            // Log how many models we have cached
-            let total_models: usize = cached.pricing.values().map(|models| models.len()).sum();
-            tracing::debug!(
-                "Loaded {} providers with {} total models from disk cache",
-                cached.pricing.len(),
-                total_models
-            );
-
-            // Update memory cache
             {
                 let mut cache = self.memory_cache.write().await;
                 *cache = Some(cached);
@@ -216,8 +186,6 @@ impl PricingCache {
             return Ok(());
         }
 
-        // If no disk cache, fetch from OpenRouter
-        tracing::info!("Fetching pricing data from OpenRouter API");
         self.refresh().await
     }
 }
@@ -233,14 +201,13 @@ lazy_static::lazy_static! {
     static ref PRICING_CACHE: PricingCache = PricingCache::new();
 }
 
-/// Create a properly configured HTTP client for the current runtime
-fn create_http_client() -> Client {
+fn create_http_client() -> Result<Client> {
     Client::builder()
         .timeout(Duration::from_secs(30))
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(10)
         .build()
-        .expect("Failed to create HTTP client")
+        .map_err(|e| anyhow!(e))
 }
 
 /// OpenRouter model pricing information
@@ -274,7 +241,7 @@ pub struct OpenRouterModelsResponse {
 
 /// Internal function to fetch pricing data
 async fn fetch_openrouter_pricing_internal() -> Result<HashMap<String, OpenRouterModel>> {
-    let client = create_http_client();
+    let client = create_http_client()?;
     let response = client
         .get("https://openrouter.ai/api/v1/models")
         .send()

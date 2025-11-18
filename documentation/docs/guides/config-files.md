@@ -29,7 +29,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_PROVIDER` | Primary [LLM provider](/docs/getting-started/providers) | "anthropic", "openai", etc. | None | Yes |
 | `GOOSE_MODEL` | Default model to use | Model name (e.g., "claude-3.5-sonnet", "gpt-4") | None | Yes |
 | `GOOSE_TEMPERATURE` | Model response randomness | Float between 0.0 and 1.0 | Model-specific | No |
-| `GOOSE_MODE` | [Tool execution behavior](/docs/guides/goose-permissions) | "auto", "approve", "chat", "smart_approve" | "smart_approve" | No |
+| `GOOSE_MODE` | [Tool execution behavior](/docs/guides/goose-permissions) | "auto", "approve", "chat", "smart_approve" | "auto" | No |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 | No |
 | `GOOSE_LEAD_PROVIDER` | Provider for lead model in [lead/worker mode](/docs/guides/environment-variables#leadworker-model-configuration) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
 | `GOOSE_LEAD_MODEL` | Lead model for lead/worker mode | Model name | None | No |
@@ -84,6 +84,12 @@ GOOSE_CLI_MIN_PRIORITY: 0.2
 # Recipe Configuration
 GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
 
+# Search Path Configuration
+GOOSE_SEARCH_PATHS:
+  - "/usr/local/bin"
+  - "~/custom/tools"
+  - "/opt/homebrew/bin"
+
 # Observability (OpenTelemetry)
 otel_exporter_otlp_endpoint: "http://localhost:4318"
 otel_exporter_otlp_timeout: 20000
@@ -129,6 +135,19 @@ extensions:
     env_keys: []              # Required environment variables
     envs: {}                  # Environment values
 ```
+
+## Search Path Configuration
+
+Extensions may need to execute external commands or tools. By default, goose uses your system's PATH environment variable. You can add additional search directories in your config file:
+
+```yaml
+GOOSE_SEARCH_PATHS:
+  - "/usr/local/bin"
+  - "~/custom/tools"
+  - "/opt/homebrew/bin"
+```
+
+These paths are prepended to the system PATH when running extension commands, ensuring your custom tools are found without modifying your global PATH.
 
 ## Configuration Priority
 

@@ -1,6 +1,5 @@
 import { ModeSection } from '../mode/ModeSection';
 import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
-import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
@@ -41,17 +40,6 @@ export default function ChatSettingsSection() {
         </CardContent>
       </Card>
 
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Scheduling Engine</CardTitle>
-          <CardDescription>
-            Choose which scheduling backend to use for scheduled recipes and tasks
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <SchedulerSection />
-        </CardContent>
-      </Card>
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>

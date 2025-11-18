@@ -24,17 +24,31 @@ use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
 
-pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
+pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5-mini",
+    "gpt-5",
     "gpt-4o",
-    "o1",
-    "o3-mini",
-    "claude-3.7-sonnet",
+    "grok-code-fast-1",
+    "gpt-5-codex",
     "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
 ];
 
-pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-sonnet-4"];
+pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-codex",
+    "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
+    "grok-code-fast-1",
+];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -118,6 +132,29 @@ pub struct GithubCopilotProvider {
 }
 
 impl GithubCopilotProvider {
+    fn payload_contains_image(payload: &Value) -> bool {
+        payload
+            .get("messages")
+            .and_then(|m| m.as_array())
+            .is_some_and(|messages| {
+                messages.iter().any(|msg| {
+                    msg.get("content").is_some_and(|content| {
+                        content
+                            .as_array()
+                            .map(|arr| arr.iter().collect::<Vec<_>>())
+                            .unwrap_or_else(|| vec![content])
+                            .iter()
+                            .any(|item| {
+                                matches!(
+                                    item.get("type").and_then(|v| v.as_str()),
+                                    Some("image_url") | Some("image")
+                                )
+                            })
+                    })
+                })
+            })
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -150,14 +187,21 @@ impl GithubCopilotProvider {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let response = self
+
+        let headers = self.get_github_headers();
+
+        let mut request = self
             .client
             .post(url)
-            .headers(self.get_github_headers())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(payload)
-            .send()
-            .await?;
+            .headers(headers)
+            .header("Authorization", format!("Bearer {}", token));
+
+        if Self::payload_contains_image(payload) {
+            request = request.header("Copilot-Vision-Request", "true");
+        }
+
+        let response = request.json(payload).send().await?;
+
         if stream_only_model {
             let mut collector = OAIStreamCollector::new();
             let mut stream = response.bytes_stream();
@@ -169,7 +213,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }

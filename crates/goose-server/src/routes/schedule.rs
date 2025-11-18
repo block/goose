@@ -16,8 +16,6 @@ pub struct CreateScheduleRequest {
     id: String,
     recipe_source: String,
     cron: String,
-    #[serde(default)]
-    execution_mode: Option<String>, // "foreground" or "background"
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
@@ -36,7 +34,6 @@ pub struct KillJobResponse {
     message: String,
 }
 
-// Response for the inspect endpoint
 #[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectJobResponse {
@@ -51,15 +48,9 @@ pub struct RunNowResponse {
     session_id: String,
 }
 
-// Query parameters for the sessions endpoint
 #[derive(Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct SessionsQuery {
-    #[serde(default = "default_limit")]
-    limit: u32,
-}
-
-fn default_limit() -> u32 {
-    50 // Default limit for sessions listed
+    limit: usize,
 }
 
 // Struct for the frontend session list
@@ -151,10 +142,7 @@ async fn list_schedules(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     tracing::info!("Server: Calling scheduler.list_scheduled_jobs()");
-    let jobs = scheduler.list_scheduled_jobs().await.map_err(|e| {
-        eprintln!("Error listing schedules: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let jobs = scheduler.list_scheduled_jobs().await;
     Ok(Json(ListSchedulesResponse { jobs }))
 }
 
@@ -213,39 +201,40 @@ async fn run_now_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let (recipe_display_name, recipe_version_opt) = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => {
-            if let Some(job) = jobs.into_iter().find(|job| job.id == id) {
-                let recipe_display_name = std::path::Path::new(&job.source)
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| id.clone());
+    let (recipe_display_name, recipe_version_opt) = if let Some(job) = scheduler
+        .list_scheduled_jobs()
+        .await
+        .into_iter()
+        .find(|job| job.id == id)
+    {
+        let recipe_display_name = std::path::Path::new(&job.source)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| id.clone());
 
-                let recipe_version_opt = tokio::fs::read_to_string(&job.source)
-                    .await
+        let recipe_version_opt =
+            tokio::fs::read_to_string(&job.source)
+                .await
+                .ok()
+                .and_then(|content: String| {
+                    goose::recipe::template_recipe::parse_recipe_content(
+                        &content,
+                        Some(
+                            std::path::Path::new(&job.source)
+                                .parent()
+                                .unwrap_or_else(|| std::path::Path::new(""))
+                                .to_string_lossy()
+                                .to_string(),
+                        ),
+                    )
                     .ok()
-                    .and_then(|content| {
-                        goose::recipe::template_recipe::parse_recipe_content(
-                            &content,
-                            Some(
-                                std::path::Path::new(&job.source)
-                                    .parent()
-                                    .unwrap_or_else(|| std::path::Path::new(""))
-                                    .to_string_lossy()
-                                    .to_string(),
-                            ),
-                        )
-                        .ok()
-                        .map(|(r, _)| r.version)
-                    });
+                    .map(|(r, _)| r.version)
+                });
 
-                (recipe_display_name, recipe_version_opt)
-            } else {
-                (id.clone(), None)
-            }
-        }
-        Err(_) => (id.clone(), None),
+        (recipe_display_name, recipe_version_opt)
+    } else {
+        (id.clone(), None)
     };
 
     let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
@@ -308,7 +297,7 @@ async fn sessions_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match scheduler
-        .sessions(&schedule_id_param, query_params.limit as usize)
+        .sessions(&schedule_id_param, query_params.limit)
         .await
     {
         Ok(session_tuples) => {
@@ -448,11 +437,7 @@ async fn update_schedule(
             }
         })?;
 
-    // Return the updated schedule
-    let jobs = scheduler.list_scheduled_jobs().await.map_err(|e| {
-        eprintln!("Error listing schedules after update: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let jobs = scheduler.list_scheduled_jobs().await;
     let updated_job = jobs
         .into_iter()
         .find(|job| job.id == id)

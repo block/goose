@@ -49,7 +49,7 @@ serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
 uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
-async-trait = "0.1"
+async-trait = "0.1.89"
 async-stream = "0.3"
 minijinja = { version = "2.10.2", features = ["loader"] }
 include_dir = "0.7.4"
@@ -109,6 +109,8 @@ insta = "1.43.2"
 paste = "1.0.0"
 shellexpand = "3.1.1"
 indexmap = "2.12.0"
+ignore = "0.4.25"
+which = "8.0.0"
 
 
 [target.'cfg(target_os = "windows")'.dependencies]

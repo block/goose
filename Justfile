@@ -4,6 +4,20 @@
 default:
   @just --list
 
+# Run all style checks and formatting (precommit validation)
+check-everything:
+    @echo "🔧 RUNNING ALL STYLE CHECKS..."
+    @echo "  → Formatting Rust code..."
+    cargo fmt --all
+    @echo "  → Running clippy linting..."
+    ./scripts/clippy-lint.sh
+    @echo "  → Checking UI code formatting..."
+    cd ui/desktop && npm run lint:check
+    @echo "  → Validating OpenAPI schema..."
+    ./scripts/check-openapi-schema.sh
+    @echo ""
+    @echo "✅ All style checks passed!"
+
 # Default release command
 release-binary:
     @echo "Building release version..."
@@ -179,7 +193,7 @@ generate-openapi:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
     @echo "Generating frontend API..."
-    cd ui/desktop && npm run generate-api
+    cd ui/desktop && npx @hey-api/openapi-ts
 
 # make GUI with latest binary
 lint-ui:
@@ -268,6 +282,12 @@ validate version:
       exit 1
     fi
 
+get-next-minor-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{int(v[1])+1}.0')" $(just get-tag-version)
+
+get-next-patch-version:
+    @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
+
 # set cargo and app versions, must be semver
 prepare-release version:
     @just validate {{ version }} || exit 1
@@ -280,8 +300,12 @@ prepare-release version:
     # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
-    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json
+    @just set-openapi-version {{ version }}
+    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json
     @git commit --message "chore(release): release version {{ version }}"
+
+set-openapi-version version:
+    @jq '.info.version |= "{{ version }}"' ui/desktop/openapi.json > ui/desktop/openapi.json.tmp && mv ui/desktop/openapi.json.tmp ui/desktop/openapi.json
 
 # extract version from Cargo.toml
 get-tag-version:
