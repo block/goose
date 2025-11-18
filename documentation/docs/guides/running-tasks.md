@@ -1,5 +1,5 @@
 ---
-sidebar_position: 13
+sidebar_position: 75
 title: Running Tasks
 sidebar_label: Run Tasks
 ---
@@ -97,6 +97,12 @@ You can also run commands without creating or storing a session file by using th
 # Run a command without creating a session file
 goose run --no-session -t "your command here"
 ```
+### Set Provider and Model
+You can run Goose sessions with a specific provider and model, which overrides the provider and model settings in your [environment variables](/docs/guides/environment-variables.md).
+
+```bash
+goose run --provider anthropic --model claude-4-sonnet -t "initial prompt"
+```
 
 ### Working with Extensions
 
@@ -146,6 +152,26 @@ goose run --debug -t "your instructions"
 # Debug a recipe execution
 goose run --debug --recipe recipe.yaml
 ```
+
+### JSON Output Format
+
+For automation, scripting, and CI/CD integration, you can get structured output from `goose run` using the `--output-format json` flag:
+
+```bash
+# Run with JSON output for automation
+goose run --output-format json -t "your instructions"
+
+# Run a recipe with JSON output
+goose run --output-format json --recipe recipe.yaml
+
+# Combine with other options
+goose run --output-format json --no-session -t "automated task"
+```
+
+The JSON output includes:
+- Session metadata and execution results
+- Tool outputs and any errors
+- Structured data suitable for parsing by scripts and CI/CD pipelines
 
 ## Common Use Cases
 

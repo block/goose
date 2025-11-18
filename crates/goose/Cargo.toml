@@ -15,31 +15,33 @@ tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
-mcp-client = { path = "../mcp-client" }
-mcp-core = { path = "../mcp-core" }
+lru = "0.12"
 rmcp = { workspace = true, features = [
+    "client",
     "reqwest",
     "transport-child-process",
     "transport-sse-client",
+    "transport-sse-client-reqwest",
     "transport-streamable-http-client",
+    "transport-streamable-http-client-reqwest",
 ] }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
 dirs = "5.0"
 reqwest = { version = "0.12.9", features = [
-        "rustls-tls-native-roots",
-        "json",
-        "cookies",
-        "gzip",
-        "brotli",
-        "deflate",
-        "zstd",
-        "charset",
-        "http2",
-        "stream",
-        "blocking"
-    ], default-features = false }
+    "rustls-tls-native-roots",
+    "json",
+    "cookies",
+    "gzip",
+    "brotli",
+    "deflate",
+    "zstd",
+    "charset",
+    "http2",
+    "stream",
+    "blocking"
+], default-features = false }
 tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -47,7 +49,7 @@ serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
 uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
-async-trait = "0.1"
+async-trait = "0.1.89"
 async-stream = "0.3"
 minijinja = { version = "2.10.2", features = ["loader"] }
 include_dir = "0.7.4"
@@ -65,6 +67,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
+opentelemetry-appender-tracing = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio", "metrics"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "http-proto", "reqwest-client"] }
 tonic = "0.12"
@@ -76,11 +79,12 @@ rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
-aws-sdk-bedrockruntime = "1.74.0"
+aws-sdk-bedrockruntime = "1.106.0"
 
 # For SageMaker TGI provider
 aws-sdk-sagemakerruntime = "1.62.0"
@@ -95,10 +99,19 @@ tempfile = "3.15.0"
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = "0.7.15"
+unicode-normalization = "0.1"
+zip = "0.6"
+sys-info = "0.9"
 
-# Vector database for tool selection
-lancedb = "0.13"
-arrow = "52.2"
+oauth2 = "5.0.0"
+schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
+insta = "1.43.2"
+paste = "1.0.0"
+shellexpand = "3.1.1"
+indexmap = "2.12.0"
+ignore = "0.4.25"
+which = "8.0.0"
+
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -112,6 +125,7 @@ tokio = { version = "1.43", features = ["full"] }
 temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
+test-case = "3.3"
 
 [[example]]
 name = "agent"
@@ -120,11 +134,3 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
-
-[[example]]
-name = "async_token_counter_demo"
-path = "examples/async_token_counter_demo.rs"
-
-[[bench]]
-name = "tokenization_benchmark"
-harness = false

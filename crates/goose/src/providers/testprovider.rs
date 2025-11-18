@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -36,6 +36,7 @@ pub struct TestProvider {
     inner: Option<Arc<dyn Provider>>,
     records: Arc<Mutex<HashMap<String, TestRecord>>>,
     file_path: String,
+    name: String,
 }
 
 impl TestProvider {
@@ -44,6 +45,7 @@ impl TestProvider {
             inner: Some(inner),
             records: Arc::new(Mutex::new(HashMap::new())),
             file_path: file_path.into(),
+            name: Self::metadata().name,
         }
     }
 
@@ -55,6 +57,7 @@ impl TestProvider {
             inner: None,
             records: Arc::new(Mutex::new(records)),
             file_path,
+            name: Self::metadata().name,
         })
     }
 
@@ -112,8 +115,13 @@ impl Provider for TestProvider {
         )
     }
 
-    async fn complete(
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    async fn complete_with_model(
         &self,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -162,7 +170,7 @@ impl Provider for TestProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{RawTextContent, Role, TextContent};
@@ -188,8 +196,13 @@ mod tests {
             )
         }
 
-        async fn complete(
+        fn get_name(&self) -> &str {
+            "mock-testprovider"
+        }
+
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -201,6 +214,7 @@ mod tests {
                     vec![MessageContent::Text(TextContent {
                         raw: RawTextContent {
                             text: self.response.clone(),
+                            meta: None,
                         },
                         annotations: None,
                     })],

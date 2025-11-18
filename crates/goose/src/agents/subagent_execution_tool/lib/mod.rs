@@ -12,21 +12,13 @@ use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 
 pub async fn execute_tasks(
-    input: Value,
+    task_ids: Vec<String>,
     execution_mode: ExecutionMode,
     notifier: Sender<ServerNotification>,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
     cancellation_token: Option<CancellationToken>,
 ) -> Result<Value, String> {
-    let task_ids: Vec<String> = serde_json::from_value(
-        input
-            .get("task_ids")
-            .ok_or("Missing task_ids field")?
-            .clone(),
-    )
-    .map_err(|e| format!("Failed to parse task_ids: {}", e))?;
-
     let tasks = tasks_manager.get_tasks(&task_ids).await?;
 
     let task_count = tasks.len();
@@ -41,7 +33,11 @@ pub async fn execute_tasks(
             }
         }
         ExecutionMode::Parallel => {
-            if tasks.iter().any(|task| task.get_sequential_when_repeated()) {
+            let any_sequential = tasks
+                .iter()
+                .any(|task| task.payload.sequential_when_repeated);
+
+            if any_sequential {
                 Ok(json!(
                     {
                         "execution_mode": ExecutionMode::Sequential,

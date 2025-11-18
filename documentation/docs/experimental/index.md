@@ -19,11 +19,6 @@ The list of experimental features may change as Goose development progresses. So
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>🧪 Experimental Features</h2>
   <div className={styles.cardGrid}>
-      <Card 
-      title="Subagents"
-      description="Independent instances that execute tasks while keeping your main conversation clean and focused. Run tasks sequentially or in parallel with process isolation and context preservation."
-      link="/docs/experimental/subagents"
-    />
     <Card 
       title="Ollama Tool Shim"
       description="Enable tool calling capabilities for language models that don't natively support tool calling (like DeepSeek) using an experimental local interpreter model setup."
@@ -35,9 +30,14 @@ The list of experimental features may change as Goose development progresses. So
       link="/docs/experimental/goose-mobile"
     />
     <Card 
-      title="VS Code Extension"
-      description="An experimental extension enabling Goose to work within VS Code."
-      link="/docs/experimental/vs-code-extension"
+      title="Automatic Multi-Model Switching"
+      description="Intelligent, context-aware switching between models based on conversation content, complexity, and tool usage patterns."
+      link="/docs/guides/multi-model/autopilot"
+    />
+    <Card 
+      title="Using goose in ACP Clients"
+      description="Interact with goose natively in ACP-compatible clients like Zed."
+      link="/docs/guides/acp-clients"
     />
   </div>
 </div>
@@ -74,7 +74,7 @@ The list of experimental features may change as Goose development progresses. So
     <Card 
       title="Discord Community"
       description="Join our community to discuss experimental features, share feedback, and connect with other users."
-      link="https://discord.gg/block-opensource"
+      link="https://discord.gg/goose-oss"
     />
   </div>
 </div>

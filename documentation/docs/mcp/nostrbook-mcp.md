@@ -1,24 +1,29 @@
 ---
 title: Nostrbook Extension
-description: Add Nostrbook MCP Server as a Goose Extension
+description: Add Nostrbook MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 
-
-This tutorial covers how to add the [Nostrbook MCP Server](https://gitlab.com/soapbox-pub/nostrbook) as a Goose extension to provide access to a comprehensive registry of Nostr documentation that helps users understand the decentralized social protocol, its implementation possibilities, and technical specifications.
+This tutorial covers how to add the [Nostrbook MCP Server](https://gitlab.com/soapbox-pub/nostrbook) as a goose extension to provide access to a comprehensive registry of Nostr documentation that helps users understand the decentralized social protocol, its implementation possibilities, and technical specifications.
 
 
 :::tip TLDR
-
-**Command**
-```sh
-npx -y @nostrbook/mcp@latest
-```
-
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40nostrbook%2Fmcp&id=nostrbook&name=Nostrbook&description=A%20comprehensive%20registry%20of%20Nostr%20documentation%20with%20structured%20knowledge)
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    **Command**
+    ```sh
+    npx -y @nostrbook/mcp@latest
+    ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -29,7 +34,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="nostrbook"
     extensionName="Nostrbook"
@@ -38,159 +43,23 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@nostrbook/mcp"]}
   />
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension (SSE) 
-    │  ○ Remote Extension (Streaming HTTP) 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  Nostrbook
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Nostrbook
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y @nostrbook/mcp@latest
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Nostrbook
-    │
-    ◇  What command should be run?
-    │  npx -y @nostrbook/mcp@latest
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ``` 
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Nostrbook
-    │
-    ◇  What command should be run?
-    │  npx -y @nostrbook/mcp@latest
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```
-  
-  7. Choose No when asked to add environment variables
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  Nostrbook
-    │
-    ◇  What command should be run?
-    │  npx -y @nostrbook/mcp@latest
-    │     
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  No
-    │   
-    // highlight-end
-    └  Added Nostrbook extension
-  ```  
-
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Nostrbook"
+      description="A comprehensive registry of Nostr documentation with structured knowledge"
+      command="npx -y @nostrbook/mcp@latest"
+    />
   </TabItem>
 </Tabs>
 
 ## Example Usage
 
-### Goose Prompt
+### goose Prompt
 
-> _Goose, what is the NIP-61 and how can I implement it?._
+> _goose, what is the NIP-61 and how can I implement it?._
 
 
-### Goose Output
+### goose Output
 
 Note that IDs have been changed to generic ones
 

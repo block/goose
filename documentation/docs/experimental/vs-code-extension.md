@@ -2,6 +2,7 @@
 title: VS Code Extension
 sidebar_label: VS Code Extension
 sidebar_position: 4
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
@@ -21,7 +22,7 @@ This tutorial covers how to install and use the [Goose VS Code Extension](https:
 ## Configuration
 
 <Tabs>
-<TabItem value="desktop" label="Goose Desktop">
+<TabItem value="desktop" label="goose Desktop">
 
 1. Open VS Code
 2. Open the Extensions view in VS Code:
@@ -34,7 +35,7 @@ This tutorial covers how to install and use the [Goose VS Code Extension](https:
 6. Open the Goose: Chat side panel to start a new conversation or view conversation history
 
 </TabItem>
-<TabItem value="cli" label="Goose CLI">
+<TabItem value="cli" label="goose CLI">
 
 Not available via CLI.
 

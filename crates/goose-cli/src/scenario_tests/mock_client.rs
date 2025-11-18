@@ -1,12 +1,11 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use mcp_client::client::{Error, McpClientTrait};
-use mcp_core::ToolError;
+use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
     model::{
-        CallToolResult, Content, GetPromptResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, ReadResourceResult, ServerNotification, Tool,
+        CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
+        ListResourcesResult, ListToolsResult, ReadResourceResult, ServerNotification, Tool,
     },
     object,
 };
@@ -15,9 +14,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio_util::sync::CancellationToken;
 
+type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
+
 pub struct MockClient {
     tools: HashMap<String, Tool>,
-    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync>>,
+    handlers: HashMap<String, Handler>,
 }
 
 impl MockClient {
@@ -30,7 +31,7 @@ impl MockClient {
 
     pub(crate) fn add_tool<F>(mut self, tool: Tool, handler: F) -> Self
     where
-        F: Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync + 'static,
+        F: Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync + 'static,
     {
         let tool_name = tool.name.to_string();
         self.tools.insert(tool_name.clone(), tool);
@@ -90,16 +91,18 @@ impl McpClientTrait for MockClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Value,
+        arguments: Option<serde_json::Map<String, Value>>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
-            match handler(&arguments) {
+            match handler(&Value::Object(arguments.unwrap_or_default())) {
                 Ok(content) => Ok(CallToolResult {
                     content,
                     is_error: None,
+                    structured_content: None,
+                    meta: None,
                 }),
-                Err(e) => Err(Error::UnexpectedResponse),
+                Err(_e) => Err(Error::UnexpectedResponse),
             }
         } else {
             Err(Error::UnexpectedResponse)

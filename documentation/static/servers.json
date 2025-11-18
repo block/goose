@@ -1,161 +1,5 @@
 [
   {
-    "id": "developer",
-    "name": "Developer",
-    "description": "Built-in developer tools for file editing and shell command execution",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "computercontroller",
-    "name": "Computer Controller",
-    "description": "Built-in computer controls for webscraping, file caching, and automations",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "memory",
-    "name": "Memory",
-    "description": "Built-in memory system for persistent context and information storage",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "jetbrains",
-    "name": "JetBrains",
-    "description": "Built-in JetBrains IDE integration for development workflows",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "knowledge_graph_memory",
-    "name": "Knowledge Graph Memory",
-    "description": "Graph-based memory system for persistent knowledge storage",
-    "command": "npx -y @modelcontextprotocol/server-memory",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
-    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "fetch",
-    "name": "Fetch",
-    "description": "Web content fetching and processing capabilities",
-    "command": "uvx mcp-server-fetch",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
-    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "tavily",
-    "name": "Tavily Web Search",
-    "description": "Web search capabilities powered by Tavily",
-    "command": "npx -y tavily-mcp",
-    "link": "https://github.com/tavily-ai/tavily-mcp",
-    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "TAVILY_API_KEY",
-        "description": "API key for Tavily web search service",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "figma",
-    "name": "Figma",
-    "description": "Figma design tool integration",
-    "command": "npx -y @hapins/figma-mcp",
-    "link": "https://github.com/hapins/figma-mcp",
-    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "FIGMA_ACCESS_TOKEN",
-        "description": "Access token from Figma user settings",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "pdf_read",
-    "name": "PDF Reader",
-    "description": "Read large and complex PDF documents",
-    "command": "uvx mcp-read-pdf",
-    "link": "https://github.com/michaelneale/mcp-read-pdf",
-    "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "vscode",
-    "name": "VSCode",
-    "description": "Provides a VSCode IDE integration for development workflows",
-    "command": "npx vscode-mcp-server",
-    "link": "https://github.com/block/vscode-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "speech_mcp",
-    "name": "Speech Interface",
-    "description": "Voice interaction with audio visualization for Goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
-    "command": "uvx -p 3.10.14 speech-mcp@latest",
-    "link": "https://github.com/Kvadratni/speech-mcp",
-    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "pieces",
-    "name": "Pieces",
-    "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
-    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
-    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
-    "installation_notes": "You need to install Pieces first, and have this running.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [],
-    "type": "remote"
-  },
-  {
-    "id": "playwright",
-    "name": "Playwright",
-    "description": "Interact with web pages through structured accessibility snapshots using Playwright",
-    "command": "npx @playwright/mcp@latest",
-    "link": "https://github.com/microsoft/playwright-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "agentql-mcp",
     "name": "AgentQL",
     "description": "Transform unstructured web content into structured data",
@@ -176,14 +20,31 @@
     "id": "alby-mcp",
     "name": "Alby",
     "description": "Bitcoin Lightning Network integration",
-    "command": "npx -y @getalby/alby-mcp-server",
+    "command": "npx -y @getalby/mcp",
     "link": "https://github.com/getalby/mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": [
       {
-        "name": "ALBY_API_TOKEN",
+        "name": "NWC_CONNECTION_STRING",
+        "description": "NWC connection secret from your lightning wallet",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "apify",
+    "name": "Apify",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "command": "npx -y @apify/actors-mcp-server",
+    "link": "https://github.com/apify/apify-mcp-server",
+    "installation_notes": "Install using npx. Requires an Apify API token.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "APIFY_TOKEN",
         "description": "Required environment variable",
         "required": true
       }
@@ -207,32 +68,26 @@
     ]
   },
   {
-    "id": "blender-mcp",
-    "name": "Blender",
-    "description": "3D modeling and animation integration",
-    "command": "npx -y blender-mcp",
-    "link": "https://github.com/ahujasid/blender-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
+    "id": "autovisualiser",
+    "name": "Auto Visualiser",
+    "description": "Automatic data visualisation via MCP-UI",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/autovisualiser",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
-    "id": "brave-mcp",
-    "name": "Brave Search",
-    "description": "Web search capabilities powered by Brave",
-    "command": "npx -y @brave/brave-search-mcp",
-    "link": "https://github.com/brave/brave-search-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "id": "blender-mcp",
+    "name": "Blender",
+    "description": "3D modeling and animation integration (requires local server setup)",
+    "command": "uvx blender-mcp",
+    "link": "https://github.com/ahujasid/blender-mcp",
+    "installation_notes": "Install using uvx package manager. You must first download Blender, add the Blender MCP addon, and start the Blender MCP server.",
     "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "BRAVE_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
+    "endorsed": false,
+    "environmentVariables": []
   },
   {
     "id": "browserbase-mcp",
@@ -252,21 +107,15 @@
     ]
   },
   {
-    "id": "cloudflare-mcp",
-    "name": "Cloudflare",
-    "description": "Cloudflare API integration for DNS and domain management",
-    "command": "npx -y @cloudflare/mcp-server-cloudflare",
-    "link": "https://github.com/cloudflare/mcp-server-cloudflare",
+    "id": "chrome-devtools-mcp",
+    "name": "Chrome DevTools",
+    "description": "Control and inspect a live Chrome browser",
+    "command": "npx -y chrome-devtools-mcp@latest",
+    "link": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "CLOUDFLARE_API_TOKEN",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
+    "environmentVariables": []
   },
   {
     "id": "cloudinary-asset-management-mcp",
@@ -298,12 +147,41 @@
   {
     "id": "cognee-mcp",
     "name": "Cognee",
-    "description": "Knowledge graph and cognitive AI capabilities",
-    "command": "uvx cognee-mcp",
+    "description": "Knowledge graph and cognitive AI capabilities (requires local server setup)",
+    "command": "uv --directory /path/to/cognee-mcp run python src/server.py",
     "link": "https://github.com/topoteretes/cognee",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "This is a local extension. You must first clone and install the Cognee MCP server locally before using this extension. Update the placeholder path before running the 'goose session' command.",
     "is_builtin": false,
-    "endorsed": false,
+    "endorsed": true,
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "LLM_API_KEY",
+        "description": "API key for your LLM provider",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "computercontroller",
+    "name": "Computer Controller",
+    "description": "Built-in computer controls for webscraping, file caching, and automations",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "container-use",
+    "name": "Container Use",
+    "description": "Integrate container workflows with goose using the Container-Use MCP",
+    "command": "npx -y mcp-remote https://container-use.com/mcp",
+    "link": "https://container-use.com",
+    "installation_notes": "Requires Node.js and Docker.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -318,12 +196,35 @@
     "environmentVariables": []
   },
   {
+    "id": "developer",
+    "name": "Developer",
+    "description": "Built-in developer tools for file editing and shell command execution",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
+    "installation_notes": "This is a built-in extension that comes with goose and is enabled by default. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "dev.to",
+    "name": "Dev.to",
+    "description": "Access Dev.to articles and content (requires local server setup)",
+    "url": "http://localhost:3000/mcp",
+    "link": "https://github.com/nickytonline/dev-to-mcp",
+    "installation_notes": "This is a local extension. You must first clone, install, and run the Dev.to MCP server locally before adding this extension.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "elevenlabs-mcp",
     "name": "ElevenLabs",
     "description": "Text-to-speech and voice synthesis",
-    "command": "npx -y elevenlabs-mcp",
+    "command": "uvx elevenlabs-mcp",
     "link": "https://github.com/elevenlabs/elevenlabs-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
@@ -335,12 +236,35 @@
     ]
   },
   {
-    "id": "filesystem-mcp",
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Web content fetching and processing capabilities",
+    "command": "uvx mcp-server-fetch",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Convert Figma designs into code and extract design context (requires local setup)",
+    "url": "http://127.0.0.1:3845/mcp",
+    "link": "",
+    "installation_notes": "The Figma desktop app must be running with the MCP server enabled.",
+    "is_builtin": false,
+    "endorsed": true,
+    "type": "streamable-http",
+    "environmentVariables": []
+  },
+  {
+    "id": "filesystem",
     "name": "Filesystem",
-    "description": "File system operations and management",
-    "command": "uvx mcp-server-filesystem",
+    "description": "File system operations and management (requires updating local paths)",
+    "command": "npx -y @modelcontextprotocol/server-filesystem /path/to/dir1 /path/to/dir2",
     "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using uvx package manager.",
+    "installation_notes": "Install using npx package manager. Update the placeholder paths before running the 'goose session' command. If installing from the link, you must update the paths from the Extensions page before activating the extension.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -351,61 +275,121 @@
     "description": "GitHub repository management and operations",
     "url": "https://api.githubcopilot.com/mcp/",
     "link": "https://github.com/github/github-mcp-server",
-    "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
+    "installation_notes": "This is a remote extension that requires a GitHub Personal Access Token as a Request Header e.g Authorization: Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [
+    "environmentVariables": [],
+    "headers": [
       {
-        "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "description": "Required environment variable",
+        "name": "Authorization",
+        "description": "Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>",
         "required": true
       }
     ],
     "type": "streamable-http"
   },
   {
-    "id": "google-drive-mcp",
-    "name": "Google Drive",
-    "description": "Google Drive file management and operations",
-    "command": "npx -y @google/drive-mcp",
-    "link": "https://github.com/google/drive-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "id": "gitmcp",
+    "name": "GitMCP",
+    "description": "Gets latest documentation for any GitHub project",
+    "command": "npx -y mcp-remote https://gitmcp.io/docs",
+    "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_DRIVE_CREDENTIALS",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
+    "endorsed": false,
+    "environmentVariables": []
   },
   {
-    "id": "google-maps-mcp",
-    "name": "Google Maps",
-    "description": "Maps, geocoding, and location services",
-    "command": "npx -y @google/maps-mcp",
-    "link": "https://github.com/google/maps-mcp",
+    "id": "goose-docs",
+    "name": "goose Docs",
+    "description": "GitMCP for goose documentation",
+    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "i-ching",
+    "name": "I Ching",
+    "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
+    "command": "i-ching-mcp-server",
+    "link": "https://github.com/threemachines/i-ching",
+    "installation_notes": "Install from crates.io using: cargo install i-ching",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "jetbrains",
+    "name": "JetBrains",
+    "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
+    "url": "http://localhost:<PORT>/sse",
+    "type": "remote",
+    "link": "https://github.com/JetBrains/mcp-jetbrains",
+    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
+    "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_MAPS_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
+    "environmentVariables": []
+  },
+  {
+    "id": "knowledge_graph_memory",
+    "name": "Knowledge Graph Memory",
+    "description": "Graph-based memory system for persistent knowledge storage",
+    "command": "npx -y @modelcontextprotocol/server-memory",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
   },
   {
     "id": "mbot-mcp",
     "name": "MBot",
-    "description": "Chatbot and conversational AI integration",
-    "command": "npx -y mbot-mcp",
+    "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
+    "command": "/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar",
     "link": "https://github.com/deemkeen/mbotmcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "This is a local extension. You must first download the JAR file from the repository, install Java, and update the placeholder paths before running the 'goose session' command.",
     "is_builtin": false,
     "endorsed": false,
+    "show_install_link": false,
+    "environmentVariables": [
+      {
+        "name": "MQTT_SERVER_URI",
+        "description": "MQTT server URI (example: tcp://1.2.3.4:1883)",
+        "required": true
+      },
+      {
+        "name": "MQTT_USERNAME", 
+        "description": "MQTT username (empty string if no auth required)",
+        "required": true
+      },
+      {
+        "name": "MQTT_PASSWORD",
+        "description": "MQTT password (empty string if no auth required)", 
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Built-in memory system for persistent context and information storage",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -423,9 +407,10 @@
     "id": "neon",
     "name": "Neon",
     "description": "Manage Neon Postgres databases, projects, and branches",
-    "command": "npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>",
-    "link": "https://github.com/neondatabase-labs/mcp-server-neon",
-    "installation_notes": "Install using npx package manager (add your Neon API key to the command) or connect to the remote server.",
+    "type": "streamable-http",
+    "url": "https://mcp.neon.tech/mcp",
+    "link": "https://github.com/neondatabase/mcp-server-neon",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -434,7 +419,7 @@
     "id": "netlify-mcp",
     "name": "Netlify",
     "description": "Web deployment and hosting automation",
-    "command": "npx -y netlify-mcp",
+    "command": "npx -y @netlify/mcp",
     "link": "https://github.com/netlify/netlify-mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
@@ -451,39 +436,62 @@
     "id": "nostrbook-mcp",
     "name": "NostrBook",
     "description": "Nostr protocol integration for decentralized social",
-    "command": "npx -y nostrbook-mcp",
-    "link": "https://github.com/nostrbook/nostrbook-mcp",
+    "command": "npx -y @nostrbook/mcp@latest",
+    "link": "https://gitlab.com/soapbox-pub/nostrbook",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
   },
   {
-    "id": "postgres-mcp",
-    "name": "PostgreSQL",
-    "description": "PostgreSQL database integration",
-    "command": "uvx mcp-server-postgres",
-    "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "POSTGRES_CONNECTION_STRING",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "puppeteer-mcp",
-    "name": "Puppeteer",
-    "description": "Browser automation and web scraping",
-    "command": "npx -y @puppeteer/mcp-server",
-    "link": "https://github.com/puppeteer/mcp-server",
+    "id": "openmetadata",
+    "name": "OpenMetadata",
+    "description": "Bring OpenMetadata's single source of truth across your data systems to agents",
+    "command": "npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}",
+    "link": "https://github.com/open-metadata/OpenMetadata",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
-    "endorsed": false,
+    "endorsed": true,
+    "environmentVariables": [
+        {
+            "name": "AUTH_HEADER",
+            "description": "OpenMetadata Personal Access Token",
+            "required": true
+        }
+    ]
+  },  
+  {
+    "id": "pdf_read",
+    "name": "PDF Reader",
+    "description": "Read large and complex PDF documents",
+    "command": "uvx mcp-read-pdf",
+    "link": "https://github.com/michaelneale/mcp-read-pdf",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "pieces",
+    "name": "Pieces",
+    "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
+    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
+    "installation_notes": "You need to install Pieces first, and have this running.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [],
+    "type": "remote"
+  },
+  {
+    "id": "playwright",
+    "name": "Playwright",
+    "description": "Interact with web pages through structured accessibility snapshots using Playwright",
+    "command": "npx @playwright/mcp@latest",
+    "link": "https://github.com/microsoft/playwright-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -520,6 +528,18 @@
     "environmentVariables": []
   },
   {
+    "id": "rube-mcp",
+    "name": "Rube",
+    "description": "Connect with 500+ apps like Slack, Gmail, Notion and more through unified integrations",
+    "type": "streamable-http",
+    "url": "https://rube.app/mcp",
+    "link": "https://rube.app",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "selenium-mcp",
     "name": "Selenium",
     "description": "Web browser automation and testing",
@@ -553,12 +573,47 @@
     ]
   },
   {
+    "id": "supabase",
+    "name": "Supabase",
+    "description": "Connect your Supabase projects to AI assistants. Manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly from your MCP client.",
+    "type": "streamable-http",
+    "url": "https://mcp.supabase.com/mcp",
+    "link": "https://github.com/supabase-community/supabase-mcp",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "SUPABASE_PERSONAL_ACCESS_TOKEN",
+        "description": "Personal access token (optional; use if not authenticating via browser OAuth)",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily Web Search",
+    "description": "Web search capabilities powered by Tavily",
+    "command": "npx -y tavily-mcp",
+    "link": "https://github.com/tavily-ai/tavily-mcp",
+    "installation_notes": "Install using npx package manager. Requires Tavily API key.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "TAVILY_API_KEY",
+        "description": "API key for Tavily web search service",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "tutorial-mcp",
     "name": "Tutorial",
     "description": "Built-in tutorial and learning management system",
     "command": "",
-    "link": "https://github.com/tutorial/tutorial-mcp",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/tutorial",
+    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
     "endorsed": false,
     "environmentVariables": []
@@ -569,27 +624,7 @@
     "description": "YouTube video transcript extraction",
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
-    "installation_notes": "Install using uv package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-  {
-    "id": "goose-docs",
-    "name": "Goose Docs",
-    "description": "GitMCP for Goose documentation",
-    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
-    "link": "https://github.com/idosal/git-mcp",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-  {
-    "id": "gitmcp",
-    "name": "GitMCP",
-    "description": "Gets latest documentation for any GitHub project",
-    "command": "npx -y mcp-remote https://gitmcp.io/docs",
-    "link": "https://github.com/idosal/git-mcp",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

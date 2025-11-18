@@ -1,19 +1,20 @@
 use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
+
 use cliclack::{confirm, multiselect, select};
-use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
-use goose::session::{self, Identifier};
+use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::Write;
+use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
 
-pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
+pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
-        println!("- {}", session.id);
+        println!("- {} {}", session.id, session.name);
     }
 
     let should_delete = confirm("Are you sure you want to delete these sessions?")
@@ -22,8 +23,7 @@ pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
 
     if should_delete {
         for session in sessions {
-            fs::remove_file(session.path.clone())
-                .with_context(|| format!("Failed to remove session file '{}'", session.path))?;
+            SessionManager::delete_session(&session.id).await?;
             println!("Session `{}` removed.", session.id);
         }
     } else {
@@ -33,7 +33,7 @@ pub fn remove_sessions(sessions: Vec<SessionInfo>) -> Result<()> {
     Ok(())
 }
 
-fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<SessionInfo>> {
+fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Session>> {
     if sessions.is_empty() {
         println!("No sessions to delete.");
         return Ok(vec![]);
@@ -43,16 +43,16 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
         "Select sessions to delete (use spacebar, Enter to confirm, Ctrl+C to cancel):",
     );
 
-    let display_map: std::collections::HashMap<String, SessionInfo> = sessions
+    let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.metadata.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.metadata.description
+                &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
-            let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
+            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();
@@ -63,7 +63,7 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
 
     let selected_display_texts: Vec<String> = selector.interact()?;
 
-    let selected_sessions: Vec<SessionInfo> = selected_display_texts
+    let selected_sessions: Vec<Session> = selected_display_texts
         .into_iter()
         .filter_map(|text| display_map.get(&text).cloned())
         .collect();
@@ -71,8 +71,12 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
     Ok(selected_sessions)
 }
 
-pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
-    let all_sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
+pub async fn handle_session_remove(
+    session_id: Option<String>,
+    name: Option<String>,
+    regex_string: Option<String>,
+) -> Result<()> {
+    let all_sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to retrieve sessions: {:?}", e);
@@ -80,13 +84,22 @@ pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -
         }
     };
 
-    let matched_sessions: Vec<SessionInfo>;
+    let matched_sessions: Vec<Session>;
 
-    if let Some(id_val) = id {
+    if let Some(id_val) = session_id {
         if let Some(session) = all_sessions.iter().find(|s| s.id == id_val) {
             matched_sessions = vec![session.clone()];
         } else {
-            return Err(anyhow::anyhow!("Session '{}' not found.", id_val));
+            return Err(anyhow::anyhow!("Session ID '{}' not found.", id_val));
+        }
+    } else if let Some(name_val) = name {
+        if let Some(session) = all_sessions.iter().find(|s| s.name == name_val) {
+            matched_sessions = vec![session.clone()];
+        } else {
+            return Err(anyhow::anyhow!(
+                "Session with name '{}' not found.",
+                name_val
+            ));
         }
     } else if let Some(regex_val) = regex_string {
         let session_regex = Regex::new(&regex_val)
@@ -112,23 +125,36 @@ pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -
         return Ok(());
     }
 
-    remove_sessions(matched_sessions)
+    remove_sessions(matched_sessions).await
 }
 
-pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
-    let sort_order = if ascending {
-        SortOrder::Ascending
-    } else {
-        SortOrder::Descending
-    };
+pub async fn handle_session_list(
+    format: String,
+    ascending: bool,
+    working_dir: Option<PathBuf>,
+    limit: Option<usize>,
+) -> Result<()> {
+    let mut sessions = SessionManager::list_sessions().await?;
 
-    let sessions = match get_valid_sorted_sessions(sort_order) {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to list sessions"));
-        }
-    };
+    if let Some(ref pat) = working_dir {
+        let pat_lower = pat.to_string_lossy().to_lowercase();
+        sessions.retain(|s| {
+            s.working_dir
+                .to_string_lossy()
+                .to_lowercase()
+                .contains(&pat_lower)
+        });
+    }
+
+    if ascending {
+        sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
+    } else {
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    }
+
+    if let Some(n) = limit {
+        sessions.truncate(n);
+    }
 
     match format.as_str() {
         "json" => {
@@ -138,94 +164,95 @@ pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Re
             if sessions.is_empty() {
                 println!("No sessions found");
                 return Ok(());
-            } else {
-                println!("Available sessions:");
-                for SessionInfo {
-                    id,
-                    path,
-                    metadata,
-                    modified,
-                } in sessions
-                {
-                    let description = if metadata.description.is_empty() {
-                        "(none)"
-                    } else {
-                        &metadata.description
-                    };
-                    let output = format!("{} - {} - {}", id, description, modified);
-                    if verbose {
-                        println!("  {}", output);
-                        println!("    Path: {}", path);
-                    } else {
-                        println!("{}", output);
-                    }
-                }
+            }
+
+            println!("Available sessions:");
+            for session in sessions {
+                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
+                println!("{}", output);
             }
         }
     }
     Ok(())
 }
 
-/// Export a session to Markdown without creating a full Session object
-///
-/// This function directly reads messages from the session file and converts them to Markdown
-/// without creating an Agent or prompting about working directories.
-pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf>) -> Result<()> {
-    // Get the session file path
-    let session_file_path = match goose::session::get_path(identifier.clone()) {
-        Ok(path) => path,
+pub async fn handle_session_export(
+    session_id: String,
+    output_path: Option<PathBuf>,
+    format: String,
+) -> Result<()> {
+    let session = match SessionManager::get_session(&session_id, true).await {
+        Ok(session) => session,
         Err(e) => {
-            return Err(anyhow::anyhow!("Invalid session identifier: {}", e));
+            return Err(anyhow::anyhow!(
+                "Session '{}' not found or failed to read: {}",
+                session_id,
+                e
+            ));
         }
     };
 
-    if !session_file_path.exists() {
-        return Err(anyhow::anyhow!(
-            "Session file not found (expected path: {})",
-            session_file_path.display()
-        ));
-    }
-
-    // Read messages directly without using Session
-    let messages = match goose::session::read_messages(&session_file_path) {
-        Ok(msgs) => msgs,
-        Err(e) => {
-            return Err(anyhow::anyhow!("Failed to read session messages: {}", e));
+    let output = match format.as_str() {
+        "json" => serde_json::to_string_pretty(&session)?,
+        "yaml" => serde_yaml::to_string(&session)?,
+        "markdown" => {
+            let conversation = session
+                .conversation
+                .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
+            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
         }
+        _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
 
-    // Generate the markdown content using the export functionality
-    let markdown = export_session_to_markdown(messages, &session_file_path, None);
-
-    // Output the markdown
-    if let Some(output) = output_path {
-        fs::write(&output, markdown)
-            .with_context(|| format!("Failed to write to output file: {}", output.display()))?;
-        println!("Session exported to {}", output.display());
+    if let Some(output_path) = output_path {
+        fs::write(&output_path, output).with_context(|| {
+            format!("Failed to write to output file: {}", output_path.display())
+        })?;
+        println!("Session exported to {}", output_path.display());
     } else {
-        println!("{}", markdown);
+        println!("{}", output);
     }
 
     Ok(())
 }
 
-/// Convert a list of messages to markdown format for session export
-///
-/// This function handles the formatting of a complete session including headers,
-/// message organization, and proper tool request/response pairing.
+pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
+    println!(
+        "Generating diagnostics bundle for session '{}'...",
+        session_id
+    );
+
+    let diagnostics_data = generate_diagnostics(session_id).await.with_context(|| {
+        format!(
+            "Failed to write to generate diagnostics bundle for session '{}'",
+            session_id
+        )
+    })?;
+
+    let output_file = if let Some(path) = output_path {
+        path.clone()
+    } else {
+        PathBuf::from(format!("diagnostics_{}.zip", session_id))
+    };
+
+    let mut file = fs::File::create(&output_file).context(format!(
+        "Failed to create output file: {}",
+        output_file.display()
+    ))?;
+
+    file.write_all(&diagnostics_data)
+        .context("Failed to write diagnostics data")?;
+
+    println!("Diagnostics bundle saved to: {}", output_file.display());
+
+    Ok(())
+}
+
 fn export_session_to_markdown(
-    messages: Vec<goose::message::Message>,
-    session_file: &Path,
-    session_name_override: Option<&str>,
+    messages: Vec<goose::conversation::message::Message>,
+    session_name: &String,
 ) -> String {
     let mut markdown_output = String::new();
-
-    let session_name = session_name_override.unwrap_or_else(|| {
-        session_file
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Unnamed Session")
-    });
 
     markdown_output.push_str(&format!("# Session Export: {}\n\n", session_name));
 
@@ -242,10 +269,12 @@ fn export_session_to_markdown(
     for message in &messages {
         // Check if this is a User message containing only ToolResponses
         let is_only_tool_response = message.role == rmcp::model::Role::User
-            && message
-                .content
-                .iter()
-                .all(|content| matches!(content, goose::message::MessageContent::ToolResponse(_)));
+            && message.content.iter().all(|content| {
+                matches!(
+                    content,
+                    goose::conversation::message::MessageContent::ToolResponse(_)
+                )
+            });
 
         // If the previous message had tool requests and this one is just tool responses,
         // don't create a new User section - we'll attach the responses to the tool calls
@@ -274,11 +303,12 @@ fn export_session_to_markdown(
         markdown_output.push_str("\n\n---\n\n");
 
         // Check if this message has any tool requests, to handle the next message differently
-        if message
-            .content
-            .iter()
-            .any(|content| matches!(content, goose::message::MessageContent::ToolRequest(_)))
-        {
+        if message.content.iter().any(|content| {
+            matches!(
+                content,
+                goose::conversation::message::MessageContent::ToolRequest(_)
+            )
+        }) {
             skip_next_if_tool_response = true;
         }
     }
@@ -289,15 +319,8 @@ fn export_session_to_markdown(
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one
-pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
-    // Get sessions sorted by modification date (newest first)
-    let sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to list sessions"));
-        }
-    };
+pub async fn prompt_interactive_session_selection() -> Result<String> {
+    let sessions = SessionManager::list_sessions().await?;
 
     if sessions.is_empty() {
         return Err(anyhow::anyhow!("No sessions found"));
@@ -307,19 +330,17 @@ pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
     let mut selector = select("Select a session to export:");
 
     // Map to display text
-    let display_map: std::collections::HashMap<String, SessionInfo> = sessions
+    let display_map: std::collections::HashMap<String, Session> = sessions
         .iter()
         .map(|s| {
-            let desc = if s.metadata.description.is_empty() {
-                "(no description)"
+            let desc = if s.name.is_empty() {
+                "(no name)"
             } else {
-                &s.metadata.description
+                &s.name
             };
+            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 
-            // Truncate description if too long
-            let truncated_desc = safe_truncate(desc, 40);
-
-            let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
+            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();
@@ -342,7 +363,7 @@ pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
 
     // Retrieve the selected session
     if let Some(session) = display_map.get(&selected_display_text) {
-        Ok(goose::session::Identifier::Name(session.id.clone()))
+        Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
     }

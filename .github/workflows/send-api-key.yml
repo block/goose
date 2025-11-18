@@ -1,0 +1,71 @@
+name: Send API Key on PR Merge
+
+on:
+  pull_request_target:
+    types: [closed]
+    paths:
+      - 'documentation/src/pages/recipes/data/recipes/**'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  send-api-key:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo at merge commit
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Check if recipe files were added or modified in merged PR
+        id: recipe_changes
+        run: |
+          set -e
+          echo "🔍 Checking if recipe files were added or modified in merged PR..."
+          
+          MERGE_COMMIT="${{ github.event.pull_request.merge_commit_sha }}"
+          echo "Merge commit: $MERGE_COMMIT"
+
+          # Get parent commit of the merge
+          PARENT_COMMIT=$(git rev-parse "$MERGE_COMMIT^1")
+          echo "Parent commit: $PARENT_COMMIT"
+
+          # Get list of added or modified files in the PR (ignore deletions)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM "$PARENT_COMMIT" "$MERGE_COMMIT")
+
+          echo "Files added/modified in merged PR:"
+          echo "$CHANGED_FILES"
+          echo ""
+
+          # Detect recipe changes only
+          if echo "$CHANGED_FILES" | grep -q "^documentation/src/pages/recipes/data/recipes/"; then
+            echo "recipe_files_changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Recipe files were added/modified in merged PR - proceeding with API key sending"
+          else
+            echo "recipe_files_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No recipe files were added/modified in merged PR - skipping API key sending"
+          fi
+
+      - name: Set up Python
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies and run email script
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PROVISIONING_API_KEY: ${{ secrets.PROVISIONING_API_KEY }}
+          EMAIL_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          pip install requests sendgrid email-validator
+          python .github/scripts/send_key.py

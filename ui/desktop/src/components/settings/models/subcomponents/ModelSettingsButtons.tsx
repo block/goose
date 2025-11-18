@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../../ui/button';
-import { AddModelModal } from './AddModelModal';
-import type { View } from '../../../../App';
+import { SwitchModelModal } from './SwitchModelModal';
+import type { View } from '../../../../utils/navigationUtils';
 import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface ConfigureModelButtonsProps {
@@ -23,7 +23,11 @@ export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsP
         Switch models
       </Button>
       {isAddModelModalOpen ? (
-        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+        <SwitchModelModal
+          sessionId={null}
+          setView={setView}
+          onClose={() => setIsAddModelModalOpen(false)}
+        />
       ) : null}
       {!hasPredefinedModels && (
         <Button

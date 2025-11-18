@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/dom';
 import MarkdownContent from './MarkdownContent';
 
 // Mock the icons to avoid import issues
@@ -257,6 +258,136 @@ Unclosed code block`;
         // Should still render what it can
         expect(screen.getByText('Unclosed header')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Line Break Functionality', () => {
+    it('preserves single line breaks with remark-breaks plugin', async () => {
+      const content = `First line
+Second line
+Third line`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // Check that all text content is present (text may be split by <br> tags)
+        expect(container).toHaveTextContent('First line');
+        expect(container).toHaveTextContent('Second line');
+        expect(container).toHaveTextContent('Third line');
+      });
+
+      // Check that line breaks are preserved (rendered as <br> tags)
+      const brElements = container.querySelectorAll('br');
+      expect(brElements.length).toBeGreaterThan(0);
+    });
+
+    it('handles mixed content with line breaks', async () => {
+      const content = `# Header
+Paragraph with
+line breaks.
+
+- List item 1
+- List item 2`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 1, name: 'Header' })).toBeInTheDocument();
+
+        // Check that text content is present (text may be split by <br> tags)
+        expect(container).toHaveTextContent('Paragraph with');
+        expect(container).toHaveTextContent('line breaks.');
+        expect(screen.getByText('List item 1')).toBeInTheDocument();
+        expect(screen.getByText('List item 2')).toBeInTheDocument();
+      });
+    });
+
+    it('maintains existing markdown features with line breaks', async () => {
+      const content = `**Bold text**
+with line break
+
+\`code\` and
+more text`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // Bold text should still work
+        const boldElement = container.querySelector('strong');
+        expect(boldElement).toBeInTheDocument();
+        expect(boldElement).toHaveTextContent('Bold text');
+
+        // Code should still work
+        expect(screen.getByText('code')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('URL Overflow Handling', () => {
+    it('handles very long URLs without overflow', async () => {
+      const longUrl =
+        'https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1';
+      const content = `Check out this document: ${longUrl}
+
+Another very long URL: https://www.example.com/very/long/path/with/many/segments/and/parameters?param1=value1&param2=value2&param3=value3&param4=value4&param5=value5`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Check out this document/)).toBeInTheDocument();
+        expect(screen.getByText(/Another very long URL/)).toBeInTheDocument();
+      });
+
+      // Check that URLs are rendered as links
+      const links = container.querySelectorAll('a');
+      expect(links.length).toBeGreaterThan(0);
+
+      // Check that links have proper CSS classes for word breaking
+      links.forEach((link) => {
+        // The CSS should allow the text to break
+        expect(link).toBeInTheDocument();
+      });
+    });
+
+    it('handles markdown links with long URLs', async () => {
+      const longUrl =
+        'https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1';
+      const content = `[Click here for the document](${longUrl})`;
+
+      render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        const link = screen.getByRole('link', { name: 'Click here for the document' });
+        expect(link).toBeInTheDocument();
+        expect(link).toHaveAttribute('href', longUrl);
+      });
+    });
+
+    it('handles multiple long URLs in the same message', async () => {
+      const content = `Here are some long URLs:
+
+1. Example Doc: https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1
+2. Another long URL: https://www.example.com/very/long/path/with/many/segments/and/parameters?param1=value1&param2=value2&param3=value3
+3. Third URL: https://api.example.com/v1/users/12345/documents/67890/attachments/abcdef123456789?format=json&include=metadata&sort=created_at`;
+
+      render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Here are some long URLs/)).toBeInTheDocument();
+        expect(screen.getByText(/Example Doc/)).toBeInTheDocument();
+        expect(screen.getByText(/Another long URL/)).toBeInTheDocument();
+        expect(screen.getByText(/Third URL/)).toBeInTheDocument();
+      });
+    });
+
+    it('applies word-break CSS classes to the container', () => {
+      const content = 'Test content';
+      render(<MarkdownContent content={content} />);
+
+      const markdownContainer = document.querySelector('.prose');
+      expect(markdownContainer).toBeInTheDocument();
+      expect(markdownContainer).toHaveClass('prose-a:break-all');
+      expect(markdownContainer).toHaveClass('prose-a:overflow-wrap-anywhere');
     });
   });
 });

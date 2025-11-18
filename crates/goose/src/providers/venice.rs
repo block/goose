@@ -9,11 +9,11 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::map_http_error_to_provider_error;
-use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
+
+use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
-use mcp_core::{ToolCall, ToolResult};
-use rmcp::model::{Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, Role, Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -78,12 +78,12 @@ pub struct VeniceProvider {
     base_path: String,
     models_path: String,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(VeniceProvider);
-
 impl VeniceProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(mut model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("VENICE_API_KEY")?;
         let host: String = config
@@ -107,6 +107,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
+            name: Self::metadata().name,
         };
 
         Ok(instance)
@@ -212,6 +213,10 @@ impl Provider for VeniceProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -219,11 +224,6 @@ impl Provider for VeniceProvider {
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self.api_client.response_get(&self.models_path).await?;
         let json: serde_json::Value = response.json().await?;
-
-        // Print legend once so users know what flags mean
-        println!(
-            "Capabilities:\n  c=code\n  f=function calls (goose supported models)\n  s=schema\n  v=vision\n  w=web search\n  r=reasoning"
-        );
 
         let mut models = json["data"]
             .as_array()
@@ -246,12 +246,13 @@ impl Provider for VeniceProvider {
     }
 
     #[tracing::instrument(
-        skip(_system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
-        _system: &str,
+        model_config: &ModelConfig,
+        system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
@@ -259,10 +260,10 @@ impl Provider for VeniceProvider {
         let mut formatted_messages = Vec::new();
 
         // Add the system message if present
-        if !_system.is_empty() {
+        if !system.is_empty() {
             formatted_messages.push(json!({
                 "role": "system",
-                "content": _system
+                "content": system
             }));
         }
 
@@ -338,12 +339,19 @@ impl Provider for VeniceProvider {
                         .iter()
                         .filter_map(|tr| {
                             if let ToolResult::Ok(tool_call) = &tr.tool_call {
+                                // Safely convert arguments to a JSON string
+                                let args_str = tool_call
+                                    .arguments
+                                    .as_ref() // borrow the Option contents
+                                    .map(|map| serde_json::to_string(map).unwrap_or_default())
+                                    .unwrap_or_default();
+
                                 // Log tool call details for debugging
                                 tracing::debug!(
                                     "Tool call conversion: id={}, name={}, args_len={}",
                                     tr.id,
                                     tool_call.name,
-                                    tool_call.arguments.to_string().len()
+                                    args_str.len()
                                 );
 
                                 // Convert to Venice format
@@ -352,7 +360,7 @@ impl Provider for VeniceProvider {
                                     "type": "function",
                                     "function": {
                                         "name": tool_call.name,
-                                        "arguments": tool_call.arguments.to_string()
+                                        "arguments": args_str
                                     }
                                 }))
                             } else {
@@ -391,7 +399,7 @@ impl Provider for VeniceProvider {
 
         // Build Venice-specific payload
         let mut payload = json!({
-            "model": strip_flags(&self.model.model_name),
+            "model": strip_flags(&model_config.model_name),
             "messages": formatted_messages,
             "stream": false,
             "temperature": 0.7,
@@ -452,8 +460,10 @@ impl Provider for VeniceProvider {
                         function["arguments"].clone()
                     };
 
-                    // Create a ToolCall using the function name and arguments
-                    let tool_call = ToolCall { name, arguments };
+                    let tool_call = CallToolRequestParam {
+                        name: name.into(),
+                        arguments: Some(object(arguments)),
+                    };
 
                     // Create a ToolRequest MessageContent
                     let tool_request = MessageContent::tool_request(id, ToolResult::Ok(tool_call));
@@ -470,7 +480,7 @@ impl Provider for VeniceProvider {
                 return Ok((
                     message,
                     ProviderUsage::new(
-                        strip_flags(&self.model.model_name).to_string(),
+                        strip_flags(&model_config.model_name).to_string(),
                         Usage::default(),
                     ),
                 ));
@@ -493,11 +503,11 @@ impl Provider for VeniceProvider {
 
         // Extract usage
         let usage_data = &response_json["usage"];
-        let usage = Usage {
-            input_tokens: usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
-            output_tokens: usage_data["completion_tokens"].as_i64().map(|v| v as i32),
-            total_tokens: usage_data["total_tokens"].as_i64().map(|v| v as i32),
-        };
+        let usage = Usage::new(
+            usage_data["prompt_tokens"].as_i64().map(|v| v as i32),
+            usage_data["completion_tokens"].as_i64().map(|v| v as i32),
+            usage_data["total_tokens"].as_i64().map(|v| v as i32),
+        );
 
         Ok((
             Message::new(Role::Assistant, Utc::now().timestamp(), content),

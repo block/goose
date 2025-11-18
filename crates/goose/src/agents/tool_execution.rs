@@ -8,10 +8,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
-use crate::message::{Message, ToolRequest};
+use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
-use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
@@ -32,12 +30,15 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
+use crate::conversation::message::{Message, ToolRequest};
+use crate::session::Session;
+use crate::tool_inspection::get_security_finding_id_from_results;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \
     If there are no alternative methods to proceed, clearly explain the situation and STOP.";
 
-pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool call was skipped in Goose chat mode. \
+pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool call was skipped in goose chat mode. \
                                         DO NOT apologize for skipping the tool call. DO NOT say sorry. \
                                         Provide an explanation of what the tool call would do, structured as a \
                                         plan for the user. Again, DO NOT apologize. \
@@ -51,26 +52,48 @@ impl Agent {
         &'a self,
         tool_requests: &'a [ToolRequest],
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
-        permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
+        session: &'a Session,
+        inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
+            for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
+                    // Find the corresponding inspection result for this tool request
+                    let security_message = inspection_results.iter()
+                        .find(|result| result.tool_request_id == request.id)
+                        .and_then(|result| {
+                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                                Some(message.clone())
+                            } else {
+                                None
+                            }
+                        });
+
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),
-                        tool_call.name.clone(),
-                        tool_call.arguments.clone(),
-                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                        tool_call.name.to_string().clone(),
+                        tool_call.arguments.clone().unwrap_or_default(),
+                        security_message,
                     );
                     yield confirmation;
 
                     let mut rx = self.confirmation_rx.lock().await;
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
+                            // Log user decision if this was a security alert
+                            if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
+                                tracing::info!(
+                                    counter.goose.prompt_injection_user_decisions = 1,
+                                    decision = ?confirmation.permission,
+                                    finding_id = %finding_id,
+                                    "User security decision"
+                                );
+                            }
+
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {
@@ -84,8 +107,11 @@ impl Agent {
                                     ),
                                 }));
 
+                                // Update the shared permission manager when user selects "Always Allow"
                                 if confirmation.permission == Permission::AlwaysAllow {
-                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
+                                    self.tool_inspection_manager
+                                        .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                        .await;
                                 }
                             } else {
                                 // User declined - add declined response

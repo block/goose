@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
-import { getSessionHistory } from '../api';
+import {
+  createUserMessage,
+  getThinkingMessage,
+  getCompactingMessage,
+  hasCompletedToolCalls,
+} from '../types/message';
+import { Conversation, Message, Role, TokenState } from '../api';
+
+import { getSession, Session } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -14,19 +21,6 @@ function generateMessageId(): string {
 const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-export interface SessionMetadata {
-  workingDir: string;
-  description: string;
-  scheduleId: string | null;
-  messageCount: number;
-  totalTokens: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  accumulatedTotalTokens: number | null;
-  accumulatedInputTokens: number | null;
-  accumulatedOutputTokens: number | null;
-}
 
 export interface NotificationEvent {
   type: 'Notification';
@@ -41,10 +35,11 @@ export interface NotificationEvent {
 
 // Event types for SSE stream
 type MessageEvent =
-  | { type: 'Message'; message: Message }
+  | { type: 'Message'; message: Message; token_state: TokenState }
   | { type: 'Error'; error: string }
-  | { type: 'Finish'; reason: string }
+  | { type: 'Finish'; reason: string; token_state: TokenState }
   | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'UpdateConversation'; conversation: Conversation }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -165,11 +160,14 @@ export interface UseMessageStreamHelpers {
   /** Current model info from the backend */
   currentModelInfo: { model: string; mode: string } | null;
 
-  /** Session metadata including token counts */
-  sessionMetadata: SessionMetadata | null;
+  /** Session including token counts */
+  session: Session | null;
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
+
+  /** Real-time token state from server */
+  tokenState: TokenState;
 }
 
 /**
@@ -201,7 +199,15 @@ export function useMessageStream({
   const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(
     null
   );
-  const [sessionMetadata, setSessionMetadata] = useState<SessionMetadata | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [tokenState, setTokenState] = useState<TokenState>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    accumulatedInputTokens: 0,
+    accumulatedOutputTokens: 0,
+    accumulatedTotalTokens: 0,
+  });
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -285,20 +291,15 @@ export function useMessageStream({
                     // Transition from waiting to streaming on first message
                     mutateChatState(ChatState.Streaming);
 
+                    setTokenState(parsedEvent.token_state);
+
                     // Create a new message object with the properties preserved or defaulted
-                    const newMessage = {
+                    const newMessage: Message = {
                       ...parsedEvent.message,
-                      // Ensure the message has an ID - if not provided, generate one
-                      id: parsedEvent.message.id || generateMessageId(),
-                      // Only set to true if it's undefined (preserve false values)
-                      display:
-                        parsedEvent.message.display === undefined
-                          ? true
-                          : parsedEvent.message.display,
-                      sendToLLM:
-                        parsedEvent.message.sendToLLM === undefined
-                          ? true
-                          : parsedEvent.message.sendToLLM,
+                      id: parsedEvent.message.id || undefined,
+                      role: parsedEvent.message.role as Role,
+                      created: parsedEvent.message.created || Date.now(),
+                      content: parsedEvent.message.content || [],
                     };
 
                     // Update messages with the new message
@@ -324,6 +325,12 @@ export function useMessageStream({
                       mutateChatState(ChatState.WaitingForUserInput);
                     }
 
+                    if (getCompactingMessage(newMessage)) {
+                      mutateChatState(ChatState.Compacting);
+                    } else if (getThinkingMessage(newMessage)) {
+                      mutateChatState(ChatState.Thinking);
+                    }
+
                     mutate(currentMessages, false);
                     break;
                   }
@@ -346,79 +353,38 @@ export function useMessageStream({
                     break;
                   }
 
+                  case 'UpdateConversation': {
+                    // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+                    // Longterm fix is to only send the agent the new messages, not the entire conversation.
+                    currentMessages = parsedEvent.conversation;
+                    setMessages(parsedEvent.conversation);
+                    break;
+                  }
+
                   case 'Error': {
-                    // Check if this is a token limit error (more specific detection)
-                    const errorMessage = parsedEvent.error;
-                    const isTokenLimitError =
-                      errorMessage &&
-                      ((errorMessage.toLowerCase().includes('token') &&
-                        errorMessage.toLowerCase().includes('limit')) ||
-                        (errorMessage.toLowerCase().includes('context') &&
-                          errorMessage.toLowerCase().includes('length') &&
-                          errorMessage.toLowerCase().includes('exceeded')));
-
-                    // If this is a token limit error, create a contextLengthExceeded message instead of throwing
-                    if (isTokenLimitError) {
-                      const contextMessage: Message = {
-                        id: generateMessageId(),
-                        role: 'assistant',
-                        created: Math.floor(Date.now() / 1000),
-                        content: [
-                          {
-                            type: 'contextLengthExceeded',
-                            msg: errorMessage,
-                          },
-                        ],
-                        display: true,
-                        sendToLLM: false,
-                      };
-
-                      currentMessages = [...currentMessages, contextMessage];
-                      mutate(currentMessages, false);
-
-                      // Clear any existing error state since we handled this as a context message
-                      setError(undefined);
-                      break; // Don't throw error, just add the message
-                    }
-
+                    // Always throw the error so it gets caught and sets the error state
+                    // This ensures the retry UI appears for ALL errors
                     throw new Error(parsedEvent.error);
                   }
 
                   case 'Finish': {
-                    // Call onFinish with the last message if available
+                    setTokenState(parsedEvent.token_state);
+
                     if (onFinish && currentMessages.length > 0) {
                       const lastMessage = currentMessages[currentMessages.length - 1];
                       onFinish(lastMessage, parsedEvent.reason);
                     }
 
-                    // Fetch updated session metadata with token counts
                     const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
                     if (sessionId) {
-                      try {
-                        const sessionResponse = await getSessionHistory({
-                          path: { session_id: sessionId },
-                        });
+                      const sessionResponse = await getSession({
+                        path: { session_id: sessionId },
+                        throwOnError: true,
+                      });
 
-                        if (sessionResponse.data?.metadata) {
-                          setSessionMetadata({
-                            workingDir: sessionResponse.data.metadata.working_dir,
-                            description: sessionResponse.data.metadata.description,
-                            scheduleId: sessionResponse.data.metadata.schedule_id || null,
-                            messageCount: sessionResponse.data.metadata.message_count,
-                            totalTokens: sessionResponse.data.metadata.total_tokens || null,
-                            inputTokens: sessionResponse.data.metadata.input_tokens || null,
-                            outputTokens: sessionResponse.data.metadata.output_tokens || null,
-                            accumulatedTotalTokens:
-                              sessionResponse.data.metadata.accumulated_total_tokens || null,
-                            accumulatedInputTokens:
-                              sessionResponse.data.metadata.accumulated_input_tokens || null,
-                            accumulatedOutputTokens:
-                              sessionResponse.data.metadata.accumulated_output_tokens || null,
-                          });
-                        }
-                      } catch (error) {
-                        console.error('Failed to fetch session metadata:', error);
+                      if (sessionResponse.data) {
+                        setSession(sessionResponse.data);
                       }
                     }
                     break;
@@ -453,6 +419,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
@@ -467,9 +434,6 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Filter out messages where sendToLLM is explicitly false
-        const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
-
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -479,7 +443,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: filteredMessages,
+            messages: requestMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,
@@ -545,7 +509,7 @@ export function useMessageStream({
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
   );
 
@@ -652,6 +616,7 @@ export function useMessageStream({
         id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
+        metadata: { userVisible: true, agentVisible: true },
         content: [
           {
             type: 'toolResponse' as const,
@@ -700,7 +665,8 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    sessionMetadata,
+    session,
     setError,
+    tokenState,
   };
 }

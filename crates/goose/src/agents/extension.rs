@@ -1,16 +1,21 @@
+use crate::agents::chatrecall_extension;
+use crate::agents::extension_manager_extension;
+use crate::agents::todo_extension;
 use std::collections::HashMap;
 
-use mcp_client::client::Error as ClientError;
+use crate::agents::mcp_client::McpClientTrait;
+use crate::config;
+use crate::config::extensions::name_to_key;
+use crate::config::permission::PermissionLevel;
+use once_cell::sync::Lazy;
 use rmcp::model::Tool;
 use rmcp::service::ClientInitializeError;
+use rmcp::ServiceError as ClientError;
+use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
 use utoipa::ToSchema;
-
-use crate::config;
-use crate::config::extensions::name_to_key;
-use crate::config::permission::PermissionLevel;
 
 #[derive(Error, Debug)]
 #[error("process quit before initialization: stderr = {stderr}")]
@@ -30,6 +35,66 @@ impl ProcessExit {
             source,
         }
     }
+}
+
+pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
+    || {
+        let mut map = HashMap::new();
+
+        map.insert(
+            todo_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: todo_extension::EXTENSION_NAME,
+                description:
+                    "Enable a todo list for Goose so it can keep track of what it is doing",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            chatrecall_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: chatrecall_extension::EXTENSION_NAME,
+                description:
+                    "Search past conversations and load session summaries for contextual memory",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
+                },
+            },
+        );
+
+        map.insert(
+            "extensionmanager",
+            PlatformExtensionDef {
+                name: extension_manager_extension::EXTENSION_NAME,
+                description:
+                    "Enable extension management tools for discovering, enabling, and disabling extensions",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
+        map
+    },
+);
+
+#[derive(Clone)]
+pub struct PlatformExtensionContext {
+    pub session_id: Option<String>,
+    pub extension_manager:
+        Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
+    pub tool_route_manager:
+        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PlatformExtensionDef {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub default_enabled: bool,
+    pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }
 
 /// Errors from Extension operation
@@ -151,24 +216,32 @@ pub enum ExtensionConfig {
     Sse {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         uri: String,
         #[serde(default)]
         envs: Envs,
         #[serde(default)]
         env_keys: Vec<String>,
-        description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
     Stdio {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         cmd: String,
         args: Vec<String>,
         #[serde(default)]
@@ -176,28 +249,48 @@ pub enum ExtensionConfig {
         #[serde(default)]
         env_keys: Vec<String>,
         timeout: Option<u64>,
-        description: Option<String>,
-        /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
-    /// Built-in extension that is part of the goose binary
+    /// Built-in extension that is part of the bundled goose MCP server
     #[serde(rename = "builtin")]
     Builtin {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         display_name: Option<String>, // needed for the UI
-        description: Option<String>,
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
+    },
+    /// Platform extensions that have direct access to the agent etc and run in the agent process
+    #[serde(rename = "platform")]
+    Platform {
+        /// The name used to identify this extension
+        name: String,
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
+        #[serde(default)]
+        bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         uri: String,
         #[serde(default)]
         envs: Envs,
@@ -205,41 +298,48 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         #[serde(default)]
         headers: HashMap<String, String>,
-        description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
-        /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
     Frontend {
         /// The name used to identify this extension
         name: String,
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         /// The tools provided by the frontend
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
-        /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
     #[serde(rename = "inline_python")]
     InlinePython {
         /// The name used to identify this extension
         name: String,
+        #[serde(deserialize_with = "deserialize_null_with_default")]
+        #[schema(required)]
+        description: String,
         /// The Python code to execute
         code: String,
-        /// Description of what the extension does
-        description: Option<String>,
         /// Timeout in seconds
         timeout: Option<u64>,
         /// Python package dependencies required by this extension
         #[serde(default)]
         dependencies: Option<Vec<String>>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
 }
 
@@ -248,9 +348,10 @@ impl Default for ExtensionConfig {
         Self::Builtin {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
-            description: None,
+            description: "default".to_string(),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            available_tools: Vec::new(),
         }
     }
 }
@@ -262,9 +363,10 @@ impl ExtensionConfig {
             uri: uri.into(),
             envs: Envs::default(),
             env_keys: Vec::new(),
-            description: Some(description.into()),
+            description: description.into(),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -280,9 +382,10 @@ impl ExtensionConfig {
             envs: Envs::default(),
             env_keys: Vec::new(),
             headers: HashMap::new(),
-            description: Some(description.into()),
+            description: description.into(),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -298,9 +401,10 @@ impl ExtensionConfig {
             args: vec![],
             envs: Envs::default(),
             env_keys: Vec::new(),
-            description: Some(description.into()),
+            description: description.into(),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -313,9 +417,10 @@ impl ExtensionConfig {
         Self::InlinePython {
             name: name.into(),
             code: code.into(),
-            description: Some(description.into()),
+            description: description.into(),
             timeout: Some(timeout.into()),
             dependencies: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -333,6 +438,7 @@ impl ExtensionConfig {
                 timeout,
                 description,
                 bundled,
+                available_tools,
                 ..
             } => Self::Stdio {
                 name,
@@ -343,6 +449,7 @@ impl ExtensionConfig {
                 description,
                 timeout,
                 bundled,
+                available_tools,
             },
             other => other,
         }
@@ -360,10 +467,42 @@ impl ExtensionConfig {
             Self::StreamableHttp { name, .. } => name,
             Self::Stdio { name, .. } => name,
             Self::Builtin { name, .. } => name,
+            Self::Platform { name, .. } => name,
             Self::Frontend { name, .. } => name,
             Self::InlinePython { name, .. } => name,
         }
         .to_string()
+    }
+
+    /// Check if a tool should be available to the LLM
+    pub fn is_tool_available(&self, tool_name: &str) -> bool {
+        let available_tools = match self {
+            Self::Sse {
+                available_tools, ..
+            }
+            | Self::StreamableHttp {
+                available_tools, ..
+            }
+            | Self::Stdio {
+                available_tools, ..
+            }
+            | Self::Builtin {
+                available_tools, ..
+            }
+            | Self::Platform {
+                available_tools, ..
+            }
+            | Self::InlinePython {
+                available_tools, ..
+            }
+            | Self::Frontend {
+                available_tools, ..
+            } => available_tools,
+        };
+
+        // If no tools are specified, all tools are available
+        // If tools are specified, only those tools are available
+        available_tools.is_empty() || available_tools.contains(&tool_name.to_string())
     }
 }
 
@@ -380,6 +519,7 @@ impl std::fmt::Display for ExtensionConfig {
                 write!(f, "Stdio({}: {} {})", name, cmd, args.join(" "))
             }
             ExtensionConfig::Builtin { name, .. } => write!(f, "Builtin({})", name),
+            ExtensionConfig::Platform { name, .. } => write!(f, "Platform({})", name),
             ExtensionConfig::Frontend { name, tools, .. } => {
                 write!(f, "Frontend({}: {} tools)", name, tools.len())
             }
@@ -408,6 +548,15 @@ impl ExtensionInfo {
     }
 }
 
+fn deserialize_null_with_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
+
 /// Information about the tool used for building prompts
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct ToolInfo {
@@ -429,6 +578,72 @@ impl ToolInfo {
             description: description.to_string(),
             parameters,
             permission,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::agents::*;
+
+    #[test]
+    fn test_deserialize_missing_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+timeout: 300
+bundled: true
+available_tools: []",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
+        }
+    }
+
+    #[test]
+    fn test_deserialize_null_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+description: null
+timeout: 300
+bundled: true
+available_tools: []
+",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
+        }
+    }
+
+    #[test]
+    fn test_deserialize_normal_description() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "enabled: true
+type: builtin
+name: developer
+display_name: Developer
+description: description goes here
+timeout: 300
+bundled: true
+available_tools: []
+    ",
+        )
+        .unwrap();
+        if let ExtensionConfig::Builtin { description, .. } = config {
+            assert_eq!(description, "description goes here")
+        } else {
+            panic!("unexpected result of deserialization: {}", config)
         }
     }
 }

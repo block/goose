@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { snakeToTitleCase } from '../utils';
 import PermissionModal from './settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
-import { confirmPermission } from '../api';
+import { confirmPermission, ToolConfirmationRequest } from '../api';
 import { Button } from './ui/button';
 
-const ALWAYS_ALLOW = 'always_allow';
 const ALLOW_ONCE = 'allow_once';
+const ALWAYS_ALLOW = 'always_allow';
 const DENY = 'deny';
 
 // Global state to track tool confirmation decisions
@@ -21,18 +21,20 @@ const toolConfirmationState = new Map<
 >();
 
 interface ToolConfirmationProps {
+  sessionId: string;
   isCancelledMessage: boolean;
   isClicked: boolean;
-  toolConfirmationId: string;
-  toolName: string;
+  toolConfirmationContent: ToolConfirmationRequest & { type: 'toolConfirmationRequest' };
 }
 
 export default function ToolConfirmation({
+  sessionId,
   isCancelledMessage,
   isClicked,
-  toolConfirmationId,
-  toolName,
+  toolConfirmationContent,
 }: ToolConfirmationProps) {
+  const { id: toolConfirmationId, toolName, prompt } = toolConfirmationContent;
+
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
 
@@ -68,34 +70,39 @@ export default function ToolConfirmation({
     }
   }, [isClicked, clicked, status, toolName, toolConfirmationId]);
 
-  const handleButtonClick = async (action: string) => {
-    const newClicked = true;
-    const newStatus = action;
-    let newActionDisplay = '';
+  const handleButtonClick = async (newStatus: string) => {
+    let newActionDisplay;
 
-    if (action === ALWAYS_ALLOW) {
+    if (newStatus === ALWAYS_ALLOW) {
       newActionDisplay = 'always allowed';
-    } else if (action === ALLOW_ONCE) {
+    } else if (newStatus === ALLOW_ONCE) {
       newActionDisplay = 'allowed once';
+    } else if (newStatus === DENY) {
+      newActionDisplay = 'denied';
     } else {
       newActionDisplay = 'denied';
     }
 
     // Update local state
-    setClicked(newClicked);
+    setClicked(true);
     setStatus(newStatus);
     setActionDisplay(newActionDisplay);
 
     // Store in global state for persistence across navigation
     toolConfirmationState.set(toolConfirmationId, {
-      clicked: newClicked,
+      clicked: true,
       status: newStatus,
       actionDisplay: newActionDisplay,
     });
 
     try {
       const response = await confirmPermission({
-        body: { id: toolConfirmationId, action, principal_type: 'Tool' },
+        body: {
+          session_id: sessionId,
+          id: toolConfirmationId,
+          action: newStatus,
+          principal_type: 'Tool',
+        },
       });
       if (response.error) {
         console.error('Failed to confirm permission:', response.error);
@@ -120,25 +127,22 @@ export default function ToolConfirmation({
     </div>
   ) : (
     <>
+      {/* Display security message if present */}
+      {prompt && (
+        <div className="goose-message-content bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl px-4 py-2 mb-2 text-yellow-800 dark:text-gray-200">
+          {prompt}
+        </div>
+      )}
+
       <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to call the above tool. Allow?
+        {prompt
+          ? 'Do you allow this tool call?'
+          : 'Goose would like to call the above tool. Allow?'}
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-center">
-            {status === 'always_allow' && (
-              <svg
-                className="w-5 h-5 text-gray-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            {status === 'allow_once' && (
+            {(status === 'allow_once' || status === 'always_allow') && (
               <svg
                 className="w-5 h-5 text-gray-500"
                 xmlns="http://www.w3.org/2000/svg"
@@ -188,9 +192,6 @@ export default function ToolConfirmation({
         </div>
       ) : (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
-          <Button className="rounded-full" onClick={() => handleButtonClick(ALWAYS_ALLOW)}>
-            Always Allow
-          </Button>
           <Button
             className="rounded-full"
             variant="secondary"
@@ -198,6 +199,16 @@ export default function ToolConfirmation({
           >
             Allow Once
           </Button>
+          {/* Only show "Always Allow" if there's no security message (no security finding) */}
+          {!prompt && (
+            <Button
+              className="rounded-full"
+              variant="secondary"
+              onClick={() => handleButtonClick(ALWAYS_ALLOW)}
+            >
+              Always Allow
+            </Button>
+          )}
           <Button
             className="rounded-full"
             variant="outline"

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
-import { ScrollArea } from '../../ui/scroll-area';
 import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
@@ -57,6 +56,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
     enabledExtensions.push({
       name: 'platform',
       type: 'builtin',
+      description: 'platform',
       enabled: true,
     });
     // Sort extensions by name to maintain consistent order
@@ -86,8 +86,8 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] max-h-[80vh] p-0">
-        <DialogHeader className="px-8 pt-6 pb-4">
+      <DialogContent className="sm:max-w-[800px] max-h-[80vh] p-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-8 pt-6 pb-4 flex-shrink-0">
           <div className="flex items-center gap-4">
             <div className="rounded-full bg-background-inverse w-16 h-16 flex items-center justify-center">
               <svg
@@ -117,13 +117,13 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-8 pb-8">
-          <div className="space-y-8">
+        <div className="flex-1 overflow-y-auto px-8 pb-8 min-h-0">
+          <div className="space-y-4">
             {/* Extension Rules Section */}
             <RulesSection
               title="Extension rules"
               rules={
-                <>
+                <div className="space-y-2">
                   {extensions.map((extension) => (
                     <RuleItem
                       key={extension.name}
@@ -131,11 +131,11 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
                       description={'description' in extension ? extension.description || '' : ''}
                     />
                   ))}
-                </>
+                </div>
               }
             />
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

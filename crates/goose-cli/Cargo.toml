@@ -18,13 +18,12 @@ path = "src/main.rs"
 goose = { path = "../goose" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
-mcp-client = { path = "../mcp-client" }
-mcp-server = { path = "../mcp-server" }
-mcp-core = { path = "../mcp-core" }
 rmcp = { workspace = true }
+agent-client-protocol = "0.4.0"
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
+uuid = { version = "1.11", features = ["v4"] }
 dotenvy = "0.15.7"
 bat = "0.24.0"
 anyhow = "1.0"
@@ -44,20 +43,22 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json",
 tracing-appender = "0.2"
 once_cell = "1.20.2"
 shlex = "1.3.0"
-async-trait = "0.1.86"
+async-trait = "0.1.89"
 base64 = "0.22.1"
 regex = "1.11.1"
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "auth"] }
 http = "1.0"
 webbrowser = "1.0"
 indicatif = "0.17.11"
-tokio-util = "0.7.15"
+tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
 is-terminal = "0.4.16"
 anstream = "0.6.18"
+url = "2.5.7"
+open = "5.3.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -68,3 +69,4 @@ tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
 tokio = { version = "1.43", features = ["rt", "macros"] }
+serial_test = "3.2.0"

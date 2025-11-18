@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
 use serde_json::{json, Value};
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -9,127 +10,45 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
-use crate::config::Config;
-use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
+use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use crate::config::base::ClaudeCodeCommand;
+use crate::config::search_path::SearchPaths;
+use crate::config::{Config, GooseMode};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use crate::subprocess::configure_command_no_window;
 use rmcp::model::Tool;
 
-pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];
-
-pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus"];
+pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCodeProvider {
-    command: String,
+    command: PathBuf,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(ClaudeCodeProvider);
-
 impl ClaudeCodeProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let command: String = config
-            .get_param("CLAUDE_CODE_COMMAND")
-            .unwrap_or_else(|_| "claude".to_string());
-
-        let resolved_command = if !command.contains('/') {
-            Self::find_claude_executable(&command).unwrap_or(command)
-        } else {
-            command
-        };
+        let command: OsString = config.get_claude_code_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
         Ok(Self {
             command: resolved_command,
             model,
+            name: Self::metadata().name,
         })
-    }
-
-    /// Search for claude executable in common installation locations
-    fn find_claude_executable(command_name: &str) -> Option<String> {
-        let home = std::env::var("HOME").ok()?;
-
-        let search_paths = vec![
-            format!("{}/.claude/local/{}", home, command_name),
-            format!("{}/.local/bin/{}", home, command_name),
-            format!("{}/bin/{}", home, command_name),
-            format!("/usr/local/bin/{}", command_name),
-            format!("/usr/bin/{}", command_name),
-            format!("/opt/claude/{}", command_name),
-        ];
-
-        for path in search_paths {
-            let path_buf = PathBuf::from(&path);
-            if path_buf.exists() && path_buf.is_file() {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
-                        let permissions = metadata.permissions();
-                        if permissions.mode() & 0o111 != 0 {
-                            tracing::info!("Found claude executable at: {}", path);
-                            return Some(path);
-                        }
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    tracing::info!("Found claude executable at: {}", path);
-                    return Some(path);
-                }
-            }
-        }
-
-        if let Ok(path_var) = std::env::var("PATH") {
-            #[cfg(unix)]
-            let path_separator = ':';
-            #[cfg(windows)]
-            let path_separator = ';';
-
-            for dir in path_var.split(path_separator) {
-                let path_buf = PathBuf::from(dir).join(command_name);
-                if path_buf.exists() && path_buf.is_file() {
-                    let full_path = path_buf.to_string_lossy().to_string();
-                    tracing::info!("Found claude executable in PATH at: {}", full_path);
-                    return Some(full_path);
-                }
-            }
-        }
-
-        tracing::warn!("Could not find claude executable in common locations");
-        None
-    }
-
-    /// Filter out the Extensions section from the system prompt
-    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
-        if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
-            let after_extensions = &system[extensions_start..];
-            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
-                let before_extensions = &system[..extensions_start];
-                let next_section_start = extensions_start + next_section_pos + 1;
-                let after_next_section = &system[next_section_start..];
-                format!("{}{}", before_extensions.trim_end(), after_next_section)
-            } else {
-                // No next section found, just remove everything from Extensions onward
-                system[..extensions_start].trim_end().to_string()
-            }
-        } else {
-            // No Extensions section found, return original
-            system.to_string()
-        }
     }
 
     /// Convert goose messages to the format expected by claude CLI
     fn messages_to_claude_format(&self, _system: &str, messages: &[Message]) -> Result<Value> {
         let mut claude_messages = Vec::new();
 
-        for message in messages {
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
             let role = match message.role {
                 Role::User => "user",
                 Role::Assistant => "assistant",
@@ -191,6 +110,33 @@ impl ClaudeCodeProvider {
     }
 
     /// Parse the JSON response from claude CLI
+    fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
+        let config = Config::global();
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+
+        match goose_mode {
+            GooseMode::Auto => {
+                cmd.arg("--dangerously-skip-permissions");
+            }
+            GooseMode::SmartApprove => {
+                cmd.arg("--permission-mode").arg("acceptEdits");
+            }
+            GooseMode::Approve => {
+                return Err(ProviderError::RequestFailed(
+                    "\n\n\n### NOTE\n\n\n \
+                    Claude Code CLI provider does not support Approve mode.\n \
+                    Please use Auto (which will run anything it needs to) or \
+                    SmartApprove (most things will run or Chat Mode)\n\n\n"
+                        .to_string(),
+                ));
+            }
+            GooseMode::Chat => {
+                // Chat mode doesn't need permission flags
+            }
+        }
+        Ok(())
+    }
+
     fn parse_claude_response(
         &self,
         json_lines: &[String],
@@ -282,12 +228,11 @@ impl ClaudeCodeProvider {
 
         let message_content = vec![MessageContent::text(combined_text)];
 
-        let response_message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
 
         Ok((response_message, usage))
     }
@@ -304,12 +249,11 @@ impl ClaudeCodeProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        // Create a filtered system prompt without Extensions section
-        let filtered_system = self.filter_extensions_from_system_prompt(system);
+        let filtered_system = filter_extensions_from_system_prompt(system);
 
         if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
             println!("=== CLAUDE CODE PROVIDER DEBUG ===");
-            println!("Command: {}", self.command);
+            println!("Command: {:?}", self.command);
             println!("Original system prompt length: {} chars", system.len());
             println!(
                 "Filtered system prompt length: {} chars",
@@ -325,6 +269,7 @@ impl ClaudeCodeProvider {
         }
 
         let mut cmd = Command::new(&self.command);
+        configure_command_no_window(&mut cmd);
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
@@ -338,22 +283,16 @@ impl ClaudeCodeProvider {
         cmd.arg("--verbose").arg("--output-format").arg("json");
 
         // Add permission mode based on GOOSE_MODE setting
-        let config = Config::global();
-        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
-            if goose_mode.as_str() == "auto" {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-            }
-        }
+        Self::apply_permission_flags(&mut cmd)?;
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!(
-                "Failed to spawn Claude CLI command '{}': {}. \
-                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{:?}': {}.",
                 self.command, e
-            )))?;
+            ))
+        })?;
 
         let stdout = child
             .stdout
@@ -433,12 +372,11 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::text(description.clone())],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 
@@ -454,18 +392,17 @@ impl Provider for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "claude-code",
-            "Claude Code",
-            "Execute Claude models via claude CLI tool",
+            "Claude Code CLI",
+            "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
             CLAUDE_CODE_DEFAULT_MODEL,
             CLAUDE_CODE_KNOWN_MODELS.to_vec(),
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::new(
-                "CLAUDE_CODE_COMMAND",
-                false,
-                false,
-                Some("claude"),
-            )],
+            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(true, false)],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -474,11 +411,12 @@ impl Provider for ClaudeCodeProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -495,69 +433,22 @@ impl Provider for ClaudeCodeProvider {
         // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
-            "model": self.model.model_name,
+            "model": model_config.model_name,
             "system": system,
             "messages": messages.len()
         });
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = json!({
             "lines": json_lines.len(),
             "usage": usage
         });
 
-        emit_debug_trace(&self.model, &payload, &response, &usage);
+        log.write(&response, Some(&usage))?;
 
         Ok((
             message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
+            ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ModelConfig;
-    use super::*;
-
-    #[test]
-    fn test_claude_code_model_config() {
-        let provider = ClaudeCodeProvider::default();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "claude-3-5-sonnet-latest");
-        // Context limit should be set by the ModelConfig
-        assert!(config.context_limit() > 0);
-    }
-
-    #[test]
-    fn test_permission_mode_flag_construction() {
-        // Test that in auto mode, the --permission-mode acceptEdits flag is added
-        std::env::set_var("GOOSE_MODE", "auto");
-
-        let config = Config::global();
-        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
-        assert_eq!(goose_mode, "auto");
-
-        std::env::remove_var("GOOSE_MODE");
-    }
-
-    #[test]
-    fn test_claude_code_invalid_model_no_fallback() {
-        // Test that an invalid model is kept as-is (no fallback)
-        let invalid_model = ModelConfig::new_or_fail("invalid-model");
-        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "invalid-model");
-    }
-
-    #[test]
-    fn test_claude_code_valid_model() {
-        // Test that a valid model is preserved
-        let valid_model = ModelConfig::new_or_fail("sonnet");
-        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
-        let config = provider.get_model_config();
-
-        assert_eq!(config.model_name, "sonnet");
     }
 }

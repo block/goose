@@ -7,37 +7,46 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Settings } from 'lucide-react';
 
-Extensions are add-ons that provide a way to extend the functionality of Goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
+Extensions are add-ons that provide a way to extend the functionality of goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
-Goose to a wide ecosystem of capabilities.
+goose to a wide ecosystem of capabilities.
+
+goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting/known-issues#malicious-package-detected) with a clear error message.
 
 :::tip Tutorials
-Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
+Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using various goose extensions
 :::
 
-
 ## Built-in Extensions
-Out of the box, Goose is installed with a few extensions but with only the `Developer` extension enabled by default.
+goose includes several built-in extensions you can start using out of the box:
 
-Here are the built-in extensions:
-
-- [Developer](/docs/mcp/developer-mcp): Provides a set of general development tools that are useful for software development.
+- [Developer](/docs/mcp/developer-mcp): Provides a set of general development tools that are useful for software development. The Developer extension is **enabled by default**.
 - [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
-- [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it.
-- [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about Goose.
+- [Memory](/docs/mcp/memory-mcp): Teaches goose to remember your preferences as you use it.
+- [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about goose.
+- [Auto Visualiser](/docs/mcp/autovisualiser-mcp): Automatically generates graphical data visualizations in conversations.
 
+:::warning Access Control
+goose operates autonomously by default. Combined with the Developer extension's tools, this means goose can execute commands and modify files without your approval. If you want more control over this behavior, you can configure the [goose permission mode](/docs/guides/goose-permissions), [tool permissions](/docs/guides/managing-tools/tool-permissions), and [.gooseignore files](/docs/guides/using-gooseignore). See [Configuring Access Controls](/docs/mcp/developer-mcp#configuring-access-controls) for a brief overview.
+:::
+
+In addition, these platform extensions provide core goose functionality. They are also always available and enabled by default:
+
+- Chat Recall: Search conversation content across all your session history
+- Extension Manager: Discover, enable, and disable extensions dynamically during sessions
+- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
 
 #### Toggling Built-in Extensions
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, you can toggle the built-in extensions on or off.
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
     
     If you know the exact name of the extension you'd like to add, run:
 
@@ -48,20 +57,16 @@ Here are the built-in extensions:
     To navigate through available extensions:
 
     1. Run the following command:
-    ```sh
-    goose configure
-    ```
-    2. Select `Add Extension` from the menu.
-    3. Choose the type of extension you'd like to add:
-        - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
-        - `Command-Line Extension`: Add a local command or script to run as an extension.
-        - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
-        - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
-    4. Follow the prompts based on the type of extension you selected.
+        ```sh
+        goose configure
+        ```
+    2. Select `Add Extension` from the menu. Use the up and down keys to highlight your choice then press `Enter`.
+    3. Select `Built-In Extension`.
+    4. Select the extension to enable.
+    5. Provide a timeout for the extension (in seconds).
+    6. Press `Enter`.
 
     **Example: Adding Built-in Extension**
-
-    To select an option during configuration, hover over it and press Enter.
 
     ```
     ┌   goose-configure 
@@ -72,56 +77,56 @@ Here are the built-in extensions:
     ◇  What type of extension would you like to add?
     │  Built-in Extension 
     │
-    ◆  Which built-in extension would you like to enable?
-    │  ○ Developer Tools 
-    │  ○ Computer Controller (controls for webscraping, file caching, and automations)
-    │  ○ Google Drive 
-    │  ○ Memory 
-    │  ● JetBrains 
+    ◇  Which built-in extension would you like to enable?
+    │  Auto Visualiser
     │        
     ◇  Please set the timeout for this tool (in secs):
     │  300
     │ 
-    └  Enabled jetbrains extension    
+    └  Enabled Auto Visualiser extension    
     ```
   </TabItem>
 </Tabs>
 
 
 :::info
-All of Goose's built-in extensions are MCP servers in their own right. If you'd like
-to use the MCP servers included with Goose with any other agent, you are free to do so.
+goose's built-in extensions are MCP servers in their own right. If you'd like
+to use the MCP servers included with goose with any other agent, you are free to do so.
 :::
 
 
 ## Discovering Extensions
 
-Goose provides a [central directory][extensions-directory] of extensions that you can install and use. 
+goose provides a [central directory][extensions-directory] of extensions that you can install and use. 
 
-You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even if it's not listed in our directory.
+You can also add any other [MCP Server](#mcp-servers) as a goose extension, even if it's not listed in our directory.
 
 
 ## Adding Extensions
 
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
+:::warning Airgapped Environments
+If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting/known-issues#airgappedoffline-environment-issues) for workarounds.
+:::
+
 ### MCP Servers
 
-You can install any MCP server as a Goose extension. 
+You can install any MCP server as a goose extension. 
 
 :::tip MCP Server Directory
 See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/servers)**.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
  
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, click `Add custom extension`.
   4. On the `Add custom extension` modal, enter the necessary details
      - If adding an environment variable, click `Add` button to the right of the variable
-     - The `Timeout` field lets you set how long Goose should wait for a tool call from this extension to complete
+     - The `Timeout` field lets you set how long goose should wait for a tool call from this extension to complete
   5. Click `Add` button
   
   #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
@@ -132,7 +137,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
     * **Command**: `npx -y @modelcontextprotocol/server-memory`
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
   
   1. Run the following command: 
 
@@ -143,7 +148,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
   2. Select `Add Extension` from the menu.
 
   3. Choose the type of extension you'd like to add:
-      - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
+      - `Built-In Extension`: Use an extension that comes pre-installed with goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
       - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
@@ -252,7 +257,7 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
 
 ### Deeplinks
 
-Extensions can be installed using Goose's deep link protocol. The URL format varies based on the extension type:
+Extensions can be installed using goose's deep link protocol. The URL format varies based on the extension type:
 
 <Tabs groupId="interface">
   <TabItem value="stdio" label="StandardIO" default>
@@ -343,15 +348,15 @@ extensions:
 You can enable or disable installed extensions based on your workflow needs.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
 
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI">
-    1. Run the following command to open up Goose's configurations:
+  <TabItem value="cli" label="goose CLI">
+    1. Run the following command to open up goose's configurations:
     ```sh
     goose configure
     ```
@@ -377,9 +382,9 @@ You can enable or disable installed extensions based on your workflow needs.
 
 ## Automatically Enabled Extensions
 
-The Smart Extension Recommendation system in Goose automatically identifies and suggests relevant extensions based on your tasks and needs. This section explains how to use this feature effectively and understand its capabilities and limitations.
+The Smart Extension Recommendation system in goose automatically identifies and suggests relevant extensions based on your tasks and needs. This section explains how to use this feature effectively and understand its capabilities and limitations.
 
-When you request a task, Goose checks its enabled extensions and their tools to determine if it can fulfill the request. If not, it suggests or enables additional extensions as needed. You can also request specific extensions by name.
+When you request a task, goose checks its enabled extensions and their tools to determine if it can fulfill the request. If not, it suggests or enables additional extensions as needed. You can also request specific extensions by name.
 
 
 :::warning
@@ -388,17 +393,17 @@ Any extensions enabled dynamically are only enabled for the current session. To 
 
 ### Automatic Detection
 
-Goose automatically detects when an extension is needed based on your task requirements. Here's an example of how Goose identifies and enables a needed extension during a conversation:
+goose automatically detects when an extension is needed based on your task requirements. Here's an example of how goose identifies and enables a needed extension during a conversation:
 
 <Tabs groupId="interface">
-<TabItem value="ui" label="Goose Desktop" default>
+<TabItem value="ui" label="goose Desktop" default>
 
-#### Goose Prompt
+#### goose Prompt
 ```plaintext
 Find all orders with pending status from our production database
 ```
 
-#### Goose Output
+#### goose Output
 
 ```plaintext
 I'll help you search for available extensions that might help us interact with PostgreSQL databases.
@@ -418,14 +423,14 @@ Great! Now I can help you query the database...
 ```
 
 </TabItem>
-<TabItem value="cli" label="Goose CLI">
+<TabItem value="cli" label="goose CLI">
 
-#### Goose Prompt
+#### goose Prompt
 ```plaintext
 Find all orders with pending status from our production database
 ```
 
-#### Goose Output
+#### goose Output
 
 ```sh
 I apologize, but I notice that I don't currently have access to your database. Let me search if there are any database-related extensions available.
@@ -436,7 +441,7 @@ I see that there is a "postgresql" extension available. Let me enable it so I ca
 extension_name: postgresql
 
 
-■  Goose would like to enable the following extension, do you approve?
+■  goose would like to enable the following extension, do you approve?
 // highlight-start
 | ● Yes, for this session 
 // highlight-end
@@ -448,18 +453,18 @@ extension_name: postgresql
 
 ### Direct Request
 
-Goose responds to explicit requests for extensions, allowing users to manually enable specific tools they need. Here's an example of how Goose handles a direct request to enable an extension:
+goose responds to explicit requests for extensions, allowing users to manually enable specific tools they need. Here's an example of how goose handles a direct request to enable an extension:
 
 <Tabs groupId="interface">
-<TabItem value="ui" label="Goose Desktop" default>
+<TabItem value="ui" label="goose Desktop" default>
 
-#### Goose Prompt
+#### goose Prompt
 
 ```plaintext
 Use PostgreSQL extension
 ```
 
-#### Goose Output
+#### goose Output
 
 ```plaintext
 I'll help enable the PostgreSQL extension for you.
@@ -474,15 +479,15 @@ The PostgreSQL extension is now ready to use. What would you like to do with it?
 ```
 
 </TabItem>
-<TabItem value="cli" label="Goose CLI">
+<TabItem value="cli" label="goose CLI">
 
-#### Goose Prompt
+#### goose Prompt
 
 ```sh
 Use the PostgreSQL extension
 ```
 
-#### Goose Output
+#### goose Output
 
 ```sh
 I'll help enable the PostgreSQL extension for you.
@@ -490,7 +495,7 @@ I'll help enable the PostgreSQL extension for you.
 extension_name: postgresql
 
 
-■  Goose would like to enable the following extension, do you approve?
+■  goose would like to enable the following extension, do you approve?
 // highlight-start
 | ● Yes, for this session 
 // highlight-end
@@ -502,10 +507,10 @@ extension_name: postgresql
 
 ## Updating Extension Properties
 
-Goose relies on extension properties to determine how to handle an extension. You can edit these properties if you want to change the extension's display settings and behavior, such as the name, timeout, or environment variables.
+goose relies on extension properties to determine how to handle an extension. You can edit these properties if you want to change the extension's display settings and behavior, such as the name, timeout, or environment variables.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
@@ -517,7 +522,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 
   <TabItem value="cli" label="Config file">
   
-  1. Navigate to the Goose [configuration file](/docs/guides/config-file). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  1. Navigate to the goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
   2. Edit the extension properties as needed and save your changes.
 
   </TabItem>
@@ -528,7 +533,7 @@ Goose relies on extension properties to determine how to handle an extension. Yo
 You can remove installed extensions. 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
@@ -542,7 +547,7 @@ You can remove installed extensions.
   To remove an extension, you must [disable](#enablingdisabling-extensions) it first.
   :::
 
-    1. Run the following command to open up Goose's configurations:
+    1. Run the following command to open up goose's configurations:
     ```sh
     goose configure
     ```
@@ -566,7 +571,7 @@ You can remove installed extensions.
 
 ## Starting Session with Extensions
 
-You can start a tailored Goose session with specific extensions directly from the CLI. 
+You can start a tailored goose session with specific extensions directly from the CLI. 
 
 :::info Notes
 * The extension will not be installed. It will only be enabled for the current session.
@@ -617,7 +622,7 @@ Some extensions require environment variables. You can include these in your com
 goose session --with-extension "VAR=value command arg1 arg2"
 ```
 
-For example, to start a session with the [GitHub extension](https://github.com/modelcontextprotocol/servers/tree/main/src/github), you'd run:
+For example, to start a session with the [GitHub extension](https://github.com/github/github-mcp-server), you'd run:
 
 ```bash
 goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
@@ -658,6 +663,6 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 
 ## Developing Extensions
 
-Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
+goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
-[extensions-directory]: https://block.github.io/goose/v1/extensions
+[extensions-directory]: /extensions

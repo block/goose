@@ -63,12 +63,6 @@ export default function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Link to="/recipe-generator" className="no-underline ml-4">
-            <div className="flex items-center gap-2 bg-bgAppInverse text-textProminentInverse px-4 py-3 rounded-lg hover:bg-opacity-90 transition-all">
-              <Wand2 className="h-5 w-5" />
-              <span>Recipe Generator</span>
-            </div>
-          </Link>
         </div>
 
         {error && (
@@ -95,27 +89,60 @@ export default function HomePage() {
                 : "No servers available."}
             </div>
           ) : (
-            <div className="cards-grid">
-              {servers
-                .sort((a, b) => {
-                  // Sort built-in servers first
-                  if (a.is_builtin && !b.is_builtin) return -1;
-                  if (!a.is_builtin && b.is_builtin) return 1;
-                  return 0;
-                })
-                .map((server) => (
-                  <motion.div
-                    key={server.id}
-                    initial={{
-                      opacity: 0,
-                    }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.6 }}
-                  >
-                    <ServerCard key={server.id} server={server} />
-                  </motion.div>
-                ))}
+            <div>
+              {/* Built-in Extensions */}
+              {servers.filter(server => server.is_builtin).length > 0 && (
+                <div className="mb-12">
+                  <h2 className="text-2xl font-semibold text-textProminent mb-6">
+                    Built-in Extensions
+                  </h2>
+                  <div className="cards-grid">
+                    {servers
+                      .filter(server => server.is_builtin)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((server) => (
+                        <motion.div
+                          key={server.id}
+                          initial={{
+                            opacity: 0,
+                          }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.6 }}
+                        >
+                          <ServerCard key={server.id} server={server} />
+                        </motion.div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Community Extensions */}
+              {servers.filter(server => !server.is_builtin).length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-semibold text-textProminent mb-6">
+                    Community Extensions
+                  </h2>
+                  <div className="cards-grid">
+                    {servers
+                      .filter(server => !server.is_builtin)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((server) => (
+                        <motion.div
+                          key={server.id}
+                          initial={{
+                            opacity: 0,
+                          }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.6 }}
+                        >
+                          <ServerCard key={server.id} server={server} />
+                        </motion.div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

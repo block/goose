@@ -1,13 +1,13 @@
 ---
 title: Cognee Extension
-description: Add Cognee MCP Server as a Goose Extension
+description: Add Cognee MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [Cognee MCP Server](https://github.com/topoteretes/cognee) as a Goose extension to enable knowledge graph memory capabilities, connecting to over 30 data sources for enhanced context and retrieval.
+This tutorial covers how to add the [Cognee MCP Server](https://github.com/topoteretes/cognee/tree/main/cognee-mcp) as a goose extension to enable knowledge graph memory capabilities, connecting to over 30 data sources for enhanced context and retrieval.
 
 :::tip TLDR
 **Command**
@@ -17,7 +17,6 @@ uv --directory /path/to/cognee-mcp run python src/server.py
 **Environment Variables**
 ```
 LLM_API_KEY: <YOUR_OPENAI_API_KEY>
-EMBEDDING_API_KEY: <YOUR_OPENAI_API_KEY>
 ```
 :::
 
@@ -28,196 +27,60 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="goose CLI" default>
 
-1. First, install Cognee:
+**Install Cognee:**
+
 ```bash
 # Clone and install Cognee
 git clone https://github.com/topoteretes/cognee
-cd cognee-mcp
+cd cognee/cognee-mcp
 uv sync --dev --all-extras --reinstall
 
 # On Linux, install additional dependencies
 sudo apt install -y libpq-dev python3-dev
 ```
 
-2. Run the `configure` command:
-```sh
-goose configure
-```
+**Configure the extension:**
 
-3. Choose to add a `Command-line Extension`
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◆  What type of extension would you like to add?
-  │  ○ Built-in Extension 
-  // highlight-start    
-  │  ● Command-line Extension (Run a local command or script)
-  // highlight-end    
-  │  ○ Remote Extension (SSE) 
-  │  ○ Remote Extension (Streaming HTTP) 
-  └ 
-```
-
-4. Give your extension a name
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  // highlight-start
-  ◆  What would you like to call this extension?
-  │  Cognee
-  // highlight-end
-  └ 
-```
-
-5. Enter the command
-```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  // highlight-start
-  ◆  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  // highlight-end
-  └ 
-```  
-
-6. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │
-  // highlight-start
-  ◆  Please set the timeout for this tool (in secs):
-  │  300
-  // highlight-end
-  │
-  └ 
-``` 
-
-7. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  // highlight-start
-  ◇  Would you like to add a description?
-  │  No
-  // highlight-end
-  │
-  └ 
-```
-
-8. Add the required environment variables:
-:::info
-You'll need OpenAI API keys for both LLM and embedding models. [Get your API keys here](https://platform.openai.com/api-keys).
-:::
-
- ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  Cognee
-  │
-  ◇  What command should be run?
-  │  uv --directory /path/to/cognee-mcp run python src/server.py
-  │     
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  ◇  Would you like to add a description?
-  │  No
-  │    
-  // highlight-start
-  ◆  Would you like to add environment variables?
-  │  Yes 
-  │
-  ◇  Environment variable name:
-  │  LLM_API_KEY
-  │
-  ◇  Environment variable value:
-  │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-  │
-  ◇  Add another environment variable?
-  │  Yes
-  │
-  ◇  Environment variable name:
-  │  EMBEDDING_API_KEY
-  │
-  ◇  Environment variable value:
-  │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-  │
-  ◇  Add another environment variable?
-  │  No 
-  // highlight-end
-  └  Added Cognee extension
-```
-
+<CLIExtensionInstructions
+  name="Cognee"
+  description="Knowledge graph memory capabilities with 30+ data source connections"
+  command="uv --directory /path/to/cognee-mcp run python src/server.py"
+  envVars={[
+    { key: "LLM_API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+  ]}
+  commandNote={
+    <>
+      Replace <code>/path/to/cognee-mcp</code> with the actual path to your cloned cognee-mcp directory.
+    </>
+  }
+  infoNote={
+    <>
+      Obtain an API key for your LLM provider and paste it in. By default, this is an <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API key</a>.
+    </>
+  }
+/>
   </TabItem>
 </Tabs>
 
+:::info
+See the [Cognee MCP documentation](https://docs.cognee.ai/how-to-guides/deployment/mcp) for supported configuration options. 
+:::
+
 ## Example Usage
 
-Cognee provides knowledge graph memory capabilities for Goose, allowing it to remember and connect information across conversations and documents.
+Cognee provides knowledge graph memory capabilities for goose, allowing it to remember and connect information across conversations and documents.
 
 :::info LLM
 OpenAI's GPT-4o was used for this task.
 :::
 
-### Goose Prompt
+### goose Prompt
 
-> _Goose, please cognify this information: "I prefer Python for data analysis and use pandas extensively. My current project involves analyzing customer behavior data." Then search for information about my programming preferences._
+> _goose, please cognify this information: "I prefer Python for data analysis and use pandas extensively. My current project involves analyzing customer behavior data." Then search for information about my programming preferences._
 
-### Goose Output
+### goose Output
 
 :::note CLI
 

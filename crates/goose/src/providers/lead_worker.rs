@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
@@ -320,14 +320,20 @@ impl Provider for LeadWorkerProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        // Return the lead provider's name as the default
+        self.lead_provider.get_name()
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         // Return the lead provider's model config as the default
         // In practice, this might need to be more sophisticated
         self.lead_provider.get_model_config()
     }
 
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -454,7 +460,7 @@ impl Provider for LeadWorkerProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::MessageContent;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
@@ -471,12 +477,17 @@ mod tests {
             ProviderMetadata::empty()
         }
 
+        fn get_name(&self) -> &str {
+            "mock-lead"
+        }
+
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -488,6 +499,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: format!("Response from {}", self.name),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -631,12 +643,17 @@ mod tests {
             ProviderMetadata::empty()
         }
 
+        fn get_name(&self) -> &str {
+            "mock-lead"
+        }
+
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -653,6 +670,7 @@ mod tests {
                         vec![MessageContent::Text(
                             RawTextContent {
                                 text: format!("Response from {}", self.name),
+                                meta: None,
                             }
                             .no_annotation(),
                         )],

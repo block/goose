@@ -5,7 +5,7 @@ use goose::recipe::SubRecipe;
 
 use crate::recipes::print_recipe::print_recipe_info;
 use crate::recipes::recipe::load_recipe;
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::search_recipe::load_recipe_file;
 use crate::{
     cli::{InputConfig, RecipeInfo},
     session::SessionSettings,
@@ -15,16 +15,19 @@ pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
+    quiet: bool,
 ) -> Result<(InputConfig, RecipeInfo)> {
     let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
     });
-    print_recipe_info(&recipe, params);
+    if !quiet {
+        print_recipe_info(&recipe, params);
+    }
     let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
     if !additional_sub_recipes.is_empty() {
         for sub_recipe_name in additional_sub_recipes {
-            match retrieve_recipe_file(&sub_recipe_name) {
+            match load_recipe_file(&sub_recipe_name) {
                 Ok(recipe_file) => {
                     let name = extract_recipe_name(&sub_recipe_name);
                     let recipe_file_path = recipe_file.file_path;
@@ -49,7 +52,7 @@ pub fn extract_recipe_info_from_cli(
     }
     let input_config = InputConfig {
         contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-        extensions_override: recipe.extensions,
+        extensions_override: recipe.extensions.or(Some(vec![])),
         additional_system_prompt: recipe.instructions,
     };
 
@@ -96,7 +99,7 @@ mod tests {
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
         let (input_config, recipe_info) =
-            extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+            extract_recipe_info_from_cli(recipe_name, params, Vec::new(), false).unwrap();
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;
@@ -106,7 +109,8 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_none());
+        assert!(input_config.extensions_override.is_some());
+        assert!(input_config.extensions_override.unwrap().is_empty());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -160,7 +164,8 @@ mod tests {
         ];
 
         let (input_config, recipe_info) =
-            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes, false)
+                .unwrap();
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;
@@ -170,7 +175,8 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_none());
+        assert!(input_config.extensions_override.is_some());
+        assert!(input_config.extensions_override.unwrap().is_empty());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -240,7 +246,7 @@ settings:
   temperature: 0.7
 sub_recipes:
 - path: existing_sub_recipe.yaml
-  name: existing_sub_recipe        
+  name: existing_sub_recipe
 response:
   json_schema:
     type: object
@@ -248,10 +254,18 @@ response:
       result:
         type: string
 "#;
+        let sub_recipe_content = r#"
+title: existing_sub_recipe
+description: An existing sub recipe
+instructions: sub recipe instructions
+prompt: sub recipe prompt
+"#;
         let temp_dir = tempfile::tempdir().unwrap();
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+        let sub_recipe_path: std::path::PathBuf = temp_dir.path().join("existing_sub_recipe.yaml");
 
         std::fs::write(&recipe_path, test_recipe_content).unwrap();
+        std::fs::write(&sub_recipe_path, sub_recipe_content).unwrap();
         let canonical_recipe_path = recipe_path.canonicalize().unwrap();
         (temp_dir, canonical_recipe_path)
     }

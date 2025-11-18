@@ -1,33 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
+import {
+  DICTATION_SETTINGS_KEY,
+  ELEVENLABS_API_KEY,
+  getDefaultDictationSettings,
+} from './dictationConstants';
 
-export type DictationProvider = 'openai' | 'elevenlabs';
+export type DictationProvider = 'openai' | 'elevenlabs' | null;
 
 export interface DictationSettings {
   enabled: boolean;
   provider: DictationProvider;
 }
 
-const DICTATION_SETTINGS_KEY = 'dictation_settings';
-const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
-
 export const useDictationSettings = () => {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
   const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(false);
-  const { read } = useConfig();
+  const { read, getProviders } = useConfig();
 
   useEffect(() => {
     const loadSettings = async () => {
       // Load settings from localStorage
       const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
+
       if (saved) {
-        setSettings(JSON.parse(saved));
+        const parsedSettings = JSON.parse(saved);
+        setSettings(parsedSettings);
       } else {
-        // Default settings
-        const defaultSettings: DictationSettings = {
-          enabled: true,
-          provider: 'openai',
-        };
+        const defaultSettings = await getDefaultDictationSettings(getProviders);
         setSettings(defaultSettings);
       }
 
@@ -54,7 +54,7 @@ export const useDictationSettings = () => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [read]);
+  }, [read, getProviders]);
 
   return { settings, hasElevenLabsKey };
 };

@@ -3,6 +3,7 @@
 #  - release.yml
 #  - canary.yml
 #  - pr-comment-bundle-desktop.yml
+#  - bundle-desktop-manual.yml
 on:
   workflow_call:
     inputs:
@@ -107,70 +108,12 @@ jobs:
           cd ui/desktop
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
-      # Pre-build cleanup to ensure enough disk space
-      - name: Pre-build cleanup
-        run: |
-          source ./bin/activate-hermit
-          echo "Performing pre-build cleanup..."
-          # Clean npm cache
-          npm cache clean --force || true
-          # Clean any previous build artifacts
-          rm -rf target || true
-          # Clean Homebrew cache
-          brew cleanup || true
-          # Remove unnecessary large directories
-          rm -rf ~/Library/Caches/* || true
-          # Check disk space after cleanup
-          df -h
-
-      - name: Cache Cargo registry
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache Cargo index
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: ~/.cargo/index
-          key: ${{ runner.os }}-cargo-index
-          restore-keys: |
-            ${{ runner.os }}-cargo-index
-
-      - name: Cache Cargo build
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
-
-      # Install Go for building temporal-service
-      - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
-        with:
-          go-version: '1.21'
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       # Build the project
       - name: Build goosed
         run: source ./bin/activate-hermit && cargo build --release -p goose-server
-
-      # Build temporal-service using build.sh script
-      - name: Build temporal-service
-        run: |
-          echo "Building temporal-service using build.sh script..."
-          cd temporal-service
-          ./build.sh
-          echo "temporal-service built successfully"
-
-      # Install and prepare temporal CLI
-      - name: Install temporal CLI via hermit
-        run: |
-          echo "Installing temporal CLI via hermit..."
-          ./bin/hermit install temporal-cli
-          echo "temporal CLI installed successfully"
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -188,8 +131,16 @@ jobs:
       - name: Copy binaries into Electron folder
         run: |
           cp target/release/goosed ui/desktop/src/bin/goosed
-          cp temporal-service/temporal-service ui/desktop/src/bin/temporal-service
-          cp bin/temporal ui/desktop/src/bin/temporal
+
+      - name: Cache npm dependencies
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: macos-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          restore-keys: |
+            macos-npm-cache-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: source ../../bin/activate-hermit && npm ci
@@ -267,16 +218,19 @@ jobs:
               exit 1
             fi
 
-            if [ "$(jq -r .body.state response.json)" == "completed" ]; then
+            state="$(jq -r .body.state response.json)"
+
+            if [ "${state}" == "completed" ]; then
               echo "✅ signing complete ($(($(date +%s) - start_time))s)"
               break
             fi
 
-            if [ $(($(date +%s) - start_time)) -ge 900 ]; then
+            if [ $(($(date +%s) - start_time)) -ge 3600 ]; then
               echo "⚠️ timed out ($(($(date +%s) - start_time))s)"
               exit 1
             fi
-            echo "⏲️ waiting for signing to complete ($(($(date +%s) - start_time))s)"
+
+            echo "⏲️ waiting for signing to complete (${state}: $(($(date +%s) - start_time))s)"
           done
 
           # parse lambda response

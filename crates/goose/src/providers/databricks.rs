@@ -16,10 +16,12 @@ use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+    RequestLog,
+};
 use crate::config::ConfigError;
-use crate::impl_provider_default;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use crate::providers::retry::{
@@ -32,16 +34,18 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
-const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
+const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
-pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-2-5-flash";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
+    "databricks-claude-sonnet-4-5",
+    "databricks-claude-3-7-sonnet",
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
     "databricks-dbrx-instruct",
-    "databricks-mixtral-8x7b-instruct",
 ];
 
 pub const DATABRICKS_DOC_URL: &str =
@@ -102,12 +106,12 @@ pub struct DatabricksProvider {
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(DatabricksProvider);
-
 impl DatabricksProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -137,13 +141,38 @@ impl DatabricksProvider {
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
 
-        Ok(Self {
+        // Create the provider without the fast model first
+        let mut provider = Self {
             api_client,
             auth,
-            model,
+            model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-        })
+            name: Self::metadata().name,
+        };
+
+        // Check if the default fast model exists in the workspace
+        let model_with_fast = if let Ok(Some(models)) = provider.fetch_supported_models().await {
+            if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
+                tracing::debug!(
+                    "Found {} in Databricks workspace, setting as fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
+            } else {
+                tracing::debug!(
+                    "{} not found in Databricks workspace, not setting fast model",
+                    DATABRICKS_DEFAULT_FAST_MODEL
+                );
+                model
+            }
+        } else {
+            tracing::debug!("Could not fetch Databricks models, not setting fast model");
+            model
+        };
+
+        provider.model = model_with_fast;
+        Ok(provider)
     }
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
@@ -192,20 +221,22 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
+            name: Self::metadata().name,
         })
     }
 
-    fn get_endpoint_path(&self, is_embedding: bool) -> String {
+    fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
         } else {
-            format!("serving-endpoints/{}/invocations", self.model.model_name)
+            format!("serving-endpoints/{}/invocations", model_name)
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: Value, model_name: Option<&str>) -> Result<Value, ProviderError> {
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
-        let path = self.get_endpoint_path(is_embedding);
+        let model_to_use = model_name.unwrap_or(&self.model.model_name);
+        let path = self.get_endpoint_path(model_to_use, is_embedding);
 
         let response = self.api_client.response_post(&path, &payload).await?;
         handle_response_openai_compat(response).await
@@ -229,6 +260,10 @@ impl Provider for DatabricksProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -238,32 +273,38 @@ impl Provider for DatabricksProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        let mut payload =
+            create_request(model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
             .remove("model");
 
-        let response = self.with_retry(|| self.post(payload.clone())).await?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
+            .await?;
 
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        let response_model = get_model(&response);
+        log.write(&response, Some(&usage))?;
 
-        Ok((message, ProviderUsage::new(model, usage)))
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     async fn stream(
@@ -272,7 +313,10 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        let model_config = self.model.clone();
+
+        let mut payload =
+            create_request(&model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
@@ -283,23 +327,27 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let path = self.get_endpoint_path(false);
+        let path = self.get_endpoint_path(&model_config.model_name, false);
+        let mut log = RequestLog::start(&self.model, &payload)?;
         let response = self
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
                 if !resp.status().is_success() {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "HTTP {}: {}",
-                        resp.status(),
-                        resp.text().await.unwrap_or_default()
-                    )));
+                    let status = resp.status();
+                    let error_text = resp.text().await.unwrap_or_default();
+
+                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
+                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                    return Err(map_http_error_to_provider_error(status, json_payload));
                 }
                 Ok(resp)
             })
-            .await?;
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let model_config = self.model.clone();
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
@@ -309,7 +357,7 @@ impl Provider for DatabricksProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
         }))
@@ -385,13 +433,8 @@ impl Provider for DatabricksProvider {
             .collect();
 
         if models.is_empty() {
-            tracing::debug!("No serving endpoints found in Databricks workspace");
             Ok(None)
         } else {
-            tracing::debug!(
-                "Found {} serving endpoints in Databricks workspace",
-                models.len()
-            );
             Ok(Some(models))
         }
     }
@@ -408,7 +451,7 @@ impl EmbeddingCapable for DatabricksProvider {
             "input": texts,
         });
 
-        let response = self.with_retry(|| self.post(request.clone())).await?;
+        let response = self.with_retry(|| self.post(request.clone(), None)).await?;
 
         let embeddings = response["data"]
             .as_array()

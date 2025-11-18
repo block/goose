@@ -2,7 +2,7 @@
 set -eu
 
 ##############################################################################
-# Goose CLI Install Script
+# goose CLI Install Script
 #
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
@@ -14,7 +14,7 @@ set -eu
 #   curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
 #
 # Environment variables:
-#   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)
+#   GOOSE_BIN_DIR  - Directory to which goose will be installed (default: $HOME/.local/bin)
 #   GOOSE_VERSION  - Optional: specific version to install (e.g., "v1.0.25"). Overrides CANARY. Can be in the format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z
 #   GOOSE_PROVIDER - Optional: provider for goose
 #   GOOSE_MODEL    - Optional: model for goose
@@ -26,21 +26,51 @@ set -eu
 # --- 1) Check for dependencies ---
 # Check for curl
 if ! command -v curl >/dev/null 2>&1; then
-  echo "Error: 'curl' is required to download Goose. Please install curl and try again."
+  echo "Error: 'curl' is required to download goose. Please install curl and try again."
   exit 1
 fi
 
 # Check for tar or unzip (depending on OS)
 if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
-  echo "Error: Either 'tar' or 'unzip' is required to extract Goose. Please install one and try again."
+  echo "Error: Either 'tar' or 'unzip' is required to extract goose. Please install one and try again."
   exit 1
+fi
+
+# Check for required extraction tools based on detected OS
+if [ "${OS:-}" = "windows" ]; then
+  # Windows uses PowerShell's built-in Expand-Archive - check if PowerShell is available
+  if ! command -v powershell.exe >/dev/null 2>&1 && ! command -v pwsh >/dev/null 2>&1; then
+    echo "Warning: PowerShell is recommended to extract Windows packages but was not found."
+    echo "Falling back to unzip if available."
+  fi
+else
+  if ! command -v tar >/dev/null 2>&1; then
+    echo "Error: 'tar' is required to extract packages for ${OS:-unknown}. Please install tar and try again."
+    exit 1
+  fi
 fi
 
 
 # --- 2) Variables ---
 REPO="block/goose"
 OUT_FILE="goose"
-GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+
+# Set default bin directory based on detected OS environment
+if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    # Native Windows environments - use Windows user profile path
+    DEFAULT_BIN_DIR="$USERPROFILE/goose"
+elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL - use Linux-style path but make sure it exists
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+else
+    # Default for Linux/macOS
+    DEFAULT_BIN_DIR="$HOME/.local/bin"
+fi
+
+GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-$DEFAULT_BIN_DIR}"
 RELEASE="${CANARY:-false}"
 CONFIGURE="${CONFIGURE:-true}"
 if [ -n "${GOOSE_VERSION:-}" ]; then
@@ -58,17 +88,64 @@ else
 fi
 
 # --- 3) Detect OS/Architecture ---
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+# Allow explicit override for automation or when auto-detection is wrong:
+#   INSTALL_OS=linux|windows|darwin
+if [ -n "${INSTALL_OS:-}" ]; then
+  case "${INSTALL_OS}" in
+    linux|windows|darwin) OS="${INSTALL_OS}" ;;
+    *) echo "[error]: unsupported INSTALL_OS='${INSTALL_OS}' (expected: linux|windows|darwin)"; exit 1 ;;
+  esac
+else
+  # Better OS detection for Windows environments, with safer WSL handling.
+  # If explicit Windows-like shells/variables are present (MSYS/Cygwin), treat as windows.
+  if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    OS="windows"
+  elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
+    # WSL detected. Prefer Linux unless there are clear signs we should install the Windows build:
+    # - running on a Windows-mounted path like /mnt/c/...   OR
+    # - Windows executables are available AND we're on a Windows mount
+    if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+      OS="windows"
+    else
+      # If powershell/cmd exist, only treat as Windows when in a Windows mount
+      if command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+        if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]] || [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+          OS="windows"
+        else
+          OS="linux"
+        fi
+      else
+        # No strong Windows interop present — install Linux build inside WSL by default
+        OS="linux"
+      fi
+    fi
+  elif [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    # WSL mount point detection (like /mnt/c/) outside of /proc/version check
+    OS="windows"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="darwin"
+  elif command -v powershell.exe >/dev/null 2>&1 || command -v cmd.exe >/dev/null 2>&1; then
+    # Presence of Windows executables (likely a Windows environment)
+    OS="windows"
+  elif [[ "$PWD" =~ ^/[a-zA-Z]/ ]] && [[ -d "/c" || -d "/d" || -d "/e" ]]; then
+    # Check for Windows-style mount points (like in Git Bash)
+    OS="windows"
+  else
+    # Fallback to uname for other systems
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  fi
+fi
+
 ARCH=$(uname -m)
 
 # Handle Windows environments (MSYS2, Git Bash, Cygwin, WSL)
 case "$OS" in
-  linux|darwin) ;;
+  linux|darwin|windows) ;;
   mingw*|msys*|cygwin*)
     OS="windows"
     ;;
   *)
-    echo "Error: Unsupported OS '$OS'. Goose currently supports Linux, macOS, and Windows."
+    echo "Error: Unsupported OS '$OS'. goose currently supports Linux, macOS, and Windows."
     exit 1
     ;;
 esac
@@ -86,6 +163,16 @@ case "$ARCH" in
     exit 1
     ;;
 esac
+
+# Debug output (safely handle undefined variables)
+echo "WINDIR: ${WINDIR:-<not set>}"
+echo "OSTYPE: $OSTYPE"
+echo "uname -s: $(uname -s)"
+echo "uname -m: $(uname -m)"
+echo "PWD: $PWD"
+
+# Output the detected OS
+echo "Detected OS: $OS with ARCH $ARCH"
 
 # Build the filename and URL for the stable release
 if [ "$OS" = "darwin" ]; then
@@ -189,60 +276,79 @@ else
   mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
-# Also move temporal-service and temporal CLI if they exist
+# Copy Windows runtime DLLs if they exist
 if [ "$OS" = "windows" ]; then
-  if [ -f "$EXTRACT_DIR/temporal-service.exe" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
-    mv "$EXTRACT_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal.exe" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal.exe"
-    mv "$EXTRACT_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
-    chmod +x "$GOOSE_BIN_DIR/temporal.exe"
-  fi
-  
-  # Copy Windows runtime DLLs if they exist
   for dll in "$EXTRACT_DIR"/*.dll; do
     if [ -f "$dll" ]; then
       echo "Moving Windows runtime DLL: $(basename "$dll")"
       mv "$dll" "$GOOSE_BIN_DIR/"
     fi
   done
-else
-  if [ -f "$EXTRACT_DIR/temporal-service" ]; then
-    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-    mv "$EXTRACT_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
-    chmod +x "$GOOSE_BIN_DIR/temporal-service"
-  fi
-  
-  # Move temporal CLI if it exists
-  if [ -f "$EXTRACT_DIR/temporal" ]; then
-    echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal"
-    mv "$EXTRACT_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
-    chmod +x "$GOOSE_BIN_DIR/temporal"
-  fi
 fi
 
 # skip configuration for non-interactive installs e.g. automation, docker
 if [ "$CONFIGURE" = true ]; then
-  # --- 6) Configure Goose (Optional) ---
+  # --- 6) Configure goose (Optional) ---
   echo ""
-  echo "Configuring Goose"
+  echo "Configuring goose"
   echo ""
   "$GOOSE_BIN_DIR/$OUT_FILE" configure
 else
   echo "Skipping 'goose configure', you may need to run this manually later"
 fi
 
+
+
 # --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
-  echo "Warning: Goose installed, but $GOOSE_BIN_DIR is not in your PATH."
-  echo "Add it to your PATH by editing ~/.bashrc, ~/.zshrc, or similar:"
-  echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
-  echo "Then reload your shell (e.g. 'source ~/.bashrc', 'source ~/.zshrc') to apply changes."
+  echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
+  
+  if [ "$OS" = "windows" ]; then
+    echo "To add goose to your PATH in PowerShell:"
+    echo ""
+    echo "# Add to your PowerShell profile"
+    echo '$profilePath = $PROFILE'
+    echo 'if (!(Test-Path $profilePath)) { New-Item -Path $profilePath -ItemType File -Force }'
+    echo 'Add-Content -Path $profilePath -Value ''$env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"'''
+    echo "# Reload profile or restart PowerShell"
+    echo '. $PROFILE'
+    echo ""
+    echo "Alternatively, you can run:"
+    echo "    goose configure"
+    echo "or rerun this install script after updating your PATH."
+  else
+    SHELL_NAME=$(basename "$SHELL")
+    
+    echo ""
+    echo "The \$GOOSE_BIN_DIR is not in your PATH."
+    echo "What would you like to do?"
+    echo "1) Add it for me"
+    echo "2) I'll add it myself, show instructions"
+    
+    read -p "Enter choice [1/2]: " choice
+    
+    case "$choice" in
+      1)
+        RC_FILE="$HOME/.${SHELL_NAME}rc"
+        echo "Adding \$GOOSE_BIN_DIR to $RC_FILE..."
+        echo "export PATH=\"$GOOSE_BIN_DIR:\$PATH\"" >> "$RC_FILE"
+        echo "Done! Reload your shell or run 'source $RC_FILE' to apply changes."
+        ;;
+      2)
+        echo ""
+        echo "Add it to your PATH by editing ~/.${SHELL_NAME}rc or similar:"
+        echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
+        echo "Then reload your shell (e.g. 'source ~/.${SHELL_NAME}rc') to apply changes."
+        ;;
+      *)
+        echo "Invalid choice. Please add \$GOOSE_BIN_DIR to your PATH manually."
+        ;;
+    esac
+  fi
+  
   echo ""
 fi
+
+
+

@@ -1,20 +1,22 @@
-use std::sync::Arc;
-
 use dotenvy::dotenv;
 use futures::StreamExt;
-use goose::agents::{Agent, AgentEvent, ExtensionConfig};
+use goose::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
-use goose::message::Message;
-use goose::providers::databricks::DatabricksProvider;
+use goose::conversation::message::Message;
+use goose::providers::create_with_named_model;
+use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use goose::session::session_manager::SessionType;
+use goose::session::SessionManager;
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
-    // Setup a model provider from env vars
     let _ = dotenv();
 
-    let provider = Arc::new(DatabricksProvider::default());
+    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL)
+        .await
+        .expect("Couldn't create provider");
 
-    // Setup an agent with the developer extension
     let agent = Agent::new();
     let _ = agent.update_provider(provider).await;
 
@@ -32,10 +34,29 @@ async fn main() {
         println!("  {}", extension);
     }
 
-    let messages = vec![Message::user()
-        .with_text("can you summarize the readme.md in this dir using just a haiku?")];
+    let session = SessionManager::create_session(
+        PathBuf::default(),
+        "max-turn-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await
+    .expect("session manager creation failed");
 
-    let mut stream = agent.reply(&messages, None, None).await.unwrap();
+    let session_config = SessionConfig {
+        id: session.id,
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+
+    let user_message = Message::user()
+        .with_text("can you summarize the readme.md in this dir using just a haiku?");
+
+    let mut stream = agent
+        .reply(user_message, session_config, None)
+        .await
+        .unwrap();
+
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");

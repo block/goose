@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -9,7 +9,6 @@ import {
   createExtensionConfig,
   ExtensionFormData,
   extensionToFormData,
-  extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
 
@@ -17,24 +16,29 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
+  sessionId: string; // Add required sessionId prop
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
   disableConfiguration?: boolean;
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
+  onModalClose?: (extensionName: string) => void;
+  searchTerm?: string;
 }
 
 export default function ExtensionsSection({
+  sessionId,
   deepLinkConfig,
   showEnvVars,
   hideButtons,
   disableConfiguration,
   customToggle,
   selectedExtensions = [],
+  onModalClose,
+  searchTerm = '',
 }: ExtensionSectionProps) {
-  const { getExtensions, addExtension, removeExtension } = useConfig();
-  const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
+  const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -44,26 +48,29 @@ export default function ExtensionsSection({
   const [showEnvVarsStateVar, setShowEnvVarsStateVar] = useState<boolean | undefined | null>(
     showEnvVars
   );
+  const [pendingActivationExtensions, setPendingActivationExtensions] = useState<Set<string>>(
+    new Set()
+  );
 
   // Update deep link state when props change
   useEffect(() => {
     setDeepLinkConfigStateVar(deepLinkConfig);
     setShowEnvVarsStateVar(showEnvVars);
+
+    if (deepLinkConfig && !showEnvVars) {
+      setPendingActivationExtensions((prev) => {
+        const updated = new Set(prev);
+        updated.add(deepLinkConfig.name);
+        return updated;
+      });
+    }
   }, [deepLinkConfig, showEnvVars]);
 
-  // Reset deep link state when component is re-mounted (via key prop changes)
-  useEffect(() => {
-    return () => {
-      // Cleanup function to reset state when component unmounts
-      setDeepLinkConfigStateVar(null);
-      setShowEnvVarsStateVar(null);
-    };
-  }, []);
+  // Process extensions from context - this automatically updates when extensionsList changes
+  const extensions = useMemo(() => {
+    if (extensionsList.length === 0) return [];
 
-  const fetchExtensions = useCallback(async () => {
-    const extensionsList = await getExtensions(true); // Force refresh
-    // Sort extensions by name to maintain consistent order
-    const sortedExtensions = [...extensionsList]
+    return [...extensionsList]
       .sort((a, b) => {
         // First sort by builtin
         if (a.type === 'builtin' && b.type !== 'builtin') return -1;
@@ -83,47 +90,37 @@ export default function ExtensionsSection({
         // Use selectedExtensions to determine enabled state in recipe editor
         enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
       }));
+  }, [extensionsList, disableConfiguration, selectedExtensions]);
 
-    setExtensions(sortedExtensions);
-  }, [getExtensions, disableConfiguration, selectedExtensions]);
+  const fetchExtensions = useCallback(async () => {
+    await getExtensions(true); // Force refresh - this will update the context
+  }, [getExtensions]);
 
-  useEffect(() => {
-    fetchExtensions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
+  const handleExtensionToggle = async (extensionConfig: FixedExtensionEntry) => {
     if (customToggle) {
-      await customToggle(extension);
-      // After custom toggle, update the local state to reflect the change
-      setExtensions((prevExtensions) =>
-        prevExtensions.map((ext) =>
-          ext.name === extension.name ? { ...ext, enabled: !ext.enabled } : ext
-        )
-      );
+      await customToggle(extensionConfig);
       return true;
     }
 
     // If extension is enabled, we are trying to toggle if off, otherwise on
-    const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
-    const extensionConfig = extractExtensionConfig(extension);
+    const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
 
-    // eslint-disable-next-line no-useless-catch
-    try {
-      await toggleExtension({
-        toggle: toggleDirection,
-        extensionConfig: extensionConfig,
-        addToConfig: addExtension,
-        toastOptions: { silent: false },
-      });
+    await toggleExtension({
+      toggle: toggleDirection,
+      extensionConfig: extensionConfig,
+      addToConfig: addExtension,
+      toastOptions: { silent: false },
+      sessionId: sessionId,
+    });
 
-      await fetchExtensions(); // Refresh the list after successful toggle
-      return true; // Indicate success
-    } catch (error) {
-      // Don't refresh the extension list on failure - this allows our visual state rollback to work
-      // The actual state in the config hasn't changed anyway
-      throw error; // Re-throw to let the ExtensionItem component know it failed
-    }
+    setPendingActivationExtensions((prev) => {
+      const updated = new Set(prev);
+      updated.delete(extensionConfig.name);
+      return updated;
+    });
+
+    await fetchExtensions();
+    return true;
   };
 
   const handleConfigureClick = (extension: FixedExtensionEntry) => {
@@ -137,12 +134,33 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-      // Immediately refresh the extensions list after successful activation
-      await fetchExtensions();
+      await activateExtension({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
+        sessionId: sessionId,
+      });
+      setPendingActivationExtensions((prev) => {
+        const updated = new Set(prev);
+        updated.delete(extensionConfig.name);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to activate extension:', error);
+      // If activation fails, mark as pending if it's enabled in config
+      if (formData.enabled) {
+        setPendingActivationExtensions((prev) => {
+          const updated = new Set(prev);
+          updated.add(extensionConfig.name);
+          return updated;
+        });
+      }
+    } finally {
       await fetchExtensions();
+      if (onModalClose) {
+        setTimeout(() => {
+          onModalClose(formData.name);
+        }, 200);
+      }
     }
   };
 
@@ -165,6 +183,7 @@ export default function ExtensionsSection({
         addToConfig: addExtension,
         removeFromConfig: removeExtension,
         originalName: originalName,
+        sessionId: sessionId,
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
@@ -180,7 +199,7 @@ export default function ExtensionsSection({
     handleModalClose();
 
     try {
-      await deleteExtension({ name, removeFromConfig: removeExtension });
+      await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });
     } catch (error) {
       console.error('Failed to delete extension:', error);
       // We don't reopen the modal on failure
@@ -212,6 +231,8 @@ export default function ExtensionsSection({
           onToggle={handleExtensionToggle}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
+          searchTerm={searchTerm}
+          pendingActivationExtensions={pendingActivationExtensions}
         />
 
         {!hideButtons && (

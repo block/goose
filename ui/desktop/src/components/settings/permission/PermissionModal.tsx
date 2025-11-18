@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '../../ui/dropdown-menu';
+import { useChatContext } from '../../../contexts/ChatContext';
 
 function getFirstSentence(text: string): string {
   const match = text.match(/^([^.?!]+[.?!])/);
@@ -27,6 +28,9 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
     { value: 'never_allow', label: 'Never allow' },
   ] as { value: PermissionLevel; label: string }[];
 
+  const chatContext = useChatContext();
+  const sessionId = chatContext?.chat.sessionId || '';
+
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [updatedPermissions, setUpdatedPermissions] = useState<Record<string, string>>({});
 
@@ -40,12 +44,14 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   useEffect(() => {
     const fetchTools = async () => {
       try {
-        const response = await getTools({ query: { extension_name: extensionName } });
+        const response = await getTools({
+          query: { extension_name: extensionName, session_id: sessionId },
+        });
         if (response.error) {
           console.error('Failed to get tools');
         } else {
           const filteredTools = (response.data || []).filter(
-            (tool) =>
+            (tool: ToolInfo) =>
               tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
           );
           setTools(filteredTools);
@@ -56,7 +62,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
     };
 
     fetchTools();
-  }, [extensionName]);
+  }, [extensionName, sessionId]);
 
   const handleSettingChange = (toolName: string, newPermission: PermissionLevel) => {
     setUpdatedPermissions((prev) => ({

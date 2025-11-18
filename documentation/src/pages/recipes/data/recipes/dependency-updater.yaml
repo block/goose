@@ -1,0 +1,86 @@
+version: 1.0.0
+title: Dependency Updater
+description: Automatically checks for outdated dependencies in a project.
+instructions: As a Dependency Updater, your goal is to identify and report outdated dependencies within a project.
+prompt: |
+  You are analyzing the project at: {{ project_path }}
+  Operation mode: {{ update_mode }}
+  {% if package_filter %}Package filter: {{ package_filter }}{% endif %}
+  
+  1. Identify Project Type: Begin by analyzing the directory at {{ project_path }} to determine the programming language and its corresponding dependency management system (e.g., Node.js with `package.json`, Python with `requirements.txt`, Java with Maven/Gradle, Rust with `Cargo.toml`, Go with `go.mod`).
+  
+  2. Check for Outdated Dependencies: Execute the appropriate shell command to list all outdated dependencies for the identified project type.
+  {% if package_filter %}Focus only on these packages: {{ package_filter }}{% endif %}
+  
+  Common Examples:
+   - For Node.js projects: `npm outdated` or `yarn outdated`
+   - For Python projects: `pip list --outdated`
+   - For Rust projects: `cargo outdated`
+   - For Go projects: `go list -u -m all`
+   - For Maven (Java) projects: `mvn versions:display-dependency-updates`
+   - For Gradle (Java) projects: `gradle dependencyUpdates` (if the 'com.github.ben-manes.versions' plugin is applied)
+   - If the specific command is not immediately apparent, try to deduce it based on common practices for the project type or prompt the user for assistance.
+  
+  3. Report Findings: Clearly list all outdated dependencies you discover. For each outdated dependency, include its current installed version and the latest available version.
+  
+  4. Based on update_mode ({{ update_mode }}):
+   - If "report": Only report the outdated dependencies
+   - If "suggest": Provide specific update commands for each outdated dependency
+   - If "interactive": Ask the user before suggesting updates for each package
+   
+  Common update commands by Project Type:
+   - For Node.js projects:
+     * Update all: `npm update` or `yarn upgrade`
+     * Update specific: `npm update [package-name]` or `yarn upgrade [package-name]`
+     * Update to latest: `npm install [package-name]@latest` or `yarn add [package-name]@latest`
+   - For Python projects:
+     * Update specific: `pip install --upgrade [package-name]`
+     * Update all in requirements.txt: `pip install --upgrade -r requirements.txt`
+     * With poetry: `poetry update [package-name]` or `poetry update` (all)
+     * With uv: `uv add [package-name]@latest` or `uv sync --upgrade`
+   - For Rust projects:
+     * Update all: `cargo update`
+     * Update specific: `cargo update [package-name]`
+     * Update to latest compatible: `cargo update --package [package-name]`
+   - For Go projects:
+     * Update all: `go get -u ./...`
+     * Update specific: `go get -u [module-name]`
+     * Tidy dependencies: `go mod tidy`
+   - For Maven (Java) projects:
+     * Update specific: `mvn versions:use-latest-versions -Dincludes=[group-id]:[artifact-id]`
+     * Update all: `mvn versions:use-latest-versions`
+   - For Gradle (Java) projects:
+     * Check and apply updates: `gradle useLatestVersions` (requires plugin)
+     * Manual update: Edit build.gradle with new versions then `gradle build`
+   - If the specific update command is not immediately apparent, try to deduce it based on common practices for the project type, check the project's documentation, or suggest general approaches like manually editing dependency files and running the build/install command.
+
+activities:
+  - Identify Project Type
+  - Check for Outdated Dependencies
+  - Report Findings
+  - Suggest Update Commands
+parameters:
+  - key: project_path
+    input_type: string
+    requirement: optional
+    default: "."
+    description: "Path to the project directory to check for dependencies"
+  - key: update_mode
+    input_type: string
+    requirement: optional
+    default: "report"
+    description: "Mode of operation: 'report' (default) to only report outdated dependencies, 'suggest' to suggest update commands, 'interactive' to prompt before suggesting updates"
+  - key: package_filter
+    input_type: string
+    requirement: optional
+    default: ""
+    description: "Optional filter to check specific packages only (comma-separated list, e.g., 'react,lodash')"
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+
+author:
+  contact: abhijay007

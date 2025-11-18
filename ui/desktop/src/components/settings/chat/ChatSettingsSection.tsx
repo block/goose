@@ -1,7 +1,7 @@
 import { ModeSection } from '../mode/ModeSection';
 import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
-import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
+import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
@@ -19,6 +19,12 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
+        <CardContent className="px-2">
+          <SecurityToggle />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Response Styles</CardTitle>
           <CardDescription>Choose how Goose should format and style its responses</CardDescription>
@@ -29,10 +35,6 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Voice Dictation</CardTitle>
-          <CardDescription>Configure voice input for messages</CardDescription>
-        </CardHeader>
         <CardContent className="px-2">
           <DictationSection />
         </CardContent>
@@ -40,22 +42,10 @@ export default function ChatSettingsSection() {
 
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Scheduling Engine</CardTitle>
-          <CardDescription>
-            Choose which scheduling backend to use for scheduled recipes and tasks
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <SchedulerSection />
-        </CardContent>
-      </Card>
-
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
           <CardDescription>
-            Configure how Goose selects tools for your requests. Recommended when many extensions
-            are enabled. Available only with Claude models served on Databricks for now.
+            Experimental: configure how Goose selects tools for your requests, useful when there are
+            many tools. Only tested with Claude models currently.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-2">

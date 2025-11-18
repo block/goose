@@ -28,7 +28,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
       if (!needsExpansion) {
         return (
-          <div className="text-xs mb-2">
+          <div className="font-sans text-sm mb-2">
             <div className="flex flex-row">
               <span className="text-textSubtle min-w-[140px]">{key}</span>
               <span className="text-textPlaceholder">{value}</span>
@@ -38,22 +38,28 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       }
 
       return (
-        <div className="text-sm mb-2">
-          <div className="flex flex-row items-stretch">
+        <div className={`font-sans text-sm mb-2 ${isExpanded ? '' : 'truncate min-w-0'}`}>
+          <div className={`flex flex-row items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
             <button
               onClick={() => toggleKey(key)}
               className="flex text-left text-textSubtle min-w-[140px]"
             >
               <span>{key}</span>
             </button>
-            <div className="w-full flex items-stretch">
+            <div className={`w-full flex items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
               {isExpanded ? (
                 <div>
-                  <MarkdownContent content={value} className="text-sm text-textPlaceholder" />
+                  <MarkdownContent
+                    content={value}
+                    className="font-sans text-sm text-textPlaceholder"
+                  />
                 </div>
               ) : (
-                <button onClick={() => toggleKey(key)} className="text-left text-textPlaceholder">
-                  {value.slice(0, 60)}...
+                <button
+                  onClick={() => toggleKey(key)}
+                  className={`text-left text-textPlaceholder ${isExpanded ? '' : 'truncate min-w-0'}`}
+                >
+                  {value}
                 </button>
               )}
               <button
@@ -78,7 +84,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
     return (
       <div className="mb-2">
-        <div className="flex flex-row text-xs">
+        <div className="flex flex-row font-sans text-sm">
           <span className="text-textSubtle min-w-[140px]">{key}</span>
           <pre className="whitespace-pre-wrap text-textPlaceholder overflow-x-auto max-w-full">
             {content}

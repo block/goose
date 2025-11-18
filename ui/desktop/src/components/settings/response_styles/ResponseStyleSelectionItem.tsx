@@ -39,14 +39,14 @@ export function ResponseStyleSelectionItem({
   }, [currentStyle, style.key]);
 
   return (
-    <div className="group hover:cursor-pointer">
+    <div className="group hover:cursor-pointer text-sm">
       <div
         className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
         onClick={() => handleStyleChange(style.key)}
       >
         <div className="flex">
           <div>
-            <h3 className="text-text-default text-xs">{style.label}</h3>
+            <h3 className="text-text-default">{style.label}</h3>
             {showDescription && (
               <p className="text-xs text-text-muted mt-[2px]">{style.description}</p>
             )}

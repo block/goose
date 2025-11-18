@@ -1,8 +1,8 @@
+use crate::config::paths::Paths;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,26 +15,40 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
 
 use crate::config::{Config, ConfigError};
-use crate::impl_provider_default;
-use crate::message::Message;
+use crate::conversation::message::Message;
+
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
 
-pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
+pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5-mini",
+    "gpt-5",
     "gpt-4o",
-    "o1",
-    "o3-mini",
-    "claude-3.7-sonnet",
-    "claude-3.5-sonnet",
+    "grok-code-fast-1",
+    "gpt-5-codex",
+    "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
 ];
 
-pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
-    &["gpt-4.1", "claude-3.7-sonnet", "claude-3.5-sonnet"];
+pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
+    "gpt-4.1",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-codex",
+    "claude-sonnet-4",
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-2.5-pro",
+    "grok-code-fast-1",
+];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -81,9 +95,7 @@ struct DiskCache {
 
 impl DiskCache {
     fn new() -> Self {
-        let cache_path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("githubcopilot/info.json");
+        let cache_path = Paths::in_config_dir("githubcopilot/info.json");
         Self { cache_path }
     }
 
@@ -115,12 +127,35 @@ pub struct GithubCopilotProvider {
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(GithubCopilotProvider);
-
 impl GithubCopilotProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    fn payload_contains_image(payload: &Value) -> bool {
+        payload
+            .get("messages")
+            .and_then(|m| m.as_array())
+            .is_some_and(|messages| {
+                messages.iter().any(|msg| {
+                    msg.get("content").is_some_and(|content| {
+                        content
+                            .as_array()
+                            .map(|arr| arr.iter().collect::<Vec<_>>())
+                            .unwrap_or_else(|| vec![content])
+                            .iter()
+                            .any(|item| {
+                                matches!(
+                                    item.get("type").and_then(|v| v.as_str()),
+                                    Some("image_url") | Some("image")
+                                )
+                            })
+                    })
+                })
+            })
+    }
+
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -131,6 +166,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -151,14 +187,21 @@ impl GithubCopilotProvider {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let response = self
+
+        let headers = self.get_github_headers();
+
+        let mut request = self
             .client
             .post(url)
-            .headers(self.get_github_headers())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(payload)
-            .send()
-            .await?;
+            .headers(headers)
+            .header("Authorization", format!("Bearer {}", token));
+
+        if Self::payload_contains_image(payload) {
+            request = request.header("Copilot-Vision-Request", "true");
+        }
+
+        let response = request.json(payload).send().await?;
+
         if stream_only_model {
             let mut collector = OAIStreamCollector::new();
             let mut stream = response.bytes_stream();
@@ -170,7 +213,9 @@ impl GithubCopilotProvider {
                     if !tline.starts_with("data: ") {
                         continue;
                     }
-                    let payload = &tline[6..];
+                    let Some(payload) = tline.get(6..) else {
+                        continue;
+                    };
                     if payload == "[DONE]" {
                         break;
                     }
@@ -236,7 +281,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
                     token
                 }
                 _ => return Err(err.into()),
@@ -382,13 +427,22 @@ impl Provider for GithubCopilotProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             "github_copilot",
-            "Github Copilot",
-            "Github Copilot and associated models",
+            "GitHub Copilot",
+            "GitHub Copilot and associated models",
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
-            vec![ConfigKey::new("GITHUB_COPILOT_TOKEN", true, true, None)],
+            vec![ConfigKey::new_oauth(
+                "GITHUB_COPILOT_TOKEN",
+                true,
+                true,
+                None,
+            )],
         )
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -396,16 +450,18 @@ impl Provider for GithubCopilotProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
         let response = self
@@ -421,9 +477,9 @@ impl Provider for GithubCopilotProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        log.write(&response, Some(&usage))?;
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
@@ -465,5 +521,34 @@ impl Provider for GithubCopilotProvider {
             .collect();
         models.sort();
         Ok(Some(models))
+    }
+
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        let config = Config::global();
+
+        // Check if token already exists and is valid
+        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
+            // Try to refresh API info to validate the token
+            match self.refresh_api_info().await {
+                Ok(_) => return Ok(()), // Token is valid
+                Err(_) => {
+                    // Token is invalid, continue with OAuth flow
+                    tracing::debug!("Existing token is invalid, starting OAuth flow");
+                }
+            }
+        }
+
+        // Start OAuth device code flow
+        let token = self
+            .get_access_token()
+            .await
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
+
+        // Save the token
+        config
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
+
+        Ok(())
     }
 }

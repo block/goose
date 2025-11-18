@@ -71,8 +71,8 @@ tania:
   page: true
   socials:
     linkedin: taniachakraborty
-    x: taniashiba
-    github: taniashiba
+    x: taniandjerry
+    github: taniandjerry
     bluesky: taniachakraborty.com
 
 angie:
@@ -143,3 +143,21 @@ glenn:
     github: hiddenillusion
     x: hiddenillusion
     bluesky: hiddenillusion
+
+rarora:
+  name: Ravneet Singh Arora
+  title: Staff Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/130506156?v=4
+  page: true
+  socials:
+    linkedin: ravneet-arora-9b913537
+    github: ravarora2
+
+jeuston:
+  name: Joe Euston
+  title: Software Engineering Manager
+  image_url: https://avatars.githubusercontent.com/u/52311495?v=4
+  page: true
+  socials:
+    linkedin: joeeuston
+    github: joeeuston-dev

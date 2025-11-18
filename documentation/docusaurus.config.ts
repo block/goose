@@ -12,9 +12,9 @@ const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
 const inkeepOrgId = process.env.INKEEP_ORG_ID;
 
 const config: Config = {
-  title: "codename goose",
+  title: "goose",
   tagline:
-    "your local AI agent, automating engineering tasks seamlessly.",
+    "your local AI agent, automating engineering tasks seamlessly",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -68,7 +68,7 @@ const config: Config = {
         gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        } : undefined,
+        } : false,
       } satisfies Preset.Options,
     ],
   ],
@@ -111,6 +111,18 @@ const config: Config = {
             to: '/extensions'
           },
           {
+            from: '/v1/extensions/detail/nondeveloper',
+            to: '/docs/mcp/computer-controller-mcp'
+          },
+          {
+            from: '/docs/guides/managing-goose-sessions',
+            to: '/docs/guides/sessions/session-management'
+          },
+          {
+            from: '/docs/guides/smart-context-management',
+            to: '/docs/guides/sessions/smart-context-management'
+          },
+          {
             from: '/docs/guides/share-goose-sessions',
             to: '/docs/guides/recipes/session-recipes'
           },
@@ -121,6 +133,14 @@ const config: Config = {
           {
             from: '/docs/guides/recipe-reference',
             to: '/docs/guides/recipes/recipe-reference'
+          },
+          {
+            from: '/docs/guides/recipes/sub-recipes',
+            to: '/docs/guides/recipes/subrecipes'
+          },
+          {
+            from: '/docs/tutorials/sub-recipes-in-parallel',
+            to: '/docs/tutorials/subrecipes-in-parallel'
           },
           {
             from: '/docs/guides/tool-permissions',
@@ -137,6 +157,14 @@ const config: Config = {
           {
             from: '/docs/guides/goose-in-docker',
             to: '/docs/tutorials/goose-in-docker'
+          },
+          {
+            from: '/docs/guides/creating-plans',
+            to: '/docs/guides/multi-model/creating-plans'
+          },
+          {
+            from: '/docs/guides/config-file',
+            to: '/docs/guides/config-files',
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
@@ -278,6 +306,10 @@ const config: Config = {
           {
             from: '/docs/guides/isolated-development-environments',
             to: '/docs/tutorials/isolated-development-environments'
+          },
+          {
+            from: '/docs/experimental/subagents',
+            to: '/docs/guides/subagents'
           }         
         ],
       },
@@ -349,7 +381,7 @@ const config: Config = {
         },
 
         {
-          href: "https://discord.gg/block-opensource",
+          href: "https://discord.gg/goose-oss",
           label: "Discord",
           position: "right",
         },
@@ -366,7 +398,7 @@ const config: Config = {
           title: "Quick Links",
           items: [
             {
-              label: "Install Goose",
+              label: "Install goose",
               to: "docs/getting-started/installation",
             },
             {
@@ -384,19 +416,19 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/block-opensource",
+              href: "https://discord.gg/goose-oss",
             },
             {
               label: "YouTube",
-              href: "https://www.youtube.com/@blockopensource",
+              href: "https://www.youtube.com/@goose-oss",
             },
             {
               label: "LinkedIn",
-              href: "https://www.linkedin.com/company/block-opensource",
+              href: "https://www.linkedin.com/company/goose-oss",
             },
             {
               label: "Twitter / X",
-              href: "https://x.com/blockopensource",
+              href: "https://x.com/goose_oss",
             },
             {
               label: "BlueSky",
@@ -448,17 +480,17 @@ const config: Config = {
             },
           },
         ],
-        quickQuestions: ["What is Goose?"],
+        quickQuestions: ["What is goose?"],
       },
     },
-    announcementBar: {
-      id: 'goose-grants',
-      content:
-        '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
-      backgroundColor: '#20232a',
-      textColor: '#fff',
-      isCloseable: false,
-    },
+    // announcementBar: {
+    //   id: 'goose-grants',
+    //   content:
+    //     '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
+    //   backgroundColor: '#20232a',
+    //   textColor: '#fff',
+    //   isCloseable: false,
+    // },
   } satisfies Preset.ThemeConfig,
 };
 

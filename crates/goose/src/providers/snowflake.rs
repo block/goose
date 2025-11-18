@@ -8,15 +8,25 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
+use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat, RequestLog};
 use crate::config::ConfigError;
-use crate::impl_provider_default;
-use crate::message::Message;
+use crate::conversation::message::Message;
+
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-7-sonnet", "claude-3-5-sonnet"];
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.5 series
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    // Claude 4 series
+    "claude-4-sonnet",
+    "claude-4-opus",
+    // Claude 3 series
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+];
 
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model";
@@ -38,12 +48,12 @@ pub struct SnowflakeProvider {
     api_client: ApiClient,
     model: ModelConfig,
     image_format: ImageFormat,
+    #[serde(skip)]
+    name: String,
 }
 
-impl_provider_default!(SnowflakeProvider);
-
 impl SnowflakeProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {
@@ -87,12 +97,13 @@ impl SnowflakeProvider {
         };
 
         let auth = AuthMethod::BearerToken(token?);
-        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "Goose")?;
+        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "goose")?;
 
         Ok(Self {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
+            name: Self::metadata().name,
         })
     }
 
@@ -294,21 +305,28 @@ impl Provider for SnowflakeProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        let payload = create_request(model_config, system, messages, tools)?;
+
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -317,12 +335,12 @@ impl Provider for SnowflakeProvider {
             })
             .await?;
 
-        // Parse response
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        let response_model = get_model(&response);
 
-        Ok((message, ProviderUsage::new(model, usage)))
+        log.write(&response, Some(&usage))?;
+
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

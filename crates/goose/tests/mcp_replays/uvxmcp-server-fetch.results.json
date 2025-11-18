@@ -1,0 +1,8 @@
+[
+  [
+    {
+      "type": "text",
+      "text": "Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue"
+    }
+  ]
+]

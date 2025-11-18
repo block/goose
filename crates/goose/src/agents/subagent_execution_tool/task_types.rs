@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
+use crate::recipe::Recipe;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -16,52 +18,18 @@ pub enum ExecutionMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
-    pub id: String,
-    pub task_type: String,
-    pub payload: Value,
+pub struct TaskPayload {
+    pub recipe: Recipe,
+    pub return_last_only: bool,
+    pub sequential_when_repeated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_values: Option<HashMap<String, String>>,
 }
 
-impl Task {
-    pub fn get_sub_recipe(&self) -> Option<&Map<String, Value>> {
-        (self.task_type == "sub_recipe")
-            .then(|| self.payload.get("sub_recipe")?.as_object())
-            .flatten()
-    }
-
-    pub fn get_command_parameters(&self) -> Option<&Map<String, Value>> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("command_parameters"))
-            .and_then(|cp| cp.as_object())
-    }
-
-    pub fn get_sequential_when_repeated(&self) -> bool {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("sequential_when_repeated").and_then(|v| v.as_bool()))
-            .unwrap_or_default()
-    }
-
-    pub fn get_sub_recipe_name(&self) -> Option<&str> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("name"))
-            .and_then(|name| name.as_str())
-    }
-
-    pub fn get_sub_recipe_path(&self) -> Option<&str> {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("recipe_path"))
-            .and_then(|path| path.as_str())
-    }
-
-    pub fn get_text_instruction(&self) -> Option<&str> {
-        if self.task_type != "sub_recipe" {
-            self.payload
-                .get("text_instruction")
-                .and_then(|text| text.as_str())
-        } else {
-            None
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+    pub id: String,
+    pub payload: TaskPayload,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

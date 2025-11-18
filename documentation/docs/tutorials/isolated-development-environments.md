@@ -20,7 +20,7 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 ## Prerequisites
 
-- Docker installed and running on your system
+- Docker ([Podman](https://docs.dagger.io/ci/integrations/podman), [NerdCtl](https://docs.dagger.io/ci/integrations/nerdctl/) or [Container](https://docs.dagger.io/ci/integrations/apple-container/)) installed and running on your system
 - Git installed and configured
 - Goose installed and configured
 
@@ -41,7 +41,7 @@ Click this link to automatically add the extension to Goose:
 ### Method 2: Manual Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
 
   1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Advanced Settings` from the menu.
@@ -56,7 +56,7 @@ Click this link to automatically add the extension to Goose:
   5. Click `Add` button
 
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
+  <TabItem value="cli" label="goose CLI">
 
   1. Run the configuration command:
   ```bash
@@ -178,7 +178,7 @@ If you encounter issues:
 
 1. Check the **[Container Use GitHub repository](https://github.com/dagger/container-use)** for documentation
 2. Verify all prerequisites are installed and working
-3. Join our [Discord community](https://discord.gg/block-opensource) for support
+3. Join our [Discord community](https://discord.gg/goose-oss) for support
 
 ## Next Steps
 

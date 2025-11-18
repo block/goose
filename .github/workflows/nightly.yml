@@ -1,0 +1,128 @@
+# A release from main. Automatically triggered at midnight US Eastern.
+
+name: Nightly Build
+
+on:
+  schedule:
+    # Run at midnight US Eastern (0500 UTC)
+    - cron: '0 5 * * *'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: false
+        default: 'main'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-version:
+    name: Prepare Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+      commit_sha: ${{ steps.get-commit.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: main  # Ensure we're building from latest main
+          fetch-depth: 0
+
+      - name: Get commit info
+        id: get-commit
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Building from commit: $(git rev-parse HEAD)"
+          echo "Latest commit: $(git log -1 --oneline)"
+
+      - name: Generate a nightly version
+        id: set-version
+        run: |
+          # Extract the version from Cargo.toml and add nightly tag with date and short commit
+          VERSION=$(grep '^version\s*=' Cargo.toml | head -n 1 | cut -d\" -f2)
+          DATE=$(date -u +%Y%m%d)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="${VERSION}-nightly.${DATE}.${SHORT_SHA}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+
+  build-cli:
+    needs: [prepare-version]
+    uses: ./.github/workflows/build-cli.yml
+    with:
+      version: ${{ needs.prepare-version.outputs.version }}
+
+  install-script:
+    name: Upload Install Script
+    runs-on: ubuntu-latest
+    needs: [build-cli]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        with:
+          name: download_cli.sh
+          path: download_cli.sh
+
+  bundle-desktop:
+    needs: [prepare-version]
+    uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      version: ${{ needs.prepare-version.outputs.version }}
+      signing: true
+    secrets:
+      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
+
+  bundle-desktop-linux:
+    needs: [prepare-version]
+    uses: ./.github/workflows/bundle-desktop-linux.yml
+    with:
+      version: ${{ needs.prepare-version.outputs.version }}
+
+  bundle-desktop-windows:
+    needs: [prepare-version]
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    with:
+      version: ${{ needs.prepare-version.outputs.version }}
+      signing: true
+    secrets:
+      WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
+      WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+  
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [prepare-version, build-cli, install-script, bundle-desktop, bundle-desktop-linux, bundle-desktop-windows]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
+        with:
+          merge-multiple: true
+
+      # Create/update the nightly release
+      - name: Release nightly
+        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
+        with:
+          tag: ${{ needs.prepare-version.outputs.version }}
+          name: "Nightly ${{ needs.prepare-version.outputs.version }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: |
+            goose-*.tar.bz2
+            Goose*.zip
+            *.deb
+            *.rpm
+            download_cli.sh
+          allowUpdates: true
+          omitBody: true
+          prerelease: true
+          makeLatest: false

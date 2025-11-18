@@ -6,7 +6,7 @@ use crate::eval_suites::{
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
-use goose::message::MessageContent;
+use goose::conversation::message::MessageContent;
 use rmcp::model::Role;
 use serde_json::{self, Value};
 
@@ -48,7 +48,9 @@ impl Evaluation for SimpleRepoCloneTest {
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 let command = args.get("command").and_then(Value::as_str);
                                 command.is_some_and(|cmd| {
@@ -78,7 +80,9 @@ impl Evaluation for SimpleRepoCloneTest {
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 let command = args.get("command").and_then(Value::as_str);
                                 command.is_some_and(|cmd| {
@@ -110,7 +114,9 @@ impl Evaluation for SimpleRepoCloneTest {
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 let command = args.get("command").and_then(Value::as_str);
                                 let file_text = args.get("file_text").and_then(Value::as_str);
@@ -152,7 +158,9 @@ impl Evaluation for SimpleRepoCloneTest {
                             }
 
                             if let Ok(args) =
-                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                                serde_json::from_value::<Value>(serde_json::Value::Object(
+                                    tool_call.arguments.clone().unwrap_or_default(),
+                                ))
                             {
                                 let command = args.get("command").and_then(Value::as_str);
                                 command.is_some_and(|cmd| {

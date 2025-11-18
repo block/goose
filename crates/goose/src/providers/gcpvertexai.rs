@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 use url::Url;
 
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 
@@ -18,11 +18,10 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext,
 };
 
-use crate::impl_provider_default;
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::emit_debug_trace;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
@@ -77,6 +76,8 @@ pub struct GcpVertexAIProvider {
     /// Retry configuration for handling rate limit errors
     #[serde(skip)]
     retry_config: RetryConfig,
+    #[serde(skip)]
+    name: String,
 }
 
 impl GcpVertexAIProvider {
@@ -87,23 +88,7 @@ impl GcpVertexAIProvider {
     ///
     /// # Arguments
     /// * `model` - Configuration for the model to be used
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
-        Self::new(model)
-    }
-
-    /// Creates a new provider instance with the specified model configuration.
-    ///
-    /// # Arguments
-    /// * `model` - Configuration for the model to be used
-    pub fn new(model: ModelConfig) -> Result<Self> {
-        futures::executor::block_on(Self::new_async(model))
-    }
-
-    /// Async implementation of new provider instance creation.
-    ///
-    /// # Arguments
-    /// * `model` - Configuration for the model to be used
-    async fn new_async(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
@@ -126,6 +111,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
+            name: Self::metadata().name,
         })
     }
 
@@ -260,7 +246,10 @@ impl GcpVertexAIProvider {
                     self.retry_config.max_retries
                 );
                 tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
+                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                    details: error_msg,
+                    retry_delay: None,
+                }));
             }
 
             // Get a fresh auth token for each attempt
@@ -292,9 +281,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Try to parse response for more detailed error info
@@ -319,7 +309,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(rate_limit_attempts);
@@ -335,9 +328,10 @@ impl GcpVertexAIProvider {
                             self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
-                        return Err(
-                            last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg))
-                        );
+                        return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded {
+                            details: error_msg,
+                            retry_delay: None,
+                        }));
                     }
 
                     // Handle 529 Overloaded error (https://docs.anthropic.com/en/api/errors)
@@ -354,7 +348,10 @@ impl GcpVertexAIProvider {
                     );
 
                     // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_message));
+                    last_error = Some(ProviderError::RateLimitExceeded {
+                        details: error_message,
+                        retry_delay: None,
+                    });
 
                     // Calculate and apply the backoff delay
                     let delay = self.retry_config.delay_for_attempt(overloaded_attempts);
@@ -434,8 +431,6 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl_provider_default!(GcpVertexAIProvider);
-
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
     /// Returns metadata about the GCP Vertex AI provider.
@@ -444,10 +439,7 @@ impl Provider for GcpVertexAIProvider {
         Self: Sized,
     {
         let model_strings: Vec<String> = vec![
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35),
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35V2),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
-            GcpVertexAIModel::Claude(ClaudeVersion::Haiku35),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
@@ -505,6 +497,10 @@ impl Provider for GcpVertexAIProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     /// Completes a model interaction by sending a request and processing the response.
     ///
     /// # Arguments
@@ -512,23 +508,25 @@ impl Provider for GcpVertexAIProvider {
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create request and context
-        let (request, context) = create_request(&self.model, system, messages, tools)?;
+        let (request, context) = create_request(model_config, system, messages, tools)?;
 
         // Send request and process response
         let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(&self.model, &request, &response, &usage);
+        let mut log = RequestLog::start(model_config, &request)?;
+        log.write(&response, Some(&usage))?;
 
         // Convert response to message
         let message = response_to_message(response, context)?;
@@ -596,7 +594,7 @@ mod tests {
     fn test_url_construction() {
         use url::Url;
 
-        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet-v2@20241022");
+        let model_config = ModelConfig::new_or_fail("claude-sonnet-4-20250514");
         let context = RequestContext::new(&model_config.model_name).unwrap();
         let api_model_id = context.model.to_string();
 
@@ -628,7 +626,8 @@ mod tests {
             .iter()
             .map(|m| m.name.clone())
             .collect();
-        assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
+        assert!(model_names.contains(&"claude-3-7-sonnet@20250219".to_string()));
+        assert!(model_names.contains(&"claude-sonnet-4@20250514".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
         // Should contain the original 2 config keys plus 4 new retry-related ones

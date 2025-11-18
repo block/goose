@@ -1,5 +1,5 @@
 ##############################################################################
-# Goose CLI Install Script for Windows PowerShell
+# goose CLI Install Script for Windows PowerShell
 #
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
@@ -12,7 +12,7 @@
 #   Or simply: .\download_cli.ps1
 #
 # Environment variables:
-#   $env:GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $env:USERPROFILE\.local\bin)
+#   $env:GOOSE_BIN_DIR  - Directory to which goose will be installed (default: $env:USERPROFILE\.local\bin)
 #   $env:GOOSE_VERSION  - Optional: specific version to install (e.g., "v1.0.25"). Can be in the format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z
 #   $env:GOOSE_PROVIDER - Optional: provider for goose
 #   $env:GOOSE_MODEL    - Optional: model for goose
@@ -143,39 +143,7 @@ if (Test-Path $SOURCE_GOOSE) {
     exit 1
 }
 
-# --- 10) Install temporal-service if it exists ---
-$SOURCE_TEMPORAL_SERVICE = Join-Path $EXTRACT_DIR "temporal-service.exe"
-if (Test-Path $SOURCE_TEMPORAL_SERVICE) {
-    $DEST_TEMPORAL_SERVICE = Join-Path $env:GOOSE_BIN_DIR "temporal-service.exe"
-    Write-Host "Moving temporal-service to $DEST_TEMPORAL_SERVICE" -ForegroundColor Green
-    try {
-        # Remove existing file if it exists to avoid conflicts
-        if (Test-Path $DEST_TEMPORAL_SERVICE) {
-            Remove-Item -Path $DEST_TEMPORAL_SERVICE -Force
-        }
-        Move-Item -Path $SOURCE_TEMPORAL_SERVICE -Destination $DEST_TEMPORAL_SERVICE -Force
-    } catch {
-        Write-Warning "Failed to move temporal-service.exe: $($_.Exception.Message)"
-    }
-}
-
-# --- 11) Install temporal CLI if it exists ---
-$SOURCE_TEMPORAL = Join-Path $EXTRACT_DIR "temporal.exe"
-if (Test-Path $SOURCE_TEMPORAL) {
-    $DEST_TEMPORAL = Join-Path $env:GOOSE_BIN_DIR "temporal.exe"
-    Write-Host "Moving temporal CLI to $DEST_TEMPORAL" -ForegroundColor Green
-    try {
-        # Remove existing file if it exists to avoid conflicts
-        if (Test-Path $DEST_TEMPORAL) {
-            Remove-Item -Path $DEST_TEMPORAL -Force
-        }
-        Move-Item -Path $SOURCE_TEMPORAL -Destination $DEST_TEMPORAL -Force
-    } catch {
-        Write-Warning "Failed to move temporal.exe: $($_.Exception.Message)"
-    }
-}
-
-# --- 12) Copy Windows runtime DLLs if they exist ---
+# --- 10) Copy Windows runtime DLLs if they exist ---
 $DLL_FILES = Get-ChildItem -Path $EXTRACT_DIR -Filter "*.dll" -ErrorAction SilentlyContinue
 foreach ($dll in $DLL_FILES) {
     $DEST_DLL = Join-Path $env:GOOSE_BIN_DIR $dll.Name
@@ -191,7 +159,7 @@ foreach ($dll in $DLL_FILES) {
     }
 }
 
-# --- 13) Clean up temporary directory ---
+# --- 11) Clean up temporary directory ---
 try {
     Remove-Item -Path $TMP_DIR -Recurse -Force
     Write-Host "Cleaned up temporary directory." -ForegroundColor Yellow
@@ -199,10 +167,10 @@ try {
     Write-Warning "Could not clean up temporary directory: $TMP_DIR"
 }
 
-# --- 14) Configure Goose (Optional) ---
+# --- 12) Configure goose (Optional) ---
 if ($CONFIGURE -eq "true") {
     Write-Host ""
-    Write-Host "Configuring Goose" -ForegroundColor Green
+    Write-Host "Configuring goose" -ForegroundColor Green
     Write-Host ""
     try {
         & $DEST_GOOSE configure
@@ -213,11 +181,11 @@ if ($CONFIGURE -eq "true") {
     Write-Host "Skipping 'goose configure', you may need to run this manually later" -ForegroundColor Yellow
 }
 
-# --- 15) Check PATH and give instructions if needed ---
+# --- 13) Check PATH and give instructions if needed ---
 $CURRENT_PATH = $env:PATH
 if ($CURRENT_PATH -notlike "*$env:GOOSE_BIN_DIR*") {
     Write-Host ""
-    Write-Host "Warning: Goose installed, but $env:GOOSE_BIN_DIR is not in your PATH." -ForegroundColor Yellow
+    Write-Host "Warning: goose installed, but $env:GOOSE_BIN_DIR is not in your PATH." -ForegroundColor Yellow
     Write-Host "To add it to your PATH permanently, run the following command as Administrator:" -ForegroundColor Yellow
     Write-Host "    [Environment]::SetEnvironmentVariable('PATH', `$env:PATH + ';$env:GOOSE_BIN_DIR', 'Machine')" -ForegroundColor Cyan
     Write-Host ""
@@ -229,5 +197,5 @@ if ($CURRENT_PATH -notlike "*$env:GOOSE_BIN_DIR*") {
     Write-Host ""
 }
 
-Write-Host "Goose CLI installation completed successfully!" -ForegroundColor Green
-Write-Host "Goose is installed at: $DEST_GOOSE" -ForegroundColor Green
+Write-Host "goose CLI installation completed successfully!" -ForegroundColor Green
+Write-Host "goose is installed at: $DEST_GOOSE" -ForegroundColor Green

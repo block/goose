@@ -11,8 +11,9 @@ use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
-use crate::message::Message;
-use crate::tool_monitor::ToolMonitor;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
+use crate::tool_monitor::RepetitionInspector;
 
 /// Result of a retry logic evaluation
 #[derive(Debug, Clone, PartialEq)]
@@ -38,8 +39,8 @@ const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_T
 pub struct RetryManager {
     /// Current number of retry attempts
     attempts: Arc<Mutex<u32>>,
-    /// Optional tool monitor for reset operations
-    tool_monitor: Option<Arc<Mutex<Option<ToolMonitor>>>>,
+    /// Optional repetition inspector for reset operations
+    repetition_inspector: Option<Arc<Mutex<Option<RepetitionInspector>>>>,
 }
 
 impl Default for RetryManager {
@@ -53,15 +54,17 @@ impl RetryManager {
     pub fn new() -> Self {
         Self {
             attempts: Arc::new(Mutex::new(0)),
-            tool_monitor: None,
+            repetition_inspector: None,
         }
     }
 
-    /// Create a new retry manager with tool monitor
-    pub fn with_tool_monitor(tool_monitor: Arc<Mutex<Option<ToolMonitor>>>) -> Self {
+    /// Create a new retry manager with repetition inspector
+    pub fn with_repetition_inspector(
+        repetition_inspector: Arc<Mutex<Option<RepetitionInspector>>>,
+    ) -> Self {
         Self {
             attempts: Arc::new(Mutex::new(0)),
-            tool_monitor: Some(tool_monitor),
+            repetition_inspector: Some(repetition_inspector),
         }
     }
 
@@ -70,10 +73,10 @@ impl RetryManager {
         let mut attempts = self.attempts.lock().await;
         *attempts = 0;
 
-        // Reset tool monitor if available
-        if let Some(monitor) = &self.tool_monitor {
-            if let Some(monitor) = monitor.lock().await.as_mut() {
-                monitor.reset();
+        // Reset repetition inspector if available
+        if let Some(inspector) = &self.repetition_inspector {
+            if let Some(inspector) = inspector.lock().await.as_mut() {
+                inspector.reset();
             }
         }
     }
@@ -92,12 +95,11 @@ impl RetryManager {
 
     /// Reset status for retry: clear message history and final output tool state
     async fn reset_status_for_retry(
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) {
-        messages.clear();
-        messages.extend_from_slice(initial_messages);
+        *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
 
         if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
@@ -106,18 +108,13 @@ impl RetryManager {
         }
     }
 
-    /// Handle retry logic for the agent reply loop
     pub async fn handle_retry_logic(
         &self,
-        messages: &mut Vec<Message>,
-        session: &Option<SessionConfig>,
+        messages: &mut Conversation,
+        session_config: &SessionConfig,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
-        let Some(session_config) = session else {
-            return Ok(RetryResult::Skipped);
-        };
-
         let Some(retry_config) = &session_config.retry_config else {
             return Ok(RetryResult::Skipped);
         };
@@ -231,10 +228,12 @@ pub async fn execute_shell_command(
         let mut cmd = if cfg!(target_os = "windows") {
             let mut cmd = Command::new("cmd");
             cmd.args(["/C", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         } else {
             let mut cmd = Command::new("sh");
             cmd.args(["-c", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         };
 

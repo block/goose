@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
-import { View, ViewOptions } from '../../App';
+import { View, ViewOptions } from '../../utils/navigationUtils';
 import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
@@ -56,9 +56,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         break;
       case 'sharedSession':
         navigate('/shared-session', { state: viewOptions });
-        break;
-      case 'recipeEditor':
-        navigate('/recipe-editor', { state: viewOptions });
         break;
       case 'welcome':
         navigate('/welcome');

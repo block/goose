@@ -5,7 +5,7 @@ import Layout from "@theme/Layout";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
 
 import styles from "./index.module.css";
-import { GooseWordmark } from "../components/gooseWordmark";
+import { GooseLogo } from "../components/GooseLogo";
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
@@ -14,7 +14,7 @@ function HomepageHeader() {
       <div className={styles.wrapper}>
         <div className={styles.textColumn}>
           <div className="hero--logo">
-            <GooseWordmark />
+            <GooseLogo />
           </div>
           <p className={styles.subtitle}>{siteConfig.tagline}</p>
           <Link className="button button--primary button--lg" to="docs/getting-started/installation">
@@ -38,9 +38,8 @@ function HomepageHeader() {
 
 
 export default function Home(): ReactNode {
-  const { siteConfig } = useDocusaurusContext();
   return (
-    <Layout title={`${siteConfig.title}`} description="Your open source AI agent, automating engineering tasks seamlessly.">
+    <Layout description="your open source AI agent, automating engineering tasks seamlessly">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

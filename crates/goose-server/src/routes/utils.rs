@@ -1,7 +1,6 @@
-use crate::state::AppState;
+use goose::config::declarative_providers::load_provider;
 use goose::config::Config;
-use goose::providers::base::{ConfigKey, ProviderMetadata};
-use http::{HeaderMap, StatusCode};
+use goose::providers::base::{ConfigKey, ProviderMetadata, ProviderType};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::error::Error;
@@ -23,27 +22,13 @@ pub struct KeyInfo {
     pub value: Option<String>, // Only populated for non-secret keys that are set
 }
 
-pub fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        Err(StatusCode::UNAUTHORIZED)
-    } else {
-        Ok(StatusCode::OK)
-    }
-}
-
 /// Inspects a configuration key to determine if it's set, its location, and value (for non-secret keys)
 #[allow(dead_code)]
 pub fn inspect_key(key_name: &str, is_secret: bool) -> Result<KeyInfo, Box<dyn Error>> {
     let config = Config::global();
 
     // Check environment variable first
-    let env_value = std::env::var(key_name).ok();
+    let env_value = env::var(key_name).ok();
 
     if let Some(value) = env_value {
         return Ok(KeyInfo {
@@ -106,9 +91,18 @@ pub fn inspect_keys(
     Ok(results)
 }
 
-pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
+pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: ProviderType) -> bool {
     let config = Config::global();
 
+    // TODO(Douwe): if the provider doesn't need an API key, it should be considered configured always
+    if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
+        if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
+            return config
+                .get_secret::<String>(&loaded_provider.config.api_key_env)
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+        }
+    }
     // Special case: Zero-config providers (no config keys)
     if metadata.config_keys.is_empty() {
         // Check if the provider has been explicitly configured via the UI

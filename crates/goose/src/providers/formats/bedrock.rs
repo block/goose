@@ -1,17 +1,21 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::mcp_utils::ToolResult;
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolError, ToolResult};
-use rmcp::model::{Content, RawContent, ResourceContents, Role, Tool};
+use rmcp::model::{
+    object, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
+    Role, Tool,
+};
 use serde_json::Value;
 
 use super::super::base::Usage;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
@@ -44,11 +48,8 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::ContextLengthExceeded(_) => {
-            bail!("ContextLengthExceeded should not get passed to the provider")
-        }
-        MessageContent::SummarizationRequested(_) => {
-            bail!("SummarizationRequested should not get passed to the provider")
+        MessageContent::SystemNotification(_) => {
+            bail!("SystemNotification should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
@@ -56,7 +57,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&call.arguments))
+                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -71,7 +72,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&call.arguments))
+                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -93,12 +94,18 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(_) => None,
+                Err(error) => {
+                    // For errors, create a text content block with the error message
+                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                        "The tool call returned the following error:\n{}",
+                        error
+                    ))])
+                }
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
                     .tool_use_id(tool_res.id.to_string())
-                    .status(if content.is_some() {
+                    .status(if tool_res.tool_result.is_ok() {
                         bedrock::ToolResultStatus::Success
                     } else {
                         bedrock::ToolResultStatus::Error
@@ -122,6 +129,9 @@ pub fn to_bedrock_tool_result_content_block(
         RawContent::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
         RawContent::Image(image) => {
             bedrock::ToolResultContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
+        }
+        RawContent::ResourceLink(_link) => {
+            bedrock::ToolResultContentBlock::Text("[Resource link]".to_string())
         }
         RawContent::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
@@ -181,6 +191,14 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 }
 
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
+    let mut input_schema = tool.input_schema.as_ref().clone();
+
+    // If the schema doesn't have a "type" field, add it
+    // This is required by Bedrock
+    if !input_schema.contains_key("type") {
+        input_schema.insert("type".to_string(), Value::String("object".to_string()));
+    }
+
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
             .name(tool.name.to_string())
@@ -191,7 +209,7 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
                     .unwrap_or_default(),
             )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &Value::Object(tool.input_schema.as_ref().clone()),
+                &Value::Object(input_schema),
             )))
             .build()?,
     ))
@@ -278,17 +296,19 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
         bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
             tool_use.tool_use_id.to_string(),
-            Ok(ToolCall::new(
-                tool_use.name.to_string(),
-                from_bedrock_json(&tool_use.input)?,
-            )),
+            Ok(CallToolRequestParam {
+                name: tool_use.name.clone().into(),
+                arguments: Some(object(from_bedrock_json(&tool_use.input.clone())?)),
+            }),
         ),
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
             if tool_res.content.is_empty() {
-                Err(ToolError::ExecutionError(
-                    "Empty content for tool use from Bedrock".to_string(),
-                ))
+                Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: Cow::from("Empty content for tool use from Bedrock".to_string()),
+                    data: None,
+                })
             } else {
                 tool_res
                     .content
@@ -307,9 +327,11 @@ pub fn from_bedrock_tool_result_content_block(
     Ok(match content {
         bedrock::ToolResultContentBlock::Text(text) => Content::text(text.to_string()),
         _ => {
-            return Err(ToolError::ExecutionError(
-                "Unsupported tool result from Bedrock".to_string(),
-            ))
+            return Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from("Unsupported tool result from Bedrock".to_string()),
+                data: None,
+            })
         }
     })
 }
@@ -323,11 +345,11 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage {
-        input_tokens: Some(usage.input_tokens),
-        output_tokens: Some(usage.output_tokens),
-        total_tokens: Some(usage.total_tokens),
-    }
+    Usage::new(
+        Some(usage.input_tokens),
+        Some(usage.output_tokens),
+        Some(usage.total_tokens),
+    )
 }
 
 pub fn from_bedrock_json(document: &Document) -> Result<Value> {
@@ -376,6 +398,7 @@ mod tests {
             let image = RawImageContent {
                 data: TEST_IMAGE_BASE64.to_string(),
                 mime_type: mime_type.to_string(),
+                meta: None,
             }
             .no_annotation();
 
@@ -391,6 +414,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/bmp".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -406,6 +430,7 @@ mod tests {
         let image = RawImageContent {
             data: "invalid_base64_data!!!".to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -420,6 +445,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 

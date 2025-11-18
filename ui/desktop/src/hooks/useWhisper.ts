@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
-import { safeJsonParse } from '../utils/jsonUtils';
+import { safeJsonParse } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -85,9 +85,54 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     }
   }, [dictationSettings, hasOpenAIKey, hasElevenLabsKey]);
 
+  // Define stopRecording before startRecording to avoid circular dependency
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    // Clear interval
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+
+    // Stop all tracks in the stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    // Close audio context
+    if (audioContext && audioContext.state !== 'closed') {
+      audioContext.close().catch(console.error);
+      setAudioContext(null);
+      setAnalyser(null);
+    }
+  }, [audioContext]);
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(console.error);
+      }
+    };
+  }, [audioContext]);
+
   const transcribeAudio = useCallback(
     async (audioBlob: Blob) => {
       if (!dictationSettings) {
+        stopRecording();
         onError?.(new Error('Dictation settings not loaded'));
         return;
       }
@@ -114,14 +159,20 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           reader.readAsDataURL(audioBlob);
         });
 
+        const mimeType = audioBlob.type;
+        if (!mimeType) {
+          throw new Error('Unable to determine audio format. Please try again.');
+        }
+
         let endpoint = '';
         let headers: Record<string, string> = {
           'Content-Type': 'application/json',
           'X-Secret-Key': await window.electron.getSecretKey(),
         };
+
         let body: Record<string, string> = {
           audio: base64Audio,
-          mime_type: 'audio/webm',
+          mime_type: mimeType,
         };
 
         // Choose endpoint based on provider
@@ -169,6 +220,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         }
       } catch (error) {
         console.error('Error transcribing audio:', error);
+        stopRecording();
         onError?.(error as Error);
       } finally {
         setIsTranscribing(false);
@@ -176,77 +228,44 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         setEstimatedSize(0);
       }
     },
-    [onTranscription, onError, dictationSettings]
+    [onTranscription, onError, dictationSettings, stopRecording]
   );
-
-  // Define stopRecording before startRecording to avoid circular dependency
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-
-    // Clear interval
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
-
-    // Stop all tracks in the stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    // Close audio context
-    if (audioContext && audioContext.state !== 'closed') {
-      audioContext.close().catch(console.error);
-      setAudioContext(null);
-      setAnalyser(null);
-    }
-  }, [audioContext]);
-
-  // Cleanup effect to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Cleanup on unmount
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(console.error);
-      }
-    };
-  }, [audioContext]);
 
   const startRecording = useCallback(async () => {
     if (!dictationSettings) {
+      stopRecording();
       onError?.(new Error('Dictation settings not loaded'));
       return;
     }
 
     try {
       // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+      });
       streamRef.current = stream;
 
-      // Create audio context and analyser for visualization
-      const context = new AudioContext();
-      const source = context.createMediaStreamSource(stream);
-      const analyserNode = context.createAnalyser();
-      analyserNode.fftSize = 2048;
-      source.connect(analyserNode);
+      // Verify we have valid audio tracks
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks available in the microphone stream');
+      }
 
-      setAudioContext(context);
-      setAnalyser(analyserNode);
+      // AudioContext creation is disabled to prevent MediaRecorder conflicts
+      setAudioContext(null);
+      setAnalyser(null);
 
-      // Create MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
-      });
+      // Determine best supported MIME type
+      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'];
+
+      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -293,14 +312,52 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+
+        // Check if the blob is empty
+        if (audioBlob.size === 0) {
+          onError?.(
+            new Error(
+              'No audio data was recorded. Please check your microphone permissions and try again.'
+            )
+          );
+          return;
+        }
+
         await transcribeAudio(audioBlob);
       };
 
-      mediaRecorder.start(1000); // Collect data every second for size monitoring
-      setIsRecording(true);
+      // Add error handler for MediaRecorder
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        onError?.(new Error('Recording failed: Unknown error'));
+      };
+
+      if (!stream.active) {
+        throw new Error('Audio stream became inactive before recording could start');
+      }
+
+      // Check audio tracks again before starting recording
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks available in the stream');
+      }
+
+      const activeAudioTracks = audioTracks.filter((track) => track.readyState === 'live');
+      if (activeAudioTracks.length === 0) {
+        throw new Error('No live audio tracks available');
+      }
+
+      try {
+        mediaRecorder.start(100);
+        setIsRecording(true);
+      } catch (startError) {
+        console.error('Error calling mediaRecorder.start():', startError);
+        const errorMessage = startError instanceof Error ? startError.message : String(startError);
+        throw new Error(`Failed to start recording: ${errorMessage}`);
+      }
     } catch (error) {
       console.error('Error starting recording:', error);
+      stopRecording();
       onError?.(error as Error);
     }
   }, [onError, onSizeWarning, transcribeAudio, stopRecording, dictationSettings]);

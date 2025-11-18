@@ -1,12 +1,13 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::ToolCall;
-use rmcp::model::{Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 // Constants for frequently used strings in Anthropic API format
 const TYPE_FIELD: &str = "type";
@@ -32,8 +33,7 @@ const DATA_FIELD: &str = "data";
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
-    // Convert messages to Anthropic format
-    for message in messages {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let role = match message.role {
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
@@ -90,10 +90,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ContextLengthExceeded(_) => {
-                    // Skip
-                }
-                MessageContent::SummarizationRequested(_) => {
+                MessageContent::SystemNotification(_) => {
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {
@@ -170,6 +167,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     anthropic_messages
 }
 
+fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
+    if input_schema.is_empty() {
+        return Arc::new(json_object!({
+            "type": "object",
+        }));
+    }
+    input_schema
+}
+
 /// Convert internal Tool format to Anthropic's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
@@ -180,7 +186,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             tool_specs.push(json!({
                 NAME_FIELD: tool.name,
                 "description": tool.description,
-                "input_schema": tool.input_schema
+                "input_schema": anthropic_flavored_input_schema(tool.input_schema.clone())
             }));
         }
     }
@@ -230,19 +236,24 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let name = block
                     .get(NAME_FIELD)
                     .and_then(|n| n.as_str())
-                    .ok_or_else(|| anyhow!("Missing tool_use name"))?;
+                    .ok_or_else(|| anyhow!("Missing tool_use name"))?
+                    .to_string();
                 let input = block
                     .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
-                let tool_call = ToolCall::new(name, input.clone());
+                let tool_call = CallToolRequestParam {
+                    name: name.into(),
+                    arguments: Some(object(input.clone())),
+                };
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some(THINKING_TYPE) => {
                 let thinking = block
                     .get(THINKING_TYPE)
                     .and_then(|t| t.as_str())
-                    .ok_or_else(|| anyhow!("Missing thinking content"))?;
+                    .ok_or_else(|| anyhow!("Missing thinking content"))?
+                    .to_string();
                 let signature = block
                     .get(SIGNATURE_FIELD)
                     .and_then(|s| s.as_str())
@@ -572,8 +583,10 @@ where
                                     Ok(parsed) => parsed,
                                     Err(_) => {
                                         // If parsing fails, create an error tool request
-                                        let error = mcp_core::handler::ToolError::InvalidParameters(
-                                            format!("Could not parse tool arguments: {}", args)
+                                        let error = ErrorData::new(
+                                            ErrorCode::INVALID_PARAMS,
+                                            format!("Could not parse tool arguments: {}", args),
+                                            None,
                                         );
                                         let mut message = Message::new(
                                             Role::Assistant,
@@ -587,7 +600,8 @@ where
                                 }
                             };
 
-                            let tool_call = ToolCall::new(&name, parsed_args);
+                            let tool_call = CallToolRequestParam{ name: name.into(), arguments: Some(object(parsed_args)) };
+
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
@@ -676,6 +690,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
 
@@ -689,7 +704,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello! How can I assist you today?"
             }],
-            "model": "claude-3-5-sonnet-latest",
+            "model": "claude-sonnet-4-20250514",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -747,7 +762,7 @@ mod tests {
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
-            assert_eq!(tool_call.arguments, json!({"expression": "2 + 2"}));
+            assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -959,7 +974,7 @@ mod tests {
                 "type": "text",
                 "text": "Based on the cached context, here's my response."
             }],
-            "model": "claude-3-5-sonnet-latest",
+            "model": "claude-sonnet-4-20250514",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -983,16 +998,24 @@ mod tests {
 
     #[test]
     fn test_tool_error_handling_maintains_pairing() {
-        use mcp_core::handler::ToolError;
+        use crate::conversation::message::Message;
+        use rmcp::model::{ErrorCode, ErrorData};
 
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
-                Ok(ToolCall::new("calculator", json!({"expression": "2 + 2"}))),
+                Ok(CallToolRequestParam {
+                    name: "calculator".into(),
+                    arguments: Some(object!({"expression": "2 + 2"})),
+                }),
             ),
             Message::user().with_tool_response(
                 "tool_1",
-                Err(ToolError::ExecutionError("Tool failed".to_string())),
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Tool failed".to_string(),
+                    None,
+                )),
             ),
         ];
 
@@ -1010,7 +1033,7 @@ mod tests {
         assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
         assert_eq!(
             spec[1]["content"][0]["content"],
-            "Error: Execution failed: Tool failed"
+            "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
     }

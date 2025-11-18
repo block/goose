@@ -1,5 +1,4 @@
-use super::APP_STRATEGY;
-use etcetera::{choose_app_strategy, AppStrategy};
+use crate::config::paths::Paths;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -24,7 +23,7 @@ pub struct PermissionConfig {
 }
 
 /// PermissionManager manages permission configurations for various tools.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PermissionManager {
     config_path: PathBuf, // Path to the permission configuration file
     permission_map: HashMap<String, PermissionConfig>, // Mapping of permission names to configurations
@@ -37,14 +36,7 @@ const SMART_APPROVE_PERMISSION: &str = "smart_approve";
 /// Implements the default constructor for `PermissionManager`.
 impl Default for PermissionManager {
     fn default() -> Self {
-        // Choose the app strategy and determine the config directory
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
-
-        // Ensure the configuration directory exists
-        std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
-        let config_path = config_dir.join("permission.yaml");
+        let config_path = Paths::config_dir().join("permission.yaml");
 
         // Load the existing configuration file or create an empty map if the file doesn't exist
         let permission_map = if config_path.exists() {
@@ -97,6 +89,11 @@ impl PermissionManager {
     /// Retrieves the smart approve permission level for a specific tool.
     pub fn get_smart_approve_permission(&self, principal_name: &str) -> Option<PermissionLevel> {
         self.get_permission(SMART_APPROVE_PERMISSION, principal_name)
+    }
+
+    /// Retrieves the config file path.
+    pub fn get_config_path(&self) -> &Path {
+        self.config_path.as_path()
     }
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.

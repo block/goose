@@ -1,0 +1,5 @@
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"sampling":{}},"clientInfo":{"name":"goose","version":"0.0.0"}}}
+STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"prompts":{"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"mcp-fetch","version":"1.19.0"}}}
+STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
+STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{"progressToken":0},"name":"fetch","arguments":{"url":"https://example.com"}}}
+STDOUT: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Failed to fetch robots.txt https://example.com/robots.txt due to a connection issue"}],"isError":true}}

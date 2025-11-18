@@ -8,7 +8,7 @@ type BundledExtension = {
   id: string;
   name: string;
   display_name?: string;
-  description?: string;
+  description: string;
   enabled: boolean;
   type: 'builtin' | 'stdio' | 'sse';
   cmd?: string;
@@ -19,6 +19,8 @@ type BundledExtension = {
   timeout?: number;
   allow_configure?: boolean;
 };
+
+const DEPRECATED_BUILTINS = ['googledrive', 'google_drive'];
 
 /**
  * Synchronizes built-in extensions with the config system.
@@ -37,6 +39,13 @@ export async function syncBundledExtensions(
     // Cast the imported JSON data to the expected type
     const bundledExtensions = bundledExtensionsData as BundledExtension[];
 
+    for (let i = existingExtensions.length - 1; i >= 0; i--) {
+      const ext = existingExtensions[i];
+      if (ext.type == 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
+        existingExtensions.splice(i, 1);
+      }
+    }
+
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {
       // Find if this extension already exists
@@ -50,18 +59,19 @@ export async function syncBundledExtensions(
       switch (bundledExt.type) {
         case 'builtin':
           extConfig = {
-            name: bundledExt.name,
-            display_name: bundledExt.display_name,
             type: bundledExt.type,
+            name: bundledExt.name,
+            description: bundledExt.description,
+            display_name: bundledExt.display_name,
             timeout: bundledExt.timeout ?? 300,
             bundled: true,
           };
           break;
         case 'stdio':
           extConfig = {
+            type: bundledExt.type,
             name: bundledExt.name,
             description: bundledExt.description,
-            type: bundledExt.type,
             timeout: bundledExt.timeout,
             cmd: bundledExt.cmd || '',
             args: bundledExt.args || [],
@@ -72,9 +82,9 @@ export async function syncBundledExtensions(
           break;
         case 'sse':
           extConfig = {
+            type: bundledExt.type,
             name: bundledExt.name,
             description: bundledExt.description,
-            type: bundledExt.type,
             timeout: bundledExt.timeout,
             uri: bundledExt.uri || '',
             bundled: true,

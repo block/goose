@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { Button } from '../ui/button';
 
 /**
@@ -23,6 +23,8 @@ interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement>;
   /** Initial search term */
   initialSearchTerm?: string;
+  /** Placeholder text for the search input */
+  placeholder?: string;
 }
 
 /**
@@ -35,13 +37,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   searchResults,
   inputRef: externalInputRef,
   initialSearchTerm = '',
+  placeholder = 'Search conversation...',
 }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || internalInputRef;
-  const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
+  const debouncedSearchRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   // Create debounced search function
   useEffect(() => {
@@ -158,7 +161,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               value={searchTerm}
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
-              placeholder="Search conversation..."
+              placeholder={placeholder}
               className="no-drag w-full text-sm pl-9 pr-24 py-3 bg-background-inverse text-text-inverse
                       placeholder:text-text-inverse/50 focus:outline-none 
                        active:border-border-strong"

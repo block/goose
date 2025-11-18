@@ -5,6 +5,7 @@ import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import { fetchModelsForProviders } from '../modelInterface';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
 
 interface LeadWorkerSettingsProps {
@@ -13,12 +14,15 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
   const [leadProvider, setLeadProvider] = useState<string>('');
   const [workerProvider, setWorkerProvider] = useState<string>('');
+  // Minimal custom model mode toggles
+  const [isLeadCustomModel, setIsLeadCustomModel] = useState<boolean>(false);
+  const [isWorkerCustomModel, setIsWorkerCustomModel] = useState<boolean>(false);
   const [leadTurns, setLeadTurns] = useState<number>(3);
   const [failureThreshold, setFailureThreshold] = useState<number>(2);
   const [fallbackTurns, setFallbackTurns] = useState<number>(2);
@@ -100,18 +104,26 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          activeProviders.forEach(({ metadata, name }) => {
-            if (metadata.known_models) {
-              metadata.known_models.forEach((model) => {
+          const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+          results.forEach(({ provider: p, models, error }) => {
+            if (error) {
+              console.error(error);
+            }
+
+            if (models && models.length > 0) {
+              models.forEach((modelName) => {
                 options.push({
-                  value: model.name,
-                  label: `${model.name} (${metadata.display_name})`,
-                  provider: name,
+                  value: modelName,
+                  label: `${modelName} (${p.metadata.display_name})`,
+                  provider: p.name,
                 });
               });
             }
           });
         }
+
+        // Append a simple "custom" option to enable free-text entry
+        options.push({ value: '__custom__', label: 'Use custom model…', provider: '' });
 
         setModelOptions(options);
       } catch (error) {
@@ -122,7 +134,19 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
+
+  // If current models are not in the list (e.g., previously set to custom), switch to custom mode
+  useEffect(() => {
+    if (!isLoading) {
+      if (leadModel && !modelOptions.find((opt) => opt.value === leadModel)) {
+        setIsLeadCustomModel(true);
+      }
+      if (workerModel && !modelOptions.find((opt) => opt.value === workerModel)) {
+        setIsWorkerCustomModel(true);
+      }
+    }
+  }, [isLoading, modelOptions, leadModel, workerModel]);
 
   const handleSave = async () => {
     try {
@@ -194,46 +218,104 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
-                Lead Model
-              </label>
-              <Select
-                options={modelOptions}
-                value={modelOptions.find((opt) => opt.value === leadModel) || null}
-                onChange={(newValue: unknown) => {
-                  const option = newValue as { value: string; provider: string } | null;
-                  if (option) {
-                    setLeadModel(option.value);
-                    setLeadProvider(option.provider);
+              <div className="flex items-center justify-between">
+                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
+                  Lead Model
+                </label>
+                {isLeadCustomModel && (
+                  <button
+                    onClick={() => setIsLeadCustomModel(false)}
+                    className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'} hover:underline`}
+                    type="button"
+                  >
+                    Back to model list
+                  </button>
+                )}
+              </div>
+              {!isLeadCustomModel ? (
+                <Select
+                  options={modelOptions}
+                  value={
+                    leadModel ? modelOptions.find((opt) => opt.value === leadModel) || null : null
                   }
-                }}
-                placeholder="Select lead model..."
-                isDisabled={!isEnabled}
-                className={!isEnabled ? 'opacity-50' : ''}
-              />
+                  onChange={(newValue: unknown) => {
+                    const option = newValue as { value: string; provider: string } | null;
+                    if (option) {
+                      if (option.value === '__custom__') {
+                        setIsLeadCustomModel(true);
+                        setLeadModel('');
+                        return;
+                      }
+                      setLeadModel(option.value);
+                      setLeadProvider(option.provider);
+                    }
+                  }}
+                  placeholder="Select lead model..."
+                  isDisabled={!isEnabled}
+                  className={!isEnabled ? 'opacity-50' : ''}
+                />
+              ) : (
+                <Input
+                  className="h-[38px] mb-2"
+                  placeholder="Type model name here"
+                  onChange={(event) => setLeadModel(event.target.value)}
+                  value={leadModel}
+                  disabled={!isEnabled}
+                />
+              )}
               <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
                 Strong model for initial planning and fallback recovery
               </p>
             </div>
 
             <div className="space-y-2">
-              <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
-                Worker Model
-              </label>
-              <Select
-                options={modelOptions}
-                value={modelOptions.find((opt) => opt.value === workerModel) || null}
-                onChange={(newValue: unknown) => {
-                  const option = newValue as { value: string; provider: string } | null;
-                  if (option) {
-                    setWorkerModel(option.value);
-                    setWorkerProvider(option.provider);
+              <div className="flex items-center justify-between">
+                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
+                  Worker Model
+                </label>
+                {isWorkerCustomModel && (
+                  <button
+                    onClick={() => setIsWorkerCustomModel(false)}
+                    className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'} hover:underline`}
+                    type="button"
+                  >
+                    Back to model list
+                  </button>
+                )}
+              </div>
+              {!isWorkerCustomModel ? (
+                <Select
+                  options={modelOptions}
+                  value={
+                    workerModel
+                      ? modelOptions.find((opt) => opt.value === workerModel) || null
+                      : null
                   }
-                }}
-                placeholder="Select worker model..."
-                isDisabled={!isEnabled}
-                className={!isEnabled ? 'opacity-50' : ''}
-              />
+                  onChange={(newValue: unknown) => {
+                    const option = newValue as { value: string; provider: string } | null;
+                    if (option) {
+                      if (option.value === '__custom__') {
+                        setIsWorkerCustomModel(true);
+                        setWorkerModel('');
+                        return;
+                      }
+                      setWorkerModel(option.value);
+                      setWorkerProvider(option.provider);
+                    }
+                  }}
+                  placeholder="Select worker model..."
+                  isDisabled={!isEnabled}
+                  className={!isEnabled ? 'opacity-50' : ''}
+                />
+              ) : (
+                <Input
+                  className="h-[38px] mb-2"
+                  placeholder="Type model name here"
+                  onChange={(event) => setWorkerModel(event.target.value)}
+                  value={workerModel}
+                  disabled={!isEnabled}
+                />
+              )}
               <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-textSubtle'}`}>
                 Fast model for routine execution tasks
               </p>

@@ -1,0 +1,111 @@
+[
+  [
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "file:///tmp/goose_test/goose.txt",
+        "mimeType": "text",
+        "text": "# goose\n"
+      },
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "### /tmp/goose_test/goose.txt\n```\n1: # goose\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "```\n# goose (modified by test)\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.2
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "# goose (modified by test)\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "# goose (modified by test)\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "The file /tmp/goose_test/goose.txt has been edited, and the section now reads:\n```\n# goose\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "```\n# goose\n```\n",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.2
+      }
+    }
+  ],
+  [
+    {
+      "type": "text",
+      "text": "Available windows:\n\nItem-0\nbb3cc23c-6950-4e96-8b40-850e09f46934\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nBattery\nWiFi\nItem-0\nBentoBox\nSiri\nClock\nMenubar\nDock\njust record-mcp-tests",
+      "annotations": {
+        "audience": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "Available windows:\n\nItem-0\nbb3cc23c-6950-4e96-8b40-850e09f46934\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nItem-0\nBattery\nWiFi\nItem-0\nBentoBox\nSiri\nClock\nMenubar\nDock\njust record-mcp-tests",
+      "annotations": {
+        "audience": [
+          "user"
+        ],
+        "priority": 0.0
+      }
+    }
+  ]
+]

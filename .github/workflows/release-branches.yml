@@ -1,4 +1,4 @@
-name: Build Goose Release Candidate
+name: Build goose release candidate
 
 on:
   pull_request:
@@ -10,8 +10,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    with:
-      signing: true
 
   comment-on-pr:
     needs: bundle-desktop
@@ -26,9 +24,7 @@ jobs:
           body: |
             ### macOS ARM64 Desktop App (Apple Silicon)
 
-            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
+            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
-            After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
-
-            This link is provided by nightly.link and will work even if you're not logged into GitHub.
+            After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app

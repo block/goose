@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import kebabCase from 'lodash/kebabCase';
 import { Switch } from '../../../ui/switch';
-import { Gear } from '../../../icons/Gear';
+import { Gear } from '../../../icons';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
@@ -10,6 +11,7 @@ interface ExtensionItemProps {
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean; // to not allow users to edit configuration
+  isPendingActivation?: boolean;
 }
 
 export default function ExtensionItem({
@@ -17,6 +19,7 @@ export default function ExtensionItem({
   onToggle,
   onConfigure,
   isStatic,
+  isPendingActivation = false,
 }: ExtensionItemProps) {
   // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
@@ -37,7 +40,7 @@ export default function ExtensionItem({
       // Call the actual toggle function that performs the async operation
       await onToggle(ext);
       // Success case is handled by the useEffect below when extension.enabled changes
-    } catch (error) {
+    } catch {
       // If there was an error, revert the visual state
       console.log('Toggle failed, reverting visual state');
       setVisuallyEnabled(!newState);
@@ -73,11 +76,22 @@ export default function ExtensionItem({
 
   return (
     <Card
+      id={`extension-${kebabCase(extension.name)}`}
       className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
       onClick={() => handleToggle(extension)}
     >
       <CardHeader>
-        <CardTitle className="">{getFriendlyTitle(extension)}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          {getFriendlyTitle(extension)}
+          {isPendingActivation && (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-700"
+              title="Extension will be activated when you start a new chat session"
+            >
+              Pending
+            </span>
+          )}
+        </CardTitle>
 
         <CardAction onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-2">

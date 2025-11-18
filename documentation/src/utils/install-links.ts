@@ -14,6 +14,8 @@ export function getGooseInstallLink(server: MCPServer): string {
   // Handle the case where the command is a URL
   if (server.url) {
     const queryParams = [
+      // Map the type to the expected format for the deep link
+      ...(server.type === "streamable-http" ? [`type=streamable_http`] : []),
       `url=${encodeURIComponent(server.url)}`,
       `id=${encodeURIComponent(server.id)}`,
       `name=${encodeURIComponent(server.name)}`,
@@ -22,6 +24,11 @@ export function getGooseInstallLink(server: MCPServer): string {
         .filter((env) => env.required)
         .map(
           (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
+        ),
+      ...(server.headers || [])
+        .filter((header) => header.required)
+        .map(
+          (header) => `header=${encodeURIComponent(`${header.name}=${header.description}`)}`
         ),
     ].join("&");
   

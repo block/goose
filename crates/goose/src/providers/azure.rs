@@ -9,10 +9,10 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
-use crate::impl_provider_default;
-use crate::message::Message;
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
@@ -27,6 +27,7 @@ pub struct AzureProvider {
     deployment_name: String,
     api_version: String,
     model: ModelConfig,
+    name: String,
 }
 
 impl Serialize for AzureProvider {
@@ -68,10 +69,8 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl_provider_default!(AzureProvider);
-
 impl AzureProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
         let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
@@ -96,6 +95,7 @@ impl AzureProvider {
             deployment_name,
             api_version,
             model,
+            name: Self::metadata().name,
         })
     }
 
@@ -130,21 +130,26 @@ impl Provider for AzureProvider {
         )
     }
 
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
@@ -157,8 +162,9 @@ impl Provider for AzureProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        let mut log = RequestLog::start(model_config, &payload)?;
+        log.write(&response, Some(&usage))?;
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

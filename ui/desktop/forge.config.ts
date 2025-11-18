@@ -26,12 +26,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -58,7 +58,7 @@ module.exports = {
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: process.platform === 'linux' ? 'src/images/icon.png' : 'src/images/icon.ico',
+          icon: 'src/images/icon.ico',
         },
       },
     },
@@ -69,7 +69,12 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        desktopTemplate: './forge.deb.desktop',
+        options: {
+          icon: 'src/images/icon.png',
+          prefix: '/opt',
+        },
       },
     },
     {
@@ -79,7 +84,13 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        desktopTemplate: './forge.rpm.desktop',
+        options: {
+          icon: 'src/images/icon.png',
+          prefix: '/opt',
+          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+        },
       },
     },
   ],

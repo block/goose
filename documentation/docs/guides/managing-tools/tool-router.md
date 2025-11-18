@@ -9,78 +9,65 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
 
-:::info Preview Feature
-The Tool Selection Strategy is currently in preview. The Vector selection strategy is currently limited to Claude models served on Databricks.
+:::warning Experimental Feature
+Tool Selection Strategy is an experimental feature and currently only tested with Claude models. Behavior and configuration may change in future releases.
 :::
 
 When you enable an [extension](/docs/getting-started/using-extensions), you gain access to all of its tools. For example, the Google Drive extension provides tools for reading documents, updating permissions, managing comments, and more. By default, Goose loads all tools into context when interacting with the LLM.
 
 Enabling multiple extensions gives you access to a wider range of tools, but loading a lot of tools into context can be inefficient and confusing for the LLM. It's like having every tool in your workshop spread out on your bench when you only need one or two. 
 
-Choosing an intelligent tool selection strategy helps avoid this problem. Instead of loading all tools for every interaction, it loads only the tools needed for your current task. Both vector and LLM-based strategies ensure that only the functionality you need is loaded into context, so you can keep more of your favorite extensions enabled. These strategies provide:
+To manage this more efficiently, you can enable a tool selection strategy. Instead of loading all tools for every interaction, it loads only the tools needed for your current task. This ensures that only the functionality you need is loaded into context, so you can keep more of your favorite extensions enabled. This provides:
 
 - Reduced token consumption
 - Improved LLM performance
 - Better context management
 - More accurate and efficient tool selection
 
-## Tool Selection Strategies
+## Tool Selection Options
 
-| Strategy | Speed | Best For | Example Query |
-|----------|-------|----------|---------------|
-| **Default** | Fastest | Few extensions, simple setups | Any query (loads all tools) |
-| **Vector** | Fast | Keyword-based matching | "read pdf file" |
-| **LLM-based** | Slower | Complex, ambiguous queries | "analyze document contents" |
+| Option | Speed | Best For | How It Works |
+|--------|-------|----------|--------------|
+| **Disabled** | Fastest | Few extensions, simple setups | Loads all tools from enabled extensions |
+| **Enabled** | Slower | Many extensions, complex queries | Uses LLM intelligence to select relevant tools |
 
-### Default Strategy
-The default strategy loads all tools from enabled extensions into context, which works well if you only have a few extensions enabled. When you have more than a few extensions enabled, you should use the vector or LLM-based strategy for intelligent tool selection.
+:::tip
+You can also use [tool permissions](/docs/guides/managing-tools/tool-permissions) to limit tool use.
+:::
+
+### Disabled (Default)
+When tool selection strategy is disabled, Goose loads all tools from enabled extensions into context. This is the traditional behavior and works well if you only have a few extensions enabled.
 
 **Best for:**
 - Simple setups with few extensions
 - When you want all tools available at all times
 - Maximum tool availability without selection logic
 
-### Vector Strategy
-The vector strategy uses mathematical similarity between embeddings to find relevant tools, providing efficient matching based on vector similarity between your query and available tools.
-
-**Best for:**
-- Situations where fast response times are critical
-- Queries with keywords that match tool names or descriptions
-
-**Example:**
-- Prompt: "read pdf file"
-- Result: Quickly matches with PDF-related tools based on keyword similarity
-
-:::info Embedding Model
-The default embedding model is `text-embedding-3-small`. You can change it using [environment variables](/docs/guides/environment-variables#tool-selection-strategy).
-:::
-
-### LLM-based Strategy
-The LLM-based strategy leverages natural language understanding to analyze tools and queries semantically, making selections based on the full meaning of your request.
+### Enabled (LLM-based Strategy)
+When enabled, Goose uses LLM intelligence to analyze your query and select only the most relevant tools from your enabled extensions. This reduces token consumption and improves tool selection accuracy when you have many extensions enabled.
 
 **Best for:**
 - Complex or ambiguous queries that require understanding context
-- Cases where exact keyword matches might miss relevant tools
-- Situations where nuanced tool selection is important
+- Setups with many extensions enabled
+- When you want more accurate tool selection and reduced token usage
 
 **Example:**
 - Prompt: "help me analyze the contents of my document"
-- Result: Understands context and might suggest both PDF readers and content analysis tools
+- Result: Intelligently selects document reading and analysis tools while ignoring unrelated tools like calendar or email extensions
 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="ui" label="goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click the `Settings` button on the sidebar
-    3. Click `Chat`
-    4. Under `Tool Selection Strategy`, select your preferred strategy:
-       - `Default`
-       - `Vector`
-       - `LLM-based`
+    3. Click the `Chat` tab
+    4. Under `Tool Selection Strategy`, choose your preferred option:
+       - `Disabled` - Use the default tool selection strategy
+       - `Enabled` - Use LLM-based intelligence to select tools
   </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-    1. Run the `configuration` command:
+  <TabItem value="cli" label="goose CLI">
+    1. Run the configuration command:
     ```sh
     goose configure
     ```
@@ -110,7 +97,7 @@ The LLM-based strategy leverages natural language understanding to analyze tools
     ◆  What setting would you like to configure?
     │  ○ Goose Mode 
     // highlight-start
-    │  ● Router Tool Selection Strategy (Configure the strategy for selecting tools to use)
+    │  ● Router Tool Selection Strategy (Experimental: configure a strategy for auto selecting tools to use)
     // highlight-end
     │  ○ Tool Permission 
     │  ○ Tool Output 
@@ -119,7 +106,7 @@ The LLM-based strategy leverages natural language understanding to analyze tools
     └ 
     ```
 
-    4. Select your preferred strategy:
+    4. Choose whether to enable smart tool routing:
     ```sh
    ┌   goose-configure 
    │
@@ -130,19 +117,14 @@ The LLM-based strategy leverages natural language understanding to analyze tools
    │  Router Tool Selection Strategy 
    │
     // highlight-start
-   ◆  Which router strategy would you like to use?
-   │  ● Vector Strategy (Use vector-based similarity to select tools)
-   │  ○ Default Strategy 
+   ◆  Would you like to enable smart tool routing?
+   │  ● Enable Router (Use LLM-based intelligence to select tools)
+   │  ○ Disable Router
     // highlight-end
    └  
     ```
-      
-       :::info
-       Currently, the LLM-based strategy can't be configured using the CLI.
-       :::
 
-       This example output shows the `Vector Strategy` was selected:
-
+    This example output shows that the router was enabled:
     ```
     ┌   goose-configure
     │
@@ -152,13 +134,30 @@ The LLM-based strategy leverages natural language understanding to analyze tools
     ◇  What setting would you like to configure?
     │  Router Tool Selection Strategy
     │
-    ◇  Which router strategy would you like to use?
-    │  Vector Strategy
+    ◇  Would you like to enable smart tool routing?
+    │  Enable Router
     │
-    └  Set to Vector Strategy - using vector-based similarity for tool selection
+    └  Router enabled - using LLM-based intelligence for tool selection
     ```
 
-    Goose CLI display a message indicating when the vector or LLM-based strategy is currently being used.
+    When the router is enabled, Goose CLI displays a message indicating when the `llm_search` strategy is in use.
 
   </TabItem>
 </Tabs>
+
+## Environment Variable Configuration
+
+You can also configure tool selection using environment variables or in your [configuration file](/docs/guides/config-files):
+
+```bash
+# Enable LLM-based tool selection
+export GOOSE_ENABLE_ROUTER=true
+
+# Disable (use default behavior)
+export GOOSE_ENABLE_ROUTER=false
+```
+
+Or in your `config.yaml` file:
+```yaml
+GOOSE_ENABLE_ROUTER: 'true'
+```

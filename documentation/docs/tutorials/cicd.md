@@ -27,90 +27,93 @@ You can run Goose directly within GitHub Actions. Follow these steps to set up y
    
    ```yaml title="goose.yml"
 
-   name: Goose
 
-   on:
-      pull_request:
-         types: [opened, synchronize, reopened, labeled]
+name: Goose
 
-   permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+on:
+   pull_request:
+      types: [opened, synchronize, reopened, labeled]
 
-   env:
-      PROVIDER_API_KEY: ${{ secrets.REPLACE_WITH_PROVIDER_API_KEY }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
+permissions:
+   contents: write
+   pull-requests: write
+   issues: write
 
-   jobs:
-      goose-comment:
-         runs-on: ubuntu-latest
+env:
+   PROVIDER_API_KEY: ${{ secrets.REPLACE_WITH_PROVIDER_API_KEY }}
+   PR_NUMBER: ${{ github.event.pull_request.number }}
+   GH_TOKEN: ${{ github.token }}
 
-         steps:
-               - name: Check out repository
-               uses: actions/checkout@v4
-               with:
-                     fetch-depth: 0
+jobs:
+   goose-comment:
+      name: Goose Comment
+      runs-on: ubuntu-latest
+      steps:
+         - name: Check out repository
+           uses: actions/checkout@v4
+           with:
+              fetch-depth: 0
 
-               - name: Gather PR information
-               run: |
-                     {
-                     echo "# Files Changed"
-                     gh pr view $PR_NUMBER --json files \
-                        -q '.files[] | "* " + .path + " (" + (.additions|tostring) + " additions, " + (.deletions|tostring) + " deletions)"'
-                     echo ""
-                     echo "# Changes Summary"
-                     gh pr diff $PR_NUMBER
-                     } > changes.txt
+         - name: Gather PR information
+           run: |
+              {
+              echo "# Files Changed"
+              gh pr view $PR_NUMBER --json files \
+                 -q '.files[] | "* " + .path + " (" + (.additions|tostring) + " additions, " + (.deletions|tostring) + " deletions)"'
+              echo ""
+              echo "# Changes Summary"
+              gh pr diff $PR_NUMBER
+              } > changes.txt
 
-               - name: Install Goose CLI
-               run: |
-                     mkdir -p /home/runner/.local/bin
-                     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-                     | CONFIGURE=false INSTALL_PATH=/home/runner/.local/bin bash
-                     echo "/home/runner/.local/bin" >> $GITHUB_PATH
+         - name: Install Goose CLI
+           run: |
+              mkdir -p /home/runner/.local/bin
+              curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
+              | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
+              echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
-               - name: Configure Goose
-               run: |
-                     mkdir -p ~/.config/goose
-                     cat <<EOF > ~/.config/goose/config.yaml
-                     GOOSE_PROVIDER: REPLACE_WITH_PROVIDER
-                     GOOSE_MODEL: REPLACE_WITH_MODEL
-                     keyring: false
-                     EOF
+         - name: Configure Goose
+           run: |
+              mkdir -p ~/.config/goose
+              cat <<EOF > ~/.config/goose/config.yaml
+              GOOSE_PROVIDER: REPLACE_WITH_PROVIDER
+              GOOSE_MODEL: REPLACE_WITH_MODEL
+              keyring: false
+              EOF
 
-               - name: Create instructions for Goose
-               run: |
-                     cat <<EOF > instructions.txt
-                     Create a summary of the changes provided. Don't provide any session or logging details.
-                     The summary for each file should be brief and structured as:
-                     <filename/path (wrapped in backticks)>
-                        - dot points of changes
-                     You don't need any extensions, don't mention extensions at all.
-                     The changes to summarise are:
-                     $(cat changes.txt)
-                     EOF
+         - name: Create instructions for Goose
+           run: |
+              cat <<EOF > instructions.txt
+              Create a summary of the changes provided. Don't provide any session or logging details.
+              The summary for each file should be brief and structured as:
+              <filename/path (wrapped in backticks)>
+                 - dot points of changes
+              You don't need any extensions, don't mention extensions at all.
+              The changes to summarise are:
+              $(cat changes.txt)
+              EOF
 
-               - name: Test
-               run: cat instructions.txt
+         - name: Test
+           run: cat instructions.txt
 
-               - name: Run Goose and filter output
-               run: |
-                     goose run --instructions instructions.txt | \
-                     # Remove ANSI color codes
-                     sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
-                     # Remove session/logging lines
-                     grep -v "logging to /home/runner/.config/goose/sessions/" | \
-                     grep -v "^starting session" | \
-                     grep -v "^Closing session" | \
-                     # Trim trailing whitespace
-                     sed 's/[[:space:]]*$//' \
-                     > pr_comment.txt
+         - name: Run Goose and filter output
+           run: |
+              goose run --instructions instructions.txt | \
+              # Remove ANSI color codes
+              sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
+              # Remove session/logging lines
+              grep -v "logging to /home/runner/.config/goose/sessions/" | \
+              grep -v "^starting session" | \
+              grep -v "^Closing session" | \
+              # Trim trailing whitespace
+              sed 's/[[:space:]]*$//' \
+              > pr_comment.txt
 
-               - name: Post comment to PR
-               run: |
-                     cat -A pr_comment.txt
-                     gh pr comment $PR_NUMBER --body-file pr_comment.txt
+         - name: Post comment to PR
+           run: |
+              cat -A pr_comment.txt
+              gh pr comment $PR_NUMBER --body-file pr_comment.txt
+
    ```
 </details>
 
@@ -156,7 +159,7 @@ steps:
       run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-            | CONFIGURE=false INSTALL_PATH=/home/runner/.local/bin bash
+            | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
           echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
     - name: Configure Goose

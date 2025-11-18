@@ -1,6 +1,4 @@
-use mcp_core::ToolError;
-use rmcp::model::{Content, ServerNotification, Tool, ToolAnnotations};
-use serde_json::Value;
+use std::borrow::Cow;
 
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::{
@@ -8,6 +6,7 @@ use crate::agents::{
     subagent_execution_tool::task_types::ExecutionMode,
     subagent_execution_tool::tasks_manager::TasksManager, tool_execution::ToolCallResult,
 };
+use rmcp::model::{Content, ErrorCode, ErrorData, ServerNotification, Tool, ToolAnnotations};
 use rmcp::object;
 use tokio::sync::mpsc;
 use tokio_stream;
@@ -61,7 +60,8 @@ pub fn create_subagent_execute_task_tool() -> Tool {
 }
 
 pub async fn run_tasks(
-    execute_data: Value,
+    task_ids: Vec<String>,
+    execution_mode: ExecutionMode,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
     cancellation_token: Option<CancellationToken>,
@@ -70,14 +70,8 @@ pub async fn run_tasks(
 
     let tasks_manager_clone = tasks_manager.clone();
     let result_future = async move {
-        let execute_data_clone = execute_data.clone();
-        let execution_mode = execute_data_clone
-            .get("execution_mode")
-            .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
-            .unwrap_or_default();
-
         match execute_tasks(
-            execute_data,
+            task_ids,
             execution_mode,
             notification_tx,
             task_config,
@@ -90,7 +84,11 @@ pub async fn run_tasks(
                 let output = serde_json::to_string(&result).unwrap();
                 Ok(vec![Content::text(output)])
             }
-            Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+            Err(e) => Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(e.to_string()),
+                data: None,
+            }),
         }
     };
 

@@ -11,7 +11,7 @@ Imagine creating an app just by describing what you want out loud, like you’re
 
 <!--truncate-->
 
-In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHY&ab_channel=BlockOpenSource), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
+In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHYe), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
 
 During the livestream, Max demonstrated this by creating an entire web application using only voice commands - no keyboard or mouse required. This resulted in a vibrant, animated webpage with 3D effects, synthwave aesthetics, and interactive elements, all created through natural conversation with Goose.
 
@@ -77,7 +77,7 @@ To try the Speech MCP server yourself:
 
 ## Join the Development
 
-The Speech MCP server is [open-source](https://github.com/Kvadratni/speech-mcp) and welcomes contributions. You can also connect with Max on [Discord](https://discord.gg/block-opensource) for questions and collaboration.
+The Speech MCP server is [open-source](https://github.com/Kvadratni/speech-mcp) and welcomes contributions. You can also connect with Max on [Discord](https://discord.gg/goose-oss) for questions and collaboration.
 
 Voice interactions with AI agents like Goose with the power and tools to act on instructions provides a different kind of vibe that makes the future feel closer than ever. Whether you're interested in vibe coding, accessibility improvements, or just want to feel a bit more like Tony Stark while getting Goose to pull a J.A.R.V.I.S, the Speech MCP server offers a glimpse into the future of human-AI collaboration - and it's available today.
 

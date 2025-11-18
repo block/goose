@@ -19,7 +19,7 @@ This script runs Goose benchmarks across multiple provider:model pairs and analy
 
 #### Options
 
-- `-p, --provider-models`: Comma-separated list of provider:model pairs (e.g., 'openai:gpt-4o,anthropic:claude-3-5-sonnet')
+- `-p, --provider-models`: Comma-separated list of provider:model pairs (e.g., 'openai:gpt-4o,anthropic:claude-sonnet-4')
 - `-s, --suites`: Comma-separated list of benchmark suites to run (e.g., 'core,small_models')
 - `-o, --output-dir`: Directory to store benchmark results (default: './benchmark-results')
 - `-d, --debug`: Use debug build instead of release build
@@ -29,7 +29,7 @@ This script runs Goose benchmarks across multiple provider:model pairs and analy
 
 ```bash
 # Run with release build (default)
-./scripts/run-benchmarks.sh --provider-models 'openai:gpt-4o,anthropic:claude-3-5-sonnet' --suites 'core,small_models'
+./scripts/run-benchmarks.sh --provider-models 'openai:gpt-4o,anthropic:claude-sonnet-4' --suites 'core,small_models'
 
 # Run with debug build
 ./scripts/run-benchmarks.sh --provider-models 'openai:gpt-4o' --suites 'core' --debug

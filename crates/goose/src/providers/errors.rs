@@ -1,7 +1,8 @@
 use reqwest::StatusCode;
+use std::time::Duration;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),
@@ -9,8 +10,11 @@ pub enum ProviderError {
     #[error("Context length exceeded: {0}")]
     ContextLengthExceeded(String),
 
-    #[error("Rate limit exceeded: {0}")]
-    RateLimitExceeded(String),
+    #[error("Rate limit exceeded: {details}")]
+    RateLimitExceeded {
+        details: String,
+        retry_delay: Option<Duration>,
+    },
 
     #[error("Server error: {0}")]
     ServerError(String),
@@ -31,7 +35,35 @@ pub enum ProviderError {
 impl From<anyhow::Error> for ProviderError {
     fn from(error: anyhow::Error) -> Self {
         if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
-            return ProviderError::RequestFailed(reqwest_err.to_string());
+            let mut details = vec![];
+
+            if let Some(status) = reqwest_err.status() {
+                details.push(format!("status: {}", status));
+            }
+            if reqwest_err.is_timeout() {
+                details.push("timeout".to_string());
+            }
+            if reqwest_err.is_connect() {
+                if let Some(url) = reqwest_err.url() {
+                    if let Some(host) = url.host_str() {
+                        let port_info = url.port().map(|p| format!(":{}", p)).unwrap_or_default();
+
+                        details.push(format!("failed to connect to {}{}", host, port_info));
+
+                        if url.port().is_some() {
+                            details.push("check that the port is correct".to_string());
+                        }
+                    }
+                } else {
+                    details.push("connection failed".to_string());
+                }
+            }
+            let msg = if details.is_empty() {
+                reqwest_err.to_string()
+            } else {
+                format!("{} ({})", reqwest_err, details.join(", "))
+            };
+            return ProviderError::RequestFailed(msg);
         }
         ProviderError::ExecutionError(error.to_string())
     }

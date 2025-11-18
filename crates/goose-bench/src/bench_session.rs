@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use goose::message::Message;
+use goose::conversation::Conversation;
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -18,9 +17,9 @@ pub struct BenchAgentError {
 #[async_trait]
 pub trait BenchBaseSession: Send + Sync {
     async fn headless(&mut self, message: String) -> anyhow::Result<()>;
-    fn session_file(&self) -> Option<PathBuf>;
-    fn message_history(&self) -> Vec<Message>;
+    fn message_history(&self) -> Conversation;
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>>;
+    fn get_session_id(&self) -> anyhow::Result<String>;
 }
 // struct for managing agent-session-access. to be passed to evals for benchmarking
 pub struct BenchAgent {
@@ -34,7 +33,7 @@ impl BenchAgent {
         Self { session, errors }
     }
 
-    pub(crate) async fn prompt(&mut self, p: String) -> anyhow::Result<Vec<Message>> {
+    pub(crate) async fn prompt(&mut self, p: String) -> anyhow::Result<Conversation> {
         // Clear previous errors
         {
             let mut errors = self.errors.lock().await;
@@ -52,7 +51,8 @@ impl BenchAgent {
     pub(crate) async fn get_token_usage(&self) -> Option<i32> {
         self.session.get_total_token_usage().ok().flatten()
     }
-    pub(crate) fn session_file(&self) -> Option<PathBuf> {
-        self.session.session_file()
+
+    pub(crate) fn get_session_id(&self) -> anyhow::Result<String> {
+        self.session.get_session_id()
     }
 }

@@ -1,4 +1,4 @@
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::search_recipe::load_recipe_file;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use std::collections::HashSet;
@@ -55,6 +55,7 @@ fn extract_secrets_from_extensions(
             ExtensionConfig::Stdio { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::StreamableHttp { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::Builtin { name, .. } => (name, &Vec::new()),
+            ExtensionConfig::Platform { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Frontend { name, .. } => (name, &Vec::new()),
             ExtensionConfig::InlinePython { name, .. } => (name, &Vec::new()),
         };
@@ -115,7 +116,7 @@ fn discover_recipe_secrets_recursive(
 /// For secret discovery, we only need the recipe structure (extensions and env_keys),
 /// not parameter-substituted content, so we parse the raw YAML directly for speed and robustness.
 fn load_sub_recipe(recipe_path: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
-    let recipe_file = retrieve_recipe_file(recipe_path)?;
+    let recipe_file = load_recipe_file(recipe_path)?;
     let recipe: Recipe = serde_yaml::from_str(&recipe_file.content)?;
     Ok(recipe)
 }
@@ -140,9 +141,10 @@ mod tests {
                     uri: "sse://example.com".to_string(),
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["GITHUB_TOKEN".to_string(), "GITHUB_API_URL".to_string()],
-                    description: None,
+                    description: "github-mcp".to_string(),
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "slack-mcp".to_string(),
@@ -151,18 +153,19 @@ mod tests {
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["SLACK_TOKEN".to_string()],
                     timeout: None,
-                    description: None,
+                    description: "slack-mcp".to_string(),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Builtin {
                     name: "builtin-ext".to_string(),
                     display_name: None,
-                    description: None,
+                    description: "builtin-ext".to_string(),
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             ]),
-            context: None,
             settings: None,
             activities: None,
             author: None,
@@ -206,7 +209,6 @@ mod tests {
             instructions: Some("Test instructions".to_string()),
             prompt: None,
             extensions: None,
-            context: None,
             settings: None,
             activities: None,
             author: None,
@@ -234,9 +236,10 @@ mod tests {
                     uri: "sse://example.com".to_string(),
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["API_KEY".to_string()],
-                    description: None,
+                    description: "service-a".to_string(),
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "service-b".to_string(),
@@ -245,11 +248,11 @@ mod tests {
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["API_KEY".to_string()], // Same original key, different extension
                     timeout: None,
-                    description: None,
+                    description: "service-b".to_string(),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             ]),
-            context: None,
             settings: None,
             activities: None,
             author: None,
@@ -291,9 +294,10 @@ mod tests {
                 uri: "sse://parent.com".to_string(),
                 envs: Envs::new(HashMap::new()),
                 env_keys: vec!["PARENT_TOKEN".to_string()],
-                description: None,
+                description: "parent-ext".to_string(),
                 timeout: None,
                 bundled: None,
+                available_tools: Vec::new(),
             }]),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),
@@ -302,7 +306,6 @@ mod tests {
                 sequential_when_repeated: false,
                 description: None,
             }]),
-            context: None,
             settings: None,
             activities: None,
             author: None,

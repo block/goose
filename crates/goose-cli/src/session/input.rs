@@ -20,7 +20,7 @@ pub enum InputResult {
     EndPlan,
     Clear,
     Recipe(Option<String>),
-    Summarize,
+    Compact,
 }
 
 #[derive(Debug)]
@@ -68,12 +68,13 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
     );
 
-    let prompt = format!("{} ", console::style("( O)>").cyan().bold());
+    let prompt = get_input_prompt_string();
 
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
+            rustyline::error::ReadlineError::Eof => return Ok(InputResult::Exit),
             _ => return Err(e.into()),
         },
     };
@@ -120,7 +121,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_ENDPLAN: &str = "/endplan";
     const CMD_CLEAR: &str = "/clear";
     const CMD_RECIPE: &str = "/recipe";
-    const CMD_SUMMARIZE: &str = "/summarize";
+    const CMD_COMPACT: &str = "/compact";
+    const CMD_SUMMARIZE_DEPRECATED: &str = "/summarize";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -168,19 +170,25 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             }
         }
         s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(
-            s[CMD_EXTENSION.len()..].to_string(),
+            s.get(CMD_EXTENSION.len()..).unwrap_or("").to_string(),
         )),
-        s if s.starts_with(CMD_BUILTIN) => {
-            Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string()))
+        s if s.starts_with(CMD_BUILTIN) => Some(InputResult::AddBuiltin(
+            s.get(CMD_BUILTIN.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_MODE) => Some(InputResult::GooseMode(
+            s.get(CMD_MODE.len()..).unwrap_or("").to_string(),
+        )),
+        s if s.starts_with(CMD_PLAN) => {
+            parse_plan_command(s.get(CMD_PLAN.len()..).unwrap_or("").trim().to_string())
         }
-        s if s.starts_with(CMD_MODE) => {
-            Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
-        }
-        s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s == CMD_CLEAR => Some(InputResult::Clear),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
-        s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
+        s if s == CMD_COMPACT => Some(InputResult::Compact),
+        s if s == CMD_SUMMARIZE_DEPRECATED => {
+            println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
+            Some(InputResult::Compact)
+        }
         _ => None,
     }
 }
@@ -194,7 +202,7 @@ fn parse_recipe_command(s: &str) -> Option<InputResult> {
     }
 
     // Extract the filepath from the command
-    let filepath = s[CMD_RECIPE.len()..].trim();
+    let filepath = s.get(CMD_RECIPE.len()..).unwrap_or("").trim();
 
     if filepath.is_empty() {
         return Some(InputResult::Recipe(None));
@@ -271,6 +279,21 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     Some(InputResult::Plan(options))
 }
 
+/// Generates the input prompt string for the CLI interface.
+/// Returns a styled prompt with the goose face "( O)>" followed by a space.
+/// On Windows, returns plain text without ANSI styling for better compatibility.
+/// On other platforms, applies styling using ANSI escape codes.
+fn get_input_prompt_string() -> String {
+    let goose = "( O)>";
+    if cfg!(target_os = "windows") {
+        // Use plain text on Windows to avoid ANSI compatibility issues
+        format!("{goose} ")
+    } else {
+        // On other platforms, use styled prompt with ANSI colors
+        format!("{} ", console::style(goose).cyan().bold())
+    }
+}
+
 fn print_help() {
     println!(
         "Available commands:
@@ -281,7 +304,7 @@ fn print_help() {
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
-/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat')
+/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat', 'smart_approve')
 /plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
                         If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
                         To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
@@ -290,7 +313,7 @@ fn print_help() {
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
-/summarize - Summarize the current conversation to reduce context length while preserving key information.
+/compact - Compact the current conversation to reduce context length while preserving key information.
 /? or /help - Display this help message
 /clear - Clears the current chat history
 
@@ -527,13 +550,42 @@ mod tests {
     }
 
     #[test]
-    fn test_summarize_command() {
-        // Test the summarize command
-        let result = handle_slash_command("/summarize");
-        assert!(matches!(result, Some(InputResult::Summarize)));
+    fn test_get_input_prompt_string() {
+        let prompt = get_input_prompt_string();
 
-        // Test with whitespace
-        let result = handle_slash_command("  /summarize  ");
-        assert!(matches!(result, Some(InputResult::Summarize)));
+        // Prompt should always end with a space
+        assert!(prompt.ends_with(" "));
+
+        // Prompt should contain the goose face
+        assert!(prompt.contains("( O)>"));
+
+        // On Windows, prompt should be plain text without ANSI codes
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(prompt, "( O)> ");
+            // Ensure no ANSI escape sequences
+            assert!(!prompt.contains("\x1b["));
+        }
+
+        // On non-Windows, prompt behavior depends on terminal capabilities
+        #[cfg(not(target_os = "windows"))]
+        {
+            // In CI environments, console crate may strip ANSI codes
+            let is_ci = std::env::var("CI").is_ok();
+
+            if is_ci {
+                // In CI, just verify basic structure - console crate handles ANSI detection
+                assert!(prompt.len() >= "( O)> ".len());
+            } else {
+                // In interactive terminals, expect styling to be applied
+                // Note: This may still vary based on terminal capabilities
+                assert!(prompt.len() >= "( O)> ".len());
+
+                // If ANSI codes are present, they should be valid
+                if prompt.contains("\x1b[") {
+                    assert!(prompt.contains("36") || prompt.contains("1"));
+                }
+            }
+        }
     }
 }

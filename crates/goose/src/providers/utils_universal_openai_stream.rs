@@ -275,7 +275,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }
@@ -325,7 +327,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }
@@ -349,24 +353,24 @@ data: [DONE]
         assert_eq!(choice.finish_reason, "stop");
     }
     const CLAUDE_STREAM: &str = r#"
-data: {"choices":[{"index":0,"delta":{"content":"I","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":"'ll","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" help","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" you examine","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" the most","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" recent commit using","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" the shell","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":" comman","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":"d `git show HEAD","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":"`.","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"developer__shell"},"id":"tooluse_9eC8o8MvTN-KOWuDGXgq1Q","index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":""},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"{\"command"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\": "},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"git show H"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"EAD"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"}"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
-data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{"content":null}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","usage":{"completion_tokens":56,"prompt_tokens":2594,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":2650},"model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":"I","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":"'ll","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" help","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" you examine","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" the most","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" recent commit using","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" the shell","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":" comman","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":"d `git show HEAD","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":"`.","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"developer__shell"},"id":"tooluse_9eC8o8MvTN-KOWuDGXgq1Q","index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":""},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"{\"command"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\": "},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"git show H"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"EAD"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"}"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-sonnet-4-20250514"}
+data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{"content":null}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","usage":{"completion_tokens":56,"prompt_tokens":2594,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":2650},"model":"claude-sonnet-4-20250514"}
 data: [DONE]
 "#;
     #[test]
@@ -377,7 +381,9 @@ data: [DONE]
             if !line.starts_with("data: ") {
                 continue;
             }
-            let payload = &line[6..];
+            let Some(payload) = line.get(6..) else {
+                continue;
+            };
             if payload == "[DONE]" {
                 break;
             }

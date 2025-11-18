@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 use tokio::time::timeout;
 
 /// Default models for openrouter config configuration
-const OPENROUTER_DEFAULT_MODEL: &str = "qwen/qwen3-coder";
+const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 
 const OPENROUTER_AUTH_URL: &str = "https://openrouter.ai/auth";
 const OPENROUTER_TOKEN_URL: &str = "https://openrouter.ai/api/v1/auth/keys";
@@ -162,14 +162,10 @@ impl PkceAuthFlow {
 pub use self::PkceAuthFlow as OpenRouterAuth;
 
 use crate::config::Config;
-use serde_json::Value;
 
 pub fn configure_openrouter(config: &Config, api_key: String) -> Result<()> {
-    config.set_secret("OPENROUTER_API_KEY", Value::String(api_key))?;
-    config.set_param("GOOSE_PROVIDER", Value::String("openrouter".to_string()))?;
-    config.set_param(
-        "GOOSE_MODEL",
-        Value::String(OPENROUTER_DEFAULT_MODEL.to_string()),
-    )?;
+    config.set_secret("OPENROUTER_API_KEY", &api_key)?;
+    config.set_goose_provider("openrouter")?;
+    config.set_goose_model(OPENROUTER_DEFAULT_MODEL)?;
     Ok(())
 }
