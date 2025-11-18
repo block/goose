@@ -49,9 +49,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   const treeData = useMemo(() => {
     if (sessions.length === 0) return { nodes: [], paths: [], width: 800, height: 600 };
 
-    // Sort sessions by start time
+    // Sort sessions by start time (newest first - today at top)
     const sortedSessions = [...sessions].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
     // Group sessions by day for initial positioning
@@ -65,7 +65,7 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     });
 
     const sortedDays = Array.from(dayGroups.keys()).sort((a, b) => 
-      new Date(a).getTime() - new Date(b).getTime()
+      new Date(b).getTime() - new Date(a).getTime()
     );
 
     // Create tree nodes
