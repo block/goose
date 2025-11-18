@@ -786,7 +786,6 @@ This method simplifies authentication and enhances security for enterprise envir
 
 Beyond single-model setups, goose supports [multi-model configurations](/docs/guides/multi-model/) that can use different models and providers for specialized tasks:
 
-- **AutoPilot** - Intelligent, context-aware switching between specialized models based on conversation content and complexity
 - **Lead/Worker Model** - Automatic switching between a lead model for initial turns and a worker model for execution tasks
 - **Planning Mode** - Manual planning phase using a dedicated model to create detailed project breakdowns before execution
 

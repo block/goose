@@ -30,11 +30,6 @@ The list of experimental features may change as Goose development progresses. So
       link="/docs/experimental/goose-mobile"
     />
     <Card 
-      title="Automatic Multi-Model Switching"
-      description="Intelligent, context-aware switching between models based on conversation content, complexity, and tool usage patterns."
-      link="/docs/guides/multi-model/autopilot"
-    />
-    <Card 
       title="Using goose in ACP Clients"
       description="Interact with goose natively in ACP-compatible clients like Zed."
       link="/docs/guides/acp-clients"
