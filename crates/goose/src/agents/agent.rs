@@ -1352,7 +1352,7 @@ impl Agent {
         current_turn: u32,
     ) -> Result<bool> {
         use crate::hints::{
-            find_git_root, load_hints_from_directory, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME,
+            build_gitignore, find_git_root, get_context_filenames, load_hints_from_directory,
         };
         use crate::session::extension_data::{
             get_or_create_loaded_agents_state, save_loaded_agents_state,
@@ -1414,25 +1414,10 @@ impl Agent {
         }
 
         // Build gitignore from working directory
-        let gitignore = {
-            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
-            builder.build().unwrap_or_else(|_| {
-                ignore::gitignore::GitignoreBuilder::new(working_dir)
-                    .build()
-                    .expect("Failed to build default gitignore")
-            })
-        };
+        let gitignore = build_gitignore(working_dir);
 
         // Get configured filenames
-        let config = Config::global();
-        let hints_filenames = config
-            .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
-            .unwrap_or_else(|_| {
-                vec![
-                    GOOSE_HINTS_FILENAME.to_string(),
-                    AGENTS_MD_FILENAME.to_string(),
-                ]
-            });
+        let hints_filenames = get_context_filenames();
 
         // Try to load hint files from directory (hierarchical from working_dir to directory)
         match load_hints_from_directory(directory, working_dir, &hints_filenames, &gitignore) {

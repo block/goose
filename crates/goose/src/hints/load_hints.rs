@@ -7,6 +7,30 @@ use std::{
 use crate::config::paths::Paths;
 use crate::hints::import_files::read_referenced_files;
 
+/// Build a gitignore matcher for the given directory
+pub fn build_gitignore(working_dir: &Path) -> Gitignore {
+    let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+    builder.build().unwrap_or_else(|_| {
+        ignore::gitignore::GitignoreBuilder::new(working_dir)
+            .build()
+            .expect("Failed to build default gitignore")
+    })
+}
+
+/// Get configured hint filenames or defaults
+pub fn get_context_filenames() -> Vec<String> {
+    use crate::config::Config;
+
+    Config::global()
+        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+        .unwrap_or_else(|_| {
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ]
+        })
+}
+
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 pub const DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV: &str = "GOOSE_DYNAMIC_SUBDIRECTORY_HINT_LOADING";
