@@ -57,9 +57,23 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       if (!sessionsByDay.has(day)) {
         sessionsByDay.set(day, []);
       }
+      
+      // Debug session data
+      console.log('Session data:', {
+        id: session.id,
+        description: session.description,
+        created_at: session.created_at,
+        message_count: session.message_count,
+        allKeys: Object.keys(session)
+      });
+      
+      // Use description as title, or generate a meaningful title
+      const title = session.description || 
+                   `Chat ${session.id.slice(0, 8)}` || 'Untitled Session';
+      
       sessionsByDay.get(day)!.push({
         id: session.id,
-        title: session.title || 'Untitled Session',
+        title: title,
         created_at: session.created_at,
         updated_at: session.updated_at,
         message_count: session.message_count || 0,
