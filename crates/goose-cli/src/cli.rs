@@ -1142,7 +1142,7 @@ pub async fn cli() -> anyhow::Result<()> {
                             .and_then(|rf| {
                                 goose::recipe::template_recipe::parse_recipe_content(
                                     &rf.content,
-                                    Some(rf.parent_dir.to_string_lossy().to_string()),
+                                    Some(rf.parent_dir.display().to_string()),
                                 )
                                 .ok()
                                 .map(|(r, _)| r.version)
@@ -1170,8 +1170,12 @@ pub async fn cli() -> anyhow::Result<()> {
                         "Recipe execution started"
                     );
 
-                    let (input_config, recipe_info) =
-                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
+                        recipe_name,
+                        params,
+                        additional_sub_recipes,
+                        quiet,
+                    )?;
                     (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {

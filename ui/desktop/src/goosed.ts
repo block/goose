@@ -1,8 +1,9 @@
+import Electron from 'electron';
+import fs from 'node:fs';
 import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
-import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -27,7 +28,7 @@ export const findAvailablePort = (): Promise<number> => {
 // Check if goosed server is ready by polling the status endpoint
 export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
   const interval = 100; // ms
-  const maxAttempts = 30; // 3s
+  const maxAttempts = 100; // 10s
 
   const fatal = (line: string) => {
     const trimmed = line.trim().toLowerCase();
@@ -94,7 +95,7 @@ export const startGoosed = async (
     return connectToExternalBackend(dir, 3000);
   }
 
-  let goosedPath = getBinaryPath(app, 'goosed');
+  let goosedPath = getGoosedBinaryPath(app);
 
   const resolvedGoosedPath = path.resolve(goosedPath);
 
@@ -214,4 +215,43 @@ export const startGoosed = async (
 
   log.info(`Goosed server successfully started on port ${port}`);
   return [port, dir, goosedProcess, stderrLines];
+};
+
+const getGoosedBinaryPath = (app: Electron.App): string => {
+  let executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+
+  let possiblePaths: string[];
+  if (!app.isPackaged) {
+    possiblePaths = [
+      path.join(process.cwd(), 'src', 'bin', executableName),
+      path.join(process.cwd(), 'bin', executableName),
+      path.join(process.cwd(), '..', '..', 'target', 'debug', executableName),
+      path.join(process.cwd(), '..', '..', 'target', 'release', executableName),
+    ];
+  } else {
+    possiblePaths = [path.join(process.resourcesPath, 'bin', executableName)];
+  }
+
+  for (const binPath of possiblePaths) {
+    try {
+      const resolvedPath = path.resolve(binPath);
+
+      if (fs.existsSync(resolvedPath)) {
+        const stats = fs.statSync(resolvedPath);
+        if (stats.isFile()) {
+          return resolvedPath;
+        } else {
+          log.error(`Path exists but is not a regular file: ${resolvedPath}`);
+        }
+      }
+    } catch (error) {
+      log.error(`Error checking path ${binPath}:`, error);
+    }
+  }
+
+  throw new Error(
+    `Could not find ${executableName} binary in any of the expected locations: ${possiblePaths.join(
+      ', '
+    )}`
+  );
 };

@@ -823,6 +823,9 @@ export type TokenState = {
 };
 
 export type Tool = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: ToolAnnotations | {
         [key: string]: unknown;
     };

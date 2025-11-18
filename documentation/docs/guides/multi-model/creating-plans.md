@@ -13,23 +13,23 @@ Starting a project without a clear plan is like building a house without a bluep
 * Wasted time and effort
 * Projects that grow too big
 
-A good plan keeps everyone on track and helps measure progress. That's why the Goose CLI includes the `/plan` prompt completion command to help break down your projects into clear, manageable steps.
+A good plan keeps everyone on track and helps measure progress. That's why the goose CLI includes the `/plan` prompt completion command to help break down your projects into clear, manageable steps.
  
-:::tip Plans in the Goose Desktop
-The Goose Desktop doesn't have a `plan` keyword. If you want Goose Desktop to create a plan for you, you need to use a prompt like:
+:::tip Plans in the goose Desktop
+The goose Desktop doesn't have a `plan` keyword. If you want goose Desktop to create a plan for you, you need to use a prompt like:
 
 ```
-"Hey Goose, can you create a plan to convert my CLI project into a locally hosted web page that gives me input fields for each CLI command I can run? Please don't start the actual work"
+"Hey goose, can you create a plan to convert my CLI project into a locally hosted web page that gives me input fields for each CLI command I can run? Please don't start the actual work"
 ```
-Unless you ask Goose to "create a plan", it might just start into the project work. 
+Unless you ask goose to "create a plan", it might just start into the project work. 
 :::
 
-The Goose CLI's plan mode is interactive, asking clarifying questions to understand your project before creating a plan. If you can provide thoughtful and informative answers to those questions, Goose can generate a really useful and actionable plan.
+The goose CLI's plan mode is interactive, asking clarifying questions to understand your project before creating a plan. If you can provide thoughtful and informative answers to those questions, goose can generate a really useful and actionable plan.
 
 ## Set your planner provider and model
 In some workflows, it can be helpful to use one LLM for planning and a different one for execution. For example, GPT-4.1 tends to excel at strategic planning and breaking down complex tasks into clear, logical steps. On the other hand, Claude Sonnet 3.5 is particularly strong at writing clean, efficient code and following instructions precisely. By using GPT-4.1 to plan and Claude to execute, you can play to the strengths of both models and get better results overall.
 
-The Goose CLI plan mode uses two configuration values:
+The goose CLI plan mode uses two configuration values:
 
 - `GOOSE_PLANNER_PROVIDER`: Which provider to use for planning
 - `GOOSE_PLANNER_MODEL`: Which model to use for planning
@@ -40,15 +40,15 @@ goose also supports two options for automatic model switching that help balance 
 - **[AutoPilot](/docs/guides/multi-model/autopilot)**: Context-aware switching between multiple models
 :::
 
-### Set Goose planner environment variables
+### Set goose planner environment variables
 You might add these lines to your bash shell config file (.bashrc) to add the planner environment variables:
 ```bash
 export GOOSE_PLANNER_PROVIDER=<my-chosen-provider>
 export GOOSE_PLANNER_MODEL=<my-chosen-model>
 ```
-After you save your changes to the config file, you need to re-start your Goose session so that Goose can use the variables.
+After you save your changes to the config file, you need to re-start your goose session so that goose can use the variables.
 
-If these aren't set, Goose will use your default provider and model settings. You might want to set different planning models if you find certain models are better at breaking down tasks into clear steps. However, your default model configuration is usually sufficient.
+If these aren't set, goose will use your default provider and model settings. You might want to set different planning models if you find certain models are better at breaking down tasks into clear steps. However, your default model configuration is usually sufficient.
 
 To verify that the planner provider is set, input the following terminal command:
 
@@ -59,15 +59,15 @@ To verify that the planner provider is set, input the following terminal command
 In this example, the `info` command returns the current configuration and the path to the configuration file.  
 
 ```bash
-Goose Version:
+goose Version:
   Version:          1.0.18
 
-Goose Locations:
+goose Locations:
   Config file:      /Users/alincoln/.config/goose/config.yaml
   Sessions dir:     /Users/alincoln/.local/share/goose/sessions
   Logs dir:         /Users/alincoln/.local/state/goose/logs
 
-Goose Configuration:
+goose Configuration:
   GOOSE_PROVIDER: anthropic
   GOOSE_MODEL: claude-3.5-sonnet
   GOOSE_PLANNER_PROVIDER: openai
@@ -78,10 +78,10 @@ Goose Configuration:
  If either `GOOSE_PLANNER_PROVIDER` or `GOOSE_PLANNER_MODEL` are not set, `GOOSE_PROVIDER` and `GOOSE_MODEL`are used to build your plan.  
 
 ## Describe your project
-While Goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes. If these aren't clear, Goose will ask clarifying questions until it fully understands your goals. 
+While goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes. If these aren't clear, goose will ask clarifying questions until it fully understands your goals. 
 
 ## A simple construction plan example
-Goose can produce good plans for relatively simple projects such as the home construction example:
+goose can produce good plans for relatively simple projects such as the home construction example:
 
 ```bash
 ( O)> /plan
@@ -143,7 +143,7 @@ Given that no extensions are currently available for more specific tools or data
 * Search for available extensions using the <function=platform__search_available_extensions>{}</function>
 
 ```
-The home construction plan remains high-level because Goose's current models specialize in technology and software development rather than construction. This is why projects like our first example—building a web application—receive more detailed planning and specific guidance.
+The home construction plan remains high-level because goose's current models specialize in technology and software development rather than construction. This is why projects like our first example—building a web application—receive more detailed planning and specific guidance.
 
 ### Create a separate plan for plan sub-steps
 Let's return to the home construction example. While the plan includes hiring an architect, this high-level step needs more detail – such as what type of architect to hire and how to navigate the selection process.
@@ -151,7 +151,7 @@ Let's return to the home construction example. While the plan includes hiring an
 ```
 - **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
 ```
-If you exit plan mode while reviewing your construction plan, you can always resume it to continue working with Goose. 
+If you exit plan mode while reviewing your construction plan, you can always resume it to continue working with goose. 
 
 ```
 ( O)> /plan hire an architect
@@ -172,12 +172,12 @@ Entering plan mode. You can provide instructions to create a plan and then act o
 10. How involved do you want to be in the design process?
 ```
 
-After gathering information through clarifying questions, Goose creates a detailed plan for hiring an architect. This sub-plan integrates with the larger home construction project, with steps that reflect and support the overall construction context.
+After gathering information through clarifying questions, goose creates a detailed plan for hiring an architect. This sub-plan integrates with the larger home construction project, with steps that reflect and support the overall construction context.
 
 ## A development project example
-In this example, a developer has written a CLI in Python that interacts with the Contentful CMS to let a user search for strings and replace them with new strings. As a website, the search/replace feature would be more usable and also allow for a larger set of features. The developer is using the Goose CLI to plan the conversion project.
+In this example, a developer has written a CLI in Python that interacts with the Contentful CMS to let a user search for strings and replace them with new strings. As a website, the search/replace feature would be more usable and also allow for a larger set of features. The developer is using the goose CLI to plan the conversion project.
 
-If Goose believes the project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
+If goose believes the project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
 
 ```bash 
 ( O)> /plan
@@ -186,10 +186,10 @@ Entering plan mode. You can provide instructions to create a plan and then act o
 
 ( O)> Convert the CLI built by search_replace_routes.py into a web page
 ```
-Goose parses your project description, consults with the LLM mode you've configured, and then if it needs more information, starts a round of clarifying questions.
+goose parses your project description, consults with the LLM mode you've configured, and then if it needs more information, starts a round of clarifying questions.
 
 ## Clarifying questions
-Converting a Python CLI into a website seems simple enough but Goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
+Converting a Python CLI into a website seems simple enough but goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
 
 ```bash
 1. Should the application support any keyboard shortcuts for common actions?
@@ -207,14 +207,14 @@ You can answer the questions one at a time or you can batch your answers:
 
 
 :::tip
-When Goose requests a project artifact like source code during plan mode, you'll need to paste the content directly into the chat. Simply copying the file contents and prefixing it with a brief description like 'Here's the requested code:' is sufficient. Note that providing just a file path won't work in plan mode.
+When goose requests a project artifact like source code during plan mode, you'll need to paste the content directly into the chat. Simply copying the file contents and prefixing it with a brief description like 'Here's the requested code:' is sufficient. Note that providing just a file path won't work in plan mode.
 :::
 
-When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. Do not store my preferences.' This helps Goose track which questions have been answered and prevents repeated questions.
+When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. Do not store my preferences.' This helps goose track which questions have been answered and prevents repeated questions.
 
-In complex projects like converting a CLI to a website, Goose may ask multiple rounds of clarifying questions. Each round typically stems from new information in your previous answers or when additional details are needed about specific aspects of your project.
+In complex projects like converting a CLI to a website, goose may ask multiple rounds of clarifying questions. Each round typically stems from new information in your previous answers or when additional details are needed about specific aspects of your project.
 
-If you've answered _all_ of Gooses questions and it has no more questions, Goose will generate the plan. Other times, you might think Goose will never run out of questions. If you want your plan and don't want to answer more questions, you can simply ask for a "generic" plan:
+If you've answered _all_ of goose's questions and it has no more questions, goose will generate the plan. Other times, you might think goose will never run out of questions. If you want your plan and don't want to answer more questions, you can simply ask for a "generic" plan:
 
 ```bash
 I still need some critical information to create a comprehensive plan:
@@ -228,7 +228,7 @@ I still need some critical information to create a comprehensive plan:
 Without this information, I can only provide a generic plan that might not accurately capture your requirements.
 ( O)> please provde a generic plan
 ```
-While Goose creates a standardized plan format, it customizes the content based on your answers. Goose can generate the code needed to implement the steps of the plan it produces. You should review the plan and any code that it generates before ending plan mode (`/endplan`) and asking Goose to implement the plan. 
+While goose creates a standardized plan format, it customizes the content based on your answers. goose can generate the code needed to implement the steps of the plan it produces. You should review the plan and any code that it generates before ending plan mode (`/endplan`) and asking goose to implement the plan. 
 
 Below is a sample plan for this project, with the generated website code omitted for brevity:
 
@@ -299,22 +299,22 @@ This plan provides a comprehensive framework for converting your CLI script to a
 
 
 ## Basic usage
-You need to have an active Goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
+You need to have an active goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
 
 ```bash
-~ goose session -n web-project-plan -r
-resuming session | provider: databricks model: databricks-meta-llama
-    logging to /Users/alincoln/.local/share/goose/sessions/web-plan.jsonl
+~ goose session -n web-project-plan
+starting session | provider: databricks model: databricks-meta-llama
+    session id: 20251110_5
     working directory: /Users/alincoln
 
-Goose is running! Enter your instructions, or try asking what goose can do.
+goose is running! Enter your instructions, or try asking what goose can do.
 ```
 To enter planning mode, type `/plan`.  Optionally, you can append your plan description to the prompt completion command.
 ```bash
 ( O)> /plan  Build a four bedroom house
 ```
 
- Plan mode in the CLI is a special interaction mode where Goose helps break down tasks into manageable steps.  If you want to close the plan mode and return to the active session, type `/endplan`.
+ Plan mode in the CLI is a special interaction mode where goose helps break down tasks into manageable steps.  If you want to close the plan mode and return to the active session, type `/endplan`.
 
 ```bash
 ( O)> /endplan
