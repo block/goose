@@ -22,10 +22,15 @@ pub struct ClassificationClient {
     endpoint_url: String,
     client: reqwest::Client,
     timeout: Duration,
+    auth_token: Option<String>,
 }
 
 impl ClassificationClient {
-    pub fn new(endpoint_url: String, timeout_ms: Option<u64>) -> Result<Self> {
+    pub fn new(
+        endpoint_url: String,
+        timeout_ms: Option<u64>,
+        auth_token: Option<String>,
+    ) -> Result<Self> {
         let timeout = Duration::from_millis(timeout_ms.unwrap_or(5000));
 
         let client = reqwest::Client::builder()
@@ -37,6 +42,7 @@ impl ClassificationClient {
             endpoint_url,
             client,
             timeout,
+            auth_token,
         })
     }
 
@@ -44,9 +50,7 @@ impl ClassificationClient {
         tracing::debug!(
             endpoint = %self.endpoint_url,
             text_length = text.len(),
-            text_preview = %text.chars().take(100).collect::<String>(),
             timeout_ms = ?self.timeout.as_millis(),
-            "HTTP classification detector scanning text"
         );
 
         let request = ClassificationRequest {
@@ -54,10 +58,13 @@ impl ClassificationClient {
             parameters: None, // Reserved for future use (e.g., truncation, max_length)
         };
 
-        let response = self
-            .client
-            .post(&self.endpoint_url)
-            .json(&request)
+        let mut request_builder = self.client.post(&self.endpoint_url).json(&request);
+
+        if let Some(token) = &self.auth_token {
+            request_builder = request_builder.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let response = request_builder
             .send()
             .await
             .context("Failed to send classification request")?;
@@ -126,4 +133,28 @@ impl ClassificationClient {
     }
 }
 
-// TODO: add tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_client() {
+        let client = ClassificationClient::new(
+            "http://localhost:8000/classify".to_string(),
+            Some(3000),
+            None,
+        );
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_new_client_with_auth_token() {
+        let client = ClassificationClient::new(
+            "http://localhost:8000/classify".to_string(),
+            None,
+            Some("test_token".to_string()),
+        );
+        assert!(client.is_ok());
+        assert_eq!(client.unwrap().auth_token, Some("test_token".to_string()));
+    }
+}

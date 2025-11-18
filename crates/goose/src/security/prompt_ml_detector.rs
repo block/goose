@@ -18,7 +18,9 @@ impl MlDetector {
             .get_param::<String>("SECURITY_PROMPT_ML_ENDPOINT")
             .context("ML endpoint not configured.")?;
 
-        let client = ClassificationClient::new(endpoint, None)?;
+        let auth_token = config.get_param::<String>("SECURITY_PROMPT_ML_TOKEN").ok();
+
+        let client = ClassificationClient::new(endpoint, None, auth_token)?;
 
         Ok(Self::new(client))
     }
