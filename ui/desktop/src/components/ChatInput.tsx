@@ -18,7 +18,7 @@ import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
-import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
@@ -215,15 +215,17 @@ export default function ChatInput({
     query: string;
     mentionStart: number;
     selectedIndex: number;
+    isSlashCommand: boolean;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
     query: '',
     mentionStart: -1,
     selectedIndex: 0,
+    isSlashCommand: false,
   });
   const mentionPopoverRef = useRef<{
-    getDisplayFiles: () => FileItemWithMatch[];
+    getDisplayFiles: () => DisplayItemWithMatch[];
     selectFile: (index: number) => void;
   }>(null);
 
@@ -563,11 +565,30 @@ export default function ChatInput({
     setDisplayValue(val);
     updateValue(val);
     setHasUserTyped(true);
-    checkForMention(val, cursorPosition, evt.target);
+    checkForMentionOrSlash(val, cursorPosition, evt.target);
   };
 
-  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
-    // Find the last @ before the cursor
+  const checkForMentionOrSlash = (
+    text: string,
+    cursorPosition: number,
+    textArea: HTMLTextAreaElement
+  ) => {
+    if (text.startsWith('/')) {
+      const afterSlash = text.slice(1, cursorPosition);
+      if (!afterSlash.includes(' ') && !afterSlash.includes('\n')) {
+        const textAreaRect = textArea.getBoundingClientRect();
+        setMentionPopover({
+          isOpen: true,
+          position: { x: textAreaRect.left, y: textAreaRect.top },
+          query: afterSlash,
+          mentionStart: 0,
+          selectedIndex: 0,
+          isSlashCommand: true,
+        });
+        return;
+      }
+    }
+
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
 
@@ -1550,6 +1571,7 @@ export default function ChatInput({
         <MentionPopover
           ref={mentionPopoverRef}
           isOpen={mentionPopover.isOpen}
+          isSlashCommand={mentionPopover.isSlashCommand}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
           onSelect={handleMentionFileSelect}
           position={mentionPopover.position}

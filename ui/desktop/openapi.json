@@ -878,6 +878,26 @@
         "responses": {}
       }
     },
+    "/config/slash_commands": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_slash_commands",
+        "responses": {
+          "200": {
+            "description": "Slash commands retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlashCommandsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/upsert": {
       "post": {
         "tags": [
@@ -2257,6 +2277,13 @@
             "type": "string"
           }
         }
+      },
+      "CommandType": {
+        "type": "string",
+        "enum": [
+          "Builtin",
+          "Recipe"
+        ]
       },
       "ConfigKey": {
         "type": "object",
@@ -4550,6 +4577,39 @@
           },
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "SlashCommand": {
+        "type": "object",
+        "required": [
+          "command",
+          "help",
+          "command_type"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "command_type": {
+            "$ref": "#/components/schemas/CommandType"
+          },
+          "help": {
+            "type": "string"
+          }
+        }
+      },
+      "SlashCommandsResponse": {
+        "type": "object",
+        "required": [
+          "commands"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlashCommand"
+            }
           }
         }
       },

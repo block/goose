@@ -67,7 +67,8 @@ use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
+    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -780,7 +781,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let message_text = user_message.as_concat_text();
-        let is_manual_compact = message_text.trim() == MANUAL_COMPACT_TRIGGER;
+        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();

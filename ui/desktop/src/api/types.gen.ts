@@ -36,6 +36,8 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
+export type CommandType = 'Builtin' | 'Recipe';
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -761,6 +763,16 @@ export type Settings = {
 export type SetupResponse = {
     message: string;
     success: boolean;
+};
+
+export type SlashCommand = {
+    command: string;
+    command_type: CommandType;
+    help: string;
+};
+
+export type SlashCommandsResponse = {
+    commands: Array<SlashCommand>;
 };
 
 export type StartAgentRequest = {
@@ -1615,6 +1627,22 @@ export type SetConfigProviderData = {
     query?: never;
     url: '/config/set_provider';
 };
+
+export type GetSlashCommandsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/slash_commands';
+};
+
+export type GetSlashCommandsResponses = {
+    /**
+     * Slash commands retrieved successfully
+     */
+    200: SlashCommandsResponse;
+};
+
+export type GetSlashCommandsResponse = GetSlashCommandsResponses[keyof GetSlashCommandsResponses];
 
 export type UpsertConfigData = {
     body: UpsertConfigQuery;
