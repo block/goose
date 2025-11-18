@@ -67,8 +67,8 @@ def is_block_employee(username):
         return False
         
     except Exception as e:
-        # If we can't check (rate limit, network error, etc.), return False
-        # This means we'll default to treating them as external
+        # If we can't check (rate limit, network error, etc.), log the error and return False
+        print(f"[Error] Could not determine Block employee status for '{username}': {e}", file=sys.stderr)
         return False
 
 def load_team_lists():
