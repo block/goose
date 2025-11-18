@@ -47,14 +47,13 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     }
 
     // Sort sessions by creation date (newest first)
-    const sortedSessions = [...sessions]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 30); // Limit for performance in force simulation
+    const allSessions = [...sessions]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    // Group sessions by day
+    // Group sessions by day first to ensure we get multiple days
     const sessionsByDay = new Map<string, SessionData[]>();
     
-    sortedSessions.forEach(session => {
+    allSessions.forEach(session => {
       const day = new Date(session.created_at).toDateString();
       if (!sessionsByDay.has(day)) {
         sessionsByDay.set(day, []);
@@ -75,6 +74,23 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       });
     });
 
+    // Limit sessions per day to keep visualization manageable
+    // but ensure we show up to 15 days
+    const maxDays = 15;
+    const maxSessionsPerDay = 8;
+    
+    const sortedDays = Array.from(sessionsByDay.keys())
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+      .slice(0, maxDays);
+
+    // Limit sessions within each day
+    sortedDays.forEach(day => {
+      const sessions = sessionsByDay.get(day)!;
+      if (sessions.length > maxSessionsPerDay) {
+        sessionsByDay.set(day, sessions.slice(0, maxSessionsPerDay));
+      }
+    });
+
     // Create root node
     const rootNode: ForceNode = {
       id: 'root',
@@ -93,10 +109,6 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
 
     const nodes: ForceNode[] = [rootNode];
     const links: ForceLink[] = [];
-
-    // Sort days (newest first)
-    const sortedDays = Array.from(sessionsByDay.keys())
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
     // Create day nodes and session nodes
     sortedDays.forEach((day) => {
