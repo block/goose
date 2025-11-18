@@ -558,12 +558,6 @@ const MentionPopover = forwardRef<
                     No items found matching "{query}"
                   </div>
                 )}
-
-                {!isLoading && displayItems.length === 0 && !query && (
-                  <div className="p-4 text-center text-textSubtle text-sm">
-                    Start typing to search
-                  </div>
-                )}
               </div>
             </>
           )}
