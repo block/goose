@@ -5,15 +5,35 @@ import { MessageSquareText, Target, Calendar, Users, Hash, MessageCircle } from 
 import { ScrollArea } from '../ui/scroll-area';
 import { unifiedSessionService } from '../../services/UnifiedSessionService';
 
-interface TimelineNode {
+interface TimelineDay {
+  date: Date;
+  dateString: string;
+  dayLabel: string;
+  yPosition: number;
+  sessions: SessionBranch[];
+}
+
+interface SessionBranch {
   id: string;
   session: Session;
   displayInfo: ReturnType<typeof unifiedSessionService.getSessionDisplayInfo>;
   startTime: Date;
   endTime: Date;
   duration: number;
-  yPosition: number;
+  startDay: string;
+  endDay: string;
+  branchPosition: number; // horizontal offset from main timeline
   nodeSize: number;
+  spansMultipleDays: boolean;
+  continuationLines: ContinuationLine[];
+}
+
+interface ContinuationLine {
+  fromDay: string;
+  toDay: string;
+  fromY: number;
+  toY: number;
+  branchPosition: number;
 }
 
 interface SessionTimelineViewProps {
@@ -29,63 +49,150 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
   selectedSessionId,
   className = '',
 }) => {
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [hoveredSession, setHoveredSession] = useState<string | null>(null);
 
-  const timelineNodes = useMemo(() => {
-    if (sessions.length === 0) return [];
+  const timelineData = useMemo(() => {
+    if (sessions.length === 0) return { days: [], branches: [], continuationLines: [] };
 
-    // Create nodes from sessions
-    const nodes: TimelineNode[] = sessions.map((session) => {
+    // Group sessions by start day
+    const sessionsByDay = new Map<string, Session[]>();
+    const allDays = new Set<string>();
+
+    sessions.forEach(session => {
+      const startDay = new Date(session.created_at).toDateString();
+      const endDay = new Date(session.updated_at).toDateString();
+      
+      allDays.add(startDay);
+      allDays.add(endDay);
+      
+      if (!sessionsByDay.has(startDay)) {
+        sessionsByDay.set(startDay, []);
+      }
+      sessionsByDay.get(startDay)!.push(session);
+    });
+
+    // Create timeline days
+    const sortedDays = Array.from(allDays).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const dayHeight = 200;
+    const daySpacing = 50;
+
+    const timelineDays: TimelineDay[] = sortedDays.map((dateString, index) => {
+      const date = new Date(dateString);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      let dayLabel = '';
+      if (date.toDateString() === today.toDateString()) {
+        dayLabel = 'Today';
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        dayLabel = 'Yesterday';
+      } else {
+        dayLabel = date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        });
+      }
+
+      return {
+        date,
+        dateString,
+        dayLabel,
+        yPosition: 80 + (index * (dayHeight + daySpacing)),
+        sessions: [], // Will be populated below
+      };
+    });
+
+    // Create session branches
+    const allBranches: SessionBranch[] = [];
+    const continuationLines: ContinuationLine[] = [];
+    const branchPositions = new Map<string, number>(); // Track horizontal positions per day
+
+    sessions.forEach(session => {
       const displayInfo = unifiedSessionService.getSessionDisplayInfo(session);
       const startTime = new Date(session.created_at);
       const endTime = new Date(session.updated_at);
+      const startDay = startTime.toDateString();
+      const endDay = endTime.toDateString();
       const duration = endTime.getTime() - startTime.getTime();
-      
-      // Node size based on message count (min 24px, max 60px)
-      const nodeSize = Math.max(24, Math.min(60, 24 + (session.message_count * 1.5)));
-      
-      return {
+      const spansMultipleDays = startDay !== endDay;
+
+      // Calculate node size based on message count
+      const nodeSize = Math.max(20, Math.min(40, 20 + (session.message_count * 1)));
+
+      // Assign horizontal branch position
+      const currentBranchCount = branchPositions.get(startDay) || 0;
+      const branchPosition = 120 + (currentBranchCount * 80); // 80px spacing between branches
+      branchPositions.set(startDay, currentBranchCount + 1);
+
+      const branch: SessionBranch = {
         id: session.id,
         session,
         displayInfo,
         startTime,
         endTime,
         duration,
-        yPosition: 0, // Will be calculated below
+        startDay,
+        endDay,
+        branchPosition,
         nodeSize,
+        spansMultipleDays,
+        continuationLines: [],
       };
+
+      allBranches.push(branch);
+
+      // Create continuation lines for multi-day sessions
+      if (spansMultipleDays) {
+        const startDayIndex = sortedDays.indexOf(startDay);
+        const endDayIndex = sortedDays.indexOf(endDay);
+        
+        for (let i = startDayIndex; i < endDayIndex; i++) {
+          const fromDay = sortedDays[i];
+          const toDay = sortedDays[i + 1];
+          const fromDayData = timelineDays.find(d => d.dateString === fromDay);
+          const toDayData = timelineDays.find(d => d.dateString === toDay);
+          
+          if (fromDayData && toDayData) {
+            continuationLines.push({
+              fromDay,
+              toDay,
+              fromY: fromDayData.yPosition + dayHeight - 20,
+              toY: toDayData.yPosition + 20,
+              branchPosition,
+            });
+          }
+        }
+      }
     });
 
-    // Sort by start time (oldest first for top-to-bottom timeline)
-    nodes.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-    // Calculate Y positions with spacing
-    const nodeSpacing = 100; // pixels between nodes
-    nodes.forEach((node, index) => {
-      node.yPosition = 80 + (index * nodeSpacing);
+    // Assign branches to their starting days
+    timelineDays.forEach(day => {
+      day.sessions = allBranches.filter(branch => branch.startDay === day.dateString);
     });
 
-    return nodes;
+    return { days: timelineDays, branches: allBranches, continuationLines };
   }, [sessions]);
 
-  const getNodeIcon = (node: TimelineNode) => {
-    const { displayInfo, session } = node;
+  const getSessionIcon = (branch: SessionBranch) => {
+    const { displayInfo, session } = branch;
     
     if (displayInfo.type === 'collaborative') {
-      return <Users className="w-5 h-5 text-white" />;
+      return <Users className="w-4 h-4 text-white" />;
     } else if (session.extension_data?.matrix?.isDirectMessage) {
-      return <MessageCircle className="w-5 h-5 text-white" />;
+      return <MessageCircle className="w-4 h-4 text-white" />;
     } else if (displayInfo.type === 'matrix') {
-      return <Hash className="w-5 h-5 text-white" />;
+      return <Hash className="w-4 h-4 text-white" />;
     }
     
-    return <MessageSquareText className="w-5 h-5 text-white" />;
+    return <MessageSquareText className="w-4 h-4 text-white" />;
   };
 
-  const getNodeColor = (node: TimelineNode) => {
-    const { displayInfo, session } = node;
-    const isSelected = selectedSessionId === node.id;
-    const isHovered = hoveredNode === node.id;
+  const getSessionColor = (branch: SessionBranch) => {
+    const { displayInfo, session } = branch;
+    const isSelected = selectedSessionId === branch.id;
+    const isHovered = hoveredSession === branch.id;
     
     let baseColor = '';
     if (displayInfo.type === 'collaborative') {
@@ -109,11 +216,18 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     return baseColor;
   };
 
-  const getDurationBarColor = (duration: number) => {
-    if (duration < 5 * 60 * 1000) return 'bg-gray-300'; // < 5 minutes
-    if (duration < 30 * 60 * 1000) return 'bg-blue-400'; // < 30 minutes  
-    if (duration < 2 * 60 * 60 * 1000) return 'bg-yellow-400'; // < 2 hours
-    return 'bg-red-400'; // > 2 hours
+  const getBranchLineColor = (branch: SessionBranch) => {
+    const { displayInfo, session } = branch;
+    
+    if (displayInfo.type === 'collaborative') {
+      return 'border-purple-400';
+    } else if (session.extension_data?.matrix?.isDirectMessage) {
+      return 'border-green-400';
+    } else if (displayInfo.type === 'matrix') {
+      return 'border-blue-400';
+    }
+    
+    return 'border-gray-400';
   };
 
   const formatDuration = (duration: number) => {
@@ -129,11 +243,11 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     return '< 1m';
   };
 
-  const handleNodeClick = (nodeId: string) => {
-    onSelectSession(nodeId);
+  const handleSessionClick = (sessionId: string) => {
+    onSelectSession(sessionId);
   };
 
-  if (timelineNodes.length === 0) {
+  if (timelineData.days.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center h-full text-text-muted ${className}`}>
         <Calendar className="h-12 w-12 mb-4" />
@@ -143,7 +257,9 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
     );
   }
 
-  const timelineHeight = Math.max(600, timelineNodes[timelineNodes.length - 1]?.yPosition + 100);
+  const totalHeight = timelineData.days.length > 0 
+    ? timelineData.days[timelineData.days.length - 1].yPosition + 250 
+    : 600;
 
   return (
     <div className={`${className}`}>
@@ -151,173 +267,171 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
       <div className="mb-6 px-6">
         <h3 className="text-lg font-medium text-text-standard mb-2">Session Timeline</h3>
         <p className="text-sm text-text-muted">
-          Chronological view of {timelineNodes.length} sessions. Node size reflects message count, colors indicate session type.
+          Daily timeline showing {sessions.length} sessions. Each day has its own section with conversation branches.
         </p>
       </div>
 
       <ScrollArea className="h-full">
-        <div className="relative px-6" style={{ height: `${timelineHeight}px` }}>
-          {/* Main vertical timeline line */}
+        <div className="relative px-6" style={{ height: `${totalHeight}px` }}>
+          {/* Main vertical timeline spine */}
           <div 
-            className="absolute w-1 bg-gradient-to-b from-blue-200 via-purple-200 to-green-200 rounded-full shadow-sm"
+            className="absolute w-2 bg-gradient-to-b from-blue-300 via-purple-300 to-green-300 rounded-full shadow-sm"
             style={{ 
               left: '60px', 
               top: '40px', 
-              height: `${timelineHeight - 80}px` 
+              height: `${totalHeight - 80}px` 
             }}
           />
           
-          {/* Timeline nodes and connections */}
-          {timelineNodes.map((node, index) => {
-            const isSelected = selectedSessionId === node.id;
-            const isHovered = hoveredNode === node.id;
-            const nextNode = timelineNodes[index + 1];
-            
-            return (
-              <div key={node.id}>
-                {/* Connection line to next node */}
-                {nextNode && (
-                  <div
-                    className="absolute w-0.5 bg-border-subtle"
-                    style={{
-                      left: '60px',
-                      top: `${node.yPosition + node.nodeSize / 2}px`,
-                      height: `${nextNode.yPosition - node.yPosition - node.nodeSize / 2}px`,
-                    }}
-                  />
-                )}
+          {/* Day sections and session branches */}
+          {timelineData.days.map((day, dayIndex) => (
+            <div key={day.dateString}>
+              {/* Day marker on main timeline */}
+              <div
+                className="absolute w-6 h-6 bg-white dark:bg-gray-800 border-2 border-blue-500 rounded-full flex items-center justify-center shadow-md z-10"
+                style={{
+                  left: '54px',
+                  top: `${day.yPosition}px`,
+                }}
+              >
+                <Calendar className="w-3 h-3 text-blue-500" />
+              </div>
+              
+              {/* Day label */}
+              <div
+                className="absolute text-sm font-medium text-text-standard bg-background-default px-2 py-1 rounded border shadow-sm"
+                style={{
+                  left: '10px',
+                  top: `${day.yPosition - 10}px`,
+                }}
+              >
+                {day.dayLabel}
+              </div>
+              
+              {/* Date label */}
+              <div
+                className="absolute text-xs text-text-muted"
+                style={{
+                  left: '10px',
+                  top: `${day.yPosition + 15}px`,
+                }}
+              >
+                {day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </div>
+              
+              {/* Session branches for this day */}
+              {day.sessions.map((branch, branchIndex) => {
+                const isSelected = selectedSessionId === branch.id;
+                const isHovered = hoveredSession === branch.id;
+                const branchY = day.yPosition + 40 + (branchIndex * 60);
                 
-                {/* Horizontal connector line */}
-                <div
-                  className="absolute h-0.5 bg-border-default"
-                  style={{
-                    left: '60px',
-                    top: `${node.yPosition + node.nodeSize / 2}px`,
-                    width: '40px',
-                  }}
-                />
-                
-                {/* Timeline node */}
-                <div
-                  className={`absolute cursor-pointer transition-all duration-300 rounded-full border-2 flex items-center justify-center shadow-md hover:shadow-lg ${getNodeColor(node)}`}
-                  style={{
-                    left: `${60 - node.nodeSize / 2}px`,
-                    top: `${node.yPosition}px`,
-                    width: `${node.nodeSize}px`,
-                    height: `${node.nodeSize}px`,
-                  }}
-                  onClick={() => handleNodeClick(node.id)}
-                  onMouseEnter={() => setHoveredNode(node.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                >
-                  {getNodeIcon(node)}
-                  
-                  {/* Message count badge */}
-                  {node.session.message_count > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full min-w-5 h-5 flex items-center justify-center text-xs font-medium text-text-standard px-1">
-                      {node.session.message_count}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Session details panel */}
-                <div
-                  className={`absolute transition-all duration-200 ${
-                    isSelected ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' : 'bg-background-default border-border-subtle'
-                  } border rounded-lg p-4 shadow-sm hover:shadow-md cursor-pointer`}
-                  style={{
-                    left: '120px',
-                    top: `${node.yPosition}px`,
-                    minWidth: '320px',
-                    maxWidth: '500px',
-                  }}
-                  onClick={() => handleNodeClick(node.id)}
-                >
-                  {/* Session header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-text-standard mb-1 break-words">
-                        {node.session.description || node.session.id}
-                      </h4>
+                return (
+                  <div key={branch.id}>
+                    {/* Branch line from main timeline to session */}
+                    <div
+                      className={`absolute h-0.5 border-t-2 border-dashed ${getBranchLineColor(branch)}`}
+                      style={{
+                        left: '72px',
+                        top: `${branchY + branch.nodeSize / 2}px`,
+                        width: `${branch.branchPosition - 72}px`,
+                      }}
+                    />
+                    
+                    {/* Session node */}
+                    <div
+                      className={`absolute cursor-pointer transition-all duration-300 rounded-full border-2 flex items-center justify-center shadow-md hover:shadow-lg ${getSessionColor(branch)}`}
+                      style={{
+                        left: `${branch.branchPosition}px`,
+                        top: `${branchY}px`,
+                        width: `${branch.nodeSize}px`,
+                        height: `${branch.nodeSize}px`,
+                      }}
+                      onClick={() => handleSessionClick(branch.id)}
+                      onMouseEnter={() => setHoveredSession(branch.id)}
+                      onMouseLeave={() => setHoveredSession(null)}
+                    >
+                      {getSessionIcon(branch)}
                       
-                      {/* Session type badge */}
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        node.displayInfo.type === 'collaborative' 
-                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                          : node.displayInfo.type === 'matrix'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
-                      }`}>
-                        {node.displayInfo.type === 'collaborative' ? 'Collaborative' : 
-                         node.displayInfo.type === 'matrix' ? 'Matrix' : 'Regular'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Session metadata */}
-                  <div className="space-y-2 text-xs text-text-muted">
-                    <div className="flex items-center justify-between">
-                      <span>Started: {formatMessageTimestamp(node.startTime.getTime() / 1000)}</span>
-                      {node.duration > 60000 && (
-                        <span className="text-text-standard font-medium">
-                          Duration: {formatDuration(node.duration)}
-                        </span>
+                      {/* Message count badge */}
+                      {branch.session.message_count > 0 && (
+                        <div className="absolute -top-2 -right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full min-w-4 h-4 flex items-center justify-center text-xs font-medium text-text-standard px-1">
+                          {branch.session.message_count}
+                        </div>
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <MessageSquareText className="w-3 h-3" />
-                        <span>{node.session.message_count} messages</span>
+                    {/* Multi-day indicator */}
+                    {branch.spansMultipleDays && (
+                      <div
+                        className="absolute text-xs text-purple-600 dark:text-purple-400 font-medium"
+                        style={{
+                          left: `${branch.branchPosition + branch.nodeSize + 8}px`,
+                          top: `${branchY - 8}px`,
+                        }}
+                      >
+                        Multi-day
                       </div>
-                      
-                      {node.session.total_tokens && (
-                        <div className="flex items-center gap-1">
-                          <Target className="w-3 h-3" />
-                          <span>{node.session.total_tokens.toLocaleString()} tokens</span>
-                        </div>
-                      )}
-                      
-                      {node.displayInfo.participants && (
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          <span>{node.displayInfo.participants.length} participants</span>
-                        </div>
-                      )}
-                    </div>
+                    )}
                     
-                    {/* Duration bar */}
-                    {node.duration > 60000 && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full ${getDurationBarColor(node.duration)} transition-all duration-300`}
-                              style={{ width: '100%' }}
-                            />
+                    {/* Session details tooltip on hover */}
+                    {isHovered && (
+                      <div
+                        className="absolute z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 min-w-64 max-w-80"
+                        style={{
+                          left: `${branch.branchPosition + branch.nodeSize + 10}px`,
+                          top: `${branchY}px`,
+                        }}
+                      >
+                        <div className="text-sm font-medium text-text-standard mb-2 break-words">
+                          {branch.session.description || branch.session.id}
+                        </div>
+                        
+                        <div className="space-y-1 text-xs text-text-muted">
+                          <div>Started: {formatMessageTimestamp(branch.startTime.getTime() / 1000)}</div>
+                          {branch.duration > 60000 && (
+                            <div>Duration: {formatDuration(branch.duration)}</div>
+                          )}
+                          
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-1">
+                              <MessageSquareText className="w-3 h-3" />
+                              <span>{branch.session.message_count}</span>
+                            </div>
+                            
+                            {branch.session.total_tokens && (
+                              <div className="flex items-center gap-1">
+                                <Target className="w-3 h-3" />
+                                <span>{branch.session.total_tokens.toLocaleString()}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
           
-          {/* Timeline start/end markers */}
-          <div className="absolute left-2 top-8 text-xs text-text-muted font-medium">
-            Earliest
-          </div>
-          <div className="absolute left-2 text-xs text-text-muted font-medium" style={{ top: `${timelineHeight - 40}px` }}>
-            Latest
-          </div>
+          {/* Continuation lines for multi-day sessions */}
+          {timelineData.continuationLines.map((line, index) => (
+            <div
+              key={`continuation-${index}`}
+              className="absolute border-l-2 border-purple-400 border-dashed opacity-60"
+              style={{
+                left: `${line.branchPosition + 10}px`,
+                top: `${line.fromY}px`,
+                height: `${line.toY - line.fromY}px`,
+              }}
+            />
+          ))}
         </div>
       </ScrollArea>
       
       {/* Legend */}
       <div className="mt-6 mx-6 p-4 bg-background-subtle rounded-lg border">
-        <h4 className="text-sm font-medium text-text-standard mb-3">Legend</h4>
+        <h4 className="text-sm font-medium text-text-standard mb-3">Timeline Legend</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           {/* Session types */}
           <div className="space-y-2">
@@ -348,41 +462,37 @@ const SessionTimelineView: React.FC<SessionTimelineViewProps> = ({
             </div>
           </div>
           
-          {/* Duration colors */}
-          <div className="space-y-2">
-            <h5 className="font-medium text-text-standard">Duration</h5>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-2 bg-gray-300 rounded"></div>
-              <span>&lt; 5 minutes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-2 bg-blue-400 rounded"></div>
-              <span>&lt; 30 minutes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-2 bg-yellow-400 rounded"></div>
-              <span>&lt; 2 hours</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-2 bg-red-400 rounded"></div>
-              <span>2+ hours</span>
-            </div>
-          </div>
-          
           {/* Visual elements */}
           <div className="space-y-2">
             <h5 className="font-medium text-text-standard">Visual Elements</h5>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 border-t-2 border-dashed border-gray-400"></div>
+              <span>Session branch</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-l-2 border-purple-400 border-dashed opacity-60"></div>
+              <span>Multi-day continuation</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-500" />
+              <span>Day marker</span>
+            </div>
+          </div>
+          
+          {/* Interaction */}
+          <div className="space-y-2">
+            <h5 className="font-medium text-text-standard">Interaction</h5>
             <div className="flex items-center gap-2">
               <span>Node size:</span>
               <span className="text-text-muted">Message count</span>
             </div>
             <div className="flex items-center gap-2">
-              <span>Position:</span>
-              <span className="text-text-muted">Chronological order</span>
+              <span>Hover:</span>
+              <span className="text-text-muted">Session details</span>
             </div>
             <div className="flex items-center gap-2">
-              <span>Badge:</span>
-              <span className="text-text-muted">Message count</span>
+              <span>Click:</span>
+              <span className="text-text-muted">Open session</span>
             </div>
           </div>
         </div>
