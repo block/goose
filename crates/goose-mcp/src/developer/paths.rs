@@ -33,15 +33,10 @@ async fn get_shell_path_async() -> Result<String> {
         }
     });
 
-    {
-        #[cfg(windows)]
-        {
-            get_windows_path_async(&shell).await
-        }
-        #[cfg(not(windows))]
-        {
-            get_unix_path_async(&shell).await
-        }
+    if cfg!(windows) {
+        get_windows_path_async(&shell).await
+    } else {
+        get_unix_path_async(&shell).await
     }
     .or_else(|e| {
         tracing::warn!(
@@ -52,7 +47,6 @@ async fn get_shell_path_async() -> Result<String> {
     })
 }
 
-#[cfg(not(windows))]
 async fn get_unix_path_async(shell: &str) -> Result<String> {
     let output = Command::new(shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
@@ -77,7 +71,6 @@ async fn get_unix_path_async(shell: &str) -> Result<String> {
     Ok(path)
 }
 
-#[cfg(windows)]
 async fn get_windows_path_async(shell: &str) -> Result<String> {
     let shell_name = std::path::Path::new(shell)
         .file_stem()
