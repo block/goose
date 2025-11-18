@@ -240,14 +240,30 @@ else
   (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
   PROXY_PID=$!
 
-  # Wait for proxy to start
-  sleep 2
+  # Wait for proxy to be ready (check if port is listening)
+  echo "Waiting for proxy to be ready..."
+  PROXY_READY=false
+  for i in {1..30}; do
+    if kill -0 $PROXY_PID 2>/dev/null; then
+      # Check if port is listening using /dev/tcp
+      if timeout 1 bash -c "echo -n > /dev/tcp/localhost/$PROXY_PORT" 2>/dev/null; then
+        PROXY_READY=true
+        echo "✓ Proxy is ready on port $PROXY_PORT"
+        break
+      fi
+    else
+      echo "✗ FAILED: Error proxy process died"
+      break
+    fi
+    sleep 0.5
+  done
 
-  # Check if proxy is running
-  if ! kill -0 $PROXY_PID 2>/dev/null; then
-    echo "✗ FAILED: Error proxy failed to start"
+  # Check if proxy is running and ready
+  if [ "$PROXY_READY" != "true" ]; then
+    echo "✗ FAILED: Error proxy failed to become ready"
     echo "Proxy log:"
     cat "$PROXY_LOG"
+    kill $PROXY_PID 2>/dev/null || true
     RESULTS+=("✗ Out-of-Context Error (proxy failed)")
   else
     # Configure provider to use proxy and skip backoff
