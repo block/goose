@@ -886,13 +886,17 @@ pub async fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(Command::Configure {}) => handle_configure().await?,
         Some(Command::Info { verbose }) => handle_info(verbose)?,
-        Some(Command::Mcp { server }) => match server {
-            McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
-            McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
-            McpCommand::Memory => serve(MemoryServer::new()).await?,
-            McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-            McpCommand::Developer => serve(DeveloperServer::new()).await?,
-        },
+        Some(Command::Mcp { server }) => {
+            let name = server.name();
+            crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
+            match server {
+                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+                McpCommand::Memory => serve(MemoryServer::new()).await?,
+                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+                McpCommand::Developer => serve(DeveloperServer::new()).await?,
+            }
+        }
         Some(Command::Acp {}) => {
             run_acp_agent().await?;
         }
