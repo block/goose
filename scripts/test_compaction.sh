@@ -220,6 +220,109 @@ echo ""
 echo ""
 
 # ==================================================
+# TEST 3: Out-of-Context Error Compaction
+# ==================================================
+echo "---------------------------------------------------"
+echo "TEST 3: Compaction via out-of-context error (proxy)"
+echo "---------------------------------------------------"
+
+# Check if uv and Python are available
+if ! command -v uv &> /dev/null; then
+  echo "⚠ WARNING: uv is not installed. Skipping out-of-context error test."
+  echo "   Install uv: https://github.com/astral-sh/uv"
+  RESULTS+=("⚠ Out-of-Context Error (uv required)")
+elif ! command -v jq &> /dev/null; then
+  echo "✗ FAILED: jq is required for this test"
+  RESULTS+=("✗ Out-of-Context Error (jq required)")
+else
+  TESTDIR=$(mktemp -d)
+  echo "test content" > "$TESTDIR/test.txt"
+  echo "Test directory: $TESTDIR"
+  echo ""
+
+  # Use a random port to avoid conflicts
+  PROXY_PORT=$((9000 + RANDOM % 1000))
+  PROXY_DIR="$SCRIPT_DIR/scripts/provider-error-proxy"
+
+  if [ ! -d "$PROXY_DIR" ]; then
+    echo "✗ FAILED: Error proxy directory not found at $PROXY_DIR"
+    RESULTS+=("✗ Out-of-Context Error (proxy not found)")
+  else
+    OUTPUT=$(mktemp)
+    PROXY_LOG=$(mktemp)
+
+    # Start the error proxy in context-length error mode (3 errors)
+    echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
+    (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode c --count 3 --no-stdin > "$PROXY_LOG" 2>&1) &
+    PROXY_PID=$!
+
+    # Wait for proxy to start
+    sleep 2
+
+    # Check if proxy is running
+    if ! kill -0 $PROXY_PID 2>/dev/null; then
+      echo "✗ FAILED: Error proxy failed to start"
+      echo "Proxy log:"
+      cat "$PROXY_LOG"
+      RESULTS+=("✗ Out-of-Context Error (proxy failed)")
+    else
+      # Configure provider to use proxy and skip backoff
+      export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
+      export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-test-dummy-key-for-proxy-testing}"
+      export GOOSE_PROVIDER_SKIP_BACKOFF=true
+      export GOOSE_PROVIDER=anthropic
+      export GOOSE_MODEL=claude-sonnet-4-20250514
+
+      echo "Step 1: Creating session (should trigger context-length error and compaction)..."
+      (cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello world" 2>&1) | tee "$OUTPUT"
+
+      SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
+
+      if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+        echo "✗ FAILED: Could not create session"
+        RESULTS+=("✗ Out-of-Context Error (no session)")
+      else
+        echo ""
+        echo "Session created: $SESSION_ID"
+        echo "Checking for compaction evidence..."
+
+        # Check for compaction in the output
+        if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
+          echo "✓ SUCCESS: Out-of-context error triggered compaction"
+
+          if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
+            RESULTS+=("✓ Out-of-Context Error")
+          else
+            RESULTS+=("✗ Out-of-Context Error (structure validation failed)")
+          fi
+        else
+          echo "✗ FAILED: No evidence of compaction after context-length error"
+          echo "   Output:"
+          cat "$OUTPUT"
+          RESULTS+=("✗ Out-of-Context Error")
+        fi
+      fi
+
+      # Clean up
+      echo ""
+      echo "Stopping error proxy..."
+      kill $PROXY_PID 2>/dev/null || true
+      wait $PROXY_PID 2>/dev/null || true
+      unset ANTHROPIC_HOST
+      unset GOOSE_PROVIDER_SKIP_BACKOFF
+      unset GOOSE_PROVIDER
+      unset GOOSE_MODEL
+    fi
+
+    rm -f "$OUTPUT" "$PROXY_LOG"
+    rm -rf "$TESTDIR"
+  fi
+fi
+
+echo ""
+echo ""
+
+# ==================================================
 # Summary
 # ==================================================
 echo "=================================================="

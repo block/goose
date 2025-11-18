@@ -716,7 +716,22 @@ def main():
         default=8888,
         help='Port to listen on (default: 8888)'
     )
-    
+    parser.add_argument(
+        '--mode',
+        choices=['n', 'c', 'r', 'u'],
+        help='Error mode: n=no error, c=context length, r=rate limit, u=server error'
+    )
+    parser.add_argument(
+        '--count',
+        type=str,
+        help='Error count or percentage (e.g., "3", "0.3", "30%%", "*")'
+    )
+    parser.add_argument(
+        '--no-stdin',
+        action='store_true',
+        help='Disable stdin reader (for background/automated mode)'
+    )
+
     args = parser.parse_args()
     
     print("=" * 60)
@@ -735,14 +750,59 @@ def main():
     
     # Create proxy instance
     proxy = ErrorProxy()
-    
+
+    # Set initial error mode from command-line arguments
+    if args.mode:
+        mode_map = {
+            'n': ErrorMode.NO_ERROR,
+            'c': ErrorMode.CONTEXT_LENGTH,
+            'r': ErrorMode.RATE_LIMIT,
+            'u': ErrorMode.SERVER_ERROR
+        }
+        mode = mode_map[args.mode]
+
+        # Parse count/percentage if provided
+        count = 1
+        percentage = 0.0
+        if args.count:
+            value_str = args.count.replace(" ", "")
+            try:
+                if value_str == '*':
+                    percentage = 1.0
+                    count = 0
+                elif value_str.endswith('%'):
+                    percentage = float(value_str[:-1]) / 100.0
+                    count = 0
+                elif '.' in value_str:
+                    percentage = float(value_str)
+                    count = 0
+                else:
+                    count = int(value_str)
+            except ValueError:
+                print(f"⚠ Warning: Invalid count value '{args.count}', using default of 1")
+
+        proxy.set_error_mode(mode, count, percentage)
+        print()
+        print(f"Initial mode set from command-line arguments:")
+        print(f"  Mode: {mode.name}")
+        if percentage > 0.0:
+            print(f"  Percentage: {percentage*100:.0f}%")
+        elif count > 0:
+            print(f"  Count: {count}")
+        print()
+
     # Create event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    # Start stdin reader thread
-    stdin_thread = threading.Thread(target=stdin_reader, args=(proxy, loop), daemon=True)
-    stdin_thread.start()
+
+    # Start stdin reader thread only if not disabled
+    if not args.no_stdin:
+        stdin_thread = threading.Thread(target=stdin_reader, args=(proxy, loop), daemon=True)
+        stdin_thread.start()
+    else:
+        print("Running in no-stdin mode (background/automated)")
+        print("Use SIGINT (Ctrl+C) or SIGTERM to stop the proxy")
+        print()
     
     # Create and run the app
     app = loop.run_until_complete(create_app(proxy))
