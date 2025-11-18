@@ -26,7 +26,7 @@ import calendar
 from pathlib import Path
 
 # GitHub URL for team list file
-TEAMS_FILE_URL = "https://raw.githubusercontent.com/block/goose/main/scripts/community_stars_teams.txt"
+TEAMS_FILE_URL = "https://raw.githubusercontent.com/block/goose/main/documentation/scripts/community_stars_teams.txt"
 LOCAL_TEAMS_FILE = Path(__file__).parent / "community_stars_teams.txt"
 
 def load_team_lists():
