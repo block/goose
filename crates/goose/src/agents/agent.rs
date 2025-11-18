@@ -937,7 +937,8 @@ impl Agent {
                     break;
                 }
 
-                // Increment conversation turn counter (persisted in session state, survives compaction)
+                // Increment turn counter and prune stale hints
+                // This happens on every agent iteration (tool calls, responses, etc.)
                 let conversation_turn = {
                     use crate::session::extension_data::{
                         get_or_create_conversation_turn_state, save_conversation_turn_state,
@@ -954,7 +955,7 @@ impl Agent {
                     current_turn
                 };
 
-                // Prune stale hint contexts periodically (every turn, but only if needed)
+                // Prune stale hints (after incrementing)
                 if let Err(e) = self
                     .prune_stale_directory_hints(&session_config, conversation_turn)
                     .await
