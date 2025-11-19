@@ -441,7 +441,7 @@ function BaseChatContent({
       )}
 
       {/* Chat container - full height, extends behind floating input */}
-      <div className="absolute inset-0 bg-background-muted overflow-hidden">
+      <div className="absolute inset-0 bg-background-muted">
         <ScrollArea
           ref={scrollRef}
           className={`h-full bg-background-default relative ${contentClassName}`}
