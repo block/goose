@@ -329,12 +329,16 @@ else
     # Clean up
     echo ""
     echo "Stopping error proxy..."
-    kill $PROXY_PID 2>/dev/null || true
+    # Kill the entire process group to ensure UV and Python processes are terminated
+    kill -- -$PROXY_PID 2>/dev/null || true
+    # Also explicitly kill any remaining UV processes on this port
+    pkill -f "uv run.*--port $PROXY_PORT" 2>/dev/null || true
     wait $PROXY_PID 2>/dev/null || true
     unset ANTHROPIC_HOST
     unset GOOSE_PROVIDER_SKIP_BACKOFF
     unset GOOSE_PROVIDER
     unset GOOSE_MODEL
+    unset UV_INDEX_URL
   fi
 
   rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
