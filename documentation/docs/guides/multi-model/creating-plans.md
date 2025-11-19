@@ -34,10 +34,8 @@ The goose CLI plan mode uses two configuration values:
 - `GOOSE_PLANNER_PROVIDER`: Which provider to use for planning
 - `GOOSE_PLANNER_MODEL`: Which model to use for planning
 
-:::tip Multi-Model Alternatives to Plan Mode
-goose also supports two options for automatic model switching that help balance model capabilities with cost and speed:
-- **[Lead/Worker mode](/docs/guides/environment-variables#leadworker-model-configuration)**: Turn-based switching between two models
-- **[AutoPilot](/docs/guides/multi-model/autopilot)**: Context-aware switching between multiple models
+:::tip Multi-Model Alternative to Plan Mode
+goose also supports automatic model switching with [Lead/Worker mode](/docs/guides/environment-variables#leadworker-model-configuration), which provides turn-based switching between two models to help balance model capabilities with cost and speed.
 :::
 
 ### Set goose planner environment variables

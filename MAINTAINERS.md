@@ -12,6 +12,7 @@
 # Maintainers
 
 * [Abhijay Jain (@Abhijay007)](https://github.com/Abhijay007)
+* [Adrian Cole (@codefromthecrypt)](https://github.com/codefromthecrypt)
 * [Angie Jones (@angiejones)](https://github.com/angiejones)
 * [Rizèl Scarlett (@blackgirlbytes)](https://github.com/blackgirlbytes)
 * [Tania Chakraborty (@taniandjerry)](https://github.com/taniandjerry)
