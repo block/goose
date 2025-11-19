@@ -1,0 +1,45 @@
+# Dockerfile for testing compaction locally (mimics CI environment)
+FROM ubuntu:latest
+
+# Install dependencies (same as CI)
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libdbus-1-dev \
+    gnome-keyring \
+    libxcb1-dev \
+    jq \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install uv (for error proxy)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy the entire project
+COPY . .
+
+# Build goose
+RUN cargo build --release --bin goose
+
+# Set environment variables for testing
+ENV HOME=/tmp/goose-home
+ENV GOOSE_DISABLE_KEYRING=1
+ENV SKIP_BUILD=1
+
+# Create necessary directories
+RUN mkdir -p $HOME/.local/share/goose/sessions && \
+    mkdir -p $HOME/.config/goose
+
+# Default command runs the compaction tests
+CMD ["bash", "scripts/test_compaction.sh"]

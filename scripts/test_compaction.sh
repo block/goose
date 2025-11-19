@@ -234,10 +234,28 @@ if [ ! -d "$PROXY_DIR" ]; then
 else
   OUTPUT=$(mktemp)
   PROXY_LOG=$(mktemp)
+  PROXY_SETUP_LOG=$(mktemp)
 
-  # Pre-install proxy dependencies (so first run doesn't take forever)
-  echo "Installing proxy dependencies..."
-  (cd "$PROXY_DIR" && uv sync --quiet 2>&1) > /dev/null || true
+  # Verify proxy directory and files exist
+  if [ ! -d "$PROXY_DIR" ]; then
+    echo "✗ FAILED: Proxy directory not found at $PROXY_DIR"
+    RESULTS+=("✗ Out-of-Context Error (proxy directory missing)")
+  elif [ ! -f "$PROXY_DIR/proxy.py" ]; then
+    echo "✗ FAILED: proxy.py not found in $PROXY_DIR"
+    RESULTS+=("✗ Out-of-Context Error (proxy.py missing)")
+  elif [ ! -f "$PROXY_DIR/pyproject.toml" ]; then
+    echo "✗ FAILED: pyproject.toml not found in $PROXY_DIR"
+    RESULTS+=("✗ Out-of-Context Error (pyproject.toml missing)")
+  else
+    # Pre-install proxy dependencies (so first run doesn't take forever)
+    echo "Installing proxy dependencies..."
+    if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
+      echo "✗ FAILED: Could not install proxy dependencies"
+      echo "Setup log:"
+      cat "$PROXY_SETUP_LOG"
+      RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
+    else
+      echo "✓ Dependencies installed"
 
   # Start the error proxy in context-length error mode (3 errors)
   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
@@ -272,7 +290,6 @@ else
   else
     # Configure provider to use proxy and skip backoff
     export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
-    export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-test-dummy-key-for-proxy-testing}"
     export GOOSE_PROVIDER_SKIP_BACKOFF=true
     export GOOSE_PROVIDER=anthropic
     export GOOSE_MODEL=claude-haiku-4-5
@@ -318,8 +335,10 @@ else
     unset GOOSE_MODEL
   fi
 
-  rm -f "$OUTPUT" "$PROXY_LOG"
+  rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
   rm -rf "$TESTDIR"
+    fi
+  fi
 fi
 
 echo ""
