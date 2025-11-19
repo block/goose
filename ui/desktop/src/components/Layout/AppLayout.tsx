@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { SidebarProvider } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
 import { EnhancedBentoBox, SidecarContainer } from './EnhancedBentoBox';
+import { ResizableSplitter } from './ResizableSplitter';
 
 import { TopNavigation } from './TopNavigation';
 
@@ -33,6 +34,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   
   // Bento box state management
   const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
+  
+  // Resizable splitter state
+  const [chatWidth, setChatWidth] = useState(60); // Default 60% for chat, 40% for sidecars
 
   // Convert sidecar views to bento box containers
   React.useEffect(() => {
@@ -201,22 +205,26 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
         
         {/* Main Content Area */}
-        <div className="flex flex-1 overflow-hidden relative">
-          {/* Main content without sidebar */}
-          <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          {bentoBoxContainers.length > 0 ? (
+            <ResizableSplitter
+              leftContent={<Outlet />}
+              rightContent={
+                <EnhancedBentoBox
+                  containers={bentoBoxContainers}
+                  onRemoveContainer={handleRemoveFromBentoBox}
+                  onAddContainer={handleAddToBentoBox}
+                  onReorderContainers={handleReorderBentoBox}
+                />
+              }
+              initialLeftWidth={chatWidth}
+              minLeftWidth={30}
+              maxLeftWidth={80}
+              onResize={setChatWidth}
+              className="h-full"
+            />
+          ) : (
             <Outlet />
-          </div>
-          
-          {/* Enhanced Bento Box - positioned as sibling to main content */}
-          {bentoBoxContainers.length > 0 && (
-            <div className="w-[600px] border-l border-border-subtle">
-              <EnhancedBentoBox
-                containers={bentoBoxContainers}
-                onRemoveContainer={handleRemoveFromBentoBox}
-                onAddContainer={handleAddToBentoBox}
-                onReorderContainers={handleReorderBentoBox}
-              />
-            </div>
           )}
         </div>
         
