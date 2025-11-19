@@ -170,7 +170,6 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "gemini-2.5-pro" => Ok(Self::Gemini(GeminiVersion::Pro25)),
             // MaaS models (Model as a Service from Model Garden)
             _ if s.ends_with("-maas") => {
-                // Extract publisher from model name (first part before first hyphen)
                 let publisher = s
                     .split('-')
                     .next()
