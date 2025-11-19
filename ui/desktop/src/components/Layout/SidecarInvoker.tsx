@@ -196,7 +196,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
           ? 'opacity-100 translate-y-0' 
           : 'opacity-0 -translate-y-2 pointer-events-none'
       }`}
-      style={{ marginBottom: '8px' }} // Add spacing above the floating input
+      style={{ marginBottom: '-16px' }} // Position dock closer to the floating input
     >
       {/* Screenshot backdrops - positioned behind the dock */}
       {iframeBackdrops.map((backdrop) => (
