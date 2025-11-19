@@ -88,7 +88,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
       <div
         ref={splitterRef}
         className={`
-          relative flex-shrink-0 w-1 bg-border-subtle cursor-col-resize 
+          relative flex-shrink-0 w-1 bg-background-default cursor-col-resize 
           hover:bg-border-default transition-colors duration-150
           group
           ${isDragging ? 'bg-border-default' : ''}
