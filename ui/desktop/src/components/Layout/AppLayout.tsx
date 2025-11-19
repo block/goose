@@ -1,9 +1,10 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { SidebarProvider } from '../ui/sidebar';
-import { SidecarProvider, useSidecar, Sidecar } from '../SidecarLayout';
+import { SidecarProvider, useSidecar } from '../SidecarLayout';
+import { EnhancedBentoBox, SidecarContainer } from './EnhancedBentoBox';
 
 import { TopNavigation } from './TopNavigation';
 
@@ -29,6 +30,103 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const sidecar = useSidecar();
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+  
+  // Bento box state management
+  const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
+
+  // Convert sidecar views to bento box containers
+  React.useEffect(() => {
+    if (!sidecar) return;
+
+    const containers: SidecarContainer[] = sidecar.views
+      .filter(view => sidecar.activeViews.includes(view.id))
+      .map(view => {
+        // Extract content props based on view type
+        let contentProps: SidecarContainer['contentProps'] = {};
+        let contentType: SidecarContainer['contentType'] = null;
+
+        if (view.id.startsWith('localhost-')) {
+          contentType = 'localhost';
+          contentProps = {
+            initialUrl: view.fileName || 'http://localhost:3000',
+            allowAllSites: true
+          };
+        } else if (view.id.startsWith('file-')) {
+          contentType = 'file';
+          contentProps = {
+            filePath: view.fileName || ''
+          };
+        } else if (view.id.startsWith('editor-')) {
+          contentType = 'document-editor';
+          contentProps = {
+            filePath: view.fileName,
+            placeholder: 'Start writing your document...'
+          };
+        } else if (view.id.startsWith('diff-')) {
+          contentType = 'sidecar'; // Treat diff as generic sidecar
+        } else {
+          contentType = 'sidecar';
+        }
+
+        return {
+          id: view.id,
+          content: view.content,
+          contentType,
+          title: view.title,
+          size: 'medium' as const,
+          contentProps
+        };
+      });
+
+    setBentoBoxContainers(containers);
+  }, [sidecar?.views, sidecar?.activeViews]);
+
+  // Bento box handlers
+  const handleAddToBentoBox = useCallback((type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string, url?: string, title?: string) => {
+    if (!sidecar) return;
+
+    // Use the sidecar system to create the view
+    switch (type) {
+      case 'localhost':
+        sidecar.showLocalhostViewer(url || 'http://localhost:3000', title || 'Localhost Viewer');
+        break;
+      case 'file':
+        if (filePath) {
+          sidecar.showFileViewer(filePath);
+        }
+        break;
+      case 'document-editor':
+        sidecar.showDocumentEditor(filePath, undefined, title);
+        break;
+      case 'web-viewer':
+        sidecar.showLocalhostViewer(url || 'https://google.com', title || 'Web Viewer');
+        break;
+      case 'sidecar':
+      default:
+        sidecar.showView({
+          id: `sidecar-${Date.now()}`,
+          title: title || 'Sidecar',
+          icon: <div className="w-4 h-4 bg-blue-500 rounded" />,
+          content: (
+            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+              <p>Sidecar content will go here</p>
+            </div>
+          ),
+        });
+        break;
+    }
+  }, [sidecar]);
+
+  const handleRemoveFromBentoBox = useCallback((containerId: string) => {
+    if (!sidecar) return;
+    sidecar.hideView(containerId);
+  }, [sidecar]);
+
+  const handleReorderBentoBox = useCallback((containers: SidecarContainer[]) => {
+    // For now, just update local state
+    // The sidecar system doesn't support reordering, so we'll manage it locally
+    setBentoBoxContainers(containers);
+  }, []);
 
   const handleNewWindow = () => {
     window.electron.createChatWindow(
@@ -93,12 +191,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             <Outlet />
           </div>
           
-          {/* Sidecar - positioned as sibling to main content */}
-          {sidecar?.activeViews.length > 0 && (
-            <div className="w-96 border-l border-border-subtle bg-background-default">
-              <div className="h-full p-4">
-                <Sidecar />
-              </div>
+          {/* Enhanced Bento Box - positioned as sibling to main content */}
+          {bentoBoxContainers.length > 0 && (
+            <div className="w-[600px] border-l border-border-subtle">
+              <EnhancedBentoBox
+                containers={bentoBoxContainers}
+                onRemoveContainer={handleRemoveFromBentoBox}
+                onAddContainer={handleAddToBentoBox}
+                onReorderContainers={handleReorderBentoBox}
+              />
             </div>
           )}
         </div>
