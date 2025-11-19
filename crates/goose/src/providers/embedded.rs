@@ -246,9 +246,9 @@ struct DownloadableModel {
 /// List of built-in downloadable models that are always available
 const DOWNLOADABLE_MODELS: &[DownloadableModel] = &[
     DownloadableModel {
-        name: "gpt-oss-20b-Q3_K_M",
+        name: "gpt-oss-20b-F16",
         repo: "mradermacher/gpt-oss-20b-GGUF",
-        filename: "gpt-oss-20b.Q3_K_M.gguf",
+        filename: "gpt-oss-20b.F16.gguf",
     },
     DownloadableModel {
         name: "qwen2.5-7b-instruct-q3_k_m",
