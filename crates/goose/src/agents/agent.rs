@@ -1317,22 +1317,15 @@ impl Agent {
 
     /// Extract file path from tool call arguments if present
     ///
-    /// Looks for common path parameters: "path", "file_path", "file"
+    /// Only checks "path" parameter (used by text_editor)
     fn extract_file_path_from_args(
         arguments: &Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Option<std::path::PathBuf> {
-        let args = arguments.as_ref()?;
-
-        // Try common parameter names
-        for param_name in ["path", "file_path", "file"] {
-            if let Some(value) = args.get(param_name) {
-                if let Some(path_str) = value.as_str() {
-                    return Some(std::path::PathBuf::from(path_str));
-                }
-            }
-        }
-
-        None
+        arguments
+            .as_ref()?
+            .get("path")?
+            .as_str()
+            .map(std::path::PathBuf::from)
     }
 
     /// Check if a file path's directory needs hints loading and load if necessary
@@ -1399,7 +1392,7 @@ impl Agent {
         let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
 
         if loaded_state.is_loaded(directory) {
-            // Update access time
+            // Update access time (stores turn number, not timestamp)
             loaded_state.mark_accessed(directory, current_turn);
 
             // Save updated access time
@@ -1413,7 +1406,7 @@ impl Agent {
             return Ok(false); // Already loaded, but access time updated
         }
 
-        // Build gitignore from working directory
+        // Build gitignore to respect .gooseignore patterns when loading hint files
         let gitignore = build_gitignore(working_dir);
 
         // Get configured filenames
