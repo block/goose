@@ -1,5 +1,0 @@
-# UV configuration for provider error proxy
-# Force use of public PyPI instead of any local/corporate mirrors
-
-[pip]
-index-url = "https://pypi.org/simple"

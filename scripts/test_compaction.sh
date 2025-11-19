@@ -249,7 +249,9 @@ else
   else
     # Pre-install proxy dependencies (so first run doesn't take forever)
     echo "Installing proxy dependencies..."
-    if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
+    # Force UV to use public PyPI (override any local/corporate mirrors)
+    export UV_INDEX_URL="https://pypi.org/simple"
+    if ! (cd "$PROXY_DIR" && uv sync --refresh 2>&1 | tee "$PROXY_SETUP_LOG"); then
       echo "✗ FAILED: Could not install proxy dependencies"
       echo "Setup log:"
       cat "$PROXY_SETUP_LOG"
@@ -259,7 +261,7 @@ else
 
   # Start the error proxy in context-length error mode (3 errors)
   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
-  (cd "$PROXY_DIR" && uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
+  (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
   PROXY_PID=$!
 
   # Wait for proxy to be ready (check if port is listening)
