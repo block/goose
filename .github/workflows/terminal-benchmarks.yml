@@ -1,0 +1,33 @@
+on:
+  push:
+    branches:
+      - benchmarks
+  workflow_dispatch:
+
+name: TBench
+
+jobs:
+  run-tbench:
+    name: Run TBench
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # pin@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Harbor
+        run: uv tool install harbor
+
+      - name: Run TBench
+        run: harbor run -d terminal-bench@2.0 --agent goose --model claude-sonnet-4-5-20250929
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
