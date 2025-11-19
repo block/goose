@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { SidebarProvider } from '../ui/sidebar';
-import { SidecarProvider, useSidecar } from '../SidecarLayout';
+import { SidecarProvider, useSidecar, Sidecar } from '../SidecarLayout';
 
 import { TopNavigation } from './TopNavigation';
 
@@ -92,6 +92,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
           <div className="flex-1 overflow-hidden">
             <Outlet />
           </div>
+          
+          {/* Sidecar - positioned as sibling to main content */}
+          {sidecar?.activeViews.length > 0 && (
+            <div className="w-96 border-l border-border-subtle bg-background-default">
+              <div className="h-full p-4">
+                <Sidecar />
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Control Buttons - floating in top right */}

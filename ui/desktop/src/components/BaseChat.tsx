@@ -153,8 +153,58 @@ function BaseChatContent({
 
   const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => {
     console.log('Add container requested:', type, filePath);
-    // Dispatch event to be handled by MainPanelLayout
-    window.dispatchEvent(new CustomEvent('add-container', { detail: { type, filePath } }));
+    
+    if (!sidecar) {
+      console.error('No sidecar context available');
+      return;
+    }
+
+    // Use sidecar context directly instead of dispatching events
+    switch (type) {
+      case 'sidecar':
+        // Show a generic sidecar view
+        sidecar.showView({
+          id: `sidecar-${Date.now()}`,
+          title: 'Sidecar',
+          icon: <div className="w-4 h-4 bg-blue-500 rounded" />,
+          content: (
+            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+              <p>Sidecar content will go here</p>
+            </div>
+          ),
+        });
+        break;
+      case 'localhost':
+        sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer');
+        break;
+      case 'file':
+        if (filePath) {
+          sidecar.showFileViewer(filePath);
+        }
+        break;
+      case 'document-editor':
+        sidecar.showDocumentEditor(filePath);
+        break;
+      case 'web-viewer':
+        // For web viewer, we'll use localhost viewer with a different URL
+        sidecar.showLocalhostViewer('https://google.com', 'Web Viewer');
+        break;
+      case 'app-installer':
+        // Show a generic app installer view
+        sidecar.showView({
+          id: `app-installer-${Date.now()}`,
+          title: 'App Installer',
+          icon: <div className="w-4 h-4 bg-green-500 rounded" />,
+          content: (
+            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+              <p>App installer will go here</p>
+            </div>
+          ),
+        });
+        break;
+      default:
+        console.warn('Unknown container type:', type);
+    }
   };
 
   // Timeout ref for debouncing auto-scroll
