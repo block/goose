@@ -4352,6 +4352,10 @@
           "session_type": {
             "$ref": "#/components/schemas/SessionType"
           },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
           "total_tokens": {
             "type": "integer",
             "format": "int32",

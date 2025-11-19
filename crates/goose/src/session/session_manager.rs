@@ -89,6 +89,8 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 pub struct SessionUpdateBuilder {
@@ -375,6 +377,7 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            source: None,
         }
     }
 }
@@ -434,6 +437,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            source: None,
         })
     }
 }
@@ -831,20 +835,70 @@ impl SessionStorage {
         )
             .bind(id)
             .fetch_optional(&self.pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+            .await?;
 
-        if include_messages {
-            let conv = self.get_conversation(&session.id).await?;
-            session.message_count = conv.messages().len();
-            session.conversation = Some(conv);
-        } else {
-            let count =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&session.id)
-                    .fetch_one(&self.pool)
-                    .await? as usize;
-            session.message_count = count;
+        if session.is_none() {
+            if let Ok(claude_sessions) = crate::session::claude_desktop::list_claude_sessions() {
+                for (session_id, working_dir, updated_at) in claude_sessions {
+                    if session_id == id {
+                        let conversation = if include_messages {
+                            Some(crate::session::claude_desktop::load_claude_session(id)?)
+                        } else {
+                            None
+                        };
+
+                        let message_count = conversation
+                            .as_ref()
+                            .map(|c| c.messages().len())
+                            .unwrap_or(0);
+
+                        session = Some(Session {
+                            id: session_id.clone(),
+                            working_dir,
+                            name: format!(
+                                "Claude Session {}",
+                                session_id.chars().take(8).collect::<String>()
+                            ),
+                            user_set_name: false,
+                            session_type: SessionType::User,
+                            created_at: updated_at,
+                            updated_at,
+                            extension_data: ExtensionData::default(),
+                            total_tokens: None,
+                            input_tokens: None,
+                            output_tokens: None,
+                            accumulated_total_tokens: None,
+                            accumulated_input_tokens: None,
+                            accumulated_output_tokens: None,
+                            schedule_id: None,
+                            recipe: None,
+                            user_recipe_values: None,
+                            conversation,
+                            message_count,
+                            source: Some("claude".to_string()),
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut session = session.ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+
+        if session.source.is_none() {
+            if include_messages {
+                let conv = self.get_conversation(&session.id).await?;
+                session.message_count = conv.messages().len();
+                session.conversation = Some(conv);
+            } else {
+                let count = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM messages WHERE session_id = ?",
+                )
+                .bind(&session.id)
+                .fetch_one(&self.pool)
+                .await? as usize;
+                session.message_count = count;
+            }
         }
 
         Ok(session)
@@ -982,6 +1036,62 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let session_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)"
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        if !session_exists {
+            if let Ok(claude_sessions) = crate::session::claude_desktop::list_claude_sessions() {
+                for (claude_id, working_dir, updated_at) in claude_sessions {
+                    if claude_id == session_id {
+                        let conversation = crate::session::claude_desktop::load_claude_session(session_id)?;
+                        
+                        let mut tx = self.pool.begin().await?;
+                        
+                        sqlx::query(
+                            r#"
+                            INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, '{}')
+                            "#
+                        )
+                        .bind(session_id)
+                        .bind(format!("Claude Session {}", session_id.chars().take(8).collect::<String>()))
+                        .bind(false)
+                        .bind("user")
+                        .bind(working_dir.to_string_lossy().as_ref())
+                        .bind(updated_at)
+                        .bind(updated_at)
+                        .execute(&mut *tx)
+                        .await?;
+                        
+                        for msg in conversation.messages() {
+                            let msg_metadata_json = serde_json::to_string(&msg.metadata)?;
+                            
+                            sqlx::query(
+                                r#"
+                                INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+                                VALUES (?, ?, ?, ?, ?)
+                                "#
+                            )
+                            .bind(session_id)
+                            .bind(role_to_string(&msg.role))
+                            .bind(serde_json::to_string(&msg.content)?)
+                            .bind(msg.created)
+                            .bind(msg_metadata_json)
+                            .execute(&mut *tx)
+                            .await?;
+                        }
+                        
+                        tx.commit().await?;
+                        break;
+                    }
+                }
+            }
+        }
+
         let mut tx = self.pool.begin().await?;
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
@@ -1044,7 +1154,7 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+        let mut sessions = sqlx::query_as::<_, Session>(
             r#"
         SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
@@ -1059,8 +1169,39 @@ impl SessionStorage {
     "#,
         )
             .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
+            .await?;
+
+        if let Ok(claude_sessions) = crate::session::claude_desktop::list_claude_sessions() {
+            for (session_id, working_dir, updated_at) in claude_sessions {
+                let session = Session {
+                    id: session_id.clone(),
+                    working_dir,
+                    name: format!("Claude Session {}", session_id.chars().take(8).collect::<String>()),
+                    user_set_name: false,
+                    session_type: SessionType::User,
+                    created_at: updated_at,
+                    updated_at,
+                    extension_data: ExtensionData::default(),
+                    total_tokens: None,
+                    input_tokens: None,
+                    output_tokens: None,
+                    accumulated_total_tokens: None,
+                    accumulated_input_tokens: None,
+                    accumulated_output_tokens: None,
+                    schedule_id: None,
+                    recipe: None,
+                    user_recipe_values: None,
+                    conversation: None,
+                    message_count: 0,
+                    source: Some("claude".to_string()),
+                };
+                sessions.push(session);
+            }
+        }
+
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+        Ok(sessions)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
