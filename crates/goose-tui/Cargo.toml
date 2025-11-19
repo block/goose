@@ -1,0 +1,38 @@
+[package]
+name = "goose-tui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A terminal user interface for Goose"
+
+[dependencies]
+goose = { path = "../goose" }
+goose-server = { path = "../goose-server" }
+rmcp = { workspace = true }
+anyhow = "1.0"
+ratatui = "0.29.0"
+crossterm = { version = "0.28.1", features = ["event-stream"] }
+tui-textarea = "0.7.0"
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = { version = "0.7.10", features = ["full"] }
+reqwest = { version = "0.12.9", features = ["json", "stream", "rustls-tls"], default-features = false }
+axum = { version = "0.8.1", features = ["ws", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
+tracing-appender = "0.2"
+futures = "0.3"
+uuid = { version = "1.11", features = ["fast-rng", "v4"] }
+directories = "5.0"
+textwrap = "0.16"
+dirs = "6.0.0"
+tokio-stream = "0.1.17"
+eventsource-stream = "0.2.3"
+clap = { version = "4.5.52", features = ["derive"] }
+goose-mcp = { version = "1.14.0", path = "../goose-mcp" }
+
+[dev-dependencies]
+tokio = { version = "1.43", features = ["full"] }

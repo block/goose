@@ -1,8 +1,10 @@
+use crate::auth::check_token;
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
-use goose_server::auth::check_token;
+use axum::Router;
+use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -27,8 +29,10 @@ async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
-pub async fn run() -> Result<()> {
-    crate::logging::setup_logging(Some("goosed"))?;
+/// Builds the Axum application and binds to the configured port.
+/// Returns the Router and the TcpListener.
+pub async fn build_app() -> Result<(Router, TcpListener)> {
+    // Note: Logging setup is handled by the caller (run or tui main)
 
     let settings = configuration::Settings::new()?;
 
@@ -57,6 +61,15 @@ pub async fn run() -> Result<()> {
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
+
+    Ok((app, listener))
+}
+
+pub async fn run() -> Result<()> {
+    crate::logging::setup_logging(Some("goosed"))?;
+
+    let (app, listener) = build_app().await?;
+
     info!("listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)

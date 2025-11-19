@@ -1,12 +1,5 @@
-mod commands;
-mod configuration;
-mod error;
-mod logging;
-mod openapi;
-mod routes;
-mod state;
-
 use clap::{Parser, Subcommand};
+use goose_server::{commands, logging};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

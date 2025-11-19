@@ -121,7 +121,7 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum MessageEvent {
     Message {
