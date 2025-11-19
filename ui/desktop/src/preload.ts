@@ -118,6 +118,8 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  // Environment variable access
+  getEnv: (key: string) => string | undefined;
 };
 
 type AppConfigAPI = {
@@ -252,6 +254,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  getEnv: (key: string) => process.env[key],
 };
 
 const appConfigAPI: AppConfigAPI = {

@@ -1,6 +1,7 @@
 import type { ExtensionConfig } from '../../../api';
 import { toastService } from '../../../toasts';
 import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
+import { fixCommandForPlatform, fixExtensionConfigForPlatform } from '../../../utils/platformUtils';
 
 /**
  * Build an extension config for stdio from the deeplink URL
@@ -12,6 +13,9 @@ function getStdioConfig(
   description: string,
   timeout: number
 ) {
+  // Fix command for current platform (e.g., npx -> npx.cmd on Windows)
+  const fixedCmd = fixCommandForPlatform(cmd);
+
   // Validate that the command is one of the allowed commands
   const allowedCommands = [
     'cu',
@@ -23,7 +27,8 @@ function getStdioConfig(
     'npx.cmd',
     'i-ching-mcp-server',
   ];
-  if (!allowedCommands.includes(cmd)) {
+  // Check both original and fixed command
+  if (!allowedCommands.includes(cmd) && !allowedCommands.includes(fixedCmd)) {
     toastService.handleError(
       'Invalid Command',
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
@@ -43,12 +48,26 @@ function getStdioConfig(
 
   const envList = parsedUrl.searchParams.getAll('env');
 
+  // Apply platform-specific fixes
+  const platformFix = fixExtensionConfigForPlatform({
+    cmd: fixedCmd,
+    args: args,
+  });
+
+  // Log warnings if placeholder paths were detected and replaced
+  if (platformFix.warnings && platformFix.warnings.length > 0) {
+    console.warn(
+      `[Platform Fix] Extension ${name}:`,
+      platformFix.warnings
+    );
+  }
+
   const config: ExtensionConfig = {
     name: name,
     type: 'stdio',
-    cmd: cmd,
+    cmd: platformFix.cmd, // Use the fixed command
     description,
-    args: args,
+    args: platformFix.args, // Use the fixed args
     envs:
       envList.length > 0
         ? Object.fromEntries(
