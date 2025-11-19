@@ -191,12 +191,12 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`absolute top-0 left-0 right-0 z-50 transition-all duration-300 ease-out ${
+      className={`absolute bottom-full left-0 right-0 z-50 transition-all duration-300 ease-out ${
         isVisible 
           ? 'opacity-100 translate-y-0' 
           : 'opacity-0 -translate-y-2 pointer-events-none'
       }`}
-      style={{ transform: 'translateY(-100%)' }} // Position above the container
+      style={{ marginBottom: '8px' }} // Add spacing above the floating input
     >
       {/* Screenshot backdrops - positioned behind the dock */}
       {iframeBackdrops.map((backdrop) => (
@@ -219,7 +219,7 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
       ))}
 
       {/* Horizontal dock above chat input */}
-      <div className="flex justify-start pl-4">
+      <div className="flex justify-start">
         <div
           className={`transition-all duration-300 ease-out ${
             isVisible 
@@ -229,8 +229,8 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Dock container - horizontal layout */}
-          <div className="p-3">
+          {/* Dock container - horizontal layout with proper padding */}
+          <div className="px-6 py-3">
             <div className="flex flex-row space-x-2">
               {dockApps.map((app, index) => (
                 <div

@@ -572,8 +572,8 @@ function BaseChatContent({
             onMouseEnter={() => setIsHoveringChatInput(true)}
             onMouseLeave={() => setIsHoveringChatInput(false)}
           >
-            {/* Sidecar Invoker Dock - absolutely positioned above ChatInput */}
-            <div className="relative">
+            {/* Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
+            <div className="relative max-w-4xl mx-auto w-full">
               <SidecarInvoker 
                 onShowLocalhost={handleShowLocalhost}
                 onShowFileViewer={handleShowFileViewer}
