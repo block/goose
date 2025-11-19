@@ -9,6 +9,7 @@ interface ResizableSplitterProps {
   maxLeftWidth?: number; // Percentage (0-100)
   onResize?: (leftWidth: number) => void;
   className?: string;
+  floatingRight?: boolean; // Whether right panel should float above background
 }
 
 export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
@@ -18,7 +19,8 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
   minLeftWidth = 20,
   maxLeftWidth = 80,
   onResize,
-  className = ''
+  className = '',
+  floatingRight = false
 }) => {
   const [leftWidth, setLeftWidth] = useState(initialLeftWidth);
   const [isDragging, setIsDragging] = useState(false);
@@ -109,10 +111,18 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
 
       {/* Right Panel */}
       <div 
-        className="flex-1 overflow-hidden"
+        className={`flex-1 overflow-hidden ${floatingRight ? 'relative' : ''}`}
         style={{ width: `${rightWidth}%` }}
       >
-        {rightContent}
+        {floatingRight ? (
+          <div className="absolute inset-0 p-4">
+            <div className="h-full w-full bg-background-default rounded-lg shadow-2xl drop-shadow-2xl border border-border-subtle overflow-hidden">
+              {rightContent}
+            </div>
+          </div>
+        ) : (
+          rightContent
+        )}
       </div>
     </div>
   );

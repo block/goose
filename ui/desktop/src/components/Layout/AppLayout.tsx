@@ -222,6 +222,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
               maxLeftWidth={80}
               onResize={setChatWidth}
               className="h-full"
+              floatingRight={true}
             />
           ) : (
             <Outlet />
