@@ -20,65 +20,47 @@ pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SubagentParams {
-    /// The natural language instructions for the subagent to execute.
     pub instructions: Option<String>,
 
-    /// The prompt to start the subagent session with.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
 
-    /// Optional specialized persona/type for the subagent.
-    /// Available types: "default", "investigator", "critic".
-    /// If omitted, uses "default".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subagent_type: Option<SubagentType>,
 
-    /// A short title for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
 
-    /// A longer description of the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// Optional version of the recipe file format. Defaults to "1.0.0".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 
-    /// A list of extensions to enable for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Vec<Value>>,
 
-    /// Settings for the subagent recipe (e.g., provider, model, temperature, system_prompt).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<Value>,
 
-    /// The activity pills that show up when loading the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<String>>,
 
-    /// Any additional author information for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<Value>,
 
-    /// Any additional parameters for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<Value>>,
 
-    /// Response configuration including JSON schema for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Value>,
 
-    /// Sub-recipes for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_recipes: Option<Vec<Value>>,
 
-    /// Retry configuration for the subagent recipe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<Value>,
 
-    /// If true, returns only the final result (default: true).
-    /// Set to false if you need the full conversation history for debugging.
     #[serde(default = "default_return_last_only")]
     pub return_last_only: bool,
 }
@@ -93,7 +75,6 @@ pub enum SubagentType {
     Default,
     Investigator,
     Critic,
-    // Add more types here as we create more personas
 }
 
 impl SubagentType {
@@ -133,8 +114,6 @@ pub fn create_subagent_tool() -> Tool {
     })
 }
 
-/// Load the system prompt for the given subagent type.
-/// If the template fails to load, we fallback to a generic default prompt.
 fn load_system_prompt(subagent_type: &SubagentType) -> Option<String> {
     let template_path = subagent_type.template_path();
     let context: HashMap<String, String> = HashMap::new();
@@ -165,7 +144,6 @@ where
         if let Ok(decoded) = serde_json::from_value::<T>(v.clone()) {
             return func(builder, decoded);
         } else {
-            // Log warning?
             tracing::warn!("Failed to deserialize optional field: {:?}", v);
         }
     }
@@ -174,9 +152,7 @@ where
 
 pub fn task_params_to_inline_recipe(
     task_param: &Value,
-    // loaded_extensions: &[String], // Removed for simplicity as we process extensions directly
 ) -> Result<Recipe> {
-    // Extract and validate core fields
     let instructions = task_param.get("instructions").and_then(|v| v.as_str());
     let prompt = task_param.get("prompt").and_then(|v| v.as_str());
 
@@ -184,7 +160,6 @@ pub fn task_params_to_inline_recipe(
         return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
     }
 
-    // Build recipe with auto-generated defaults
     let mut builder = Recipe::builder()
         .version("1.0.0")
         .title(
@@ -200,7 +175,6 @@ pub fn task_params_to_inline_recipe(
                 .unwrap_or("Inline recipe task"),
         );
 
-    // Set instructions/prompt
     if let Some(inst) = instructions {
         builder = builder.instructions(inst);
     }
@@ -208,7 +182,6 @@ pub fn task_params_to_inline_recipe(
         builder = builder.prompt(p);
     }
 
-    // Handle extensions
     if let Some(extensions) = task_param.get("extensions") {
         if let Ok(ext_configs) = serde_json::from_value::<
             Vec<crate::agents::extension::ExtensionConfig>,
@@ -220,7 +193,6 @@ pub fn task_params_to_inline_recipe(
         }
     }
 
-    // Handle other optional fields
     builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
     builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
     builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
@@ -231,7 +203,7 @@ pub fn task_params_to_inline_recipe(
     );
     builder = apply_if_ok(
         builder,
-        task_param.get("author"), // Add author
+        task_param.get("author"),
         RecipeBuilder::author,
     );
     builder = apply_if_ok(
@@ -241,7 +213,7 @@ pub fn task_params_to_inline_recipe(
     );
     builder = apply_if_ok(
         builder,
-        task_param.get("sub_recipes"), // Add sub_recipes
+        task_param.get("sub_recipes"),
         RecipeBuilder::sub_recipes,
     );
 
@@ -249,17 +221,14 @@ pub fn task_params_to_inline_recipe(
         builder = builder.version(version);
     }
 
-    // Build and validate
     let recipe = builder
         .build()
         .map_err(|e| anyhow!("Failed to build recipe: {}", e))?;
 
-    // Security validation
     if recipe.check_for_security_warnings() {
         return Err(anyhow!("Recipe contains potentially harmful content"));
     }
 
-    // Validate retry config if present
     if let Some(ref retry) = recipe.retry {
         retry
             .validate()
@@ -278,8 +247,6 @@ pub async fn run_subagent_tool(
     extension_configs: Vec<crate::agents::extension::ExtensionConfig>,
     cancellation_token: Option<CancellationToken>,
 ) -> ToolCallResult {
-    // Use SubagentParams for validation of known fields and defaults,
-    // but reuse the raw `params` Value for recipe construction to avoid JsonSchema bounds.
     let parsed_params: SubagentParams = match serde_json::from_value(params.clone()) {
         Ok(p) => p,
         Err(e) => {
@@ -294,7 +261,6 @@ pub async fn run_subagent_tool(
     let subagent_type = parsed_params.subagent_type.unwrap_or(SubagentType::Default);
     let system_prompt = load_system_prompt(&subagent_type);
 
-    // Construct recipe using the helper function
     let mut recipe = match task_params_to_inline_recipe(&params) {
         Ok(r) => r,
         Err(e) => {
@@ -306,8 +272,6 @@ pub async fn run_subagent_tool(
         }
     };
 
-    // Apply system prompt from persona if settings/system_prompt is NOT explicitly provided in the params
-    // Check if params.settings.system_prompt exists
     let has_explicit_system_prompt = params
         .get("settings")
         .and_then(|s| s.get("system_prompt"))
@@ -326,7 +290,6 @@ pub async fn run_subagent_tool(
         }
     }
 
-    // Create Session
     let session = match SessionManager::create_session(
         working_dir.to_path_buf(),
         "Subagent Task".to_string(),
@@ -344,7 +307,6 @@ pub async fn run_subagent_tool(
         }
     };
 
-    // Create Task
     let task = Task {
         id: session.id.clone(),
         payload: TaskPayload {
@@ -355,10 +317,8 @@ pub async fn run_subagent_tool(
         },
     };
 
-    // Save Task
     tasks_manager.save_tasks(vec![task]).await;
 
-    // Prepare TaskConfig
     let provider_guard = provider.lock().await;
     let provider_instance = match provider_guard.as_ref() {
         Some(p) => p.clone(),
@@ -378,7 +338,6 @@ pub async fn run_subagent_tool(
         working_dir,
         extension_configs,
     );
-    // Execute
     run_tasks(
         vec![session.id],
         ExecutionMode::Sequential,
