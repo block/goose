@@ -531,18 +531,22 @@ function BaseChatContent({
                 </>
               ) : !recipeConfig && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
-                <div className="absolute bottom-0 left-0 flex flex-col-reverse">
-                  <PopularChatTopics append={(text: string) => append(text)} />
-                  
-                  {/* Show pending invites above popular topics if enabled */}
-                  {showPendingInvites && (
-                    <PendingInvitesInHistory showInChatHistory={false} />
-                  )}
+                <div className="absolute bottom-0 left-0 right-0 flex justify-start">
+                  <div className="max-w-4xl mx-auto w-full flex flex-col-reverse">
+                    <PopularChatTopics append={(text: string) => append(text)} />
+                    
+                    {/* Show pending invites above popular topics if enabled */}
+                    {showPendingInvites && (
+                      <PendingInvitesInHistory showInChatHistory={false} />
+                    )}
+                  </div>
                 </div>
               ) : showPendingInvites ? (
                 /* Show only pending invites when no messages and showPendingInvites is true */
-                <div className="absolute bottom-0 left-0">
-                  <PendingInvitesInHistory showInChatHistory={false} />
+                <div className="absolute bottom-0 left-0 right-0 flex justify-start">
+                  <div className="max-w-4xl mx-auto w-full">
+                    <PendingInvitesInHistory showInChatHistory={false} />
+                  </div>
                 </div>
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
             }
