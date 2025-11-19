@@ -116,7 +116,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
       >
         {floatingRight ? (
           <div className="absolute inset-0 p-4">
-            <div className="h-full w-full bg-background-default rounded-lg shadow-2xl drop-shadow-2xl border border-border-subtle overflow-hidden">
+            <div className="h-full w-full rounded-lg shadow-2xl drop-shadow-2xl border border-border-subtle overflow-hidden">
               {rightContent}
             </div>
           </div>
