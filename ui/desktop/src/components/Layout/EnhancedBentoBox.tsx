@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
-import { Plus, X, Globe, FileText, Grid3X3, LayoutGrid, Maximize2, Minimize2, GripVertical } from 'lucide-react';
+import { Plus, X, Globe, FileText, Grid3X3, LayoutGrid, Maximize2, Minimize2, GripVertical, Monitor, Edit } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
 import { useNavigation } from './AppLayout';
@@ -49,9 +49,11 @@ const ContainerPopover: React.FC<ContainerPopoverProps> = ({ onSelect, onClose, 
   }, [onClose]);
 
   const options = [
-    { type: 'sidecar' as const, icon: Plus, label: 'Sidecar View' },
+    { type: 'web-viewer' as const, icon: Monitor, label: 'Web Browser' },
     { type: 'localhost' as const, icon: Globe, label: 'Localhost Viewer' },
     { type: 'file' as const, icon: FileText, label: 'Open File' },
+    { type: 'document-editor' as const, icon: Edit, label: 'Text Editor' },
+    { type: 'sidecar' as const, icon: Plus, label: 'Sidecar View' },
   ];
 
   return (

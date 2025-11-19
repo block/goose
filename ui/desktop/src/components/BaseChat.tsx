@@ -186,8 +186,18 @@ function BaseChatContent({
         sidecar.showDocumentEditor(filePath);
         break;
       case 'web-viewer':
-        // For web viewer, we'll use localhost viewer with a different URL
-        sidecar.showLocalhostViewer('https://google.com', 'Web Viewer');
+        // Show a proper web viewer
+        sidecar.showView({
+          id: `web-viewer-${Date.now()}`,
+          title: 'Web Viewer',
+          icon: <div className="w-4 h-4 bg-cyan-500 rounded" />,
+          content: null, // Will be rendered by contentType
+          contentType: 'web-viewer',
+          contentProps: {
+            initialUrl: 'https://google.com',
+            allowAllSites: true
+          }
+        });
         break;
       case 'app-installer':
         // Show a generic app installer view

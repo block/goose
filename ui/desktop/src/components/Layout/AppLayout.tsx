@@ -51,6 +51,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             initialUrl: view.fileName || 'http://localhost:3000',
             allowAllSites: true
           };
+        } else if (view.id.startsWith('web-viewer-')) {
+          contentType = 'web-viewer';
+          contentProps = {
+            initialUrl: view.fileName || 'https://google.com',
+            allowAllSites: true
+          };
         } else if (view.id.startsWith('file-')) {
           contentType = 'file';
           contentProps = {
@@ -99,7 +105,17 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         sidecar.showDocumentEditor(filePath, undefined, title);
         break;
       case 'web-viewer':
-        sidecar.showLocalhostViewer(url || 'https://google.com', title || 'Web Viewer');
+        sidecar.showView({
+          id: `web-viewer-${Date.now()}`,
+          title: title || 'Web Viewer',
+          icon: <div className="w-4 h-4 bg-cyan-500 rounded" />,
+          content: null, // Will be rendered by contentType
+          contentType: 'web-viewer',
+          contentProps: {
+            initialUrl: url || 'https://google.com',
+            allowAllSites: true
+          }
+        });
         break;
       case 'sidecar':
       default:
