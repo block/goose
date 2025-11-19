@@ -462,7 +462,8 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(create_if_missing)
-            .busy_timeout(std::time::Duration::from_secs(5));
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(
@@ -605,6 +606,8 @@ impl SessionStorage {
     }
 
     async fn import_legacy_session(&self, session: &Session) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let recipe_json = match &session.recipe {
             Some(recipe) => Some(serde_json::to_string(recipe)?),
             None => None,
@@ -642,8 +645,10 @@ impl SessionStorage {
             .bind(&session.schedule_id)
             .bind(recipe_json)
             .bind(user_recipe_values_json)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+
+        tx.commit().await?;
 
         if let Some(conversation) = &session.conversation {
             self.replace_conversation(&session.id, conversation).await?;
@@ -780,8 +785,10 @@ impl SessionStorage {
         name: String,
         session_type: SessionType,
     ) -> Result<Session> {
+        let mut tx = self.pool.begin().await?;
+
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        Ok(sqlx::query_as(
+        let session = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
                 VALUES (
@@ -804,8 +811,11 @@ impl SessionStorage {
             .bind(&name)
             .bind(session_type.to_string())
             .bind(working_dir.to_string_lossy().as_ref())
-            .fetch_one(&self.pool)
-            .await?)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(session)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -931,9 +941,11 @@ impl SessionStorage {
             q = q.bind(user_recipe_values_json);
         }
 
+        let mut tx = self.pool.begin().await?;
         q = q.bind(&builder.session_id);
-        q.execute(&self.pool).await?;
+        q.execute(&mut *tx).await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
