@@ -228,36 +228,21 @@ echo ""
 PROXY_PORT=$((9000 + RANDOM % 1000))
 PROXY_DIR="$SCRIPT_DIR/scripts/provider-error-proxy"
 
-if [ ! -d "$PROXY_DIR" ]; then
-  echo "✗ FAILED: Error proxy directory not found at $PROXY_DIR"
-  RESULTS+=("✗ Out-of-Context Error (proxy not found)")
-else
-  OUTPUT=$(mktemp)
-  PROXY_LOG=$(mktemp)
-  PROXY_SETUP_LOG=$(mktemp)
+OUTPUT=$(mktemp)
+PROXY_LOG=$(mktemp)
+PROXY_SETUP_LOG=$(mktemp)
 
-  # Verify proxy directory and files exist
-  if [ ! -d "$PROXY_DIR" ]; then
-    echo "✗ FAILED: Proxy directory not found at $PROXY_DIR"
-    RESULTS+=("✗ Out-of-Context Error (proxy directory missing)")
-  elif [ ! -f "$PROXY_DIR/proxy.py" ]; then
-    echo "✗ FAILED: proxy.py not found in $PROXY_DIR"
-    RESULTS+=("✗ Out-of-Context Error (proxy.py missing)")
-  elif [ ! -f "$PROXY_DIR/pyproject.toml" ]; then
-    echo "✗ FAILED: pyproject.toml not found in $PROXY_DIR"
-    RESULTS+=("✗ Out-of-Context Error (pyproject.toml missing)")
-  else
-    # Pre-install proxy dependencies (so first run doesn't take forever)
-    echo "Installing proxy dependencies..."
-    # Force UV to use public PyPI (override any local/corporate mirrors)
-    export UV_INDEX_URL="https://pypi.org/simple"
-    if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
-      echo "✗ FAILED: Could not install proxy dependencies"
-      echo "Setup log:"
-      cat "$PROXY_SETUP_LOG"
-      RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
-    else
-      echo "✓ Dependencies installed"
+# Pre-install proxy dependencies (so first run doesn't take forever)
+echo "Installing proxy dependencies..."
+# Force UV to use public PyPI (override any local/corporate mirrors)
+export UV_INDEX_URL="https://pypi.org/simple"
+if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
+  echo "✗ FAILED: Could not install proxy dependencies"
+  echo "Setup log:"
+  cat "$PROXY_SETUP_LOG"
+  RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
+else
+  echo "✓ Dependencies installed"
 
   # Start the error proxy in context-length error mode (3 errors)
   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
@@ -340,12 +325,10 @@ else
     unset GOOSE_MODEL
     unset UV_INDEX_URL
   fi
-
-  rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
-  rm -rf "$TESTDIR"
-    fi
-  fi
 fi
+
+rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
+rm -rf "$TESTDIR"
 
 echo ""
 echo ""

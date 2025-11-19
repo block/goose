@@ -109,7 +109,6 @@ pub trait ProviderRetry {
                             _ => config.delay_for_attempt(attempts),
                         };
 
-                        // Check for environment variable to disable backoff (for testing)
                         let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
                             .unwrap_or_default()
                             .parse::<bool>()
