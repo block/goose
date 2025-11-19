@@ -1754,17 +1754,16 @@ export default function ChatInput({
   return (
     <div
       ref={chatInputRef}
-      className={`flex flex-col relative h-auto p-4 transition-colors ${
+      className={`flex flex-col relative h-auto transition-colors ${
         disableAnimation ? '' : 'page-transition'
-      } ${
-        isFocused
-          ? 'border-borderProminent hover:border-borderProminent'
-          : 'border-borderSubtle hover:border-borderStandard'
-      } bg-background-default z-10 rounded-t-2xl`}
+      } z-10 bg-background-default pt-6 px-6 pb-4`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      {/* Chat input container with max width - floating card */}
+      <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
+        <div className="bg-background-default rounded-2xl pt-2 px-2">
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue
@@ -1853,7 +1852,7 @@ export default function ChatInput({
                         variant="outline"
                         onClick={() => {}}
                         disabled={true}
-                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
+                        className="bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default rounded-full px-6 py-2"
                       >
                         <Microphone />
                       </Button>
@@ -1898,8 +1897,8 @@ export default function ChatInput({
                     isRecording
                       ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                       : isTranscribing
-                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                        ? 'bg-text-default text-background-default cursor-not-allowed animate-pulse border-text-default'
+                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default'
                   }`}
                 >
                   <Microphone />
@@ -1916,7 +1915,7 @@ export default function ChatInput({
               size="sm"
               shape="round"
               variant="outline"
-              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+              className="bg-text-default text-background-default hover:bg-text-muted border-text-default rounded-full px-6 py-2"
             >
               <Stop />
             </Button>
@@ -1932,8 +1931,8 @@ export default function ChatInput({
                     disabled={isSubmitButtonDisabled}
                     className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                       isSubmitButtonDisabled
-                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                        ? 'bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default'
+                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default hover:cursor-pointer'
                     }`}
                   >
                     <Send className="w-4 h-4" />
@@ -2229,6 +2228,8 @@ export default function ChatInput({
         onClose={() => setIsAddCommandModalOpen(false)}
         onSave={handleModalSave}
       />
+        </div>
+      </div>
     </div>
   );
 }

@@ -197,16 +197,44 @@ export default function GooseMessage({
   // Determine rendering logic based on chain membership and content
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
 
+  // Get sender info for Goose - use message sender if available, otherwise default to "Goose"
+  const senderInfo = message.sender || {
+    userId: 'goose',
+    displayName: 'Goose',
+    avatarUrl: null,
+  };
+
   return (
-    <div className="goose-message flex w-[90%] justify-start min-w-0 gap-3">
-      {/* AI Avatar on the left side */}
+    <div className="goose-message flex w-full justify-start min-w-0 gap-3">
+      {/* Goose Avatar on the left side */}
       <div className="flex-shrink-0 mt-1">
-        <div className="w-8 h-8 flex items-center justify-center">
-          <div className="w-4 h-0.5 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
-        </div>
+        {senderInfo.avatarUrl ? (
+          <AvatarImage
+            avatarUrl={senderInfo.avatarUrl}
+            displayName={senderInfo.displayName || 'Goose'}
+            size="md"
+            className="ring-1 ring-border-subtle ring-offset-1"
+          />
+        ) : (
+          <div className="w-8 h-8 flex items-center justify-center">
+            <div className="w-4 h-0.5 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+          </div>
+        )}
       </div>
       
-      <div className="flex flex-col w-full min-w-0">
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Username and timestamp header - only show if we have text content or it's the start of a chain */}
+        {(displayText || isFirstInChain) && (
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold text-text-prominent">
+              {senderInfo.displayName || 'Goose'}
+            </span>
+            <span className="text-xs text-text-muted font-mono">
+              {timestamp}
+            </span>
+          </div>
+        )}
+
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-textSubtle select-none">
@@ -235,11 +263,6 @@ export default function GooseMessage({
 
             {toolRequests.length === 0 && (
               <div className="relative flex justify-start">
-                {!isStreaming && (
-                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                    {timestamp}
-                  </div>
-                )}
                 {message.content.every((content) => content.type === 'text') && !isStreaming && (
                   <div className="absolute left-0 pt-1">
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
@@ -279,9 +302,6 @@ export default function GooseMessage({
                       />
                     </div>
                   ))}
-                </div>
-                <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                  {!isStreaming && timestamp}
                 </div>
               </div>
             ) : null}

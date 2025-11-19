@@ -208,24 +208,43 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
             </div>
           </div>
         ) : (
-          // Normal message display with avatar
-          <div className="message flex justify-end w-full gap-3">
-            <div className="flex-col max-w-[85%] w-fit">
+          // Slack-style left-aligned message with avatar on left
+          <div className="message flex justify-start w-full gap-3">
+            {/* Avatar on the left side */}
+            <div className="flex-shrink-0 mt-1">
+              <AvatarImage
+                avatarUrl={senderInfo.avatarUrl}
+                displayName={senderInfo.displayName || senderInfo.userId}
+                size="md"
+                className="ring-1 ring-background-accent ring-offset-1"
+              />
+            </div>
+            
+            <div className="flex-col flex-1 min-w-0">
               <div className="flex flex-col group">
-                <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
-                  <div ref={contentRef}>
-                    {hasActionPills ? (
-                      <MessageContent
-                        content={displayText}
-                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
-                      />
-                    ) : (
-                      <MarkdownContent
-                        content={displayText}
-                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
-                      />
-                    )}
-                  </div>
+                {/* Username and timestamp header */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-text-prominent">
+                    {senderInfo.displayName || senderInfo.userId}
+                  </span>
+                  <span className="text-xs text-text-muted font-mono">
+                    {timestamp}
+                  </span>
+                </div>
+
+                {/* Message content */}
+                <div ref={contentRef} className="w-full">
+                  {hasActionPills ? (
+                    <MessageContent
+                      content={displayText}
+                      className="user-message"
+                    />
+                  ) : (
+                    <MarkdownContent
+                      content={displayText}
+                      className="user-message"
+                    />
+                  )}
                 </div>
 
                 {/* Render images if any */}
@@ -237,11 +256,9 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                   </div>
                 )}
 
-                <div className="relative h-[22px] flex justify-end text-right">
-                  <div className="absolute w-40 font-mono right-0 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                    {timestamp}
-                  </div>
-                  <div className="absolute right-0 pt-1 flex items-center gap-2">
+                {/* Action buttons on hover */}
+                <div className="relative h-[22px] flex justify-start">
+                  <div className="absolute left-0 pt-1 flex items-center gap-2">
                     <button
                       onClick={handleEditClick}
                       onKeyDown={(e) => {
@@ -263,22 +280,12 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 </div>
               </div>
             </div>
-            
-            {/* Avatar on the right side */}
-            <div className="flex-shrink-0 mt-1">
-              <AvatarImage
-                avatarUrl={senderInfo.avatarUrl}
-                displayName={senderInfo.displayName || senderInfo.userId}
-                size="md"
-                className="ring-1 ring-background-accent ring-offset-1"
-              />
-            </div>
           </div>
         )}
 
         {/* Edited indicator */}
         {hasBeenEdited && !isEditing && (
-          <div className="text-xs text-text-subtle mt-1 text-right transition-opacity duration-200">
+          <div className="text-xs text-text-subtle mt-1 ml-11 transition-opacity duration-200">
             Edited
           </div>
         )}

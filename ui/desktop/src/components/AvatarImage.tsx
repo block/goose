@@ -7,6 +7,7 @@ interface AvatarImageProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   onError?: () => void;
+  fallbackContent?: React.ReactNode;
 }
 
 const AvatarImage: React.FC<AvatarImageProps> = ({ 
@@ -14,7 +15,8 @@ const AvatarImage: React.FC<AvatarImageProps> = ({
   displayName, 
   className = '', 
   size = 'md',
-  onError 
+  onError,
+  fallbackContent
 }) => {
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
   const [showInitials, setShowInitials] = React.useState(false);
@@ -96,6 +98,11 @@ const AvatarImage: React.FC<AvatarImageProps> = ({
   };
 
   if (!avatarUrl || showInitials || isLoading || !blobUrl) {
+    // Use fallbackContent if provided, otherwise use initials
+    if (fallbackContent) {
+      return <>{fallbackContent}</>;
+    }
+    
     const displayText = isLoading ? '...' : (displayName || 'U').charAt(0).toUpperCase();
     return (
       <div className={`${sizeClasses[size]} bg-background-accent rounded-full flex items-center justify-center ${className}`}>

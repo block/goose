@@ -368,35 +368,32 @@ function BaseChatContent({
   }, []);
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <MainPanelLayout
-        backgroundColor={'bg-background-muted'}
-        removeTopPadding={true}
-        {...customMainLayoutProps}
-      >
-        {/* Loader when generating recipe */}
-        {isGeneratingRecipe && <LayingEggLoader />}
+    <div className="h-full flex flex-col min-h-0 relative">
+      {/* Loader when generating recipe */}
+      {isGeneratingRecipe && <LayingEggLoader />}
 
-        {/* Custom header */}
-        {renderHeader && renderHeader()}
+      {/* Custom header */}
+      {renderHeader && renderHeader()}
 
-        {/* Participants Bar - shows who's in the conversation for Matrix sessions */}
-        {showParticipantsBar && matrixRoomId && (
-          <ParticipantsBar matrixRoomId={matrixRoomId} />
-        )}
+      {/* Participants Bar - shows who's in the conversation for Matrix sessions */}
+      {showParticipantsBar && matrixRoomId && (
+        <ParticipantsBar matrixRoomId={matrixRoomId} />
+      )}
 
-        {/* Chat container with sticky recipe header */}
-        <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-          <ScrollArea
-            ref={scrollRef}
-            className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
-            autoScroll
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            data-drop-zone="true"
-            paddingX={6}
-            paddingY={0}
-          >
+      {/* Chat container - full height, extends behind floating input */}
+      <div className="absolute inset-0 bg-background-muted">
+        <ScrollArea
+          ref={scrollRef}
+          className={`h-full bg-background-default relative ${contentClassName}`}
+          autoScroll
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          data-drop-zone="true"
+          paddingX={6}
+          paddingY={0}
+        >
+            {/* Chat thread container with max width */}
+            <div className="max-w-4xl mx-auto w-full">
             {/* Recipe agent header - sticky at top of chat container */}
             {recipeConfig?.title && (
               <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
@@ -529,7 +526,8 @@ function BaseChatContent({
                     </div>
                   )}
 
-                  <div className="block h-8" />
+                  {/* Extra spacing at bottom to prevent overlap with floating input */}
+                  <div className="block h-32" />
                 </>
               ) : !recipeConfig && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
@@ -561,11 +559,13 @@ function BaseChatContent({
 
             {/* Custom content after messages */}
             {renderAfterMessages && renderAfterMessages()}
+            </div>
           </ScrollArea>
         </div>
 
+        {/* Floating Chat Input - positioned absolutely at bottom */}
         <div
-          className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+          className={`absolute bottom-0 left-0 right-0 z-20 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           {/* Combined hover zone for both dock and chat input */}
           <div
@@ -610,7 +610,6 @@ function BaseChatContent({
             />
           </div>
         </div>
-      </MainPanelLayout>
 
       {/* Recipe Warning Modal */}
       <RecipeWarningModal
