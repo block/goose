@@ -240,7 +240,7 @@ const DraggableContainer = React.memo<DraggableContainerProps>(({
         layout: { duration: 0.3, ease: "easeInOut" },
         default: { duration: 0.2 }
       }}
-      className={`relative bg-background-default overflow-hidden rounded-lg ${getSizeClass(container.size)} ${className || ''} ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`relative bg-white overflow-hidden rounded-lg ${getSizeClass(container.size)} ${className || ''} ${isDragging ? 'cursor-grabbing' : ''}`}
       style={{
         ...style,
         zIndex: isDragging ? 1000 : 'auto'
@@ -461,7 +461,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   return (
     <motion.div 
       layout
-      className="flex-1 h-full bg-background-default rounded-xl overflow-hidden relative border border-border-subtle"
+      className="flex-1 h-full bg-white rounded-xl overflow-hidden relative border border-border-subtle"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
