@@ -6,7 +6,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
@@ -152,7 +151,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: should_enabled_subagents(self.model_name.as_str()),
+            enable_subagents: true, // TODO: Re-evaluate should_enabled_subagents logic if needed
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
         };

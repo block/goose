@@ -121,6 +121,16 @@ fn get_agent_messages(
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
+        if let Some(settings) = &recipe.settings {
+            if let Some(system_prompt) = &settings.system_prompt {
+                agent
+                    .prompt_manager
+                    .lock()
+                    .await
+                    .set_system_prompt_override(system_prompt.clone());
+            }
+        }
+
         for extension in task_config.extensions {
             if let Err(e) = agent.add_extension(extension.clone()).await {
                 debug!(

@@ -1,15 +1,62 @@
-pub use crate::agents::subagent_execution_tool::task_types::{
-    ExecutionMode, ExecutionResponse, ExecutionStats, SharedState, Task, TaskResult, TaskStatus,
-};
+use std::borrow::Cow;
+use anyhow::Result;
+use rmcp::model::{Content, ErrorCode, ErrorData, ServerNotification};
+use serde_json::{json, Value};
+use tokio::sync::mpsc::{self, Sender};
+use tokio_stream;
+use tokio_util::sync::CancellationToken;
+
+use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::subagent_execution_tool::{
     executor::{execute_single_task, execute_tasks_in_parallel},
     tasks_manager::TasksManager,
 };
-use crate::agents::subagent_task_config::TaskConfig;
-use rmcp::model::ServerNotification;
-use serde_json::{json, Value};
-use tokio::sync::mpsc::Sender;
-use tokio_util::sync::CancellationToken;
+
+pub use crate::agents::subagent_execution_tool::task_types::{
+    ExecutionMode, ExecutionResponse, ExecutionStats, SharedState, Task, TaskResult, TaskStatus,
+};
+
+pub async fn run_tasks(
+    task_ids: Vec<String>,
+    execution_mode: ExecutionMode,
+    task_config: TaskConfig,
+    tasks_manager: &TasksManager,
+    cancellation_token: Option<CancellationToken>,
+) -> ToolCallResult {
+    let (notification_tx, notification_rx) = mpsc::channel::<ServerNotification>(100);
+
+    let tasks_manager_clone = tasks_manager.clone();
+    let result_future = async move {
+        match execute_tasks(
+            task_ids,
+            execution_mode,
+            notification_tx,
+            task_config,
+            &tasks_manager_clone,
+            cancellation_token,
+        )
+        .await
+        {
+            Ok(result) => {
+                let output = serde_json::to_string(&result).unwrap();
+                Ok(vec![Content::text(output)])
+            }
+            Err(e) => Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(e.to_string()),
+                data: None,
+            }),
+        }
+    };
+
+    let notification_stream = tokio_stream::wrappers::ReceiverStream::new(notification_rx);
+
+    ToolCallResult {
+        result: Box::new(Box::pin(result_future)),
+        notification_stream: Some(Box::new(notification_stream)),
+    }
+}
 
 pub async fn execute_tasks(
     task_ids: Vec<String>,
