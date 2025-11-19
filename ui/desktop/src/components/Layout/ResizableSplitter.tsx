@@ -111,7 +111,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
 
       {/* Right Panel */}
       <div 
-        className={`flex-1 overflow-hidden ${floatingRight ? 'relative bg-background-default' : ''}`}
+        className={`flex-1 ${floatingRight ? 'relative bg-background-default' : 'overflow-hidden'}`}
         style={{ width: `${rightWidth}%` }}
       >
         {floatingRight ? (

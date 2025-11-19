@@ -461,7 +461,7 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   return (
     <motion.div 
       layout
-      className="flex-1 h-full bg-background-default rounded-xl overflow-hidden relative border border-border-subtle"
+      className="flex-1 h-full bg-background-default rounded-xl relative border border-border-subtle"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
