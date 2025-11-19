@@ -425,11 +425,49 @@ fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::R
     match config.set_secret(key_name, &value) {
         Ok(_) => Ok(true),
         Err(e) => {
-            cliclack::outro(style(format!(
-                "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
-                key_name, e
-            )).on_red().white())?;
-            Ok(false)
+            // Check if this is a keyring error and try fallback
+            if e.to_string().contains("keyring") || e.to_string().contains("Secret Service") {
+                // Show warning but continue with file-based storage
+                let _ = cliclack::log::warning(format!(
+                    "Keyring service unavailable ({}). Falling back to file-based storage for secrets.", 
+                    e
+                ));
+                let _ = cliclack::log::info("For better security, consider:");
+                let _ = cliclack::log::info("  - Fixing your system's keyring service");
+                let _ = cliclack::log::info(
+                    "  - Or setting GOOSE_DISABLE_KEYRING=true environment variable",
+                );
+                let _ =
+                    cliclack::log::info("  - Or using environment variables for sensitive data");
+
+                // Try again with file-based storage
+                std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+                match config.set_secret(key_name, &value) {
+                    Ok(_) => {
+                        let _ = cliclack::log::success(
+                            "Successfully stored secret using file-based storage",
+                        );
+                        Ok(true)
+                    }
+                    Err(fallback_err) => {
+                        cliclack::outro(
+                            style(format!(
+                                "Failed to store {} using file-based storage: {}",
+                                key_name, fallback_err
+                            ))
+                            .on_red()
+                            .white(),
+                        )?;
+                        Ok(false)
+                    }
+                }
+            } else {
+                cliclack::outro(style(format!(
+                    "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
+                    key_name, e
+                )).on_red().white())?;
+                Ok(false)
+            }
         }
     }
 }
