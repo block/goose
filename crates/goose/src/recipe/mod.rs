@@ -184,6 +184,7 @@ impl fmt::Display for RecipeParameterInputType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,
