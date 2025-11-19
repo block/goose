@@ -274,7 +274,7 @@ export default function Hub({
         
         {/* Center Chat Input - Main focal point */}
         <div className="relative flex-1 flex items-center justify-center p-8" style={{ zIndex: 10 }}>
-          <div className="w-full max-w-4xl">
+          <div className="w-full max-w-4xl flex flex-col items-center">
             {/* Greeting above the input */}
             <div className="text-center mb-8">
               <div className="origin-center mb-6 goose-icon-animation">
@@ -287,7 +287,7 @@ export default function Hub({
             </div>
 
             {/* Chat Input */}
-            <div className="shadow-2xl drop-shadow-lg [&>div]:!bg-background-muted [&>div]:!rounded-2xl">
+            <div className="w-full shadow-lg drop-shadow-md dark:shadow-white/10 dark:drop-shadow-[0_4px_6px_rgba(255,255,255,0.1)] [&>div]:!rounded-2xl">
               <ChatInput
                 sessionId={null}
                 handleSubmit={handleSubmit}
