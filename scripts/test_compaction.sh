@@ -251,7 +251,7 @@ else
     echo "Installing proxy dependencies..."
     # Force UV to use public PyPI (override any local/corporate mirrors)
     export UV_INDEX_URL="https://pypi.org/simple"
-    if ! (cd "$PROXY_DIR" && uv sync --refresh 2>&1 | tee "$PROXY_SETUP_LOG"); then
+    if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
       echo "✗ FAILED: Could not install proxy dependencies"
       echo "Setup log:"
       cat "$PROXY_SETUP_LOG"
