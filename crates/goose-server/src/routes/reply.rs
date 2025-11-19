@@ -85,6 +85,8 @@ pub struct ChatRequest {
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
+    #[serde(default)]
+    skip_add_user_message: bool,
 }
 
 pub struct SseResponse {
@@ -300,10 +302,11 @@ pub async fn reply(
         };
 
         let mut stream = match agent
-            .reply(
+            .reply_with_options(
                 user_message.clone(),
                 session_config,
                 Some(task_cancel.clone()),
+                request.skip_add_user_message,
             )
             .await
         {
@@ -536,6 +539,7 @@ mod tests {
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
+                        skip_add_user_message: false,
                     })
                     .unwrap(),
                 ))

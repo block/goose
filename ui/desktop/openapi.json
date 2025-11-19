@@ -1916,6 +1916,64 @@
         ]
       }
     },
+    "/sessions/{session_id}/edit_message": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "edit_message",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message edited successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid message ID or empty content"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session or message not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2186,6 +2244,9 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "skip_add_user_message": {
+            "type": "boolean"
           }
         }
       },
@@ -2447,6 +2508,52 @@
             "type": "string"
           }
         }
+      },
+      "EditMessageRequest": {
+        "type": "object",
+        "required": [
+          "messageRowId",
+          "newContent"
+        ],
+        "properties": {
+          "editType": {
+            "$ref": "#/components/schemas/EditType"
+          },
+          "messageRowId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "newContent": {
+            "type": "string"
+          }
+        }
+      },
+      "EditMessageResponse": {
+        "type": "object",
+        "required": [
+          "conversation"
+        ],
+        "properties": {
+          "conversation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "Conversation (either in new session for fork, or updated current session for edit)"
+          },
+          "newSessionId": {
+            "type": "string",
+            "description": "New session ID created from the fork (only present for fork edit_type)",
+            "nullable": true
+          }
+        }
+      },
+      "EditType": {
+        "type": "string",
+        "enum": [
+          "fork",
+          "edit"
+        ]
       },
       "EmbeddedResource": {
         "type": "object",
@@ -3119,6 +3226,11 @@
           },
           "role": {
             "$ref": "#/components/schemas/Role"
+          },
+          "rowId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
           }
         }
       },

@@ -30,6 +30,7 @@ export type ChatRequest = {
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
+    skip_add_user_message?: boolean;
 };
 
 export type CheckProviderRequest = {
@@ -120,6 +121,25 @@ export type DecodeRecipeResponse = {
 export type DeleteRecipeRequest = {
     id: string;
 };
+
+export type EditMessageRequest = {
+    editType?: EditType;
+    messageRowId: number;
+    newContent: string;
+};
+
+export type EditMessageResponse = {
+    /**
+     * Conversation (either in new session for fork, or updated current session for edit)
+     */
+    conversation: Array<Message>;
+    /**
+     * New session ID created from the fork (only present for fork edit_type)
+     */
+    newSessionId?: string | null;
+};
+
+export type EditType = 'fork' | 'edit';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -343,6 +363,7 @@ export type Message = {
     id?: string | null;
     metadata: MessageMetadata;
     role: Role;
+    rowId?: number | null;
 };
 
 /**
@@ -2416,6 +2437,46 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type EditMessageData = {
+    body: EditMessageRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/edit_message';
+};
+
+export type EditMessageErrors = {
+    /**
+     * Bad request - Invalid message ID or empty content
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or message not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type EditMessageResponses = {
+    /**
+     * Message edited successfully
+     */
+    200: EditMessageResponse;
+};
+
+export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
 
 export type ExportSessionData = {
     body?: never;

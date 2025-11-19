@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
@@ -65,6 +65,8 @@ function BaseChatContent({
   initialMessage,
 }: BaseChatProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
@@ -85,11 +87,13 @@ function BaseChatContent({
 
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [hasSubmittedInitialMessage, setHasSubmittedInitialMessage] = useState(false);
+  const [hasTriggeredAgentForFork, setHasTriggeredAgentForFork] = useState(false);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   useEffect(() => {
     setSessionLoaded(false);
     setHasSubmittedInitialMessage(false);
+    setHasTriggeredAgentForFork(false);
   }, [sessionId]);
 
   const handleSessionLoaded = useCallback(() => {
@@ -106,6 +110,7 @@ function BaseChatContent({
     setRecipeUserParams,
     tokenState,
     notifications,
+    onMessageUpdate,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -119,6 +124,29 @@ function BaseChatContent({
       handleSubmit(initialMessage);
     }
   }, [sessionLoaded, initialMessage, hasSubmittedInitialMessage, handleSubmit]);
+
+  useEffect(() => {
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+
+    if (
+      sessionLoaded &&
+      shouldStartAgent &&
+      messages.length > 0 &&
+      !hasTriggeredAgentForFork &&
+      chatState === ChatState.Idle
+    ) {
+      setHasTriggeredAgentForFork(true);
+      handleSubmit('', { isContinuation: true });
+    }
+  }, [
+    sessionLoaded,
+    searchParams,
+    messages.length,
+    hasTriggeredAgentForFork,
+    chatState,
+    handleSubmit,
+    messages,
+  ]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -207,6 +235,34 @@ function BaseChatContent({
     return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
   }, []);
 
+  useEffect(() => {
+    const handleSessionForked = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        newSessionId: string;
+        shouldStartAgent?: boolean;
+      }>;
+      const { newSessionId, shouldStartAgent } = customEvent.detail;
+
+      const params = new URLSearchParams();
+      params.set('resumeSessionId', newSessionId);
+      if (shouldStartAgent) {
+        params.set('shouldStartAgent', 'true');
+      }
+
+      navigate(`/pair?${params.toString()}`, {
+        state: {
+          disableAnimation: true,
+        },
+      });
+    };
+
+    window.addEventListener('session-forked', handleSessionForked);
+
+    return () => {
+      window.removeEventListener('session-forked', handleSessionForked);
+    };
+  }, [location.pathname, navigate]);
+
   const handleRecipeCreated = (recipe: Recipe) => {
     toastSuccess({
       title: 'Recipe created successfully!',
@@ -234,6 +290,7 @@ function BaseChatContent({
         isUserMessage={(m: Message) => m.role === 'user'}
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}
+        onMessageUpdate={onMessageUpdate}
       />
     </>
   );

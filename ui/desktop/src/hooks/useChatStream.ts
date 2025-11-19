@@ -29,12 +29,17 @@ interface UseChatStreamReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
-  handleSubmit: (userMessage: string) => Promise<void>;
+  handleSubmit: (userMessage: string, options?: { isContinuation?: boolean }) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: NotificationEvent[];
+  onMessageUpdate: (
+    messageId: string,
+    newContent: string,
+    editType?: 'fork' | 'edit'
+  ) => Promise<void>;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -167,7 +172,7 @@ export function useChatStream({
   }, []);
 
   const onFinish = useCallback(
-    (error?: string): void => {
+    async (error?: string): Promise<void> => {
       if (error) {
         setSessionLoadError(error);
       }
@@ -180,10 +185,28 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
+      // Reload the session to get auto generated/incremented rowIds for all messages
+      try {
+        const { getSession } = await import('../api');
+        const response = await getSession({
+          path: { session_id: sessionId },
+          throwOnError: true,
+        });
+
+        if (response.data?.conversation) {
+          window.electron.logInfo(
+            `Reloaded session with ${response.data.conversation.length} messages with rowIds`
+          );
+          updateMessages(response.data.conversation);
+        }
+      } catch (reloadError) {
+        window.electron.logInfo(`Failed to reload session: ${errorMessage(reloadError)}`);
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId]
+    [onStreamFinish, sessionId, updateMessages]
   );
 
   // Load session on mount or sessionId change
@@ -239,22 +262,35 @@ export function useChatStream({
   }, [sessionId, updateMessages, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string) => {
+    async (userMessage: string, options?: { isContinuation?: boolean }) => {
       // Guard: Don't submit if session hasn't been loaded yet
       if (!session || chatState === ChatState.LoadingConversation) {
         return;
       }
 
-      if (!userMessage.trim()) {
+      // Check if this is a continuation request (agent should respond to existing messages)
+      const isContinuationRequest = options?.isContinuation || false;
+      if (!isContinuationRequest && !userMessage.trim()) {
         return;
       }
 
-      if (messagesRef.current.length === 0) {
+      if (messagesRef.current.length === 0 && !isContinuationRequest) {
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
-      updateMessages(currentMessages);
+      // For continuation requests, don't add a new user message
+      const currentMessages = isContinuationRequest
+        ? [...messagesRef.current]
+        : [...messagesRef.current, createUserMessage(userMessage)];
+
+      window.electron.logInfo(
+        `handleSubmit: isContinuationRequest=${isContinuationRequest}, messagesRef.current.length=${messagesRef.current.length}, currentMessages.length=${currentMessages.length}`
+      );
+
+      // Don't update messages if it's a continuation request (messages are already correct)
+      if (!isContinuationRequest) {
+        updateMessages(currentMessages);
+      }
       setChatState(ChatState.Streaming);
       setNotifications([]);
 
@@ -265,6 +301,7 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             messages: currentMessages,
+            skip_add_user_message: isContinuationRequest, // Tell backend not to add the message again
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -335,6 +372,73 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
+  const onMessageUpdate = useCallback(
+    async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
+      try {
+        const { editMessage } = await import('../api');
+        const message = messagesRef.current.find((m) => m.id === messageId);
+
+        if (!message) {
+          throw new Error(`Message with id ${messageId} not found in current messages`);
+        }
+
+        if (!message.rowId) {
+          throw new Error(
+            `Message ${messageId} is missing rowId. This might be an old session - please reload the page and try again.`
+          );
+        }
+
+        const response = await editMessage({
+          path: {
+            session_id: sessionId,
+          },
+          body: {
+            messageRowId: message.rowId,
+            newContent,
+            editType,
+          },
+          throwOnError: true,
+        });
+
+        if (editType === 'fork') {
+          if (response.data?.newSessionId && response.data?.conversation) {
+            const newSessionId = response.data.newSessionId;
+            const event = new CustomEvent('session-forked', {
+              detail: {
+                newSessionId,
+                shouldStartAgent: true,
+              },
+            });
+            window.dispatchEvent(event);
+            window.electron.logInfo(`Dispatched session-forked event`);
+          } else {
+            window.electron.logInfo(
+              `Unexpected fork response format: ${JSON.stringify(response.data)}`
+            );
+          }
+        } else {
+          if (response.data?.conversation) {
+            updateMessages(response.data.conversation);
+            await handleSubmit('', { isContinuation: true });
+          } else {
+            window.electron.logInfo(
+              `Unexpected edit response format: ${JSON.stringify(response.data)}`
+            );
+          }
+        }
+      } catch (error) {
+        const errorMsg = errorMessage(error);
+        console.error('Failed to edit message:', error);
+        const { toastError } = await import('../toasts');
+        toastError({
+          title: 'Failed to edit message',
+          msg: errorMsg,
+        });
+      }
+    },
+    [sessionId, updateMessages, handleSubmit]
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
@@ -349,5 +453,6 @@ export function useChatStream({
     setRecipeUserParams,
     tokenState,
     notifications,
+    onMessageUpdate,
   };
 }

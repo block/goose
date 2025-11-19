@@ -777,6 +777,18 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        self.reply_with_options(user_message, session_config, cancel_token, false)
+            .await
+    }
+
+    #[instrument(skip(self, user_message, session_config), fields(user_message))]
+    pub async fn reply_with_options(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+        skip_add_message: bool,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let is_manual_compact = user_message.content.iter().any(|c| {
             if let MessageContent::Text(text) = c {
                 text.text.trim() == MANUAL_COMPACT_TRIGGER
@@ -785,9 +797,11 @@ impl Agent {
             }
         });
 
-        SessionManager::add_message(&session_config.id, &user_message).await?;
-        let session = SessionManager::get_session(&session_config.id, true).await?;
+        if !skip_add_message {
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
 
+        let session = SessionManager::get_session(&session_config.id, true).await?;
         let conversation = session
             .conversation
             .clone()
