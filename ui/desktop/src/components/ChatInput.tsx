@@ -1756,7 +1756,7 @@ export default function ChatInput({
       ref={chatInputRef}
       className={`flex flex-col relative h-auto transition-colors ${
         disableAnimation ? '' : 'page-transition'
-      } z-10 bg-background-default pt-6 px-6 pb-4`}
+      } z-10 pt-6 px-6 pb-4`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
