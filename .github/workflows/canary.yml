@@ -16,9 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ------------------------------------
-  # 1) Prepare Version
-  # ------------------------------------
   prepare-version:
     name: Prepare Version
     runs-on: ubuntu-latest
@@ -36,18 +33,12 @@ jobs:
           VERSION="${VERSION}-canary+${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-  # ------------------------------------
-  # 2) Build CLI for multiple OS/Arch
-  # ------------------------------------
   build-cli:
     needs: [prepare-version]
     uses: ./.github/workflows/build-cli.yml
     with:
       version: ${{ needs.prepare-version.outputs.version }}
 
-  # ------------------------------------
-  # 3) Upload Install CLI Script (we only need to do this once)
-  # ------------------------------------
   install-script:
     name: Upload Install Script
     runs-on: ubuntu-latest
@@ -59,9 +50,6 @@ jobs:
           name: download_cli.sh
           path: download_cli.sh
 
-  # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS only) - builds goosed and Electron app
-  # ------------------------------------------------------------
   bundle-desktop:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop.yml
@@ -72,18 +60,12 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
 
-  # ------------------------------------------------------------
-  # 5) Bundle Desktop App (Linux) - builds goosed and Electron app
-  # ------------------------------------------------------------
   bundle-desktop-linux:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop-linux.yml
     with:
       version: ${{ needs.prepare-version.outputs.version }}
 
-  # ------------------------------------------------------------
-  # 6) Bundle Desktop App (Windows) - builds goosed and Electron app
-  # ------------------------------------------------------------
   bundle-desktop-windows:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop-windows.yml
@@ -91,9 +73,6 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
 
-  # ------------------------------------
-  # 7) Create/Update GitHub Release
-  # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -107,7 +86,6 @@ jobs:
         with:
           merge-multiple: true
 
-      # Create/update the canary release
       - name: Release canary
         uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
         with:
