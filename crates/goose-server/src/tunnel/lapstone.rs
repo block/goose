@@ -111,33 +111,6 @@ fn validate_and_build_request(
         anyhow::bail!("Invalid tunnel secret");
     }
 
-    // Ed25519 signature validation (if configured)
-    if let Ok(public_key_hex) = std::env::var("GOOSE_TUNNEL_PUBLIC_KEY_AUTH") {
-        match super::ed25519::Ed25519Validator::new(&public_key_hex) {
-            Ok(validator) => {
-                let sig_header = message
-                    .headers
-                    .as_ref()
-                    .and_then(|h| {
-                        h.iter()
-                            .find(|(k, _)| k.eq_ignore_ascii_case("x-corp-signature"))
-                            .map(|(_, v)| v)
-                    })
-                    .ok_or_else(|| anyhow::anyhow!("Missing X-Corp-Signature header"))?;
-
-                validator.verify(
-                    sig_header,
-                    &message.method,
-                    &message.path,
-                    message.body.as_deref(),
-                )?;
-            }
-            Err(e) => {
-                anyhow::bail!("Failed to create Ed25519 validator: {}", e);
-            }
-        }
-    }
-
     let mut request_builder = match message.method.as_str() {
         "GET" => client.get(url),
         "POST" => client.post(url),
@@ -149,7 +122,7 @@ fn validate_and_build_request(
 
     if let Some(headers) = &message.headers {
         for (key, value) in headers {
-            if key.to_lowercase() == "x-secret-key" {
+            if key.eq_ignore_ascii_case("x-secret-key") {
                 continue;
             }
             request_builder = request_builder.header(key, value);

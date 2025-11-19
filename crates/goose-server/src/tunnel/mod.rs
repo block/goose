@@ -1,4 +1,3 @@
-pub mod ed25519;
 pub mod lapstone;
 
 #[cfg(test)]
@@ -124,7 +123,7 @@ impl TunnelManager {
         }
     }
 
-    pub async fn update_config<F>(&self, f: F)
+    pub async fn update_config<F>(&self, f: F) -> anyhow::Result<()>
     where
         F: FnOnce(&mut TunnelConfig),
     {
@@ -132,21 +131,21 @@ impl TunnelManager {
         f(&mut cfg);
 
         let global_cfg = Config::global();
-        if let Err(e) = global_cfg.set_param("tunnel_auto_start", cfg.auto_start) {
-            tracing::error!("Failed to save tunnel config: {}", e);
-            return;
-        }
+        global_cfg
+            .set_param("tunnel_auto_start", cfg.auto_start)
+            .map_err(|e| anyhow::anyhow!("Failed to save tunnel config: {}", e))?;
 
         if let Some(secret) = &cfg.secret {
-            if let Err(e) = global_cfg.set_secret("tunnel_secret", secret) {
-                tracing::error!("Failed to save tunnel secret: {}", e);
-            }
+            global_cfg
+                .set_secret("tunnel_secret", secret)
+                .map_err(|e| anyhow::anyhow!("Failed to save tunnel secret: {}", e))?;
         }
         if let Some(agent_id) = &cfg.agent_id {
-            if let Err(e) = global_cfg.set_secret("tunnel_agent_id", agent_id) {
-                tracing::error!("Failed to save tunnel agent_id: {}", e);
-            }
+            global_cfg
+                .set_secret("tunnel_agent_id", agent_id)
+                .map_err(|e| anyhow::anyhow!("Failed to save tunnel agent_id: {}", e))?;
         }
+        Ok(())
     }
 
     async fn start_tunnel_internal(&self) -> anyhow::Result<(TunnelInfo, mpsc::Receiver<()>)> {
@@ -162,7 +161,7 @@ impl TunnelManager {
             c.secret = Some(tunnel_secret.clone());
             c.agent_id = Some(agent_id.clone());
         })
-        .await;
+        .await?;
 
         let (restart_tx, restart_rx) = mpsc::channel::<()>(1);
         *self.restart_tx.write().await = Some(restart_tx.clone());
@@ -195,7 +194,7 @@ impl TunnelManager {
             Ok((info, mut restart_rx)) => {
                 *self.state.write().await = TunnelState::Running;
                 *self.info.write().await = Some(info.clone());
-                self.update_config(|c| c.auto_start = true).await;
+                let _ = self.update_config(|c| c.auto_start = true).await;
 
                 let state = self.state.clone();
                 let config = self.config.clone();
@@ -267,7 +266,7 @@ impl TunnelManager {
         *self.info.write().await = None;
 
         if clear_auto_start {
-            self.update_config(|c| c.auto_start = false).await;
+            let _ = self.update_config(|c| c.auto_start = false).await;
         }
     }
 }

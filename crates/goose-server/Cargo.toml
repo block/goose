@@ -44,7 +44,6 @@ url = "2.5.7"
 rand = "0.9.2"
 hex = "0.4.3"
 socket2 = "0.6.1"
-ed25519-dalek = "2.1"
 sha2 = "0.10.9"
 
 [target.'cfg(windows)'.dependencies]
