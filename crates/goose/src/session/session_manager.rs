@@ -22,6 +22,30 @@ const CURRENT_SCHEMA_VERSION: i32 = 5;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
+// Custom serializer for DateTime to format without fractional seconds
+mod datetime_format {
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(dt: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = dt.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        serializer.serialize_str(&s)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        DateTime::parse_from_rfc3339(&s)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionType {
@@ -75,7 +99,9 @@ pub struct Session {
     pub user_set_name: bool,
     #[serde(default)]
     pub session_type: SessionType,
+    #[serde(with = "datetime_format")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "datetime_format")]
     pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
     pub total_tokens: Option<i32>,

@@ -29,7 +29,10 @@ pub fn list_claude_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
     let projects_dir = home.join(".claude").join("projects");
 
+    tracing::debug!("Checking for Claude sessions in: {:?}", projects_dir);
+
     if !projects_dir.exists() {
+        tracing::debug!("Claude projects directory does not exist");
         return Ok(Vec::new());
     }
 
@@ -58,11 +61,13 @@ pub fn list_claude_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
             }
 
             if let Ok((session_id, working_dir, updated_at)) = parse_session_metadata(&file_path) {
+                tracing::debug!("Found Claude session: {} updated at {}", session_id, updated_at);
                 sessions.push((session_id, working_dir, updated_at));
             }
         }
     }
 
+    tracing::debug!("Total Claude sessions found: {}", sessions.len());
     Ok(sessions)
 }
 
