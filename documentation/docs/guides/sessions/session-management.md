@@ -46,7 +46,9 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         </Tabs>
 
         :::tip
-        On macOS, you can drag and drop a folder onto the goose icon in the dock to open a new session in that directory.
+        On macOS, you can use the goose dock icon to quickly start sessions:
+            - **Drag and drop** a folder onto the goose icon to open a new session in that directory
+            - **Right-click** the goose icon and select `New Window` to open a new session in your most recent directory
         :::
 
         You can also use keyboard shortcuts to start a new session or manage goose windows.
