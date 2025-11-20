@@ -288,17 +288,53 @@ export function useChatStream({
       return;
     }
 
-    // For new sessions (not in cache), don't try to resume from backend
-    // The session will be created when the user sends their first message
-    log.session('new-session', sessionId, { note: 'will create on first message' });
-    setChatState(ChatState.Idle);
+    // Try to load existing session from backend first
+    const loadExistingSession = async () => {
+      // Skip backend loading for sessions that start with 'new_' (these are truly new)
+      if (sessionId.startsWith('new_')) {
+        log.session('new-session', sessionId, { note: 'will create on first message' });
+        setChatState(ChatState.Idle);
+        setSession(undefined);
+        setMessagesAndLog([], 'new-session');
+        setSessionLoadError(undefined);
+        return;
+      }
 
-    // Don't make any API calls for new sessions - just set up the empty state
-    setSession(undefined);
-    setMessagesAndLog([], 'new-session');
-    setSessionLoadError(undefined);
+      try {
+        log.session('attempting-resume', sessionId);
+        setChatState(ChatState.Thinking);
 
-    log.state(ChatState.Idle, { reason: 'new session ready' });
+        // Try to resume the existing session
+        const resumeResponse = await resumeAgent({
+          body: { session_id: sessionId },
+          throwOnError: true,
+        });
+
+        if (resumeResponse.data) {
+          const { session: loadedSession, conversation } = resumeResponse.data;
+          
+          log.session('resumed-existing', sessionId, {
+            messageCount: conversation.length,
+            sessionName: loadedSession.name,
+          });
+
+          setSession(loadedSession);
+          setMessagesAndLog(conversation, 'load-existing');
+          setChatState(ChatState.Idle);
+        }
+      } catch (error) {
+        log.session('resume-failed', sessionId, { error });
+        
+        // If resume fails, treat as new session
+        log.session('treating-as-new', sessionId, { note: 'resume failed, will create on first message' });
+        setSession(undefined);
+        setMessagesAndLog([], 'new-after-resume-fail');
+        setSessionLoadError(undefined);
+        setChatState(ChatState.Idle);
+      }
+    };
+
+    loadExistingSession();
   }, [sessionId, setMessagesAndLog]);
 
   const handleSubmit = useCallback(

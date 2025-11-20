@@ -24,6 +24,7 @@ interface TabContextType {
   clearTabState: () => void;
   syncTabTitleWithBackend: (tabId: string) => Promise<void>;
   updateTabTitleFromMessage: (tabId: string, message: string) => Promise<void>;
+  openExistingSession: (sessionId: string, title?: string) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -34,7 +35,7 @@ const createNewTab = (overrides: Partial<Tab> = {}): Tab => {
   // Generate a truly unique session ID with additional entropy
   const timestamp = Date.now();
   const random = Math.random().toString(36).substr(2, 9);
-  const sessionId = `new_${timestamp}_${random}`;
+  const sessionId = overrides.sessionId || `new_${timestamp}_${random}`;
   
   return {
     id: `tab-${timestamp}-${random}`,
@@ -317,6 +318,48 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
   }, [tabStates]);
 
+  // Open an existing session in a new tab or switch to it if already open
+  const openExistingSession = useCallback((sessionId: string, title?: string) => {
+    console.log('📂 Opening existing session:', { sessionId, title });
+
+    // Check if session is already open in a tab
+    const existingTab = tabStates.find(ts => ts.tab.sessionId === sessionId);
+    if (existingTab) {
+      console.log('📂 Session already open, switching to existing tab:', existingTab.tab.id);
+      setActiveTabId(existingTab.tab.id);
+      return;
+    }
+
+    // Create new tab with existing session ID
+    const newTab = createNewTab({
+      sessionId,
+      title: title || 'Loading...',
+      isActive: true
+    });
+    
+    const newTabState: TabState = {
+      tab: newTab,
+      chat: createNewChat(sessionId),
+      loadingChat: false
+    };
+    
+    console.log('📂 Creating new tab for existing session:', {
+      tabId: newTab.id,
+      sessionId,
+      title: newTab.title
+    });
+    
+    setTabStates(prev => [...prev, newTabState]);
+    setActiveTabId(newTab.id);
+
+    // Try to sync title from backend after tab is created
+    setTimeout(() => {
+      syncTabTitleWithBackend(newTab.id).catch(error => {
+        console.warn('Failed to sync title for opened session:', error);
+      });
+    }, 100);
+  }, [tabStates, syncTabTitleWithBackend]);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -330,7 +373,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     restoreTabState,
     clearTabState,
     syncTabTitleWithBackend,
-    updateTabTitleFromMessage
+    updateTabTitleFromMessage,
+    openExistingSession
   };
 
   return (

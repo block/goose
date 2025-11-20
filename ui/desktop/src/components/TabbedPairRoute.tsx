@@ -1,9 +1,10 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { TabbedChatContainer } from './TabbedChatContainer';
 import { ViewOptions } from '../utils/navigationUtils';
 import { ContextManagerProvider } from './context_management/ContextManager';
 import { useNavigation } from './Layout/AppLayout';
+import { useTabContext } from '../contexts/TabContext';
 
 interface TabbedPairRouteProps {
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
@@ -13,9 +14,26 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
   setIsGoosehintsModalOpen
 }) => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const routeState = location.state as ViewOptions | undefined;
   const initialMessage = routeState?.initialMessage;
   const { isNavExpanded } = useNavigation();
+  const { openExistingSession } = useTabContext();
+
+  // Handle resuming existing sessions from URL parameters
+  useEffect(() => {
+    const resumeSessionId = searchParams.get('resumeSessionId');
+    if (resumeSessionId) {
+      console.log('📂 Resuming session from URL parameter:', resumeSessionId);
+      openExistingSession(resumeSessionId);
+      
+      // Clear the URL parameter to prevent re-opening on refresh
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('resumeSessionId');
+      const newUrl = `${window.location.pathname}${newSearchParams.toString() ? '?' + newSearchParams.toString() : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams, openExistingSession]);
 
   const handleMessageSubmit = (message: string, tabId: string) => {
     console.log('Message submitted in tab:', tabId, message);
