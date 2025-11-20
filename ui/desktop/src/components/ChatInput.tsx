@@ -927,46 +927,46 @@ export default function ChatInput({
       return;
     }
 
-    // Calculate position for the popover - position it above the bottom controls area (where app icons are)
-    let bottomControlsRect;
+    // Calculate position for the popover - position it above the chat input
+    let chatInputRect;
     try {
-      // Use the bottom controls area's bounding rect to position the popover above the app icons
-      bottomControlsRect = bottomControlsRef.current?.getBoundingClientRect?.() || new DOMRect();
-      console.log('🔍 Got bottomControlsRect:', { x: bottomControlsRect.left, y: bottomControlsRect.top, width: bottomControlsRect.width, height: bottomControlsRect.height });
+      // Get the chat input container's bounding rect to position the popover above it
+      chatInputRect = chatInputRef.current?.getBoundingClientRect?.() || new DOMRect();
+      console.log('🔍 Got chatInputRect:', { x: chatInputRect.left, y: chatInputRect.top, width: chatInputRect.width, height: chatInputRect.height });
     } catch (error) {
-      console.error('🔍 Error getting bottom controls bounding rect:', error);
-      bottomControlsRect = new DOMRect();
+      console.error('🔍 Error getting chat input bounding rect:', error);
+      chatInputRect = new DOMRect();
     }
 
     if (isSlashTrigger) {
-      // Open action popover for / trigger - position above the bottom controls area
-      console.log('🔍 Opening action popover for /', { query: afterTrigger, position: { x: bottomControlsRect.left, y: bottomControlsRect.top } });
+      // Open action popover for / trigger - position above the chat input
+      console.log('🔍 Opening action popover for /', { query: afterTrigger, position: { x: chatInputRect.left, y: chatInputRect.top } });
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover({
         isOpen: true,
         position: {
-          x: bottomControlsRect.left,
-          y: bottomControlsRect.top,
+          x: chatInputRect.left,
+          y: chatInputRect.top,
         },
         selectedIndex: 0,
         cursorPosition: cursorPosition,
         query: afterTrigger,
       });
     } else {
-      // Open mention popover for @ trigger - position above the bottom controls area
+      // Open mention popover for @ trigger - position above the chat input
       console.log('🔍 Opening mention popover for @', { 
         query: afterTrigger, 
         mentionStart: triggerIndex, 
-        position: { x: bottomControlsRect.left, y: bottomControlsRect.top },
-        bottomControlsRect: bottomControlsRect 
+        position: { x: chatInputRect.left, y: chatInputRect.top },
+        chatInputRect: chatInputRect 
       });
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
       const newMentionPopover = {
         ...mentionPopover,
         isOpen: true,
         position: {
-          x: bottomControlsRect.left,
-          y: bottomControlsRect.top,
+          x: chatInputRect.left,
+          y: chatInputRect.top,
         },
         query: afterTrigger,
         mentionStart: triggerIndex,
