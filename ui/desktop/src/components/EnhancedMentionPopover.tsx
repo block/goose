@@ -250,7 +250,7 @@ const EnhancedMentionPopover = forwardRef<
       style={{
         left: Math.max(10, position.x), // Ensure it's not off-screen
         top: Math.max(10, position.y - 200), // Position well above the input area
-        transform: 'none', // Remove transform to make positioning more predictable
+        transform: 'translate(0)', // Explicitly set to no translation
       }}
     >
       <div className="p-3">
