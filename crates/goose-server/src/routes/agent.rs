@@ -68,6 +68,11 @@ pub struct StartAgentRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct StopAgentRequest {
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
     session_id: String,
     load_model_and_extensions: bool,
@@ -582,6 +587,34 @@ async fn agent_remove_extension(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/stop",
+    request_body = StopAgentRequest,
+    responses(
+        (status = 200, description = "Agent stopped successfully", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn stop_agent(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<StopAgentRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let session_id = payload.session_id;
+    state
+        .agent_manager
+        .remove_session(&session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to stop agent for session {}: {}", session_id, e),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -595,5 +628,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
+        .route("/agent/stop", post(stop_agent))
         .with_state(state)
 }
