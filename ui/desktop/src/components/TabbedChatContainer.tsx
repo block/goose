@@ -122,11 +122,52 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     }
   }, [tabStates, updateSessionId]);
 
-  // Temporarily simplified setChat to prevent infinite loops
+  // Handle chat updates from BaseChat2 - only update when session ID or title changes
   const handleSetChat = useCallback((chat: any) => {
-    // TODO: Re-implement proper tab state updates once infinite loop is fixed
-    console.log('setChat called but temporarily disabled to prevent infinite loops');
-  }, []);
+    const currentActiveTabState = getActiveTabState();
+    if (!currentActiveTabState) return;
+
+    let shouldUpdate = false;
+    const updates: any = {};
+
+    // Check if session ID changed (new session got a real backend ID)
+    if (chat.sessionId && chat.sessionId !== currentActiveTabState.tab.sessionId) {
+      console.log('🔄 Session ID changed:', {
+        tabId: currentActiveTabState.tab.id,
+        oldSessionId: currentActiveTabState.tab.sessionId,
+        newSessionId: chat.sessionId
+      });
+      updates.sessionId = chat.sessionId;
+      shouldUpdate = true;
+    }
+
+    // Check if title changed (from backend session description or first message)
+    if (chat.title && chat.title !== currentActiveTabState.tab.title && chat.title !== 'New Chat') {
+      console.log('🏷️ Tab title changed:', {
+        tabId: currentActiveTabState.tab.id,
+        oldTitle: currentActiveTabState.tab.title,
+        newTitle: chat.title
+      });
+      updates.title = chat.title;
+      shouldUpdate = true;
+    }
+
+    // Only update if something actually changed
+    if (shouldUpdate) {
+      if (updates.sessionId) {
+        updateSessionId(currentActiveTabState.tab.id, updates.sessionId);
+      }
+      if (updates.title) {
+        // Update the chat object with new title and session ID
+        const updatedChat = {
+          ...currentActiveTabState.chat,
+          title: updates.title,
+          sessionId: updates.sessionId || currentActiveTabState.chat.sessionId
+        };
+        handleChatUpdate(currentActiveTabState.tab.id, updatedChat);
+      }
+    }
+  }, [getActiveTabState, updateSessionId, handleChatUpdate]);
 
   const activeTabState = getActiveTabState();
 
