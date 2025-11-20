@@ -122,6 +122,29 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     }
   }, [tabStates, updateSessionId]);
 
+  // Memoize the setChat callback to prevent infinite re-renders
+  const handleSetChat = useCallback((chat: any) => {
+    const currentActiveTabState = getActiveTabState();
+    if (!currentActiveTabState) return;
+
+    // Handle session ID updates
+    if (chat.sessionId && chat.sessionId !== currentActiveTabState.tab.sessionId) {
+      handleSessionUpdate(chat.sessionId, currentActiveTabState.tab.id);
+    }
+    
+    // Only update if the chat has actually changed
+    const currentChat = currentActiveTabState.chat;
+    const hasChanged = 
+      chat.sessionId !== currentChat.sessionId ||
+      chat.messages.length !== currentChat.messages.length ||
+      chat.title !== currentChat.title ||
+      chat.name !== currentChat.name;
+
+    if (hasChanged) {
+      handleChatUpdate(currentActiveTabState.tab.id, chat);
+    }
+  }, [getActiveTabState, handleSessionUpdate, handleChatUpdate]);
+
   const activeTabState = getActiveTabState();
 
   return (
@@ -144,13 +167,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
           <BaseChat2
             key={activeTabState.tab.sessionId} // Force React to create new instance for each session
             sessionId={activeTabState.tab.sessionId}
-            setChat={(chat) => {
-              // Handle session ID updates
-              if (chat.sessionId && chat.sessionId !== activeTabState.tab.sessionId) {
-                handleSessionUpdate(chat.sessionId, activeTabState.tab.id);
-              }
-              handleChatUpdate(activeTabState.tab.id, chat);
-            }}
+            setChat={handleSetChat}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
             suppressEmptyState={false}
