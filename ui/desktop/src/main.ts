@@ -2779,6 +2779,27 @@ ipcMain.handle('write-file', async (_event, filePath, content) => {
   }
 });
 
+// Document persistence IPC handlers
+ipcMain.handle('show-save-dialog', async (_event, options) => {
+  try {
+    const result = await dialog.showSaveDialog(options);
+    return result;
+  } catch (error) {
+    console.error('Error showing save dialog:', error);
+    return { cancelled: true, error: error.message };
+  }
+});
+
+ipcMain.handle('show-open-dialog', async (_event, options) => {
+  try {
+    const result = await dialog.showOpenDialog(options);
+    return result;
+  } catch (error) {
+    console.error('Error showing open dialog:', error);
+    return { cancelled: true, error: error.message };
+  }
+});
+
 // Enhanced file operations
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {

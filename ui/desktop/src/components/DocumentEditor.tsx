@@ -25,13 +25,16 @@ import {
   Image as ImageIcon,
   Table as TableIcon,
   Save,
+  SaveAll,
   FileText,
   AlertCircle,
   Loader2,
   Undo,
   Redo,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { usePersistence } from '../hooks/usePersistence';
 
 interface DocumentEditorProps {
   filePath?: string;
@@ -57,9 +60,32 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 }) => {
   const [content, setContent] = useState(initialContent);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Use the persistence hook
+  const persistence = usePersistence({
+    filePath,
+    autoSave: true,
+    autoSaveInterval: 30000, // 30 seconds
+    onSave: (result) => {
+      if (result.success) {
+        console.log('Document saved successfully to:', result.filePath);
+      } else {
+        setError(result.error || 'Save failed');
+      }
+    },
+    onLoad: (result) => {
+      if (result.success && result.content) {
+        setContent(result.content);
+        editor?.commands.setContent(result.content);
+      } else {
+        setError(result.error || 'Load failed');
+      }
+    },
+    onError: (errorMessage) => {
+      setError(errorMessage);
+    },
+  });
 
   const editor = useEditor({
     extensions: [
@@ -91,7 +117,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     onUpdate: ({ editor }) => {
       const newContent = editor.getHTML();
       setContent(newContent);
-      setHasUnsavedChanges(true);
+      persistence.updateContent(newContent);
     },
   });
 
@@ -128,7 +154,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           
           setContent(htmlContent);
           editor?.commands.setContent(htmlContent);
-          setHasUnsavedChanges(false);
+          persistence.markAsSaved();
         } else {
           const errorMessage = result.error || 'File not found';
           setError(errorMessage);
@@ -178,46 +204,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     return html;
   };
 
-  const handleSave = async () => {
-    if (!editor || !hasUnsavedChanges) return;
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      const htmlContent = editor.getHTML();
-      
-      if (onSave) {
-        await onSave(htmlContent, filePath);
-      } else if (filePath && window.electron?.writeFile) {
-        // Convert HTML to appropriate file format
-        const fileContent = htmlToFileFormat(htmlContent, filePath);
-        
-        // Save using Electron API
-        await window.electron.writeFile(filePath, fileContent);
-      }
-      
-      setHasUnsavedChanges(false);
-      console.log('Document saved successfully');
-    } catch (err) {
-      console.error('Error saving document:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save document');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-      event.preventDefault();
-      handleSave();
-    }
-  }, [handleSave]);
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  // The persistence hook already handles saving and keyboard shortcuts
 
   if (isLoading) {
     return (
@@ -250,18 +237,30 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           <div className="flex items-center space-x-1 flex-wrap gap-1">
             {/* Save button */}
             <Button
-              onClick={handleSave}
-              disabled={!hasUnsavedChanges || isSaving}
+              onClick={() => persistence.save()}
+              disabled={!persistence.hasUnsavedChanges || persistence.isSaving}
               variant="ghost"
               size="sm"
               className="flex items-center space-x-1"
             >
-              {isSaving ? (
+              {persistence.isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Save className="w-4 h-4" />
               )}
               <span className="text-xs">Save</span>
+            </Button>
+
+            {/* Save As button */}
+            <Button
+              onClick={() => persistence.saveAs()}
+              disabled={persistence.isSaving}
+              variant="ghost"
+              size="sm"
+              className="flex items-center space-x-1"
+            >
+              <SaveAll className="w-4 h-4" />
+              <span className="text-xs">Save As</span>
             </Button>
 
             <div className="w-px h-6 bg-border-subtle mx-1" />
@@ -381,11 +380,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         <div className="flex items-center space-x-2">
           <FileText className="w-4 h-4 text-text-muted" />
           <span className="text-sm font-mono text-text-standard truncate">
-            {filePath ? filePath.split('/').pop() || filePath : 'Untitled Document'}
+            {persistence.filePath ? persistence.filePath.split('/').pop() || persistence.filePath : 'Untitled Document'}
           </span>
-          {hasUnsavedChanges && (
+          {persistence.hasUnsavedChanges && (
             <span className="text-xs text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">
               Unsaved
+            </span>
+          )}
+          {persistence.isAutoSaving && (
+            <span className="text-xs text-blue-500 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">
+              Auto-saving...
             </span>
           )}
           {readOnly && (
@@ -394,9 +398,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </span>
           )}
         </div>
-        {filePath && (
+        {persistence.filePath && (
           <div className="text-xs text-text-subtle mt-1 font-mono truncate">
-            {filePath}
+            {persistence.filePath}
           </div>
         )}
       </div>
@@ -422,7 +426,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               {editor?.storage.characterCount?.words() || 0} words
             </span>
           </div>
-          {hasUnsavedChanges && (
+          {persistence.hasUnsavedChanges && (
             <span className="text-orange-500">
               Press Ctrl+S to save
             </span>
