@@ -165,7 +165,23 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
           }
         : ts
     ));
-  }, []);
+
+    // If the chat has a title and the tab doesn't, update the tab title
+    if (chat.title && chat.title !== 'New Chat') {
+      const tabState = tabStates.find(ts => ts.tab.id === tabId);
+      if (tabState && tabState.tab.title === 'New Chat') {
+        console.log('🏷️ Updating tab title from chat update:', chat.title);
+        setTabStates(prev => prev.map(ts => 
+          ts.tab.id === tabId 
+            ? { 
+                ...ts, 
+                tab: { ...ts.tab, title: chat.title }
+              }
+            : ts
+        ));
+      }
+    }
+  }, [tabStates]);
 
   const handleMessageSubmit = useCallback((message: string, tabId: string) => {
     // Mark tab as having unsaved changes
@@ -227,22 +243,32 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         path: { session_id: tabState.tab.sessionId }
       });
 
-      if (response.data && response.data.description) {
+      if (response.data) {
         const backendTitle = response.data.description;
-        console.log('🏷️ Got backend title:', backendTitle);
+        console.log('🏷️ Backend session data:', {
+          sessionId: tabState.tab.sessionId,
+          description: backendTitle,
+          messageCount: response.data.message_count
+        });
         
-        setTabStates(prev => prev.map(ts => 
-          ts.tab.id === tabId 
-            ? { 
-                ...ts, 
-                tab: { ...ts.tab, title: backendTitle },
-                chat: { ...ts.chat, title: backendTitle }
-              }
-            : ts
-        ));
+        // Only update if we got a meaningful title from the backend
+        if (backendTitle && backendTitle.trim() && backendTitle !== 'New Chat') {
+          console.log('🏷️ Updating tab title from backend:', backendTitle);
+          setTabStates(prev => prev.map(ts => 
+            ts.tab.id === tabId 
+              ? { 
+                  ...ts, 
+                  tab: { ...ts.tab, title: backendTitle },
+                  chat: { ...ts.chat, title: backendTitle }
+                }
+              : ts
+          ));
+        } else {
+          console.log('🏷️ No meaningful title found in backend, keeping current title');
+        }
       }
     } catch (error) {
-      console.warn('Failed to sync tab title with backend:', error);
+      console.warn('Failed to sync tab title with backend for session:', tabState.tab.sessionId, error);
       // Don't throw - this is a nice-to-have feature
     }
   }, [tabStates]);

@@ -55,15 +55,14 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   useEffect(() => {
     const syncAllTabTitles = async () => {
       for (const tabState of tabStates) {
-        // Only sync tabs that have session IDs but still show "New Chat"
-        if (tabState.tab.sessionId && 
-            tabState.tab.title === 'New Chat' && 
-            !tabState.tab.sessionId.startsWith('new_')) {
+        // Sync titles for any tab that shows "New Chat" and has a session ID
+        // This includes both existing sessions and new sessions that might have been created
+        if (tabState.tab.sessionId && tabState.tab.title === 'New Chat') {
           try {
-            console.log('🏷️ Syncing title for existing session:', tabState.tab.sessionId);
+            console.log('🏷️ Attempting to sync title for session:', tabState.tab.sessionId);
             await syncTabTitleWithBackend(tabState.tab.id);
           } catch (error) {
-            console.warn('Failed to sync tab title:', error);
+            console.warn('Failed to sync tab title for session:', tabState.tab.sessionId, error);
           }
         }
       }
