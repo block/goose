@@ -633,10 +633,7 @@ impl Agent {
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
-        SessionManager::update_session(&session.id)
-            .extension_data(session_data.extension_data)
-            .apply()
-            .await?;
+        Self::update_session_extension_data(&session.id, session_data.extension_data).await?;
 
         Ok(())
     }
@@ -969,10 +966,7 @@ impl Agent {
                     }
 
                     // Single atomic update to session
-                    SessionManager::update_session(&session_config.id)
-                        .extension_data(session.extension_data)
-                        .apply()
-                        .await?;
+                    Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
                         
                     current_turn
                 };
@@ -1366,7 +1360,6 @@ impl Agent {
         };
 
         // Extract directory from file path
-        // Handle both existing files and new files (where is_file() is false)
         let directory = if file_path.is_dir() {
             file_path
         } else {
@@ -1382,7 +1375,6 @@ impl Agent {
         }
 
         // Security check: Verify directory is within working directory
-        // We trust load_hints_from_directory to handle hierarchical loading safely
         let mut session = SessionManager::get_session(&session_config.id, false).await?;
         let working_dir = session.working_dir.clone();
 
@@ -1406,7 +1398,7 @@ impl Agent {
             let gitignore = build_gitignore(&working_dir);
             let hints_filenames = get_context_filenames();
 
-            match load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
+                match load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
                 Some(content) => {
                     let tag = loaded_state.mark_loaded(directory, current_turn);
                     
@@ -1422,22 +1414,27 @@ impl Agent {
                     save_needed = true;
                     hints_loaded = true;
                 }
-                None => {
-                    // Do not mark as loaded if no hints found, so we re-check next time
-                    // This allows users to add hints later and have them picked up
-                }
+                None => {}
             }
         }
 
         if save_needed {
             save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
-            SessionManager::update_session(&session_config.id)
-                .extension_data(session.extension_data)
-                .apply()
-                .await?;
+            Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
         }
 
         Ok(hints_loaded)
+    }
+
+    /// Helper to update session extension data
+    async fn update_session_extension_data(
+        session_id: &str,
+        extension_data: crate::session::extension_data::ExtensionData,
+    ) -> Result<()> {
+        SessionManager::update_session(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await
     }
 
     /// Internal helper to prune stale hints given extension data
@@ -1488,10 +1485,7 @@ impl Agent {
         let count = self.prune_stale_hints_internal(&mut session.extension_data, current_turn).await?;
         
         if count > 0 {
-             SessionManager::update_session(&session_config.id)
-                .extension_data(session.extension_data)
-                .apply()
-                .await?;
+             Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
         }
         
         Ok(count)
