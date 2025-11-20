@@ -313,19 +313,20 @@ function BaseChatContent({
   const shouldShowPopularTopics = showPopularTopics && 
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
-  const chat: ChatType = {
+  // Memoize the chat object to prevent infinite re-renders
+  const chat: ChatType = useMemo(() => ({
     messageHistoryIndex: 0,
     messages,
     recipe,
     sessionId: session?.id || sessionId, // Use actual session ID if available
     name: session?.name || 'No Session',
     title: session?.description || (messages.length > 0 ? 'Chat' : 'New Chat'),
-  };
+  }), [messages, recipe, session?.id, sessionId, session?.name, session?.description]);
 
   // Update parent with chat state whenever it changes
   useEffect(() => {
     setChat(chat);
-  }, [setChat, session?.id, sessionId, messages, session?.description, session?.name, recipe]);
+  }, [setChat, chat]);
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
