@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TabBar } from './TabBar';
 import BaseChat2 from './BaseChat2';
 import { TabSidecar } from './TabSidecar';
+import MultiPanelTabSidecar from './MultiPanelTabSidecar';
 import { useTabContext } from '../contexts/TabContext';
 import { ResizableSplitter } from './Layout/ResizableSplitter';
 
@@ -221,11 +222,19 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                   />
                 }
                 rightContent={
-                  <TabSidecar
-                    sidecarState={sidecarState}
-                    onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
-                    tabId={activeTabState.tab.id}
-                  />
+                  sidecarState && sidecarState.activeViews.length > 1 ? (
+                    <MultiPanelTabSidecar
+                      sidecarState={sidecarState}
+                      onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
+                      tabId={activeTabState.tab.id}
+                    />
+                  ) : (
+                    <TabSidecar
+                      sidecarState={sidecarState}
+                      onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
+                      tabId={activeTabState.tab.id}
+                    />
+                  )
                 }
                 initialLeftWidth={chatWidth}
                 minLeftWidth={30}

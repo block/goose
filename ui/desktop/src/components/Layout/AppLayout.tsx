@@ -6,6 +6,11 @@ import { SidebarProvider } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
 import { EnhancedBentoBox, SidecarContainer } from './EnhancedBentoBox';
 import { ResizableSplitter } from './ResizableSplitter';
+import MultiPanelSplitter, { LayoutMode, PanelConfig } from './MultiPanelSplitter';
+import SidecarTabs from '../SidecarTabs';
+import { FileViewer } from '../FileViewer';
+import DocumentEditor from '../DocumentEditor';
+import WebViewer from '../WebViewer';
 
 import { TopNavigation } from './TopNavigation';
 
@@ -35,61 +40,109 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   // Bento box state management
   const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
   
+  // Multi-panel state management
+  const [panels, setPanels] = useState<PanelConfig[]>([]);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('single');
+  const [useMultiPanel, setUseMultiPanel] = useState(false); // Toggle between old and new system
+  
   // Resizable splitter state
   const [chatWidth, setChatWidth] = useState(60); // Default 60% for chat, 40% for sidecars
 
-  // Convert sidecar views to bento box containers
+  // Convert sidecar views to both bento box containers and panels
   React.useEffect(() => {
     if (!sidecar) return;
 
-    const containers: SidecarContainer[] = sidecar.views
-      .filter(view => sidecar.activeViews.includes(view.id))
-      .map(view => {
-        // Extract content props based on view type
-        let contentProps: SidecarContainer['contentProps'] = {};
-        let contentType: SidecarContainer['contentType'] = null;
+    const activeViews = sidecar.views.filter(view => sidecar.activeViews.includes(view.id));
 
-        if (view.id.startsWith('localhost-')) {
-          contentType = 'localhost';
-          contentProps = {
-            initialUrl: view.fileName || 'http://localhost:3000',
-            allowAllSites: true
-          };
-        } else if (view.id.startsWith('web-viewer-')) {
-          contentType = 'web-viewer';
-          contentProps = {
-            initialUrl: view.fileName || 'https://google.com',
-            allowAllSites: true
-          };
-        } else if (view.id.startsWith('file-')) {
-          contentType = 'file';
-          contentProps = {
-            filePath: view.fileName || ''
-          };
-        } else if (view.id.startsWith('editor-')) {
-          contentType = 'document-editor';
-          contentProps = {
-            filePath: view.fileName,
-            placeholder: 'Start writing your document...'
-          };
-        } else if (view.id.startsWith('diff-')) {
-          contentType = 'sidecar'; // Treat diff as generic sidecar
-        } else {
-          contentType = 'sidecar';
-        }
+    // Convert to bento box containers (existing system)
+    const containers: SidecarContainer[] = activeViews.map(view => {
+      // Extract content props based on view type
+      let contentProps: SidecarContainer['contentProps'] = {};
+      let contentType: SidecarContainer['contentType'] = null;
 
-        return {
-          id: view.id,
-          content: view.content,
-          contentType,
-          title: view.title,
-          size: 'medium' as const,
-          contentProps
+      if (view.id.startsWith('localhost-')) {
+        contentType = 'localhost';
+        contentProps = {
+          initialUrl: view.fileName || 'http://localhost:3000',
+          allowAllSites: true
         };
-      });
+      } else if (view.id.startsWith('web-viewer-')) {
+        contentType = 'web-viewer';
+        contentProps = {
+          initialUrl: view.fileName || 'https://google.com',
+          allowAllSites: true
+        };
+      } else if (view.id.startsWith('file-')) {
+        contentType = 'file';
+        contentProps = {
+          filePath: view.fileName || ''
+        };
+      } else if (view.id.startsWith('editor-')) {
+        contentType = 'document-editor';
+        contentProps = {
+          filePath: view.fileName,
+          placeholder: 'Start writing your document...'
+        };
+      } else if (view.id.startsWith('diff-')) {
+        contentType = 'sidecar'; // Treat diff as generic sidecar
+      } else {
+        contentType = 'sidecar';
+      }
+
+      return {
+        id: view.id,
+        content: view.content,
+        contentType,
+        title: view.title,
+        size: 'medium' as const,
+        contentProps
+      };
+    });
+
+    // Convert to panels (new multi-panel system)
+    const newPanels: PanelConfig[] = activeViews.map((view, index) => {
+      let content: React.ReactNode;
+
+      // Render content based on view type
+      if (view.id.startsWith('localhost-')) {
+        content = <SidecarTabs initialUrl={view.fileName || 'http://localhost:3000'} />;
+      } else if (view.id.startsWith('web-viewer-')) {
+        content = <WebViewer initialUrl={view.fileName || 'https://google.com'} allowAllSites={true} />;
+      } else if (view.id.startsWith('file-')) {
+        content = <FileViewer filePath={view.fileName || ''} />;
+      } else if (view.id.startsWith('editor-')) {
+        content = <DocumentEditor filePath={view.fileName} placeholder="Start writing your document..." />;
+      } else {
+        content = view.content || (
+          <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+            <p>Sidecar content</p>
+          </div>
+        );
+      }
+
+      return {
+        id: view.id,
+        content,
+        title: view.title,
+        minWidth: 200,
+        minHeight: 150,
+        size: { width: 50, height: 50 }, // Default size percentages
+        position: { row: Math.floor(index / 2), col: index % 2 }
+      };
+    });
 
     setBentoBoxContainers(containers);
-  }, [sidecar?.views, sidecar?.activeViews]);
+    setPanels(newPanels);
+
+    // Auto-enable multi-panel mode when we have multiple panels
+    if (newPanels.length > 1 && !useMultiPanel) {
+      setUseMultiPanel(true);
+      setLayoutMode('columns'); // Default to columns layout
+    } else if (newPanels.length <= 1 && useMultiPanel) {
+      setUseMultiPanel(false);
+      setLayoutMode('single');
+    }
+  }, [sidecar?.views, sidecar?.activeViews, useMultiPanel]);
 
   // Bento box handlers
   const handleAddToBentoBox = useCallback((type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer', filePath?: string, url?: string, title?: string) => {
@@ -146,6 +199,23 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     // For now, just update local state
     // The sidecar system doesn't support reordering, so we'll manage it locally
     setBentoBoxContainers(containers);
+  }, []);
+
+  // Multi-panel handlers
+  const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
+    setLayoutMode(mode);
+  }, []);
+
+  const handlePanelResize = useCallback((panelId: string, size: { width: number; height: number }) => {
+    setPanels(prevPanels => 
+      prevPanels.map(panel => 
+        panel.id === panelId ? { ...panel, size } : panel
+      )
+    );
+  }, []);
+
+  const handlePanelReorder = useCallback((newPanels: PanelConfig[]) => {
+    setPanels(newPanels);
   }, []);
 
   const handleNewWindow = () => {
@@ -206,24 +276,37 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         
         {/* Main Content Area */}
         <div className="flex-1 overflow-hidden">
-          {bentoBoxContainers.length > 0 ? (
-            <ResizableSplitter
-              leftContent={<Outlet />}
-              rightContent={
-                <EnhancedBentoBox
-                  containers={bentoBoxContainers}
-                  onRemoveContainer={handleRemoveFromBentoBox}
-                  onAddContainer={handleAddToBentoBox}
-                  onReorderContainers={handleReorderBentoBox}
-                />
-              }
-              initialLeftWidth={chatWidth}
-              minLeftWidth={30}
-              maxLeftWidth={80}
-              onResize={setChatWidth}
-              className="h-full"
-              floatingRight={true}
-            />
+          {panels.length > 0 ? (
+            useMultiPanel && panels.length > 1 ? (
+              <MultiPanelSplitter
+                leftContent={<Outlet />}
+                panels={panels}
+                layoutMode={layoutMode}
+                onLayoutModeChange={handleLayoutModeChange}
+                onPanelResize={handlePanelResize}
+                onPanelReorder={handlePanelReorder}
+                initialLeftWidth={chatWidth}
+                className="h-full"
+              />
+            ) : (
+              <ResizableSplitter
+                leftContent={<Outlet />}
+                rightContent={
+                  <EnhancedBentoBox
+                    containers={bentoBoxContainers}
+                    onRemoveContainer={handleRemoveFromBentoBox}
+                    onAddContainer={handleAddToBentoBox}
+                    onReorderContainers={handleReorderBentoBox}
+                  />
+                }
+                initialLeftWidth={chatWidth}
+                minLeftWidth={30}
+                maxLeftWidth={80}
+                onResize={setChatWidth}
+                className="h-full"
+                floatingRight={true}
+              />
+            )
           ) : (
             <Outlet />
           )}

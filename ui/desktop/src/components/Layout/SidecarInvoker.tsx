@@ -112,28 +112,13 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({
 
   const handleMouseEnter = async () => {
     setIsHovering(true);
-    // Create iframe backdrops to show live content behind the dock
-    try {
-      const result = await window.electron.createIframeBackdrop();
-      if (result.success && result.backdropData) {
-        setIframeBackdrops(result.backdropData);
-        console.log('🎬 Created iframe backdrops:', result.backdropData.length);
-      }
-    } catch (error) {
-      console.error('Failed to create iframe backdrop:', error);
-    }
+    // Disabled screenshot backdrop functionality to prevent WebBrowser interference
+    // The screenshot capture was causing weird behavior when hovering over dock
   };
 
   const handleMouseLeave = async () => {
     setIsHovering(false);
-    // Remove iframe backdrops and restore BrowserViews
-    try {
-      await window.electron.removeIframeBackdrop();
-      setIframeBackdrops([]);
-      console.log('🎬 Removed iframe backdrops');
-    } catch (error) {
-      console.error('Failed to remove iframe backdrop:', error);
-    }
+    // Disabled screenshot backdrop functionality to prevent WebBrowser interference
   };
 
   // Define dock apps with proper icons and colors
