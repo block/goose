@@ -1161,7 +1161,7 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
 
     console.log('[Main] Creating BrowserView with bounds:', bounds);
 
-    // Create a new BrowserView with enhanced compatibility
+    // Create a new BrowserView with enhanced compatibility for modern websites
     const view = new BrowserView({
       webPreferences: {
         nodeIntegration: false,
@@ -1175,11 +1175,21 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
         java: false,
         // Use a separate session for better isolation and compatibility
         partition: 'persist:browserview',
-        // Enable additional web features
+        // Enable additional web features for modern websites
         backgroundThrottling: false,
         offscreen: false,
-        // Set a standard user agent to avoid detection issues
-        // This helps with sites that might serve different content to Electron
+        // Enable additional Chromium features for better compatibility
+        enableRemoteModule: false,
+        sandbox: false,
+        // Enable modern web APIs
+        enableWebSQL: false,
+        // Better JavaScript performance
+        v8CacheOptions: 'code',
+        // Enable additional security features while maintaining compatibility
+        safeDialogs: true,
+        safeDialogsMessage: 'This page is trying to open a dialog',
+        // Enable spellcheck
+        spellcheck: true,
       },
     });
 
