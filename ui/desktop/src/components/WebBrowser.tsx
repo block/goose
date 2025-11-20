@@ -16,22 +16,48 @@ interface NavigationState {
   url: string;
 }
 
+// Create a global store for WebBrowser state persistence across tab switches
+const webBrowserStateStore = new Map<string, {
+  viewId: string | null;
+  currentUrl: string;
+  inputUrl: string;
+  navigationState: NavigationState;
+  isInitialized: boolean;
+}>();
+
 export const WebBrowser: React.FC<WebBrowserProps> = ({
   initialUrl = 'https://google.com',
   title = 'Web Browser',
   onClose,
   className = ''
 }) => {
-  const [currentUrl, setCurrentUrl] = useState(initialUrl);
-  const [inputUrl, setInputUrl] = useState(initialUrl);
-  const [viewId, setViewId] = useState<string | null>(null);
-  const [navigationState, setNavigationState] = useState<NavigationState>({
-    canGoBack: false,
-    canGoForward: false,
-    isLoading: false,
-    url: initialUrl
-  });
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Create a unique key for this WebBrowser instance based on its props
+  const instanceKey = `${initialUrl}-${title}`;
+  
+  // Try to restore state from the store, or use initial values
+  const getStoredState = () => {
+    const stored = webBrowserStateStore.get(instanceKey);
+    return stored || {
+      viewId: null,
+      currentUrl: initialUrl,
+      inputUrl: initialUrl,
+      navigationState: {
+        canGoBack: false,
+        canGoForward: false,
+        isLoading: false,
+        url: initialUrl
+      },
+      isInitialized: false
+    };
+  };
+
+  const storedState = getStoredState();
+  
+  const [currentUrl, setCurrentUrl] = useState(storedState.currentUrl);
+  const [inputUrl, setInputUrl] = useState(storedState.inputUrl);
+  const [viewId, setViewId] = useState<string | null>(storedState.viewId);
+  const [navigationState, setNavigationState] = useState<NavigationState>(storedState.navigationState);
+  const [isInitialized, setIsInitialized] = useState(storedState.isInitialized);
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const browserContainerRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
@@ -39,10 +65,21 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
   const isVisibleRef = useRef<boolean>(true);
   const isEditingUrlRef = useRef<boolean>(false);
 
-  // Create BrowserView when component mounts
+  // Save state to store whenever it changes
+  useEffect(() => {
+    webBrowserStateStore.set(instanceKey, {
+      viewId,
+      currentUrl,
+      inputUrl,
+      navigationState,
+      isInitialized
+    });
+  }, [instanceKey, viewId, currentUrl, inputUrl, navigationState, isInitialized]);
+
+  // Create or restore BrowserView when component mounts
   useEffect(() => {
     const initializeBrowser = async () => {
-      if (!browserContainerRef.current || isInitialized) return;
+      if (!browserContainerRef.current) return;
 
       const container = browserContainerRef.current;
       const rect = container.getBoundingClientRect();
@@ -55,39 +92,58 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         height: rect.height
       };
 
-      try {
-        const result = await window.electron.createBrowserView(initialUrl, bounds);
+      // If we already have a viewId from restored state, try to reuse it
+      if (viewId && isInitialized) {
+        console.log(`WebBrowser [${instanceIdRef.current}]: Restoring existing BrowserView:`, viewId);
         
-        if (result.success && result.viewId) {
-          setViewId(result.viewId);
-          setIsInitialized(true);
-          console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView created successfully:`, result.viewId);
-          
+        // Update bounds for the existing BrowserView
+        try {
+          await window.electron.updateBrowserViewBounds(viewId, bounds);
           // Start polling for navigation state
-          pollNavigationState(result.viewId);
-        } else {
-          console.error(`WebBrowser [${instanceIdRef.current}]: Failed to create BrowserView:`, result.error);
+          pollNavigationState(viewId);
+          return;
+        } catch (error) {
+          console.warn(`WebBrowser [${instanceIdRef.current}]: Failed to restore BrowserView, creating new one:`, error);
+          // If restoration fails, create a new one
+          setViewId(null);
+          setIsInitialized(false);
         }
-      } catch (error) {
-        console.error(`WebBrowser [${instanceIdRef.current}]: Error creating BrowserView:`, error);
+      }
+
+      // Create a new BrowserView if we don't have one or restoration failed
+      if (!isInitialized) {
+        try {
+          // Use currentUrl instead of initialUrl to preserve navigation state
+          const urlToLoad = currentUrl || initialUrl;
+          const result = await window.electron.createBrowserView(urlToLoad, bounds);
+          
+          if (result.success && result.viewId) {
+            setViewId(result.viewId);
+            setIsInitialized(true);
+            console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView created successfully:`, result.viewId);
+            
+            // Start polling for navigation state
+            pollNavigationState(result.viewId);
+          } else {
+            console.error(`WebBrowser [${instanceIdRef.current}]: Failed to create BrowserView:`, result.error);
+          }
+        } catch (error) {
+          console.error(`WebBrowser [${instanceIdRef.current}]: Error creating BrowserView:`, error);
+        }
       }
     };
 
     initializeBrowser();
 
-    // Cleanup on unmount
+    // Don't destroy BrowserView on unmount - let it persist for tab switching
+    // Only destroy when the sidecar is actually closed
     return () => {
-      console.log(`WebBrowser [${instanceIdRef.current}]: Cleaning up, destroying BrowserView:`, viewId);
-      if (viewId) {
-        window.electron.destroyBrowserView(viewId).catch((error) => {
-          console.error(`WebBrowser [${instanceIdRef.current}]: Error destroying BrowserView:`, error);
-        });
-      }
+      console.log(`WebBrowser [${instanceIdRef.current}]: Component unmounting, but preserving BrowserView for tab switching`);
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [initialUrl, isInitialized]); // Removed pollNavigationState dependency
+  }, [instanceKey]); // Use instanceKey instead of initialUrl and isInitialized // Removed pollNavigationState dependency
 
   // Listen for sidecar closing events to trigger explicit cleanup
   useEffect(() => {
@@ -101,6 +157,11 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         window.electron.destroyBrowserView(viewId).catch((error) => {
           console.error(`WebBrowser [${instanceIdRef.current}]: Error destroying BrowserView during sidecar close:`, error);
         });
+        
+        // Clean up the state store for this instance
+        webBrowserStateStore.delete(instanceKey);
+        console.log(`WebBrowser [${instanceIdRef.current}]: Cleared state store for instance:`, instanceKey);
+        
         setViewId(null);
         setIsInitialized(false);
       }
@@ -111,7 +172,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     return () => {
       window.removeEventListener('sidecar-web-view-closing', handleSidecarClosing as EventListener);
     };
-  }, [viewId]);
+  }, [viewId, instanceKey]);
 
   // Sync ref with state
   useEffect(() => {
