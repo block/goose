@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
-import { FileText, Edit, Trash2, Play, Calendar, AlertCircle, Link } from 'lucide-react';
+import {
+  FileText,
+  Edit,
+  Trash2,
+  Play,
+  Calendar,
+  AlertCircle,
+  Link,
+  Clock,
+  Terminal,
+} from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,46 +18,58 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import { deleteRecipe, RecipeManifestResponse, startAgent } from '../../api';
+import {
+  deleteRecipe,
+  RecipeManifest,
+  startAgent,
+  scheduleRecipe,
+  setRecipeSlashCommand,
+} from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink, Recipe } from '../../recipe';
-import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
 import { useNavigation } from '../../hooks/useNavigation';
+import { CronPicker } from '../schedule/CronPicker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import cronstrue from 'cronstrue';
 
 export default function RecipesView() {
   const setView = useNavigation();
-  const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<RecipeManifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifest | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [showContent, setShowContent] = useState(false);
 
-  // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [selectedRecipeForSchedule, setSelectedRecipeForSchedule] = useState<Recipe | null>(null);
+
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [scheduleRecipeManifest, setScheduleRecipeManifest] = useState<RecipeManifest | null>(null);
+  const [scheduleCron, setScheduleCron] = useState<string>('');
+
+  const [showSlashCommandDialog, setShowSlashCommandDialog] = useState(false);
+  const [slashCommandRecipeManifest, setSlashCommandRecipeManifest] =
+    useState<RecipeManifest | null>(null);
+  const [slashCommand, setSlashCommand] = useState<string>('');
+  const [scheduleValid, setScheduleIsValid] = useState(true);
 
   useEffect(() => {
     loadSavedRecipes();
   }, []);
 
-  // Handle Esc key for editor modal
   useEscapeKey(showEditor, () => setShowEditor(false));
 
-  // Minimum loading time to prevent skeleton flash
   useEffect(() => {
     if (!loading && showSkeleton) {
       const timer = setTimeout(() => {
         setShowSkeleton(false);
-        // Add a small delay before showing content for fade-in effect
         setTimeout(() => {
           setShowContent(true);
         }, 50);
-      }, 300); // Show skeleton for at least 300ms
+      }, 300);
 
       return () => clearTimeout(timer);
     }
@@ -91,25 +113,15 @@ export default function RecipesView() {
       }
     } else {
       try {
-        // onLoadRecipe is not working for loading recipes. It looks correct
-        // but the instructions are not flowing through to the server.
-        // Needs a fix but commenting out to get prod back up and running.
-        //
-        // if (onLoadRecipe) {
-        //   // Use the callback to navigate within the same window
-        //   onLoadRecipe(savedRecipe.recipe);
-        // } else {
-        // Fallback to creating a new window (for backwards compatibility)
         window.electron.createChatWindow(
-          undefined, // query
-          undefined, // dir
-          undefined, // version
-          undefined, // resumeSessionId
-          recipe, // recipe config
-          undefined, // view type,
-          recipeId // recipe id
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          recipe,
+          undefined,
+          recipeId
         );
-        // }
       } catch (err) {
         console.error('Failed to load recipe:', err);
         setError(err instanceof Error ? err.message : 'Failed to load recipe');
@@ -117,8 +129,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleDeleteRecipe = async (recipeManifest: RecipeManifestResponse) => {
-    // TODO: Use Electron's dialog API for confirmation
+  const handleDeleteRecipe = async (recipeManifest: RecipeManifest) => {
     const result = await window.electron.showMessageBox({
       type: 'warning',
       buttons: ['Cancel', 'Delete'],
@@ -145,7 +156,7 @@ export default function RecipesView() {
     }
   };
 
-  const handleEditRecipe = async (recipeManifest: RecipeManifestResponse) => {
+  const handleEditRecipe = async (recipeManifest: RecipeManifest) => {
     setSelectedRecipe(recipeManifest);
     setShowEditor(true);
   };
@@ -153,13 +164,12 @@ export default function RecipesView() {
   const handleEditorClose = (wasSaved?: boolean) => {
     setShowEditor(false);
     setSelectedRecipe(null);
-    // Only reload recipes if a recipe was actually saved/updated
     if (wasSaved) {
       loadSavedRecipes();
     }
   };
 
-  const handleCopyDeeplink = async (recipeManifest: RecipeManifestResponse) => {
+  const handleCopyDeeplink = async (recipeManifest: RecipeManifest) => {
     try {
       const deeplink = await generateDeepLink(recipeManifest.recipe);
       await navigator.clipboard.writeText(deeplink);
@@ -176,25 +186,132 @@ export default function RecipesView() {
     }
   };
 
-  const handleScheduleRecipe = (recipe: Recipe) => {
-    setSelectedRecipeForSchedule(recipe);
-    setShowScheduleModal(true);
+  const handleOpenScheduleDialog = (recipeManifest: RecipeManifest) => {
+    setScheduleRecipeManifest(recipeManifest);
+    setScheduleCron(recipeManifest.schedule_cron || '0 0 14 * * *');
+    setShowScheduleDialog(true);
   };
 
-  const handleCreateScheduleFromRecipe = async (deepLink: string) => {
-    // Navigate to schedules view with the deep link in state
-    setView('schedules', { pendingScheduleDeepLink: deepLink });
+  const handleSaveSchedule = async () => {
+    if (!scheduleRecipeManifest) return;
 
-    setShowScheduleModal(false);
-    setSelectedRecipeForSchedule(null);
+    try {
+      await scheduleRecipe({
+        body: {
+          id: scheduleRecipeManifest.id,
+          cron_schedule: scheduleCron,
+        },
+      });
+
+      toastSuccess({
+        title: 'Schedule saved',
+        msg: `Recipe will run ${getReadableCron(scheduleCron)}`,
+      });
+
+      setShowScheduleDialog(false);
+      setScheduleRecipeManifest(null);
+      await loadSavedRecipes();
+    } catch (error) {
+      console.error('Failed to save schedule:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save schedule');
+    }
   };
 
-  // Render a recipe item
+  const handleRemoveSchedule = async () => {
+    if (!scheduleRecipeManifest) return;
+
+    try {
+      await scheduleRecipe({
+        body: {
+          id: scheduleRecipeManifest.id,
+          cron_schedule: null,
+        },
+      });
+
+      toastSuccess({
+        title: 'Schedule removed',
+        msg: 'Recipe will no longer run automatically',
+      });
+
+      setShowScheduleDialog(false);
+      setScheduleRecipeManifest(null);
+      await loadSavedRecipes();
+    } catch (error) {
+      console.error('Failed to remove schedule:', error);
+      setError(error instanceof Error ? error.message : 'Failed to remove schedule');
+    }
+  };
+
+  const handleOpenSlashCommandDialog = (recipeManifest: RecipeManifest) => {
+    setSlashCommandRecipeManifest(recipeManifest);
+    setSlashCommand(recipeManifest.slash_command || '');
+    setShowSlashCommandDialog(true);
+  };
+
+  const handleSaveSlashCommand = async () => {
+    if (!slashCommandRecipeManifest) return;
+
+    try {
+      await setRecipeSlashCommand({
+        body: {
+          id: slashCommandRecipeManifest.id,
+          slash_command: slashCommand || null,
+        },
+      });
+
+      toastSuccess({
+        title: 'Slash command saved',
+        msg: slashCommand ? `Use /${slashCommand} to run this recipe` : 'Slash command removed',
+      });
+
+      setShowSlashCommandDialog(false);
+      setSlashCommandRecipeManifest(null);
+      await loadSavedRecipes();
+    } catch (error) {
+      console.error('Failed to save slash command:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save slash command');
+    }
+  };
+
+  const handleRemoveSlashCommand = async () => {
+    if (!slashCommandRecipeManifest) return;
+
+    try {
+      await setRecipeSlashCommand({
+        body: {
+          id: slashCommandRecipeManifest.id,
+          slash_command: null,
+        },
+      });
+
+      toastSuccess({
+        title: 'Slash command removed',
+        msg: 'Recipe slash command has been removed',
+      });
+
+      setShowSlashCommandDialog(false);
+      setSlashCommandRecipeManifest(null);
+      await loadSavedRecipes();
+    } catch (error) {
+      console.error('Failed to remove slash command:', error);
+      setError(error instanceof Error ? error.message : 'Failed to remove slash command');
+    }
+  };
+
+  const getReadableCron = (cron: string): string => {
+    try {
+      const cronWithoutSeconds = cron.split(' ').slice(1).join(' ');
+      return cronstrue.toString(cronWithoutSeconds).toLowerCase();
+    } catch {
+      return cron;
+    }
+  };
+
   const RecipeItem = ({
     recipeManifestResponse,
-    recipeManifestResponse: { recipe, lastModified },
+    recipeManifestResponse: { recipe, last_modified: lastModified, schedule_cron, slash_command },
   }: {
-    recipeManifestResponse: RecipeManifestResponse;
+    recipeManifestResponse: RecipeManifest;
   }) => (
     <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted transition-all duration-150">
       <div className="flex justify-between items-start gap-4">
@@ -203,11 +320,41 @@ export default function RecipesView() {
             <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
           </div>
           <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
-          <div className="flex items-center text-xs text-text-muted">
-            <Calendar className="w-3 h-3 mr-1" />
-            {convertToLocaleDateString(lastModified)}
+          <div className="flex flex-col gap-1 text-xs text-text-muted">
+            <div className="flex items-center">
+              <Calendar className="w-3 h-3 mr-1" />
+              {convertToLocaleDateString(lastModified)}
+            </div>
+            {(schedule_cron || slash_command) && (
+              <div className="flex items-center gap-3">
+                {schedule_cron && (
+                  <div className="flex items-center text-blue-600 dark:text-blue-400">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Runs {getReadableCron(schedule_cron)}
+                  </div>
+                )}
+                {slash_command && (
+                  <div className="flex items-center text-purple-600 dark:text-purple-400">
+                    /{slash_command}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
+
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenSlashCommandDialog(recipeManifestResponse);
+          }}
+          variant={slash_command ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 w-8 p-0"
+          title={slash_command ? 'Edit slash command' : 'Add slash command'}
+        >
+          <Terminal className="w-4 h-4" />
+        </Button>
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
@@ -248,14 +395,14 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleScheduleRecipe(recipe);
+              handleOpenScheduleDialog(recipeManifestResponse);
             }}
-            variant="outline"
+            variant={schedule_cron ? 'default' : 'outline'}
             size="sm"
             className="h-8 w-8 p-0"
-            title="Create schedule"
+            title={schedule_cron ? 'Edit schedule' : 'Add schedule'}
           >
-            <Calendar className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
           </Button>
           <Button
             onClick={(e) => {
@@ -274,7 +421,6 @@ export default function RecipesView() {
     </Card>
   );
 
-  // Render skeleton loader for recipe items
   const RecipeSkeleton = () => (
     <Card className="p-2 mb-2 bg-background-default">
       <div className="flex justify-between items-start gap-4">
@@ -334,7 +480,7 @@ export default function RecipesView() {
 
     return (
       <div className="space-y-2">
-        {savedRecipes.map((recipeManifestResponse: RecipeManifestResponse) => (
+        {savedRecipes.map((recipeManifestResponse: RecipeManifest) => (
           <RecipeItem
             key={recipeManifestResponse.id}
             recipeManifestResponse={recipeManifestResponse}
@@ -412,16 +558,91 @@ export default function RecipesView() {
         />
       )}
 
-      {showScheduleModal && selectedRecipeForSchedule && (
-        <ScheduleFromRecipeModal
-          isOpen={showScheduleModal}
-          onClose={() => {
-            setShowScheduleModal(false);
-            setSelectedRecipeForSchedule(null);
-          }}
-          recipe={selectedRecipeForSchedule}
-          onCreateSchedule={handleCreateScheduleFromRecipe}
-        />
+      {showScheduleDialog && scheduleRecipeManifest && (
+        <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add'} Schedule
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <CronPicker
+                schedule={
+                  scheduleRecipeManifest.schedule_cron
+                    ? {
+                        id: scheduleRecipeManifest.id,
+                        source: '',
+                        cron: scheduleRecipeManifest.schedule_cron,
+                        last_run: null,
+                        currently_running: false,
+                        paused: false,
+                      }
+                    : null
+                }
+                onChange={setScheduleCron}
+                isValid={setScheduleIsValid}
+              />
+              <div className="flex gap-2 justify-end">
+                {scheduleRecipeManifest.schedule_cron && (
+                  <Button variant="outline" onClick={handleRemoveSchedule}>
+                    Remove Schedule
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveSchedule} disabled={!scheduleValid}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showSlashCommandDialog && slashCommandRecipeManifest && (
+        <Dialog open={showSlashCommandDialog} onOpenChange={setShowSlashCommandDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Slash Command</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Set a slash command to quickly run this recipe from any chat
+                </p>
+                <div className="flex gap-2 items-center">
+                  <span className="text-muted-foreground">/</span>
+                  <input
+                    type="text"
+                    value={slashCommand}
+                    onChange={(e) => setSlashCommand(e.target.value)}
+                    placeholder="command-name"
+                    className="flex-1 px-3 py-2 border rounded text-sm"
+                  />
+                </div>
+                {slashCommand && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Use /{slashCommand} in any chat to run this recipe
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                {slashCommandRecipeManifest.slash_command && (
+                  <Button variant="outline" onClick={handleRemoveSlashCommand}>
+                    Remove
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setShowSlashCommandDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveSlashCommand}>Save</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

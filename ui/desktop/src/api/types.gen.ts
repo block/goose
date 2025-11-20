@@ -36,6 +36,8 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
+export type CommandType = 'Builtin' | 'Recipe';
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -322,7 +324,7 @@ export type KillJobResponse = {
 };
 
 export type ListRecipeResponse = {
-    recipe_manifest_responses: Array<RecipeManifestResponse>;
+    manifests: Array<RecipeManifest>;
 };
 
 export type ListSchedulesResponse = {
@@ -564,10 +566,13 @@ export type Recipe = {
     version?: string;
 };
 
-export type RecipeManifestResponse = {
+export type RecipeManifest = {
+    file_path: string;
     id: string;
-    lastModified: string;
+    last_modified: string;
     recipe: Recipe;
+    schedule_cron?: string | null;
+    slash_command?: string | null;
 };
 
 export type RecipeParameter = {
@@ -666,6 +671,11 @@ export type ScanRecipeResponse = {
     has_security_warnings: boolean;
 };
 
+export type ScheduleRecipeRequest = {
+    cron_schedule?: string | null;
+    id: string;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -739,6 +749,11 @@ export type SetProviderRequest = {
     provider: string;
 };
 
+export type SetSlashCommandRequest = {
+    id: string;
+    slash_command?: string | null;
+};
+
 export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
@@ -748,6 +763,16 @@ export type Settings = {
 export type SetupResponse = {
     message: string;
     success: boolean;
+};
+
+export type SlashCommand = {
+    command: string;
+    command_type: CommandType;
+    help: string;
+};
+
+export type SlashCommandsResponse = {
+    commands: Array<SlashCommand>;
 };
 
 export type StartAgentRequest = {
@@ -860,6 +885,7 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
+    thoughtSignature?: string | null;
     toolCall: {
         [key: string]: unknown;
     };
@@ -1603,6 +1629,22 @@ export type SetConfigProviderData = {
     url: '/config/set_provider';
 };
 
+export type GetSlashCommandsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/slash_commands';
+};
+
+export type GetSlashCommandsResponses = {
+    /**
+     * Slash commands retrieved successfully
+     */
+    200: SlashCommandsResponse;
+};
+
+export type GetSlashCommandsResponse = GetSlashCommandsResponses[keyof GetSlashCommandsResponses];
+
 export type UpsertConfigData = {
     body: UpsertConfigQuery;
     path?: never;
@@ -1724,6 +1766,32 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type McpUiProxyData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Secret key for authentication
+         */
+        secret: string;
+    };
+    url: '/mcp-ui-proxy';
+};
+
+export type McpUiProxyErrors = {
+    /**
+     * Unauthorized - invalid or missing secret
+     */
+    401: unknown;
+};
+
+export type McpUiProxyResponses = {
+    /**
+     * MCP UI proxy HTML page
+     */
+    200: unknown;
+};
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
@@ -1937,6 +2005,56 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ScheduleRecipeData = {
+    body: ScheduleRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/schedule';
+};
+
+export type ScheduleRecipeErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ScheduleRecipeResponses = {
+    /**
+     * Recipe scheduled successfully
+     */
+    200: unknown;
+};
+
+export type SetRecipeSlashCommandData = {
+    body: SetSlashCommandRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/slash-command';
+};
+
+export type SetRecipeSlashCommandErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SetRecipeSlashCommandResponses = {
+    /**
+     * Slash command set successfully
+     */
+    200: unknown;
+};
 
 export type ReplyData = {
     body: ChatRequest;

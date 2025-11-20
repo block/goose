@@ -23,6 +23,7 @@ use goose::conversation::message::{
     ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
+use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -326,6 +327,7 @@ derive_utoipa!(Icon as IconSchema);
     paths(
         super::routes::status::status,
         super::routes::status::diagnostics,
+        super::routes::mcp_ui_proxy::mcp_ui_proxy,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
@@ -339,6 +341,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
         super::routes::config_management::get_provider_models,
+        super::routes::config_management::get_slash_commands,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::get_custom_provider,
@@ -380,6 +383,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::recipe::schedule_recipe,
+        super::routes::recipe::set_recipe_slash_command,
         super::routes::recipe::save_recipe,
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
@@ -391,6 +396,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ConfigResponse,
         super::routes::config_management::ProvidersResponse,
         super::routes::config_management::ProviderDetails,
+        super::routes::config_management::SlashCommandsResponse,
+        super::routes::config_management::SlashCommand,
+        super::routes::config_management::CommandType,
         super::routes::config_management::ExtensionResponse,
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
@@ -440,6 +448,7 @@ derive_utoipa!(Icon as IconSchema);
         ExtensionConfig,
         ConfigKey,
         Envs,
+        RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
         ToolInfo,
@@ -470,8 +479,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
-        super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
+        super::routes::recipe::ScheduleRecipeRequest,
+        super::routes::recipe::SetSlashCommandRequest,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
         super::routes::recipe::SaveRecipeResponse,

@@ -18,6 +18,7 @@ mod tests {
         use goose::scheduler::{ScheduledJob, SchedulerError};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::Session;
+        use std::path::PathBuf;
         use std::sync::Arc;
 
         struct MockScheduler {
@@ -34,9 +35,21 @@ mod tests {
 
         #[async_trait]
         impl SchedulerTrait for MockScheduler {
-            async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
+            async fn add_scheduled_job(
+                &self,
+                job: ScheduledJob,
+                _copy: bool,
+            ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 jobs.push(job);
+                Ok(())
+            }
+
+            async fn schedule_recipe(
+                &self,
+                _recipe_path: PathBuf,
+                _cron_schedule: Option<String>,
+            ) -> Result<(), SchedulerError> {
                 Ok(())
             }
 
@@ -45,7 +58,11 @@ mod tests {
                 jobs.clone()
             }
 
-            async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+            async fn remove_scheduled_job(
+                &self,
+                id: &str,
+                _remove: bool,
+            ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 if let Some(pos) = jobs.iter().position(|job| job.id == id) {
                     jobs.remove(pos);
