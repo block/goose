@@ -320,11 +320,17 @@ export function useChatStream({
         });
 
         if (resumeResponse.data) {
-          const { session: loadedSession, conversation } = resumeResponse.data;
+          const loadedSession = resumeResponse.data;
+          const conversation = loadedSession.conversation || [];
+          
+          // Check if we actually got valid session data
+          if (!loadedSession || !loadedSession.id) {
+            console.log('🔄 Resume response missing session data:', resumeResponse.data);
+            throw new Error('Resume response missing session data');
+          }
           
           console.log('🔄 Processing resumed session:', {
             sessionId: loadedSession.id,
-            sessionName: loadedSession.name,
             sessionDescription: loadedSession.description,
             conversationLength: conversation.length,
             firstFewMessages: conversation.slice(0, 3).map(m => ({
@@ -335,7 +341,6 @@ export function useChatStream({
           
           log.session('resumed-existing', sessionId, {
             messageCount: conversation.length,
-            sessionName: loadedSession.name,
             sessionDescription: loadedSession.description,
             conversationPreview: conversation.slice(0, 2).map(m => `${m.role}: ${m.content[0]?.text?.slice(0, 50)}...`)
           });
