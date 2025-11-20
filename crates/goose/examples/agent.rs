@@ -10,12 +10,10 @@ use goose::session::SessionManager;
 use std::path::PathBuf;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let _ = dotenv();
 
-    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL)
-        .await
-        .expect("Couldn't create provider");
+    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?;
 
     let agent = Agent::new();
 
@@ -35,7 +33,7 @@ async fn main() {
         DEFAULT_EXTENSION_TIMEOUT,
     )
     .with_args(vec!["mcp", "developer"]);
-    agent.add_extension(config).await.unwrap();
+    agent.add_extension(config).await?;
 
     println!("Extensions:");
     for extension in agent.list_extensions().await {
@@ -52,13 +50,12 @@ async fn main() {
     let user_message = Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?");
 
-    let mut stream = agent
-        .reply(user_message, session_config, None)
-        .await
-        .unwrap();
+    let mut stream = agent.reply(user_message, session_config, None).await?;
 
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
-        println!("{}", serde_json::to_string_pretty(&message).unwrap());
+        println!("{}", serde_json::to_string_pretty(&message)?);
         println!("\n");
     }
+
+    Ok(())
 }
