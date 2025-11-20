@@ -6,22 +6,32 @@ import { Session } from '../api';
 interface UseCostTrackingProps {
   sessionInputTokens: number;
   sessionOutputTokens: number;
+  sessionCacheReadTokens: number;
+  sessionCacheWriteTokens: number;
   localInputTokens: number;
   localOutputTokens: number;
+  localCacheReadTokens: number;
+  localCacheWriteTokens: number;
   session?: Session | null;
 }
 
 export const useCostTracking = ({
   sessionInputTokens,
   sessionOutputTokens,
+  sessionCacheReadTokens,
+  sessionCacheWriteTokens,
   localInputTokens,
   localOutputTokens,
+  localCacheReadTokens,
+  localCacheWriteTokens,
   session,
 }: UseCostTrackingProps) => {
   const [sessionCosts, setSessionCosts] = useState<{
     [key: string]: {
       inputTokens: number;
       outputTokens: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
       totalCost: number;
     };
   }>({});
@@ -48,7 +58,14 @@ export const useCostTracking = ({
           (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
         const prevOutputCost =
           (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
-        const prevTotalCost = prevInputCost + prevOutputCost;
+        const prevCacheReadCost =
+          (sessionCacheReadTokens || localCacheReadTokens) *
+          (prevCostInfo.cache_read_input_token_cost || 0);
+        const prevCacheWriteCost =
+          (sessionCacheWriteTokens || localCacheWriteTokens) *
+          (prevCostInfo.cache_write_input_token_cost || 0);
+        const prevTotalCost =
+          prevInputCost + prevOutputCost + prevCacheReadCost + prevCacheWriteCost;
 
         // Save the accumulated costs for this model
         setSessionCosts((prev) => ({
@@ -56,6 +73,8 @@ export const useCostTracking = ({
           [prevKey]: {
             inputTokens: sessionInputTokens || localInputTokens,
             outputTokens: sessionOutputTokens || localOutputTokens,
+            cacheReadTokens: sessionCacheReadTokens || localCacheReadTokens,
+            cacheWriteTokens: sessionCacheWriteTokens || localCacheWriteTokens,
             totalCost: prevTotalCost,
           },
         }));
@@ -77,8 +96,12 @@ export const useCostTracking = ({
     currentProvider,
     sessionInputTokens,
     sessionOutputTokens,
+    sessionCacheReadTokens,
+    sessionCacheWriteTokens,
     localInputTokens,
     localOutputTokens,
+    localCacheReadTokens,
+    localCacheWriteTokens,
     session,
   ]);
 

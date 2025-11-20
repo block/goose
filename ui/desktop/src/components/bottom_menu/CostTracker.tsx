@@ -13,21 +13,33 @@ import {
 interface CostTrackerProps {
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   sessionCosts?: {
     [key: string]: {
       inputTokens: number;
       outputTokens: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
       totalCost: number;
     };
   };
 }
 
-export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
+export function CostTracker({
+  inputTokens = 0,
+  outputTokens = 0,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
+  sessionCosts,
+}: CostTrackerProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
   const { getProviders } = useConfig();
   const [costInfo, setCostInfo] = useState<{
     input_token_cost?: number;
     output_token_cost?: number;
+    cache_read_input_token_cost?: number;
+    cache_write_input_token_cost?: number;
     currency?: string;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -150,7 +162,11 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       ) {
         const currentInputCost = inputTokens * (costInfo.input_token_cost || 0);
         const currentOutputCost = outputTokens * (costInfo.output_token_cost || 0);
-        totalCost += currentInputCost + currentOutputCost;
+        const currentCacheReadCost = cacheReadTokens * (costInfo.cache_read_input_token_cost || 0);
+        const currentCacheWriteCost =
+          cacheWriteTokens * (costInfo.cache_write_input_token_cost || 0);
+        totalCost +=
+          currentInputCost + currentOutputCost + currentCacheReadCost + currentCacheWriteCost;
       }
 
       return totalCost;
@@ -166,7 +182,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
     const inputCost = inputTokens * (costInfo.input_token_cost || 0);
     const outputCost = outputTokens * (costInfo.output_token_cost || 0);
-    const total = inputCost + outputCost;
+    const cacheReadCost = cacheReadTokens * (costInfo.cache_read_input_token_cost || 0);
+    const cacheWriteCost = cacheWriteTokens * (costInfo.cache_write_input_token_cost || 0);
+    const total = inputCost + outputCost + cacheReadCost + cacheWriteCost;
 
     return total;
   };
@@ -264,16 +282,35 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
       Object.entries(sessionCosts).forEach(([modelKey, cost]) => {
         const costStr = `${costInfo?.currency || '$'}${cost.totalCost.toFixed(6)}`;
-        tooltip += `${modelKey}: ${costStr} (${cost.inputTokens.toLocaleString()} in, ${cost.outputTokens.toLocaleString()} out)\n`;
+        let tokenDetails = `${cost.inputTokens.toLocaleString()} in, ${cost.outputTokens.toLocaleString()} out`;
+        if (cost.cacheReadTokens && cost.cacheReadTokens > 0) {
+          tokenDetails += `, ${cost.cacheReadTokens.toLocaleString()} cache read`;
+        }
+        if (cost.cacheWriteTokens && cost.cacheWriteTokens > 0) {
+          tokenDetails += `, ${cost.cacheWriteTokens.toLocaleString()} cache write`;
+        }
+        tooltip += `${modelKey}: ${costStr} (${tokenDetails})\n`;
       });
 
       // Add current model if it has costs
-      if (costInfo && (inputTokens > 0 || outputTokens > 0)) {
+      if (
+        costInfo &&
+        (inputTokens > 0 || outputTokens > 0 || cacheReadTokens > 0 || cacheWriteTokens > 0)
+      ) {
         const currentCost =
           inputTokens * (costInfo.input_token_cost || 0) +
-          outputTokens * (costInfo.output_token_cost || 0);
+          outputTokens * (costInfo.output_token_cost || 0) +
+          cacheReadTokens * (costInfo.cache_read_input_token_cost || 0) +
+          cacheWriteTokens * (costInfo.cache_write_input_token_cost || 0);
         if (currentCost > 0) {
-          tooltip += `${currentProvider}/${currentModel} (current): ${costInfo.currency || '$'}${currentCost.toFixed(6)} (${inputTokens.toLocaleString()} in, ${outputTokens.toLocaleString()} out)\n`;
+          let tokenDetails = `${inputTokens.toLocaleString()} in, ${outputTokens.toLocaleString()} out`;
+          if (cacheReadTokens > 0 && costInfo.cache_read_input_token_cost !== undefined) {
+            tokenDetails += `, ${cacheReadTokens.toLocaleString()} cache read`;
+          }
+          if (cacheWriteTokens > 0 && costInfo.cache_write_input_token_cost !== undefined) {
+            tokenDetails += `, ${cacheWriteTokens.toLocaleString()} cache write`;
+          }
+          tooltip += `${currentProvider}/${currentModel} (current): ${costInfo.currency || '$'}${currentCost.toFixed(6)} (${tokenDetails})\n`;
         }
       }
 
@@ -282,7 +319,17 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     }
 
     // Default tooltip for single model
-    return `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(inputTokens * (costInfo?.input_token_cost || 0)).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(outputTokens * (costInfo?.output_token_cost || 0)).toFixed(6)})`;
+    let tooltip = `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(inputTokens * (costInfo?.input_token_cost || 0)).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(outputTokens * (costInfo?.output_token_cost || 0)).toFixed(6)})`;
+
+    // Add cache token info only if model has pricing for it
+    if (cacheReadTokens > 0 && costInfo?.cache_read_input_token_cost !== undefined) {
+      tooltip += ` | Cache Read: ${cacheReadTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${(cacheReadTokens * costInfo.cache_read_input_token_cost).toFixed(6)})`;
+    }
+    if (cacheWriteTokens > 0 && costInfo?.cache_write_input_token_cost !== undefined) {
+      tooltip += ` | Cache Write: ${cacheWriteTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${(cacheWriteTokens * costInfo.cache_write_input_token_cost).toFixed(6)})`;
+    }
+
+    return tooltip;
   };
 
   return (

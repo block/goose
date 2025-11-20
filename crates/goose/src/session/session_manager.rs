@@ -18,7 +18,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 5;
+const CURRENT_SCHEMA_VERSION: i32 = 6;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -84,6 +84,8 @@ pub struct Session {
     pub accumulated_total_tokens: Option<i32>,
     pub accumulated_input_tokens: Option<i32>,
     pub accumulated_output_tokens: Option<i32>,
+    pub accumulated_cache_read_input_tokens: Option<i32>,
+    pub accumulated_cache_write_input_tokens: Option<i32>,
     pub schedule_id: Option<String>,
     pub recipe: Option<Recipe>,
     pub user_recipe_values: Option<HashMap<String, String>>,
@@ -104,6 +106,8 @@ pub struct SessionUpdateBuilder {
     accumulated_total_tokens: Option<Option<i32>>,
     accumulated_input_tokens: Option<Option<i32>>,
     accumulated_output_tokens: Option<Option<i32>>,
+    accumulated_cache_read_input_tokens: Option<Option<i32>>,
+    accumulated_cache_write_input_tokens: Option<Option<i32>>,
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
     user_recipe_values: Option<Option<HashMap<String, String>>>,
@@ -131,6 +135,8 @@ impl SessionUpdateBuilder {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
+            accumulated_cache_read_input_tokens: None,
+            accumulated_cache_write_input_tokens: None,
             schedule_id: None,
             recipe: None,
             user_recipe_values: None,
@@ -197,6 +203,16 @@ impl SessionUpdateBuilder {
 
     pub fn accumulated_output_tokens(mut self, tokens: Option<i32>) -> Self {
         self.accumulated_output_tokens = Some(tokens);
+        self
+    }
+
+    pub fn accumulated_cache_read_input_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.accumulated_cache_read_input_tokens = Some(tokens);
+        self
+    }
+
+    pub fn accumulated_cache_write_input_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.accumulated_cache_write_input_tokens = Some(tokens);
         self
     }
 
@@ -370,6 +386,8 @@ impl Default for Session {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
+            accumulated_cache_read_input_tokens: None,
+            accumulated_cache_write_input_tokens: None,
             schedule_id: None,
             recipe: None,
             user_recipe_values: None,
@@ -429,6 +447,12 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             accumulated_total_tokens: row.try_get("accumulated_total_tokens")?,
             accumulated_input_tokens: row.try_get("accumulated_input_tokens")?,
             accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
+            accumulated_cache_read_input_tokens: row
+                .try_get("accumulated_cache_read_input_tokens")
+                .ok(),
+            accumulated_cache_write_input_tokens: row
+                .try_get("accumulated_cache_write_input_tokens")
+                .ok(),
             schedule_id: row.try_get("schedule_id")?,
             recipe,
             user_recipe_values,
@@ -519,6 +543,8 @@ impl SessionStorage {
                 accumulated_total_tokens INTEGER,
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
+                accumulated_cache_read_input_tokens INTEGER,
+                accumulated_cache_write_input_tokens INTEGER,
                 schedule_id TEXT,
                 recipe_json TEXT,
                 user_recipe_values_json TEXT
@@ -624,29 +650,32 @@ impl SessionStorage {
             id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+            accumulated_cache_read_input_tokens, accumulated_cache_write_input_tokens,
             schedule_id, recipe_json, user_recipe_values_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
-            .bind(&session.id)
-            .bind(&session.name)
-            .bind(session.user_set_name)
-            .bind(session.session_type.to_string())
-            .bind(session.working_dir.to_string_lossy().as_ref())
-            .bind(session.created_at)
-            .bind(session.updated_at)
-            .bind(serde_json::to_string(&session.extension_data)?)
-            .bind(session.total_tokens)
-            .bind(session.input_tokens)
-            .bind(session.output_tokens)
-            .bind(session.accumulated_total_tokens)
-            .bind(session.accumulated_input_tokens)
-            .bind(session.accumulated_output_tokens)
-            .bind(&session.schedule_id)
-            .bind(recipe_json)
-            .bind(user_recipe_values_json)
-            .execute(&mut *tx)
-            .await?;
+        .bind(&session.id)
+        .bind(&session.name)
+        .bind(session.user_set_name)
+        .bind(session.session_type.to_string())
+        .bind(session.working_dir.to_string_lossy().as_ref())
+        .bind(session.created_at)
+        .bind(session.updated_at)
+        .bind(serde_json::to_string(&session.extension_data)?)
+        .bind(session.total_tokens)
+        .bind(session.input_tokens)
+        .bind(session.output_tokens)
+        .bind(session.accumulated_total_tokens)
+        .bind(session.accumulated_input_tokens)
+        .bind(session.accumulated_output_tokens)
+        .bind(session.accumulated_cache_read_input_tokens)
+        .bind(session.accumulated_cache_write_input_tokens)
+        .bind(&session.schedule_id)
+        .bind(recipe_json)
+        .bind(user_recipe_values_json)
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
 
@@ -771,6 +800,25 @@ impl SessionStorage {
                     .execute(&self.pool)
                     .await?;
             }
+            6 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions 
+                    ADD COLUMN accumulated_cache_read_input_tokens INTEGER
+                    "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions 
+                    ADD COLUMN accumulated_cache_write_input_tokens INTEGER
+                    "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -824,6 +872,7 @@ impl SessionStorage {
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+               accumulated_cache_read_input_tokens, accumulated_cache_write_input_tokens,
                schedule_id, recipe_json, user_recipe_values_json
         FROM sessions
         WHERE id = ?
@@ -848,6 +897,66 @@ impl SessionStorage {
         }
 
         Ok(session)
+    }
+
+    fn bind_update_params<'q>(
+        mut q: sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>,
+        builder: &'q SessionUpdateBuilder,
+    ) -> Result<sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>> {
+        if let Some(ref name) = builder.name {
+            q = q.bind(name);
+        }
+        if let Some(user_set_name) = builder.user_set_name {
+            q = q.bind(user_set_name);
+        }
+        if let Some(ref session_type) = builder.session_type {
+            q = q.bind(session_type.to_string());
+        }
+        if let Some(ref wd) = builder.working_dir {
+            q = q.bind(wd.to_string_lossy().to_string());
+        }
+        if let Some(ref ed) = builder.extension_data {
+            q = q.bind(serde_json::to_string(ed)?);
+        }
+        if let Some(tt) = builder.total_tokens {
+            q = q.bind(tt);
+        }
+        if let Some(it) = builder.input_tokens {
+            q = q.bind(it);
+        }
+        if let Some(ot) = builder.output_tokens {
+            q = q.bind(ot);
+        }
+        if let Some(att) = builder.accumulated_total_tokens {
+            q = q.bind(att);
+        }
+        if let Some(ait) = builder.accumulated_input_tokens {
+            q = q.bind(ait);
+        }
+        if let Some(aot) = builder.accumulated_output_tokens {
+            q = q.bind(aot);
+        }
+        if let Some(acrt) = builder.accumulated_cache_read_input_tokens {
+            q = q.bind(acrt);
+        }
+        if let Some(acwt) = builder.accumulated_cache_write_input_tokens {
+            q = q.bind(acwt);
+        }
+        if let Some(ref sid) = builder.schedule_id {
+            q = q.bind(sid);
+        }
+        if let Some(ref recipe) = builder.recipe {
+            let recipe_json = recipe.as_ref().map(serde_json::to_string).transpose()?;
+            q = q.bind(recipe_json);
+        }
+        if let Some(ref user_recipe_values) = builder.user_recipe_values {
+            let user_recipe_values_json = user_recipe_values
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?;
+            q = q.bind(user_recipe_values_json);
+        }
+        Ok(q)
     }
 
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
@@ -881,6 +990,14 @@ impl SessionStorage {
             builder.accumulated_output_tokens,
             "accumulated_output_tokens"
         );
+        add_update!(
+            builder.accumulated_cache_read_input_tokens,
+            "accumulated_cache_read_input_tokens"
+        );
+        add_update!(
+            builder.accumulated_cache_write_input_tokens,
+            "accumulated_cache_write_input_tokens"
+        );
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
         add_update!(builder.user_recipe_values, "user_recipe_values_json");
@@ -892,60 +1009,10 @@ impl SessionStorage {
         query.push_str(", ");
         query.push_str("updated_at = datetime('now') WHERE id = ?");
 
-        let mut q = sqlx::query(&query);
-
-        if let Some(name) = builder.name {
-            q = q.bind(name);
-        }
-        if let Some(user_set_name) = builder.user_set_name {
-            q = q.bind(user_set_name);
-        }
-        if let Some(session_type) = builder.session_type {
-            q = q.bind(session_type.to_string());
-        }
-        if let Some(wd) = builder.working_dir {
-            q = q.bind(wd.to_string_lossy().to_string());
-        }
-        if let Some(ed) = builder.extension_data {
-            q = q.bind(serde_json::to_string(&ed)?);
-        }
-        if let Some(tt) = builder.total_tokens {
-            q = q.bind(tt);
-        }
-        if let Some(it) = builder.input_tokens {
-            q = q.bind(it);
-        }
-        if let Some(ot) = builder.output_tokens {
-            q = q.bind(ot);
-        }
-        if let Some(att) = builder.accumulated_total_tokens {
-            q = q.bind(att);
-        }
-        if let Some(ait) = builder.accumulated_input_tokens {
-            q = q.bind(ait);
-        }
-        if let Some(aot) = builder.accumulated_output_tokens {
-            q = q.bind(aot);
-        }
-        if let Some(sid) = builder.schedule_id {
-            q = q.bind(sid);
-        }
-        if let Some(recipe) = builder.recipe {
-            let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
-            q = q.bind(recipe_json);
-        }
-        if let Some(user_recipe_values) = builder.user_recipe_values {
-            let user_recipe_values_json = user_recipe_values
-                .map(|urv| serde_json::to_string(&urv))
-                .transpose()?;
-            q = q.bind(user_recipe_values_json);
-        }
-
-        let mut tx = self.pool.begin().await?;
-        q = q.bind(&builder.session_id);
-        q.execute(&mut *tx).await?;
-
-        tx.commit().await?;
+        let q = sqlx::query(&query);
+        let q = Self::bind_update_params(q, &builder)?;
+        let q = q.bind(&builder.session_id);
+        q.execute(&self.pool).await?;
         Ok(())
     }
 
@@ -1049,6 +1116,7 @@ impl SessionStorage {
         SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+               s.accumulated_cache_read_input_tokens, s.accumulated_cache_write_input_tokens,
                s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                COUNT(m.id) as message_count
         FROM sessions s

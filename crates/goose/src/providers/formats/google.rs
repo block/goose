@@ -323,7 +323,12 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .get("totalTokenCount")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
-        Ok(Usage::new(input_tokens, output_tokens, total_tokens))
+        let cache_read_tokens = usage_meta_data
+            .get("cachedContentTokenCount")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as i32);
+        Ok(Usage::new(input_tokens, output_tokens, total_tokens)
+            .with_cache_tokens(cache_read_tokens, None))
     } else {
         tracing::debug!(
             "Failed to get usage data: {}",

@@ -35,8 +35,10 @@ pub struct CachedPricingData {
 /// Simplified pricing info for efficient storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PricingInfo {
-    pub input_cost: f64,  // Cost per token
-    pub output_cost: f64, // Cost per token
+    pub input_cost: f64,               // Cost per token
+    pub output_cost: f64,              // Cost per token
+    pub cache_read_cost: Option<f64>,  // Cost per token
+    pub cache_write_cost: Option<f64>, // Cost per token
     pub context_length: Option<u32>,
 }
 
@@ -147,11 +149,25 @@ impl PricingCache {
                     let provider_lower = provider.to_lowercase();
                     let provider_models = structured_pricing.entry(provider_lower).or_default();
 
+                    // Extract cache pricing if available
+                    let cache_read_cost = model
+                        .pricing
+                        .input_cache_read
+                        .as_ref()
+                        .and_then(|s| convert_pricing(s));
+                    let cache_write_cost = model
+                        .pricing
+                        .input_cache_write
+                        .as_ref()
+                        .and_then(|s| convert_pricing(s));
+
                     provider_models.insert(
                         model_name,
                         PricingInfo {
                             input_cost,
                             output_cost,
+                            cache_read_cost,
+                            cache_write_cost,
                             context_length: model.context_length,
                         },
                     );
@@ -222,8 +238,10 @@ pub struct OpenRouterModel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenRouterPricing {
-    pub prompt: String,     // Cost per token for input (in USD)
-    pub completion: String, // Cost per token for output (in USD)
+    pub prompt: String,                    // Cost per token for input (in USD)
+    pub completion: String,                // Cost per token for output (in USD)
+    pub input_cache_read: Option<String>,  // Cost per cache read token (in USD)
+    pub input_cache_write: Option<String>, // Cost per cache write token (in USD)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

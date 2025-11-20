@@ -4228,6 +4228,16 @@
           "message_count"
         ],
         "properties": {
+          "accumulated_cache_read_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "accumulated_cache_write_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "accumulated_input_tokens": {
             "type": "integer",
             "format": "int32",
@@ -4634,9 +4644,19 @@
           "totalTokens",
           "accumulatedInputTokens",
           "accumulatedOutputTokens",
-          "accumulatedTotalTokens"
+          "accumulatedTotalTokens",
+          "accumulatedCacheReadInputTokens",
+          "accumulatedCacheWriteInputTokens"
         ],
         "properties": {
+          "accumulatedCacheReadInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedCacheWriteInputTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
           "accumulatedInputTokens": {
             "type": "integer",
             "format": "int32"

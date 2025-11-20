@@ -97,8 +97,12 @@ function BaseChatContent({
   const { sessionCosts } = useCostTracking({
     sessionInputTokens: session?.accumulated_input_tokens || 0,
     sessionOutputTokens: session?.accumulated_output_tokens || 0,
+    sessionCacheReadTokens: session?.accumulated_cache_read_input_tokens || 0,
+    sessionCacheWriteTokens: session?.accumulated_cache_write_input_tokens || 0,
     localInputTokens: 0,
     localOutputTokens: 0,
+    localCacheReadTokens: 0,
+    localCacheWriteTokens: 0,
     session,
   });
 
