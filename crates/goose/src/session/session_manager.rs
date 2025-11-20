@@ -902,6 +902,7 @@ impl SessionStorage {
         Ok(session)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
