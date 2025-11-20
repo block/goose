@@ -398,6 +398,27 @@ Up/Down arrows - Navigate through command history"
     );
 }
 
+/// Extract recent messages for editor context
+fn extract_recent_messages(conversation_messages: Option<&Vec<String>>) -> Vec<String> {
+    match conversation_messages {
+        Some(messages) => {
+            // Return the messages in reverse chronological order (newest first)
+            messages.clone()
+        }
+        None => Vec::new(),
+    }
+}
+
+/// Print help information about editor input
+fn print_editor_help() {
+    println!(
+        "Editor Input:
+When goose_prompt_editor is configured, prompts will open in your editor instead of the CLI.
+Previous conversation is included as markdown headings for context.
+Configure with: goose configure set goose_prompt_editor \"vim\""
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -662,25 +683,4 @@ mod tests {
             }
         }
     }
-}
-
-/// Extract recent messages for editor context
-fn extract_recent_messages(conversation_messages: Option<&Vec<String>>) -> Vec<String> {
-    match conversation_messages {
-        Some(messages) => {
-            // Return the messages in reverse chronological order (newest first)
-            messages.clone()
-        }
-        None => Vec::new(),
-    }
-}
-
-/// Print help information about editor input
-fn print_editor_help() {
-    println!(
-        "Editor Input:
-When goose_prompt_editor is configured, prompts will open in your editor instead of the CLI.
-Previous conversation is included as markdown headings for context.
-Configure with: goose configure set goose_prompt_editor \"vim\""
-    );
 }

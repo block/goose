@@ -40,7 +40,7 @@ fn create_temp_file(messages: &[&str]) -> Result<NamedTempFile> {
         for message in messages.iter().rev() {
             content.push_str(&format!("{}\n", message));
         }
-        content.push_str("\n");
+        content.push('\n');
     }
 
     fs::write(temp_file.path(), content)?;
@@ -95,7 +95,7 @@ pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
             for message in messages.iter().rev() {
                 template_content.push_str(&format!("{}\n", message));
             }
-            template_content.push_str("\n");
+            template_content.push('\n');
         }
         template_content
     };
