@@ -186,7 +186,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
       </div>
 
       {/* Popover Zone - Reserved space above chat for mention popovers */}
-      <div id="mention-popover-zone" className="flex-shrink-0 relative z-50 h-16 bg-transparent pointer-events-none">
+      <div id="mention-popover-zone" className="flex-shrink-0 relative z-50 h-32 bg-transparent pointer-events-none">
         {/* This space is reserved for mention popovers to render above the chat */}
       </div>
 

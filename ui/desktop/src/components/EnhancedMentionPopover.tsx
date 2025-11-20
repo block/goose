@@ -254,8 +254,8 @@ const EnhancedMentionPopover = forwardRef<
       className="absolute z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md pointer-events-auto"
       style={{
         left: '50%',
-        top: '50%',
-        transform: 'translate(-50%, -50%)', // Center in the popover zone
+        bottom: '8px', // Position near the bottom of the popover zone, close to chat
+        transform: 'translateX(-50%)', // Only center horizontally
       }}
     >
       <div className="p-3">
