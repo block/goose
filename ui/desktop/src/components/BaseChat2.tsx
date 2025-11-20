@@ -50,6 +50,7 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
+  setChat,
   setIsGoosehintsModalOpen,
   renderHeader,
   customChatInputProps = {},
