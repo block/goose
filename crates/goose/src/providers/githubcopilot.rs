@@ -428,7 +428,7 @@ impl Provider for GithubCopilotProvider {
         ProviderMetadata::new(
             "github_copilot",
             "GitHub Copilot",
-            "GitHub Copilot and associated models",
+            "GitHub Copilot. Use terminal to run 'goose configure' and select copilot to setup.",
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
