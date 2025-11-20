@@ -1452,7 +1452,7 @@ impl Agent {
             .unwrap_or(DEFAULT_MAX_IDLE_TURNS);
 
         let mut loaded_state = get_or_create_loaded_agents_state(extension_data);
-        let stale_dirs = loaded_state.get_stale_directories(current_turn, max_idle_turns);
+        let stale_dirs = loaded_state.prune_stale(current_turn, max_idle_turns);
 
         if stale_dirs.is_empty() {
             return Ok(0);
@@ -1461,7 +1461,6 @@ impl Agent {
         let mut prompt_manager = self.prompt_manager.lock().await;
         for (path, tag) in &stale_dirs {
             prompt_manager.remove_system_prompt_extras_by_tag(tag);
-            loaded_state.remove_directory(path);
             info!(
                 "Pruned stale directory hints: {} (idle for {} turns)",
                 path, max_idle_turns

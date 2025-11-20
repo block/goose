@@ -172,24 +172,25 @@ impl LoadedAgentsState {
         }
     }
 
-    /// Get directories that haven't been accessed in N turns
-    pub fn get_stale_directories(
-        &self,
+    /// Prune directories that haven't been accessed in N turns
+    /// Returns a list of (path, tag) for pruned directories
+    pub fn prune_stale(
+        &mut self,
         current_turn: u32,
         max_idle_turns: u32,
     ) -> Vec<(String, String)> {
-        self.loaded_directories
-            .iter()
-            .filter(|(_, context)| {
-                current_turn.saturating_sub(context.access_turn) >= max_idle_turns
-            })
-            .map(|(path, context)| (path.clone(), context.tag.clone()))
-            .collect()
-    }
+        let mut pruned = Vec::new();
 
-    /// Remove a directory from tracking
-    pub fn remove_directory(&mut self, directory: &str) {
-        self.loaded_directories.remove(directory);
+        self.loaded_directories.retain(|path, context| {
+            if current_turn.saturating_sub(context.access_turn) >= max_idle_turns {
+                pruned.push((path.clone(), context.tag.clone()));
+                false // remove
+            } else {
+                true // keep
+            }
+        });
+
+        pruned
     }
 }
 
@@ -368,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_stale_directories() {
+    fn test_prune_stale() {
         let mut state = LoadedAgentsState::new();
 
         // Load directories at different turns
@@ -380,12 +381,19 @@ mod tests {
         state.mark_accessed(Path::new("/repo/auth"), 8);
 
         // At turn 20, with max_idle_turns=10:
-        let stale = state.get_stale_directories(20, 10);
-        assert_eq!(stale.len(), 3); // All are stale or at threshold
+        // Clone state for independent test case
+        let mut state_1 = state.clone();
+        let pruned = state_1.prune_stale(20, 10);
+        assert_eq!(pruned.len(), 3); // All are stale or at threshold
+        assert!(!state_1.is_loaded(Path::new("/repo/auth")));
 
         // With max_idle_turns=11:
-        let stale = state.get_stale_directories(20, 11);
-        assert_eq!(stale.len(), 2); // auth is stale (idle 12), payments is stale (idle 18), api is not stale (idle 10)
+        let pruned = state.prune_stale(20, 11);
+        assert_eq!(pruned.len(), 2); // auth is stale (idle 12), payments is stale (idle 18), api is not stale (idle 10)
+        
+        assert!(!state.is_loaded(Path::new("/repo/auth")));
+        assert!(!state.is_loaded(Path::new("/repo/payments")));
+        assert!(state.is_loaded(Path::new("/repo/api")));
     }
 
     #[test]
@@ -415,17 +423,5 @@ mod tests {
 
         let restored = get_or_create_loaded_agents_state(&extension_data);
         assert!(restored.is_loaded(Path::new("/test")));
-    }
-
-    #[test]
-    fn test_remove_directory() {
-        let mut state = LoadedAgentsState::new();
-        let path = Path::new("/repo/auth");
-
-        state.mark_loaded(path, 1);
-        assert!(state.is_loaded(path));
-
-        state.remove_directory("/repo/auth");
-        assert!(!state.is_loaded(path));
     }
 }
