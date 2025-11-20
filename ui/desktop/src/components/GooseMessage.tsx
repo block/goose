@@ -3,6 +3,8 @@ import ImagePreview from './ImagePreview';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
+import CommentableMarkdown from './CommentableMarkdown';
+import MessageComments from './MessageComments';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import ToolCallChain from './ToolCallChain';
 import {
@@ -21,6 +23,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { MessageComment, TextSelection } from '../types/comment';
 import { cn } from '../utils';
 import AvatarImage from './AvatarImage';
 
@@ -31,11 +34,26 @@ interface GooseMessageProps {
   messageHistoryIndex: number;
   message: Message;
   messages: Message[];
+  messageIndex?: number; // Optional: the index of this message in the messages array (for tool chaining)
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  // Comment-related props
+  comments?: MessageComment[];
+  activeSelection?: TextSelection | null;
+  activePosition?: { x: number; y: number } | null;
+  activeMessageId?: string | null;
+  isCreatingComment?: boolean;
+  onSelectionChange?: (selection: TextSelection | null, position?: { x: number; y: number }, messageId?: string) => void;
+  onCreateComment?: (messageId: string, selection: TextSelection, content: string) => void;
+  onUpdateComment?: (commentId: string, content: string) => void;
+  onDeleteComment?: (commentId: string) => void;
+  onReplyToComment?: (parentId: string, content: string) => void;
+  onResolveComment?: (commentId: string, resolved: boolean) => void;
+  onCancelComment?: () => void;
+  onFocusComment?: (commentId: string) => void;
 }
 
 export default function GooseMessage({
@@ -43,10 +61,25 @@ export default function GooseMessage({
   messageHistoryIndex,
   message,
   messages,
+  messageIndex: passedMessageIndex,
   toolCallNotifications,
   append,
   appendMessage,
   isStreaming = false,
+  // Comment props
+  comments = [],
+  activeSelection,
+  activePosition,
+  activeMessageId,
+  isCreatingComment = false,
+  onSelectionChange,
+  onCreateComment,
+  onUpdateComment,
+  onDeleteComment,
+  onReplyToComment,
+  onResolveComment,
+  onCancelComment,
+  onFocusComment,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   // Track which tool confirmations we've already handled to prevent infinite loops
@@ -54,6 +87,25 @@ export default function GooseMessage({
 
   // Extract text content from the message
   let textContent = getTextContent(message);
+
+  // Use passed message index or fallback to finding it
+  const messageIndex = passedMessageIndex !== undefined ? passedMessageIndex : messages.findIndex((msg) => msg.id === message.id);
+  
+  // Create a unique message ID that combines multiple factors for uniqueness
+  const uniqueMessageId = useMemo(() => {
+    if (message.id) return message.id;
+    
+    // Create a unique ID based on message content, timestamp, and index
+    const contentHash = message.content
+      .map(c => c.type === 'text' ? c.text.slice(0, 50) : c.type)
+      .join('|');
+    const timestamp = message.created;
+    const role = message.role;
+    
+    // Create a hash-like ID that's more unique
+    const uniqueId = `${role}-${timestamp}-${messageIndex}-${contentHash.length}`;
+    return uniqueId;
+  }, [message.id, message.content, message.created, message.role, messageIndex]);
 
   // Utility to split Chain-of-Thought (CoT) from the visible assistant response.
   // If the text contains a <think>...</think> block, everything inside is treated as the
@@ -89,9 +141,6 @@ export default function GooseMessage({
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
-
-  // Get current message index
-  const messageIndex = messages.findIndex((msg) => msg.id === message.id);
 
   // Enhanced chain detection that works during streaming
   const toolCallChains = useMemo(() => {
@@ -205,7 +254,7 @@ export default function GooseMessage({
   };
 
   return (
-    <div className="goose-message flex w-full justify-start min-w-0 gap-3">
+    <div className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
       {/* Goose Avatar on the left side */}
       <div className="flex-shrink-0 mt-1">
         {senderInfo.avatarUrl ? (
@@ -222,6 +271,7 @@ export default function GooseMessage({
         )}
       </div>
       
+      {/* Message content - back to original single column layout */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Username and timestamp header - only show if we have text content or it's the start of a chain */}
         {(displayText || isFirstInChain) && (
@@ -249,7 +299,14 @@ export default function GooseMessage({
         {displayText && (
           <div className="flex flex-col group">
             <div ref={contentRef} className="w-full">
-              <MarkdownContent content={displayText} />
+              <CommentableMarkdown
+                content={displayText}
+                messageId={uniqueMessageId}
+                comments={comments}
+                onSelectionChange={onSelectionChange}
+                onCreateComment={onSelectionChange} // This triggers the comment input to show
+                onFocusComment={onFocusComment}
+              />
             </div>
 
             {/* Image previews */}
@@ -316,7 +373,28 @@ export default function GooseMessage({
             toolConfirmationContent={toolConfirmationContent}
           />
         )}
+
       </div>
+
+      {/* Floating comments - positioned absolutely to the right */}
+      {/* Only show if this message has existing comments OR if this is the active message for commenting */}
+      {((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
+        <div className="absolute left-full ml-4 top-0 w-80 z-10">
+          <MessageComments
+            messageId={uniqueMessageId}
+            comments={comments || []}
+            activeSelection={activeSelection}
+            activePosition={activePosition}
+            isCreatingComment={isCreatingComment && activeMessageId === uniqueMessageId}
+            onCreateComment={onCreateComment || (() => {})}
+            onUpdateComment={onUpdateComment || (() => {})}
+            onDeleteComment={onDeleteComment || (() => {})}
+            onReplyToComment={onReplyToComment || (() => {})}
+            onResolveComment={onResolveComment || (() => {})}
+            onCancelComment={onCancelComment || (() => {})}
+          />
+        </div>
+      )}
     </div>
   );
 }

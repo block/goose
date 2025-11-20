@@ -4,6 +4,7 @@ import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
+import MessageComments from './MessageComments';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -26,6 +27,7 @@ import ParameterInputModal from './ParameterInputModal';
 import { TabSidecarInvoker } from './TabSidecarInvoker';
 import ParticipantsBar from './ParticipantsBar';
 import PendingInvitesInHistory from './PendingInvitesInHistory';
+import { useComments } from '../hooks/useComments';
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
@@ -86,7 +88,8 @@ function BaseChatContent({
   // Hover state for sidecar dock
   const [isHoveringChatInput, setIsHoveringChatInput] = useState(false);
 
-
+  // Comment state management
+  const commentState = useComments({ sessionId });
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
@@ -373,6 +376,20 @@ function BaseChatContent({
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
+                      // Comment props
+                      comments={commentState.comments}
+                      activeSelection={commentState.activeSelection}
+                      activePosition={commentState.activePosition}
+                      activeMessageId={commentState.activeMessageId}
+                      isCreatingComment={commentState.isCreatingComment}
+                      onSelectionChange={commentState.setActiveSelection}
+                      onCreateComment={commentState.createComment}
+                      onUpdateComment={commentState.updateComment}
+                      onDeleteComment={commentState.deleteComment}
+                      onReplyToComment={commentState.replyToComment}
+                      onResolveComment={commentState.resolveComment}
+                      onCancelComment={() => commentState.setActiveSelection(null)}
+                      onFocusComment={commentState.focusComment}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -390,6 +407,20 @@ function BaseChatContent({
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
+                        // Comment props
+                        comments={commentState.comments}
+                        activeSelection={commentState.activeSelection}
+                        activePosition={commentState.activePosition}
+                        activeMessageId={commentState.activeMessageId}
+                        isCreatingComment={commentState.isCreatingComment}
+                        onSelectionChange={commentState.setActiveSelection}
+                        onCreateComment={commentState.createComment}
+                        onUpdateComment={commentState.updateComment}
+                        onDeleteComment={commentState.deleteComment}
+                        onReplyToComment={commentState.replyToComment}
+                        onResolveComment={commentState.resolveComment}
+                        onCancelComment={() => commentState.setActiveSelection(null)}
+                        onFocusComment={commentState.focusComment}
                       />
                     </SearchView>
                   )}

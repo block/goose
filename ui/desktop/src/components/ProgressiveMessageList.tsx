@@ -23,6 +23,7 @@ import { useContextManager } from './context_management/ContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
+import { MessageComment, TextSelection } from '../types/comment';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
@@ -39,6 +40,20 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  // Comment-related props
+  comments?: Map<string, MessageComment[]>;
+  activeSelection?: TextSelection | null;
+  activePosition?: { x: number; y: number } | null;
+  activeMessageId?: string | null;
+  isCreatingComment?: boolean;
+  onSelectionChange?: (selection: TextSelection | null, position?: { x: number; y: number }, messageId?: string) => void;
+  onCreateComment?: (messageId: string, selection: TextSelection, content: string) => void;
+  onUpdateComment?: (commentId: string, content: string) => void;
+  onDeleteComment?: (commentId: string) => void;
+  onReplyToComment?: (parentId: string, content: string) => void;
+  onResolveComment?: (commentId: string, resolved: boolean) => void;
+  onCancelComment?: () => void;
+  onFocusComment?: (commentId: string) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -55,6 +70,20 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  // Comment props
+  comments = new Map(),
+  activeSelection,
+  activePosition,
+  activeMessageId,
+  isCreatingComment = false,
+  onSelectionChange,
+  onCreateComment,
+  onUpdateComment,
+  onDeleteComment,
+  onReplyToComment,
+  onResolveComment,
+  onCancelComment,
+  onFocusComment,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -213,6 +242,7 @@ export default function ProgressiveMessageList({
                     messageHistoryIndex={chat.messageHistoryIndex}
                     message={message}
                     messages={messages}
+                    messageIndex={index} // Pass the correct sequential message index
                     append={append}
                     appendMessage={appendMessage}
                     toolCallNotifications={toolCallNotifications}
@@ -222,6 +252,29 @@ export default function ProgressiveMessageList({
                       index === messagesToRender.length - 1 &&
                       message.role === 'assistant'
                     }
+                    // Comment props - use same unique ID logic as GooseMessage
+                    comments={(() => {
+                      // Generate the same unique ID that GooseMessage uses
+                      const uniqueMessageId = message.id || (() => {
+                        const contentHash = message.content
+                          .map(c => c.type === 'text' ? c.text.slice(0, 50) : c.type)
+                          .join('|');
+                        return `${message.role}-${message.created}-${index}-${contentHash.length}`;
+                      })();
+                      return comments.get(uniqueMessageId) || [];
+                    })()}
+                    activeSelection={activeSelection}
+                    activePosition={activePosition}
+                    activeMessageId={activeMessageId}
+                    isCreatingComment={isCreatingComment}
+                    onSelectionChange={onSelectionChange}
+                    onCreateComment={onCreateComment}
+                    onUpdateComment={onUpdateComment}
+                    onDeleteComment={onDeleteComment}
+                    onReplyToComment={onReplyToComment}
+                    onResolveComment={onResolveComment}
+                    onCancelComment={onCancelComment}
+                    onFocusComment={onFocusComment}
                   />
                 )}
               </>
@@ -242,6 +295,20 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     hasCompactionMarker,
+    // Comment dependencies
+    comments,
+    activeSelection,
+    activePosition,
+    activeMessageId,
+    isCreatingComment,
+    onSelectionChange,
+    onCreateComment,
+    onUpdateComment,
+    onDeleteComment,
+    onReplyToComment,
+    onResolveComment,
+    onCancelComment,
+    onFocusComment,
   ]);
 
   return (
