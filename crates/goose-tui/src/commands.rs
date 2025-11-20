@@ -49,18 +49,24 @@ pub fn dispatch(app: &mut App, input: &str) -> CommandResult {
                 .iter()
                 .find(|c| c.name == command)
             {
-                // Construct Tool Request
-                let param = CallToolRequestParam {
-                    name: cmd.tool.clone().into(),
-                    arguments: Some(cmd.args.as_object().cloned().unwrap_or_default()),
-                };
+                // Construct a prompt that asks Goose to run this tool
+                let args_str = cmd
+                    .args
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .map(|(k, v)| format!("{}: {}", k, v))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
 
-                let id = format!("call_{}", uuid::Uuid::new_v4());
+                let prompt = format!(
+                    "Please run the tool '{}' with these arguments: {{{}}}",
+                    cmd.tool, args_str
+                );
 
-                // Inject Assistant Tool Request
-                let msg = Message::assistant().with_tool_request(id, Ok(param));
-
-                CommandResult::ExecuteTool(msg)
+                CommandResult::Reply(prompt)
             } else {
                 CommandResult::Reply(input.to_string())
             }
