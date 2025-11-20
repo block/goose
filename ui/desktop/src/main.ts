@@ -1167,12 +1167,17 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
-        allowRunningInsecureContent: false,
+        allowRunningInsecureContent: true, // Allow mixed content for better compatibility
         experimentalFeatures: true,
         // Enable additional features for better website compatibility
         webgl: true,
         plugins: false,
         java: false,
+        // Use a separate session for better isolation and compatibility
+        partition: 'persist:browserview',
+        // Enable additional web features
+        backgroundThrottling: false,
+        offscreen: false,
         // Set a standard user agent to avoid detection issues
         // This helps with sites that might serve different content to Electron
       },
