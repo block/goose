@@ -23,45 +23,54 @@ const sessionCreationInProgress = new Set<string>();
 const DEBUG_CHAT_STREAM = true;
 
 // Check if a message contains goose commands or mentions that shouldn't trigger AI response
-function checkForGooseCommands(message: string): boolean {
-  const trimmedMessage = message.trim();
+// Returns an object with skipAI flag and new goose state
+function checkForGooseCommands(message: string, currentGooseEnabled: boolean): { 
+  skipAI: boolean; 
+  newGooseEnabled: boolean;
+  isGooseCommand: boolean;
+} {
+  const trimmedMessage = message.trim().toLowerCase();
   
-  // Check for goose control commands
-  const gooseCommands = [
-    '@goose off',
-    '@goose stop', 
-    '@goose quiet',
-    '@goose pause',
-    '@goose',
-  ];
+  // Check for goose ON command
+  if (trimmedMessage === '@goose' || trimmedMessage === '@goose on') {
+    console.log('🦆 Goose turned ON');
+    return { skipAI: true, newGooseEnabled: true, isGooseCommand: true };
+  }
   
-  // Check if the message starts with any goose command
-  for (const command of gooseCommands) {
-    if (trimmedMessage.toLowerCase().startsWith(command.toLowerCase())) {
-      console.log('🦆 Detected goose command:', command, '- skipping AI response');
-      return true;
+  // Check for goose OFF commands
+  const gooseOffCommands = ['@goose off', '@goose stop', '@goose quiet', '@goose pause'];
+  for (const command of gooseOffCommands) {
+    if (trimmedMessage === command) {
+      console.log('🦆 Goose turned OFF with command:', command);
+      return { skipAI: true, newGooseEnabled: false, isGooseCommand: true };
     }
+  }
+  
+  // If goose is disabled, skip all AI responses except for goose commands
+  if (!currentGooseEnabled) {
+    console.log('🦆 Goose is OFF - skipping AI response');
+    return { skipAI: true, newGooseEnabled: currentGooseEnabled, isGooseCommand: false };
   }
   
   // Check for friend mentions (Matrix user IDs or @username patterns)
   // Matrix user IDs start with @ and contain a colon (e.g., @user:domain.com)
   const matrixUserPattern = /@[a-zA-Z0-9._-]+:[a-zA-Z0-9.-]+/;
-  if (matrixUserPattern.test(trimmedMessage)) {
+  if (matrixUserPattern.test(message.trim())) {
     console.log('👥 Detected Matrix user mention - skipping AI response');
-    return true;
+    return { skipAI: true, newGooseEnabled: currentGooseEnabled, isGooseCommand: false };
   }
   
   // Check for simple @username mentions (without domain)
   const simpleMentionPattern = /^@[a-zA-Z0-9._-]+(\s|$)/;
-  if (simpleMentionPattern.test(trimmedMessage)) {
+  if (simpleMentionPattern.test(message.trim())) {
     // But allow @goose commands to pass through to be handled above
-    if (!trimmedMessage.toLowerCase().startsWith('@goose')) {
+    if (!message.trim().toLowerCase().startsWith('@goose')) {
       console.log('👥 Detected user mention - skipping AI response');
-      return true;
+      return { skipAI: true, newGooseEnabled: currentGooseEnabled, isGooseCommand: false };
     }
   }
   
-  return false;
+  return { skipAI: false, newGooseEnabled: currentGooseEnabled, isGooseCommand: false };
 }
 
 const log = {
@@ -269,6 +278,7 @@ export function useChatStream({
   const [session, setSession] = useState<Session>();
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const [gooseEnabled, setGooseEnabled] = useState<boolean>(true); // Goose starts enabled
   const [tokenState, setTokenState] = useState<TokenState>({
     inputTokens: 0,
     outputTokens: 0,
@@ -427,16 +437,29 @@ export function useChatStream({
       });
 
       // Check if this is a goose control command or mention that shouldn't trigger AI response
-      const shouldSkipAI = checkForGooseCommands(userMessage);
+      const commandResult = checkForGooseCommands(userMessage, gooseEnabled);
       
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       setMessagesAndLog(currentMessages, 'user-entered');
 
-      // If this is a goose control command or mention, don't send to AI
-      if (shouldSkipAI) {
+      // Update goose enabled state if it changed
+      if (commandResult.newGooseEnabled !== gooseEnabled) {
+        setGooseEnabled(commandResult.newGooseEnabled);
+        console.log('🦆 Goose state changed:', commandResult.newGooseEnabled ? 'ENABLED' : 'DISABLED');
+      }
+
+      // If this is a goose control command or mention, or goose is disabled, don't send to AI
+      if (commandResult.skipAI) {
+        const reason = commandResult.isGooseCommand 
+          ? 'goose control command' 
+          : !gooseEnabled 
+            ? 'goose is disabled'
+            : 'user mention detected';
+            
         log.messages('skipping-ai-for-command', currentMessages.length, {
-          reason: 'goose command or mention detected',
-          message: userMessage.slice(0, 50)
+          reason,
+          message: userMessage.slice(0, 50),
+          gooseEnabled: commandResult.newGooseEnabled
         });
         setChatState(ChatState.Idle);
         return;
@@ -602,7 +625,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, setMessagesAndLog, onFinish, onSessionIdChange]
+    [sessionId, session, gooseEnabled, setMessagesAndLog, onFinish, onSessionIdChange]
   );
 
   const setRecipeUserParams = useCallback(
