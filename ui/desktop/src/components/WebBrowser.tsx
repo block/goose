@@ -232,13 +232,14 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
 
     showBrowserView();
 
-    // Hide the BrowserView when component unmounts
+    // Hide the BrowserView when component unmounts (but don't destroy it for tab switching)
     return () => {
       if (viewId && isVisibleRef.current) {
-        // Hide by setting bounds to zero
-        window.electron.updateBrowserViewBounds(viewId, { x: 0, y: 0, width: 0, height: 0 }).catch(console.error);
+        // Use the global hide function to properly hide all BrowserViews
+        // This is safer than setting bounds to zero or moving off-screen
+        window.electron.hideBrowserViews().catch(console.error);
         isVisibleRef.current = false;
-        console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView hidden on unmount`);
+        console.log(`WebBrowser [${instanceIdRef.current}]: BrowserViews hidden for tab switching`);
       }
     };
   }, [viewId]);
