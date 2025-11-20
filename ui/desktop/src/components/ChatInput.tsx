@@ -894,10 +894,14 @@ export default function ChatInput({
   //   };
 
   const checkForMention = (text: string, cursorPosition: number, textArea: any) => {
+    console.log('🔍 checkForMention called:', { text: text.substring(0, 50) + '...', cursorPosition, textAreaType: typeof textArea });
+    
     // Find the last @ and / before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
     const lastSlashIndex = beforeCursor.lastIndexOf('/');
+    
+    console.log('🔍 Found triggers:', { lastAtIndex, lastSlashIndex, beforeCursor: beforeCursor.substring(Math.max(0, beforeCursor.length - 20)) });
     
     // Determine which symbol is closer to cursor
     const isSlashTrigger = lastSlashIndex > lastAtIndex;
@@ -905,6 +909,7 @@ export default function ChatInput({
 
     if (triggerIndex === -1) {
       // No trigger symbol found, close both popovers
+      console.log('🔍 No trigger found, closing popovers');
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
@@ -913,16 +918,25 @@ export default function ChatInput({
     // Check if there's a space between trigger symbol and cursor (which would end the trigger)
     const afterTrigger = beforeCursor.slice(triggerIndex + 1);
     if (afterTrigger.includes(' ') || afterTrigger.includes('\n')) {
+      console.log('🔍 Space found after trigger, closing popovers');
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
 
     // Calculate position for the popover - position it above the chat input
-    const textAreaRect = textArea.getBoundingClientRect();
+    let textAreaRect;
+    try {
+      textAreaRect = textArea.getBoundingClientRect ? textArea.getBoundingClientRect() : textAreaRef.current?.getBoundingClientRect?.() || new DOMRect();
+      console.log('🔍 Got textAreaRect:', { x: textAreaRect.left, y: textAreaRect.top, width: textAreaRect.width, height: textAreaRect.height });
+    } catch (error) {
+      console.error('🔍 Error getting bounding rect:', error);
+      textAreaRect = new DOMRect();
+    }
 
     if (isSlashTrigger) {
       // Open action popover for / trigger
+      console.log('🔍 Opening action popover for /', { query: afterTrigger });
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover({
         isOpen: true,
@@ -936,6 +950,7 @@ export default function ChatInput({
       });
     } else {
       // Open mention popover for @ trigger (existing functionality)
+      console.log('🔍 Opening mention popover for @', { query: afterTrigger, mentionStart: triggerIndex });
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
       setMentionPopover((prev) => ({
         ...prev,
