@@ -23,8 +23,7 @@ import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
-import { SidecarInvoker } from './Layout/SidecarInvoker';
-import { useSidecar } from './SidecarLayout';
+import { TabSidecarInvoker } from './TabSidecarInvoker';
 import ParticipantsBar from './ParticipantsBar';
 import PendingInvitesInHistory from './PendingInvitesInHistory';
 
@@ -48,6 +47,8 @@ interface BaseChatProps {
   disableSearch?: boolean;
   showPopularTopics?: boolean;
   loadingChat?: boolean;
+  // Tab-specific sidecar props
+  tabId?: string;
 }
 
 function BaseChatContent({
@@ -66,6 +67,7 @@ function BaseChatContent({
   disableSearch = false,
   showPopularTopics = true,
   loadingChat = false,
+  tabId,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -84,88 +86,7 @@ function BaseChatContent({
   // Hover state for sidecar dock
   const [isHoveringChatInput, setIsHoveringChatInput] = useState(false);
 
-  // Sidecar functionality
-  const sidecar = useSidecar();
 
-  const handleShowLocalhost = () => {
-    console.log('Localhost viewer requested');
-    if (sidecar) {
-      sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer');
-    }
-  };
-
-  const handleShowFileViewer = (filePath: string) => {
-    console.log('File viewer requested for:', filePath);
-    if (sidecar) {
-      sidecar.showFileViewer(filePath);
-    }
-  };
-
-  const handleAddContainer = (type: 'sidecar' | 'localhost' | 'file' | 'document-editor' | 'web-viewer' | 'app-installer', filePath?: string) => {
-    console.log('Add container requested:', type, filePath);
-    
-    if (!sidecar) {
-      console.error('No sidecar context available');
-      return;
-    }
-
-    // Use sidecar context directly instead of dispatching events
-    switch (type) {
-      case 'sidecar':
-        // Show a generic sidecar view
-        sidecar.showView({
-          id: `sidecar-${Date.now()}`,
-          title: 'Sidecar',
-          icon: <div className="w-4 h-4 bg-blue-500 rounded" />,
-          content: (
-            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
-              <p>Sidecar content will go here</p>
-            </div>
-          ),
-        });
-        break;
-      case 'localhost':
-        sidecar.showLocalhostViewer('http://localhost:3000', 'Localhost Viewer');
-        break;
-      case 'file':
-        if (filePath) {
-          sidecar.showFileViewer(filePath);
-        }
-        break;
-      case 'document-editor':
-        sidecar.showDocumentEditor(filePath);
-        break;
-      case 'web-viewer':
-        // Show a proper web viewer
-        sidecar.showView({
-          id: `web-viewer-${Date.now()}`,
-          title: 'Web Viewer',
-          icon: <div className="w-4 h-4 bg-cyan-500 rounded" />,
-          content: null, // Will be rendered by contentType
-          contentType: 'web-viewer',
-          contentProps: {
-            initialUrl: 'https://google.com',
-            allowAllSites: true
-          }
-        });
-        break;
-      case 'app-installer':
-        // Show a generic app installer view
-        sidecar.showView({
-          id: `app-installer-${Date.now()}`,
-          title: 'App Installer',
-          icon: <div className="w-4 h-4 bg-green-500 rounded" />,
-          content: (
-            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
-              <p>App installer will go here</p>
-            </div>
-          ),
-        });
-        break;
-      default:
-        console.warn('Unknown container type:', type);
-    }
-  };
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
@@ -534,14 +455,14 @@ function BaseChatContent({
           onMouseEnter={() => setIsHoveringChatInput(true)}
           onMouseLeave={() => setIsHoveringChatInput(false)}
         >
-          {/* Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
+          {/* Tab Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
           <div className="relative max-w-4xl mx-auto w-full">
-            <SidecarInvoker 
-              onShowLocalhost={handleShowLocalhost}
-              onShowFileViewer={handleShowFileViewer}
-              onAddContainer={handleAddContainer}
-              isVisible={isHoveringChatInput}
-            />
+            {tabId && (
+              <TabSidecarInvoker 
+                tabId={tabId}
+                isVisible={isHoveringChatInput}
+              />
+            )}
           </div>
 
           <ChatInput

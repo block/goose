@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { Tab } from '../components/TabBar';
+import { Tab, TabSidecarState, TabSidecarView } from '../components/TabBar';
 import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
 import { getSession, updateSessionDescription } from '../api';
+import { FileDiff, Globe, FileText, Edit } from 'lucide-react';
 
 interface TabState {
   tab: Tab;
@@ -26,6 +27,15 @@ interface TabContextType {
   updateTabTitleFromMessage: (tabId: string, message: string | any) => Promise<void>;
   openExistingSession: (sessionId: string, title?: string) => void;
   updateSessionId: (tabId: string, newSessionId: string) => void;
+  // Sidecar management functions
+  showSidecarView: (tabId: string, view: TabSidecarView) => void;
+  hideSidecarView: (tabId: string, viewId: string) => void;
+  hideAllSidecarViews: (tabId: string) => void;
+  getSidecarState: (tabId: string) => TabSidecarState | undefined;
+  showDiffViewer: (tabId: string, diffContent: string, fileName?: string, instanceId?: string) => void;
+  showLocalhostViewer: (tabId: string, url?: string, title?: string, instanceId?: string) => void;
+  showFileViewer: (tabId: string, filePath: string, instanceId?: string) => void;
+  showDocumentEditor: (tabId: string, filePath?: string, initialContent?: string, instanceId?: string) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -395,6 +405,194 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     ));
   }, []);
 
+  // Sidecar management functions
+  const showSidecarView = useCallback((tabId: string, view: TabSidecarView) => {
+    console.log('🔧 TabContext: Showing sidecar view for tab:', tabId, 'view:', view.id);
+    
+    setTabStates(prev => prev.map(ts => {
+      if (ts.tab.id !== tabId) return ts;
+      
+      const currentSidecarState = ts.tab.sidecarState || { activeViews: [], views: [] };
+      
+      // Add or update the view
+      const existingViewIndex = currentSidecarState.views.findIndex(v => v.id === view.id);
+      let updatedViews;
+      if (existingViewIndex >= 0) {
+        updatedViews = [...currentSidecarState.views];
+        updatedViews[existingViewIndex] = view;
+      } else {
+        updatedViews = [...currentSidecarState.views, view];
+      }
+      
+      // Add to active views if not already active
+      const updatedActiveViews = currentSidecarState.activeViews.includes(view.id)
+        ? currentSidecarState.activeViews
+        : [...currentSidecarState.activeViews, view.id];
+      
+      return {
+        ...ts,
+        tab: {
+          ...ts.tab,
+          sidecarState: {
+            activeViews: updatedActiveViews,
+            views: updatedViews
+          }
+        }
+      };
+    }));
+  }, []);
+
+  const hideSidecarView = useCallback((tabId: string, viewId: string) => {
+    console.log('🔧 TabContext: Hiding sidecar view for tab:', tabId, 'view:', viewId);
+    
+    setTabStates(prev => prev.map(ts => {
+      if (ts.tab.id !== tabId || !ts.tab.sidecarState) return ts;
+      
+      return {
+        ...ts,
+        tab: {
+          ...ts.tab,
+          sidecarState: {
+            ...ts.tab.sidecarState,
+            activeViews: ts.tab.sidecarState.activeViews.filter(id => id !== viewId)
+          }
+        }
+      };
+    }));
+  }, []);
+
+  const hideAllSidecarViews = useCallback((tabId: string) => {
+    console.log('🔧 TabContext: Hiding all sidecar views for tab:', tabId);
+    
+    setTabStates(prev => prev.map(ts => {
+      if (ts.tab.id !== tabId || !ts.tab.sidecarState) return ts;
+      
+      return {
+        ...ts,
+        tab: {
+          ...ts.tab,
+          sidecarState: {
+            ...ts.tab.sidecarState,
+            activeViews: []
+          }
+        }
+      };
+    }));
+  }, []);
+
+  const getSidecarState = useCallback((tabId: string): TabSidecarState | undefined => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    return tabState?.tab.sidecarState;
+  }, [tabStates]);
+
+  // Helper function to create sidecar views for specific types
+  const showDiffViewer = useCallback((tabId: string, diffContent: string, fileName = 'File', instanceId?: string) => {
+    const id = instanceId ? `diff-${instanceId}` : 'diff';
+    
+    // Simple diff viewer component
+    const MonacoDiffViewer = ({ diffContent: content }: { diffContent: string }) => (
+      <div className="h-full p-4 bg-background-default">
+        <pre className="text-sm text-textStandard whitespace-pre-wrap">{content}</pre>
+      </div>
+    );
+    
+    const diffView: TabSidecarView = {
+      id,
+      title: 'Diff Viewer',
+      icon: <FileDiff size={16} />,
+      content: <MonacoDiffViewer diffContent={diffContent} />,
+      fileName,
+      instanceId,
+    };
+    
+    showSidecarView(tabId, diffView);
+  }, [showSidecarView]);
+
+  const showLocalhostViewer = useCallback((tabId: string, url = 'http://localhost:3000', title = 'Localhost Viewer', instanceId?: string) => {
+    const id = instanceId ? `localhost-${instanceId}` : 'localhost';
+    
+    // Simple iframe component for localhost viewer
+    const LocalhostViewer = ({ url: viewerUrl }: { url: string }) => (
+      <div className="h-full">
+        <iframe 
+          src={viewerUrl} 
+          className="w-full h-full border-0" 
+          title={title}
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
+      </div>
+    );
+    
+    const localhostView: TabSidecarView = {
+      id,
+      title,
+      icon: <Globe size={16} />,
+      content: <LocalhostViewer url={url} />,
+      fileName: url,
+      instanceId,
+    };
+    
+    showSidecarView(tabId, localhostView);
+  }, [showSidecarView]);
+
+  const showFileViewer = useCallback((tabId: string, filePath: string, instanceId?: string) => {
+    const fileName = filePath.split('/').pop() || filePath;
+    const id = instanceId ? `file-${instanceId}` : 'file';
+    
+    // Simple file viewer component
+    const SimpleFileViewer = ({ path }: { path: string }) => (
+      <div className="h-full p-4 bg-background-default">
+        <div className="text-sm text-textMuted mb-2">File: {path}</div>
+        <div className="text-sm text-textStandard">
+          File viewer for: {path}
+          <br />
+          (Content loading would be implemented here)
+        </div>
+      </div>
+    );
+    
+    const fileView: TabSidecarView = {
+      id,
+      title: 'File Viewer',
+      icon: <FileText size={16} />,
+      content: <SimpleFileViewer path={filePath} />,
+      fileName,
+      instanceId,
+    };
+    
+    showSidecarView(tabId, fileView);
+  }, [showSidecarView]);
+
+  const showDocumentEditor = useCallback((tabId: string, filePath?: string, initialContent?: string, instanceId?: string) => {
+    const fileName = filePath ? filePath.split('/').pop() || filePath : 'Untitled Document';
+    const id = instanceId ? `editor-${instanceId}` : 'editor';
+    
+    // Simple document editor component
+    const SimpleDocumentEditor = ({ path, content }: { path?: string; content?: string }) => (
+      <div className="h-full p-4 bg-background-default">
+        <div className="text-sm text-textMuted mb-2">
+          {path ? `Editing: ${path}` : 'New Document'}
+        </div>
+        <textarea 
+          className="w-full h-full border border-borderSubtle rounded p-2 text-sm resize-none"
+          placeholder="Start writing your document..."
+          defaultValue={content || ''}
+        />
+      </div>
+    );
+    
+    const editorView: TabSidecarView = {
+      id,
+      title: 'Document Editor',
+      icon: <Edit size={16} />,
+      content: <SimpleDocumentEditor path={filePath} content={initialContent} />,
+      fileName,
+      instanceId,
+    };
+    
+    showSidecarView(tabId, editorView);
+  }, [showSidecarView]);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -410,7 +608,16 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     syncTabTitleWithBackend,
     updateTabTitleFromMessage,
     openExistingSession,
-    updateSessionId
+    updateSessionId,
+    // Sidecar functions
+    showSidecarView,
+    hideSidecarView,
+    hideAllSidecarViews,
+    getSidecarState,
+    showDiffViewer,
+    showLocalhostViewer,
+    showFileViewer,
+    showDocumentEditor
   };
 
   return (

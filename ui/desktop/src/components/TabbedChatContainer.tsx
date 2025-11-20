@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TabBar } from './TabBar';
 import BaseChat2 from './BaseChat2';
+import { TabSidecar } from './TabSidecar';
 import { useTabContext } from '../contexts/TabContext';
+import { ResizableSplitter } from './Layout/ResizableSplitter';
 
 interface TabbedChatContainerProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -29,7 +31,10 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     getActiveTabState,
     syncTabTitleWithBackend,
     updateTabTitleFromMessage,
-    updateSessionId
+    updateSessionId,
+    // Sidecar functions
+    hideSidecarView,
+    getSidecarState
   } = useTabContext();
 
   const handleMessageSubmitWrapper = useCallback(async (message: string, tabId: string) => {
@@ -169,7 +174,12 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     }
   }, [getActiveTabState, updateSessionId, handleChatUpdate]);
 
+  // Sidecar resizing state
+  const [chatWidth, setChatWidth] = useState(60); // Default 60% for chat, 40% for sidecar
+
   const activeTabState = getActiveTabState();
+  const sidecarState = activeTabState ? getSidecarState(activeTabState.tab.id) : undefined;
+  const hasSidecar = sidecarState && sidecarState.activeViews.length > 0;
 
   return (
     <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
@@ -185,25 +195,64 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
         />
       </div>
 
-      {/* Active Chat - Takes remaining space with rounded top corners */}
+      {/* Main Content Area - Chat and Sidecar */}
       <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
         {activeTabState && (
-          <BaseChat2
-            key={activeTabState.tab.id} // Use stable tab ID instead of changing session ID
-            sessionId={activeTabState.tab.sessionId}
-            setChat={handleSetChat}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
-            onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
-            suppressEmptyState={false}
-            showPopularTopics={true}
-            loadingChat={activeTabState.loadingChat}
-            initialMessage={initialMessage}
-            // Matrix props (if this tab is a Matrix session)
-            showParticipantsBar={activeTabState.tab.type === 'matrix'}
-            matrixRoomId={activeTabState.tab.matrixRoomId}
-            showPendingInvites={activeTabState.tab.type === 'matrix'}
-          />
+          <>
+            {hasSidecar ? (
+              /* Resizable Split Layout: Chat + Sidecar */
+              <ResizableSplitter
+                leftContent={
+                  <BaseChat2
+                    key={activeTabState.tab.id}
+                    sessionId={activeTabState.tab.sessionId}
+                    setChat={handleSetChat}
+                    setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                    onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
+                    onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
+                    suppressEmptyState={false}
+                    showPopularTopics={true}
+                    loadingChat={activeTabState.loadingChat}
+                    initialMessage={initialMessage}
+                    showParticipantsBar={activeTabState.tab.type === 'matrix'}
+                    matrixRoomId={activeTabState.tab.matrixRoomId}
+                    showPendingInvites={activeTabState.tab.type === 'matrix'}
+                    tabId={activeTabState.tab.id}
+                  />
+                }
+                rightContent={
+                  <TabSidecar
+                    sidecarState={sidecarState}
+                    onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
+                  />
+                }
+                initialLeftWidth={chatWidth}
+                minLeftWidth={30}
+                maxLeftWidth={80}
+                onResize={setChatWidth}
+                className="h-full"
+                floatingRight={true}
+              />
+            ) : (
+              /* Full Width Chat */
+              <BaseChat2
+                key={activeTabState.tab.id}
+                sessionId={activeTabState.tab.sessionId}
+                setChat={handleSetChat}
+                setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
+                onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
+                suppressEmptyState={false}
+                showPopularTopics={true}
+                loadingChat={activeTabState.loadingChat}
+                initialMessage={initialMessage}
+                showParticipantsBar={activeTabState.tab.type === 'matrix'}
+                matrixRoomId={activeTabState.tab.matrixRoomId}
+                showPendingInvites={activeTabState.tab.type === 'matrix'}
+                tabId={activeTabState.tab.id}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

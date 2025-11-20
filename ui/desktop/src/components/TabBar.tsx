@@ -3,6 +3,22 @@ import { X, Plus, MessageCircle, Bot, Users } from 'lucide-react';
 import { cn } from '../utils';
 import '../styles/tabs.css';
 
+// Sidecar view interface for tab-specific sidecars
+export interface TabSidecarView {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  content: React.ReactNode;
+  fileName?: string;
+  instanceId?: string;
+}
+
+// Sidecar state for each tab
+export interface TabSidecarState {
+  activeViews: string[]; // Array of active view IDs
+  views: TabSidecarView[]; // All available views for this tab
+}
+
 export interface Tab {
   id: string;
   title: string;
@@ -12,6 +28,8 @@ export interface Tab {
   hasUnsavedChanges?: boolean;
   matrixRoomId?: string;
   recipeTitle?: string;
+  // Add sidecar state to each tab
+  sidecarState?: TabSidecarState;
 }
 
 interface TabBarProps {
