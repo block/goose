@@ -1819,6 +1819,7 @@ export default function ChatInput({
             placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
             value={displayValue}
             onChange={(newValue, cursorPos) => {
+              console.log('🔄 ChatInput onChange called:', { newValue: newValue.substring(0, 20) + '...', cursorPos, hasCursorPos: cursorPos !== undefined });
               setDisplayValue(newValue);
               updateValue(newValue);
               debouncedSaveDraft(newValue);
@@ -1826,6 +1827,7 @@ export default function ChatInput({
               
               // Check for @ mention and / action triggers
               if (cursorPos !== undefined) {
+                console.log('🔄 ChatInput calling checkForMention with cursorPos:', cursorPos);
                 const syntheticTarget = {
                   getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
                   selectionStart: cursorPos,
@@ -1833,6 +1835,8 @@ export default function ChatInput({
                   value: newValue,
                 };
                 checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
+              } else {
+                console.log('🔄 ChatInput skipping checkForMention - cursorPos is undefined');
               }
             }}
             onCompositionStart={handleCompositionStart}
