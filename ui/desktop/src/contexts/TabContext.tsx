@@ -23,7 +23,7 @@ interface TabContextType {
   restoreTabState: () => void;
   clearTabState: () => void;
   syncTabTitleWithBackend: (tabId: string) => Promise<void>;
-  updateTabTitleFromMessage: (tabId: string, message: string) => Promise<void>;
+  updateTabTitleFromMessage: (tabId: string, message: string | any) => Promise<void>;
   openExistingSession: (sessionId: string, title?: string) => void;
   updateSessionId: (tabId: string, newSessionId: string) => void;
 }
@@ -282,12 +282,23 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, [tabStates]);
 
   // Update tab title from first message and sync with backend
-  const updateTabTitleFromMessage = useCallback(async (tabId: string, message: string) => {
+  const updateTabTitleFromMessage = useCallback(async (tabId: string, message: string | any) => {
     const tabState = tabStates.find(ts => ts.tab.id === tabId);
     if (!tabState) return;
 
+    // Ensure message is a string and handle different input types
+    let messageText: string;
+    if (typeof message === 'string') {
+      messageText = message;
+    } else if (message && typeof message === 'object') {
+      // Handle Matrix message objects or other structured messages
+      messageText = message.text || message.content || message.body || String(message);
+    } else {
+      messageText = String(message || '');
+    }
+
     // Generate a meaningful title from the message
-    let newTitle = message.trim();
+    let newTitle = messageText.trim();
     
     // Truncate long messages
     if (newTitle.length > 50) {
