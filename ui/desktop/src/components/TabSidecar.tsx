@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, SquareSplitHorizontal, BetweenHorizontalStart } from 'lucide-react';
+import { X, SquareSplitHorizontal, BetweenHorizontalStart, FileDiff, Globe, FileText, Edit } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
@@ -9,6 +9,80 @@ interface TabSidecarProps {
   onHideView: (viewId: string) => void;
   className?: string;
 }
+
+// Component renderers for different sidecar types
+const MonacoDiffViewer: React.FC<{ diffContent: string }> = ({ diffContent }) => (
+  <div className="h-full p-4 bg-background-default overflow-auto">
+    <pre className="text-sm text-textStandard whitespace-pre-wrap font-mono">{diffContent}</pre>
+  </div>
+);
+
+const LocalhostViewer: React.FC<{ url: string; title: string }> = ({ url, title }) => (
+  <div className="h-full">
+    <iframe 
+      src={url} 
+      className="w-full h-full border-0" 
+      title={title}
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+    />
+  </div>
+);
+
+const SimpleFileViewer: React.FC<{ path: string }> = ({ path }) => (
+  <div className="h-full p-4 bg-background-default">
+    <div className="text-sm text-textMuted mb-2">File: {path}</div>
+    <div className="text-sm text-textStandard">
+      File viewer for: {path}
+      <br />
+      (Content loading would be implemented here)
+    </div>
+  </div>
+);
+
+const SimpleDocumentEditor: React.FC<{ path?: string; content?: string }> = ({ path, content }) => (
+  <div className="h-full p-4 bg-background-default flex flex-col">
+    <div className="text-sm text-textMuted mb-2">
+      {path ? `Editing: ${path}` : 'New Document'}
+    </div>
+    <textarea 
+      className="flex-1 w-full border border-borderSubtle rounded p-2 text-sm resize-none"
+      placeholder="Start writing your document..."
+      defaultValue={content || ''}
+    />
+  </div>
+);
+
+// Icon renderer
+const renderIcon = (iconType: string) => {
+  switch (iconType) {
+    case 'diff':
+      return <FileDiff size={16} />;
+    case 'localhost':
+      return <Globe size={16} />;
+    case 'file':
+      return <FileText size={16} />;
+    case 'editor':
+      return <Edit size={16} />;
+    default:
+      return <FileText size={16} />;
+  }
+};
+
+// Content renderer
+const renderContent = (contentType: string, contentProps: Record<string, any>) => {
+  switch (contentType) {
+    case 'diff':
+      return <MonacoDiffViewer diffContent={contentProps.diffContent || ''} />;
+    case 'localhost':
+      return <LocalhostViewer url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
+    case 'file':
+      return <SimpleFileViewer path={contentProps.path || ''} />;
+    case 'editor':
+      return <SimpleDocumentEditor path={contentProps.path} content={contentProps.content} />;
+    default:
+      return <div className="h-full p-4 bg-background-default">Unknown content type: {contentType}</div>;
+  }
+};
 
 export const TabSidecar: React.FC<TabSidecarProps> = ({
   sidecarState,
@@ -26,7 +100,7 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
   }
 
   // Check if current view is diff viewer
-  const isDiffViewer = currentView.id.startsWith('diff');
+  const isDiffViewer = currentView.contentType === 'diff';
 
   // Update the diff viewer when view mode changes
   React.useEffect(() => {
@@ -43,7 +117,7 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
         {/* Sidecar Header */}
         <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
-            {currentView.icon}
+            {renderIcon(currentView.iconType)}
             <div className="flex flex-col">
               <span className="text-textStandard font-medium">{currentView.title}</span>
               {currentView.fileName && (
@@ -117,7 +191,7 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
 
         {/* Sidecar Content */}
         <div className="flex-1 overflow-hidden">
-          {currentView.content}
+          {renderContent(currentView.contentType, currentView.contentProps)}
         </div>
       </div>
     </div>

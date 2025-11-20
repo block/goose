@@ -3,7 +3,6 @@ import { Tab, TabSidecarState, TabSidecarView } from '../components/TabBar';
 import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
 import { getSession, updateSessionDescription } from '../api';
-import { FileDiff, Globe, FileText, Edit } from 'lucide-react';
 
 interface TabState {
   tab: Tab;
@@ -489,18 +488,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const showDiffViewer = useCallback((tabId: string, diffContent: string, fileName = 'File', instanceId?: string) => {
     const id = instanceId ? `diff-${instanceId}` : 'diff';
     
-    // Simple diff viewer component
-    const MonacoDiffViewer = ({ diffContent: content }: { diffContent: string }) => (
-      <div className="h-full p-4 bg-background-default">
-        <pre className="text-sm text-textStandard whitespace-pre-wrap">{content}</pre>
-      </div>
-    );
-    
     const diffView: TabSidecarView = {
       id,
       title: 'Diff Viewer',
-      icon: <FileDiff size={16} />,
-      content: <MonacoDiffViewer diffContent={diffContent} />,
+      iconType: 'diff',
+      contentType: 'diff',
+      contentProps: { diffContent },
       fileName,
       instanceId,
     };
@@ -511,23 +504,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const showLocalhostViewer = useCallback((tabId: string, url = 'http://localhost:3000', title = 'Localhost Viewer', instanceId?: string) => {
     const id = instanceId ? `localhost-${instanceId}` : 'localhost';
     
-    // Simple iframe component for localhost viewer
-    const LocalhostViewer = ({ url: viewerUrl }: { url: string }) => (
-      <div className="h-full">
-        <iframe 
-          src={viewerUrl} 
-          className="w-full h-full border-0" 
-          title={title}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-        />
-      </div>
-    );
-    
     const localhostView: TabSidecarView = {
       id,
       title,
-      icon: <Globe size={16} />,
-      content: <LocalhostViewer url={url} />,
+      iconType: 'localhost',
+      contentType: 'localhost',
+      contentProps: { url, title },
       fileName: url,
       instanceId,
     };
@@ -539,23 +521,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     const fileName = filePath.split('/').pop() || filePath;
     const id = instanceId ? `file-${instanceId}` : 'file';
     
-    // Simple file viewer component
-    const SimpleFileViewer = ({ path }: { path: string }) => (
-      <div className="h-full p-4 bg-background-default">
-        <div className="text-sm text-textMuted mb-2">File: {path}</div>
-        <div className="text-sm text-textStandard">
-          File viewer for: {path}
-          <br />
-          (Content loading would be implemented here)
-        </div>
-      </div>
-    );
-    
     const fileView: TabSidecarView = {
       id,
       title: 'File Viewer',
-      icon: <FileText size={16} />,
-      content: <SimpleFileViewer path={filePath} />,
+      iconType: 'file',
+      contentType: 'file',
+      contentProps: { path: filePath },
       fileName,
       instanceId,
     };
@@ -567,25 +538,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     const fileName = filePath ? filePath.split('/').pop() || filePath : 'Untitled Document';
     const id = instanceId ? `editor-${instanceId}` : 'editor';
     
-    // Simple document editor component
-    const SimpleDocumentEditor = ({ path, content }: { path?: string; content?: string }) => (
-      <div className="h-full p-4 bg-background-default">
-        <div className="text-sm text-textMuted mb-2">
-          {path ? `Editing: ${path}` : 'New Document'}
-        </div>
-        <textarea 
-          className="w-full h-full border border-borderSubtle rounded p-2 text-sm resize-none"
-          placeholder="Start writing your document..."
-          defaultValue={content || ''}
-        />
-      </div>
-    );
-    
     const editorView: TabSidecarView = {
       id,
       title: 'Document Editor',
-      icon: <Edit size={16} />,
-      content: <SimpleDocumentEditor path={filePath} content={initialContent} />,
+      iconType: 'editor',
+      contentType: 'editor',
+      contentProps: { path: filePath, content: initialContent },
       fileName,
       instanceId,
     };

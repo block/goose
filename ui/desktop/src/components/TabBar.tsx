@@ -7,8 +7,9 @@ import '../styles/tabs.css';
 export interface TabSidecarView {
   id: string;
   title: string;
-  icon: React.ReactNode;
-  content: React.ReactNode;
+  iconType: 'diff' | 'localhost' | 'file' | 'editor';
+  contentType: 'diff' | 'localhost' | 'file' | 'editor';
+  contentProps: Record<string, any>;
   fileName?: string;
   instanceId?: string;
 }
