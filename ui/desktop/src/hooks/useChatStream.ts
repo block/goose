@@ -577,15 +577,23 @@ export function useChatStream({
   }, []);
 
   const cached = resultsCache.get(sessionId);
-  const maybe_cached_messages = session ? messages : cached?.messages || [];
-  const maybe_cached_session = session ?? cached?.session;
+  
+  // Always prefer the current messages if we have them, otherwise fall back to cache
+  const finalMessages = messages.length > 0 ? messages : (cached?.messages || []);
+  const finalSession = session ?? cached?.session;
 
-  console.log('>> returning', sessionId, Date.now(), maybe_cached_messages, chatState);
+  console.log('>> returning', sessionId, Date.now(), {
+    messagesLength: finalMessages.length,
+    hasSession: !!finalSession,
+    chatState,
+    cached: !!cached,
+    cachedMessageCount: cached?.messages?.length || 0
+  });
 
   return {
     sessionLoadError,
-    messages: maybe_cached_messages,
-    session: maybe_cached_session,
+    messages: finalMessages,
+    session: finalSession,
     chatState,
     handleSubmit,
     stopStreaming,
