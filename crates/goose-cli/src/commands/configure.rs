@@ -421,6 +421,28 @@ fn select_model_from_list(
     }
 }
 
+/// Store secret with graceful keyring fallback
+fn store_secret_with_fallback(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
+    match config.set_secret(key, &value.to_string()) {
+        Ok(_) => {
+            let _ = cliclack::log::success("Successfully stored secret in keyring");
+        }
+        Err(ConfigError::FallbackToFileStorage) => {
+            handle_keyring_fallback()?;
+            let _ = cliclack::log::success("Successfully stored secret using file-based storage");
+        }
+        Err(e) => {
+            cliclack::outro(
+                style(format!("Failed to store secret: {}", e))
+                    .on_red()
+                    .white(),
+            )?;
+            return Err(anyhow::anyhow!("Failed to store secret"));
+        }
+    }
+    Ok(())
+}
+
 /// Handle keyring storage failure with user-friendly fallback message
 fn handle_keyring_fallback() -> anyhow::Result<()> {
     let _ = cliclack::log::warning(
@@ -483,25 +505,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                     .interact()?
                 {
                     if key.secret {
-                        match config.set_secret(&key.name, &env_value) {
-                            Ok(_) => {
-                                let _ =
-                                    cliclack::log::success("Successfully stored secret in keyring");
-                            }
-                            Err(ConfigError::FallbackToFileStorage) => {
-                                handle_keyring_fallback()?;
-                                let _ = cliclack::log::success(
-                                    "Successfully stored secret using file-based storage",
-                                );
-                            }
-                            Err(e) => {
-                                cliclack::outro(
-                                    style(format!("Failed to store secret: {}", e))
-                                        .on_red()
-                                        .white(),
-                                )?;
-                                return Ok(false);
-                            }
+                        if let Err(_e) = store_secret_with_fallback(config, &key.name, &env_value) {
+                            return Ok(false);
                         }
                     } else {
                         config.set_param(&key.name, &env_value)?;
@@ -542,24 +547,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 };
 
                                 if key.secret {
-                                    match config.set_secret(&key.name, &value) {
-                                        Ok(_) => {
-                                            let _ = cliclack::log::success(
-                                                "Successfully stored secret in keyring",
-                                            );
-                                        }
-                                        Err(ConfigError::FallbackToFileStorage) => {
-                                            handle_keyring_fallback()?;
-                                            let _ = cliclack::log::success("Successfully stored secret using file-based storage");
-                                        }
-                                        Err(e) => {
-                                            cliclack::outro(
-                                                style(format!("Failed to store secret: {}", e))
-                                                    .on_red()
-                                                    .white(),
-                                            )?;
-                                            return Ok(false);
-                                        }
+                                    if let Err(_e) =
+                                        store_secret_with_fallback(config, &key.name, &value)
+                                    {
+                                        return Ok(false);
                                     }
                                 } else {
                                     config.set_param(&key.name, &value)?;
@@ -591,26 +582,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                match config.set_secret(&key.name, &value) {
-                                    Ok(_) => {
-                                        let _ = cliclack::log::success(
-                                            "Successfully stored secret in keyring",
-                                        );
-                                    }
-                                    Err(ConfigError::FallbackToFileStorage) => {
-                                        handle_keyring_fallback()?;
-                                        let _ = cliclack::log::success(
-                                            "Successfully stored secret using file-based storage",
-                                        );
-                                    }
-                                    Err(e) => {
-                                        cliclack::outro(
-                                            style(format!("Failed to store secret: {}", e))
-                                                .on_red()
-                                                .white(),
-                                        )?;
-                                        return Ok(false);
-                                    }
+                                if let Err(_e) =
+                                    store_secret_with_fallback(config, &key.name, &value)
+                                {
+                                    return Ok(false);
                                 }
                             } else {
                                 config.set_param(&key.name, &value)?;
