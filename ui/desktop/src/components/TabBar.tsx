@@ -89,22 +89,23 @@ export const TabBar: React.FC<TabBarProps> = ({
             <div className="w-2 h-2 bg-accent-warning rounded-full flex-shrink-0 unsaved-indicator" />
           )}
 
-          {/* Close Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onTabClose(tab.id);
-            }}
-            className={cn(
-              "flex-shrink-0 p-1 rounded-md tab-close-button",
-              "opacity-0 group-hover:opacity-100 transition-all duration-200",
-              "text-text-muted hover:text-text-standard",
-              "ml-1" // Add some margin for better spacing
-            )}
-            title="Close tab"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          {/* Close Button - Only show for active tab */}
+          {tab.isActive && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTabClose(tab.id);
+              }}
+              className={cn(
+                "flex-shrink-0 p-1 rounded-md tab-close-button",
+                "text-text-muted hover:text-text-standard transition-all duration-200",
+                "ml-1" // Add some margin for better spacing
+              )}
+              title="Close tab"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       ))}
 
