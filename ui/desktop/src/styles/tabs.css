@@ -1,0 +1,273 @@
+/* Tab-specific styles and animations */
+
+/* Custom scrollbar for tab bar - aligned with design system */
+.tab-bar-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tab-bar-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-bar-container::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 2px;
+}
+
+.tab-bar-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Tab hover effects */
+.tab-item {
+  position: relative;
+}
+
+.tab-item::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.tab-item:hover::before {
+  background: var(--color-background-accent);
+  opacity: 0.3;
+}
+
+.tab-item.active::before {
+  background: var(--color-background-accent);
+}
+
+/* Tab close button enhanced styling */
+.tab-close-button {
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.tab-close-button:hover {
+  transform: scale(1.1);
+  background: var(--color-background-danger);
+  color: var(--color-text-danger);
+  opacity: 0.8;
+}
+
+/* New tab button pulse effect */
+.new-tab-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.new-tab-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--color-background-accent);
+  opacity: 0.1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.new-tab-button:hover::after {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tab content fade transition */
+.tab-content-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.tab-content-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.tab-content-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tab-content-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Unsaved changes indicator animation */
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+}
+
+.unsaved-indicator {
+  animation: pulse-warning 2s infinite;
+}
+
+/* Tab drag and drop styles (for future enhancement) */
+.tab-dragging {
+  opacity: 0.5;
+  transform: rotate(5deg);
+  z-index: 1000;
+}
+
+.tab-drop-zone {
+  position: relative;
+}
+
+.tab-drop-zone::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-background-accent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tab-drop-zone.drag-over::after {
+  opacity: 1;
+}
+
+/* Responsive tab styles */
+@media (max-width: 768px) {
+  .tab-item {
+    min-width: 100px;
+    max-width: 150px;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .tab-item .tab-title {
+    font-size: 0.8rem;
+  }
+  
+  .new-tab-button {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+/* Focus states for accessibility */
+.tab-item:focus-visible {
+  outline: 2px solid var(--color-background-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.tab-close-button:focus-visible {
+  outline: 2px solid var(--color-background-accent);
+  outline-offset: 2px;
+}
+
+.new-tab-button:focus-visible {
+  outline: 2px solid var(--color-background-accent);
+  outline-offset: 2px;
+}
+
+/* Tab entrance animation for new tabs */
+@keyframes tab-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.tab-item.new-tab {
+  animation: tab-slide-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Tab exit animation */
+@keyframes tab-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    max-width: 220px;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+    max-width: 0;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+.tab-item.closing {
+  animation: tab-slide-out 0.2s ease-in forwards;
+}
+
+/* Enhanced tab bar styling */
+.tab-bar-container {
+  /* Optimize for performance */
+  contain: layout style paint;
+  /* Better scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tab separator lines */
+.tab-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--color-border-default);
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.tab-item:hover::after,
+.tab-item.active::after,
+.tab-item:hover + .tab-item::after {
+  opacity: 0;
+}
+
+/* Dark mode specific adjustments */
+@media (prefers-color-scheme: dark) {
+  .tab-bar-container::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+  }
+  
+  .tab-bar-container::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .tab-item,
+  .tab-close-button,
+  .new-tab-button,
+  .unsaved-indicator {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .tab-item::before,
+  .new-tab-button::after {
+    transition: none !important;
+  }
+}
