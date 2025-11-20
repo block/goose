@@ -90,7 +90,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
   const pollNavigationState = useCallback((browserViewId: string) => {
     const updateState = async () => {
       try {
-        const state = await window.electron.browserViewNavigationState(browserViewId);
+        const state = await window.electron.getBrowserViewNavigationState(browserViewId);
         if (state) {
           setNavigationState(state);
           setCurrentUrl(state.url);
