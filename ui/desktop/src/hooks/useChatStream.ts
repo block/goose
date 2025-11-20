@@ -316,11 +316,19 @@ export function useChatStream({
           log.session('resumed-existing', sessionId, {
             messageCount: conversation.length,
             sessionName: loadedSession.name,
+            sessionDescription: loadedSession.description,
+            conversationPreview: conversation.slice(0, 2).map(m => `${m.role}: ${m.content[0]?.text?.slice(0, 50)}...`)
           });
 
           setSession(loadedSession);
           setMessagesAndLog(conversation, 'load-existing');
+          
+          // Cache the loaded session and messages immediately
+          resultsCache.set(sessionId, { session: loadedSession, messages: conversation });
+          
           setChatState(ChatState.Idle);
+        } else {
+          log.session('resume-response-empty', sessionId);
         }
       } catch (error) {
         log.session('resume-failed', sessionId, { error });
