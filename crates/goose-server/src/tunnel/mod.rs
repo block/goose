@@ -183,6 +183,13 @@ impl TunnelManager {
     }
 
     pub async fn start(&self) -> anyhow::Result<TunnelInfo> {
+        if let Ok(val) = std::env::var("GOOSE_TUNNEL") {
+            let val = val.to_lowercase();
+            if val == "no" || val == "none" {
+                anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL environment variable");
+            }
+        }
+
         let mut state = self.state.write().await;
         if *state != TunnelState::Idle {
             anyhow::bail!("Tunnel is already running or starting");

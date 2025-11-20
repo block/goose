@@ -103,6 +103,10 @@ export default function TunnelSection() {
     return `goosechat://configure?data=${urlEncodedConfig}`;
   };
 
+  if (!process.env.GOOSE_TUNNEL) {
+    return null;
+  }
+
   return (
     <>
       <Card className="rounded-lg">
