@@ -1,4 +1,5 @@
 pub mod lapstone;
+pub mod local;
 
 #[cfg(test)]
 mod lapstone_test;
@@ -15,6 +16,25 @@ fn get_server_port() -> anyhow::Result<u16> {
     Ok(settings.port)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TunnelMode {
+    Disabled,
+    Local,
+    Lapstone,
+}
+
+fn get_tunnel_mode() -> TunnelMode {
+    match std::env::var("GOOSE_TUNNEL")
+        .unwrap_or_default()
+        .to_lowercase()
+        .as_str()
+    {
+        "no" => TunnelMode::Disabled,
+        "local" => TunnelMode::Local,
+        _ => TunnelMode::Lapstone,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelState {
@@ -23,6 +43,7 @@ pub enum TunnelState {
     Starting,
     Running,
     Error,
+    Disabled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -106,6 +127,15 @@ impl TunnelManager {
     }
 
     pub async fn get_info(&self) -> TunnelInfo {
+        if get_tunnel_mode() == TunnelMode::Disabled {
+            return TunnelInfo {
+                state: TunnelState::Disabled,
+                url: None,
+                hostname: None,
+                secret: None,
+            };
+        }
+
         let state = self.state.read().await.clone();
         let info = self.info.read().await.clone();
 
@@ -148,37 +178,62 @@ impl TunnelManager {
         Ok(())
     }
 
-    async fn start_tunnel_internal(&self) -> anyhow::Result<(TunnelInfo, mpsc::Receiver<()>)> {
+    async fn start_tunnel_internal(
+        &self,
+    ) -> anyhow::Result<(TunnelInfo, Option<mpsc::Receiver<()>>)> {
+        let tunnel_mode = get_tunnel_mode();
+
+        if tunnel_mode == TunnelMode::Disabled {
+            anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL=no");
+        }
+
         let config = self.config.read().await.clone();
         let server_port = get_server_port()?;
 
         let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
         let server_secret =
             std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
-        let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
         self.update_config(|c| {
             c.secret = Some(tunnel_secret.clone());
-            c.agent_id = Some(agent_id.clone());
         })
         .await?;
 
-        let (restart_tx, restart_rx) = mpsc::channel::<()>(1);
-        *self.restart_tx.write().await = Some(restart_tx.clone());
+        if tunnel_mode == TunnelMode::Local {
+            let info = local::start(
+                server_port,
+                tunnel_secret,
+                server_secret,
+                self.lapstone_handle.clone(),
+            )
+            .await?;
 
-        let result = lapstone::start(
-            server_port,
-            tunnel_secret,
-            server_secret,
-            agent_id,
-            self.lapstone_handle.clone(),
-            restart_tx,
-        )
-        .await;
+            Ok((info, None))
+        } else {
+            let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
 
-        match result {
-            Ok(info) => Ok((info, restart_rx)),
-            Err(e) => Err(e),
+            self.update_config(|c| {
+                c.agent_id = Some(agent_id.clone());
+            })
+            .await?;
+
+            let (restart_tx, restart_rx) = mpsc::channel::<()>(1);
+            *self.restart_tx.write().await = Some(restart_tx.clone());
+
+            let result = lapstone::start(
+                server_port,
+                tunnel_secret,
+                server_secret,
+                agent_id,
+                self.lapstone_handle.clone(),
+                restart_tx,
+            )
+            .await;
+
+            match result {
+                Ok(info) => Ok((info, Some(restart_rx))),
+                Err(e) => Err(e),
+            }
         }
     }
 
@@ -191,47 +246,54 @@ impl TunnelManager {
         drop(state);
 
         match self.start_tunnel_internal().await {
-            Ok((info, mut restart_rx)) => {
+            Ok((info, restart_rx_opt)) => {
                 *self.state.write().await = TunnelState::Running;
                 *self.info.write().await = Some(info.clone());
                 let _ = self.update_config(|c| c.auto_start = true).await;
 
-                let state = self.state.clone();
-                let config = self.config.clone();
-                let lapstone_handle = self.lapstone_handle.clone();
-                let watchdog_handle_arc = self.watchdog_handle.clone();
-                let manager = Arc::new(self.clone_for_watchdog());
+                if let Some(mut restart_rx) = restart_rx_opt {
+                    let state = self.state.clone();
+                    let config = self.config.clone();
+                    let lapstone_handle = self.lapstone_handle.clone();
+                    let watchdog_handle_arc = self.watchdog_handle.clone();
+                    let manager = Arc::new(self.clone_for_watchdog());
 
-                let watchdog = tokio::spawn(async move {
-                    while restart_rx.recv().await.is_some() {
-                        let auto_start = config.read().await.auto_start;
-                        if !auto_start {
-                            tracing::info!("Tunnel connection lost but auto_start is disabled");
-                            break;
-                        }
-
-                        tracing::warn!("Tunnel connection lost, initiating restart...");
-                        lapstone::stop(lapstone_handle.clone()).await;
-                        *state.write().await = TunnelState::Idle;
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        *state.write().await = TunnelState::Starting;
-
-                        match manager.start_tunnel_internal().await {
-                            Ok((_, new_restart_rx)) => {
-                                *state.write().await = TunnelState::Running;
-                                tracing::info!("Tunnel restarted successfully");
-                                restart_rx = new_restart_rx;
-                            }
-                            Err(e) => {
-                                tracing::error!("Failed to restart tunnel: {}", e);
-                                *state.write().await = TunnelState::Error;
+                    let watchdog = tokio::spawn(async move {
+                        while restart_rx.recv().await.is_some() {
+                            let auto_start = config.read().await.auto_start;
+                            if !auto_start {
+                                tracing::info!("Tunnel connection lost but auto_start is disabled");
                                 break;
                             }
-                        }
-                    }
-                });
 
-                *watchdog_handle_arc.write().await = Some(watchdog);
+                            tracing::warn!("Tunnel connection lost, initiating restart...");
+                            lapstone::stop(lapstone_handle.clone()).await;
+                            *state.write().await = TunnelState::Idle;
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            *state.write().await = TunnelState::Starting;
+
+                            match manager.start_tunnel_internal().await {
+                                Ok((_, Some(new_restart_rx))) => {
+                                    *state.write().await = TunnelState::Running;
+                                    tracing::info!("Tunnel restarted successfully");
+                                    restart_rx = new_restart_rx;
+                                }
+                                Ok((_, None)) => {
+                                    tracing::error!("Tunnel restarted but no restart channel");
+                                    *state.write().await = TunnelState::Error;
+                                    break;
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to restart tunnel: {}", e);
+                                    *state.write().await = TunnelState::Error;
+                                    break;
+                                }
+                            }
+                        }
+                    });
+
+                    *watchdog_handle_arc.write().await = Some(watchdog);
+                }
 
                 Ok(info)
             }
@@ -260,7 +322,10 @@ impl TunnelManager {
 
         *self.restart_tx.write().await = None;
 
-        lapstone::stop(self.lapstone_handle.clone()).await;
+        match get_tunnel_mode() {
+            TunnelMode::Local => local::stop(self.lapstone_handle.clone()).await,
+            _ => lapstone::stop(self.lapstone_handle.clone()).await,
+        }
 
         *self.state.write().await = TunnelState::Idle;
         *self.info.write().await = None;

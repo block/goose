@@ -4916,7 +4916,8 @@
           "idle",
           "starting",
           "running",
-          "error"
+          "error",
+          "disabled"
         ]
       },
       "UpdateCustomProviderRequest": {

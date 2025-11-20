@@ -13,6 +13,7 @@ const STATUS_MESSAGES = {
   starting: 'Starting tunnel...',
   running: 'Tunnel is active',
   error: 'Tunnel encountered an error',
+  disabled: 'Tunnel is disabled',
 } as const;
 
 export default function TunnelSection() {
@@ -103,13 +104,17 @@ export default function TunnelSection() {
     return `goosechat://configure?data=${urlEncodedConfig}`;
   };
 
+  if (tunnelInfo.state === 'disabled') {
+    return null;
+  }
+
   return (
     <>
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="mb-1">Remote Access</CardTitle>
           <CardDescription>
-            Enable remote access to goose from mobile devices using secure tunneling via Cloudflare
+            Enable remote access to goose from mobile devices using secure tunneling
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4 space-y-4">
