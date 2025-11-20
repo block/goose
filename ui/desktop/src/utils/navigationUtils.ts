@@ -3,7 +3,9 @@ import { NavigateFunction } from 'react-router-dom';
 export type View =
   | 'welcome'
   | 'chat'
+  | 'hub'
   | 'pair'
+  | 'tabs'
   | 'settings'
   | 'extensions'
   | 'moreModels'
@@ -47,8 +49,14 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
       case 'chat':
         navigate('/', { state: options });
         break;
+      case 'hub':
+        navigate('/hub', { state: options });
+        break;
       case 'pair':
         navigate('/pair', { state: options });
+        break;
+      case 'tabs':
+        navigate('/tabs', { state: options });
         break;
       case 'settings':
         navigate('/settings', { state: options });

@@ -8,6 +8,13 @@ interface PairProps {
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   sessionId: string;
   initialMessage?: string;
+  // Matrix integration props
+  showParticipantsBar?: boolean;
+  matrixRoomId?: string;
+  showPendingInvites?: boolean;
+  // Additional props for flexibility
+  loadingChat?: boolean;
+  showPopularTopics?: boolean;
 }
 
 export default function Pair({
@@ -15,6 +22,11 @@ export default function Pair({
   setIsGoosehintsModalOpen,
   sessionId,
   initialMessage,
+  showParticipantsBar = false,
+  matrixRoomId,
+  showPendingInvites = false,
+  loadingChat = false,
+  showPopularTopics = true,
 }: PairProps) {
   return (
     <BaseChat2
@@ -23,6 +35,11 @@ export default function Pair({
       sessionId={sessionId}
       initialMessage={initialMessage}
       suppressEmptyState={false}
+      showParticipantsBar={showParticipantsBar}
+      matrixRoomId={matrixRoomId}
+      showPendingInvites={showPendingInvites}
+      loadingChat={loadingChat}
+      showPopularTopics={showPopularTopics}
     />
   );
 }

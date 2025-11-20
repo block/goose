@@ -82,8 +82,8 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct ChatRequest {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct ChatRequest {
     messages: Vec<Message>,
     session_id: String,
     recipe_name: Option<String>,
@@ -164,6 +164,16 @@ async fn stream_event(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/reply",
+    request_body = ChatRequest,
+    responses(
+        (status = 200, description = "Chat response stream", content_type = "text/event-stream"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 async fn reply_handler(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatRequest>,

@@ -545,6 +545,8 @@ impl ExtensionManager {
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
+                                icons: tool.icons,
+                                title: tool.title,
                             });
                         }
                     }
@@ -1123,6 +1125,8 @@ mod tests {
                         input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
                         annotations: None,
                         output_schema: None,
+                        icons: None,
+                        title: None,
                     },
                     Tool {
                         name: "available_tool".into(),
@@ -1130,6 +1134,8 @@ mod tests {
                         input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
                         annotations: None,
                         output_schema: None,
+                        icons: None,
+                        title: None,
                     },
                     Tool {
                         name: "hidden_tool".into(),
@@ -1137,6 +1143,8 @@ mod tests {
                         input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
                         annotations: None,
                         output_schema: None,
+                        icons: None,
+                        title: None,
                     },
                 ],
                 next_cursor: None,

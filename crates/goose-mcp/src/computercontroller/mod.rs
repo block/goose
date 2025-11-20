@@ -1293,6 +1293,9 @@ impl ServerHandler for ComputerControllerServer {
             server_info: Implementation {
                 name: "goose-computercontroller".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                icons: None,
+                title: None,
+                website_url: None,
             },
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -1318,6 +1321,8 @@ impl ServerHandler for ComputerControllerServer {
                     description: None,
                     mime_type: None,
                     size: None,
+                    icons: None,
+                    title: None,
                 },
                 annotations: None,
             })

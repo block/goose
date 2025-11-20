@@ -9,7 +9,7 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, RawAudioContent, RawEmbeddedResource, RawImageContent,
     RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
@@ -306,12 +306,14 @@ derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
+derive_utoipa!(RawAudioContent as RawAudioContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
+derive_utoipa!(Icon as IconSchema);
 
 // Create a manual schema for the generic Annotated type
 // We manually define this to avoid circular references from RawContent::Audio(AudioContent)
@@ -365,6 +367,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
         super::routes::agent::update_session_config,
+        super::routes::reply::reply_handler,
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
@@ -403,6 +406,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::UpsertPermissionsQuery,
         super::routes::config_management::CreateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
+        super::routes::reply::ChatRequest,
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
@@ -417,6 +421,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         TextContentSchema,
         RawTextContentSchema,
         RawImageContentSchema,
+        RawAudioContentSchema,
         RawEmbeddedResourceSchema,
         RawResourceSchema,
         AnnotatedSchema,
@@ -437,6 +442,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         Envs,
         ToolSchema,
         ToolAnnotationsSchema,
+        IconSchema,
         ToolInfo,
         PermissionLevel,
         PrincipalType,

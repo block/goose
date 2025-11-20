@@ -1120,6 +1120,35 @@
         }
       }
     },
+    "/reply": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "reply_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Chat response stream"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -1772,6 +1801,32 @@
           }
         }
       },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "messages",
+          "session_id"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "ConfigKey": {
         "type": "object",
         "description": "Configuration key metadata for provider setup",
@@ -1858,7 +1913,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/Annotated"
+                "$ref": "#/components/schemas/RawAudioContent"
               }
             ]
           },
@@ -2587,6 +2642,23 @@
           }
         }
       },
+      "Icon": {
+        "type": "object",
+        "required": [
+          "src"
+        ],
+        "properties": {
+          "mimeType": {
+            "type": "string"
+          },
+          "sizes": {
+            "type": "string"
+          },
+          "src": {
+            "type": "string"
+          }
+        }
+      },
       "ImageContent": {
         "type": "object",
         "required": [
@@ -3096,6 +3168,21 @@
           }
         }
       },
+      "RawAudioContent": {
+        "type": "object",
+        "required": [
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        }
+      },
       "RawEmbeddedResource": {
         "type": "object",
         "required": [
@@ -3140,6 +3227,12 @@
           "description": {
             "type": "string"
           },
+          "icons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Icon"
+            }
+          },
           "mimeType": {
             "type": "string"
           },
@@ -3149,6 +3242,9 @@
           "size": {
             "type": "integer",
             "minimum": 0
+          },
+          "title": {
+            "type": "string"
           },
           "uri": {
             "type": "string"
@@ -3941,6 +4037,12 @@
           "description": {
             "type": "string"
           },
+          "icons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Icon"
+            }
+          },
           "inputSchema": {
             "type": "object",
             "additionalProperties": true
@@ -3951,6 +4053,9 @@
           "outputSchema": {
             "type": "object",
             "additionalProperties": true
+          },
+          "title": {
+            "type": "string"
           }
         }
       },

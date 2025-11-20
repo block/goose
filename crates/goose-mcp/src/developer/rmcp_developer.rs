@@ -148,6 +148,7 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
             .into_iter()
             .map(|arg| PromptArgument {
                 name: arg.name,
+                title: None, // Add missing title field
                 description: arg.description,
                 required: arg.required,
             })
@@ -383,6 +384,9 @@ impl ServerHandler for DeveloperServer {
             server_info: Implementation {
                 name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                icons: None, // Add missing icons field
+                title: None, // Add missing title field
+                website_url: None, // Add missing website_url field
             },
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -581,8 +585,10 @@ impl DeveloperServer {
             )
         })?;
 
-        let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
+        let window_titles: Vec<String> = windows
+            .into_iter()
+            .filter_map(|w| w.title().ok()) // Handle Result<String, XCapError>
+            .collect();
 
         let content_text = format!("Available windows:\n{}", window_titles.join("\n"));
 
@@ -622,7 +628,7 @@ impl DeveloperServer {
 
             let window = windows
                 .into_iter()
-                .find(|w| w.title() == window_title)
+                .find(|w| w.title().ok().as_ref() == Some(window_title)) // Handle Result<String, XCapError>
                 .ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,

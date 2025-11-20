@@ -238,6 +238,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     const tabState = tabStates.find(ts => ts.tab.id === tabId);
     if (!tabState) return;
 
+    // Don't try to sync new sessions that don't exist on the backend yet
+    if (tabState.tab.sessionId.startsWith('new_')) {
+      console.log('🏷️ Skipping backend sync for new session:', tabState.tab.sessionId);
+      return;
+    }
+
     try {
       console.log('🏷️ Syncing tab title with backend for session:', tabState.tab.sessionId);
       const response = await getSession({
@@ -352,12 +358,14 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     setTabStates(prev => [...prev, newTabState]);
     setActiveTabId(newTab.id);
 
-    // Try to sync title from backend after tab is created
-    setTimeout(() => {
-      syncTabTitleWithBackend(newTab.id).catch(error => {
-        console.warn('Failed to sync title for opened session:', error);
-      });
-    }, 100);
+    // Try to sync title from backend after tab is created (only for existing sessions)
+    if (!sessionId.startsWith('new_')) {
+      setTimeout(() => {
+        syncTabTitleWithBackend(newTab.id).catch(error => {
+          console.warn('Failed to sync title for opened session:', error);
+        });
+      }, 100);
+    }
   }, [tabStates, syncTabTitleWithBackend]);
 
   const contextValue: TabContextType = {

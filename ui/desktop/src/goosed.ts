@@ -7,6 +7,7 @@ import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
+import * as yaml from 'yaml';
 
 import { status } from './api';
 import { Client } from './api/client';
@@ -72,6 +73,33 @@ interface GooseProcessEnv {
   GOOSE_PORT: string;
   GOOSE_SERVER__SECRET_KEY?: string;
 }
+
+// Function to read goose configuration from ~/.config/goose/config.yaml
+const readGooseConfig = (): Record<string, any> => {
+  try {
+    const homeDir = os.homedir();
+    const configPath = path.join(homeDir, '.config', 'goose', 'config.yaml');
+    
+    log.info(`Attempting to read goose config from: ${configPath}`);
+    
+    if (!fs.existsSync(configPath)) {
+      log.info('Goose config file does not exist, using defaults');
+      return {};
+    }
+    
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const config = yaml.parse(configContent);
+    
+    log.info('Successfully loaded goose configuration');
+    log.info(`GOOSE_PROVIDER from config: ${config.GOOSE_PROVIDER || 'not set'}`);
+    log.info(`GOOSE_MODEL from config: ${config.GOOSE_MODEL || 'not set'}`);
+    
+    return config || {};
+  } catch (error) {
+    log.error('Error reading goose config file:', error);
+    return {};
+  }
+};
 
 export const startGoosed = async (
   app: App,
@@ -150,6 +178,9 @@ export const startGoosed = async (
 
   log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
 
+  // Read goose configuration from config file
+  const gooseConfig = readGooseConfig();
+
   // Define additional environment variables
   const additionalEnv: GooseProcessEnv = {
     // Set HOME for UNIX-like systems
@@ -165,6 +196,9 @@ export const startGoosed = async (
     // start with the port specified
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: serverSecret,
+    // Add provider configuration from config file if available
+    ...(gooseConfig.GOOSE_PROVIDER && { GOOSE_DEFAULT_PROVIDER: gooseConfig.GOOSE_PROVIDER }),
+    ...(gooseConfig.GOOSE_MODEL && { GOOSE_DEFAULT_MODEL: gooseConfig.GOOSE_MODEL }),
     // Add any additional environment variables passed in
     ...env,
   } as GooseProcessEnv;
@@ -181,6 +215,10 @@ export const startGoosed = async (
   log.info(`Environment APPDATA: ${processEnv.APPDATA}`);
   log.info(`Environment LOCALAPPDATA: ${processEnv.LOCALAPPDATA}`);
   log.info(`Environment PATH: ${processEnv.PATH}`);
+  
+  // Log provider configuration being used
+  log.info(`GOOSE_DEFAULT_PROVIDER: ${processEnv.GOOSE_DEFAULT_PROVIDER || 'not set'}`);
+  log.info(`GOOSE_DEFAULT_MODEL: ${processEnv.GOOSE_DEFAULT_MODEL || 'not set'}`);
 
   // Ensure proper executable path on Windows
   if (isWindows && !resolvedGoosedPath.toLowerCase().endsWith('.exe')) {

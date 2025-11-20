@@ -249,3 +249,64 @@ export function hasCompletedToolCalls(message: Message): boolean {
   // by looking through subsequent messages
   return true;
 }
+
+/**
+ * Check if a message contains thinking/processing indicators
+ */
+export function getThinkingMessage(message: Message): string | undefined {
+  if (!message || message.role !== 'assistant') return undefined;
+  
+  const textContent = getTextContent(message);
+  
+  // Check for common thinking indicators
+  const thinkingPatterns = [
+    /thinking\.\.\./i,
+    /processing\.\.\./i,
+    /analyzing\.\.\./i,
+    /working\.\.\./i,
+    /let me think/i,
+    /one moment/i,
+  ];
+  
+  for (const pattern of thinkingPatterns) {
+    if (pattern.test(textContent)) {
+      return textContent;
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Check if a message contains compacting/summarization indicators
+ */
+export function getCompactingMessage(message: Message): string | undefined {
+  if (!message) return undefined;
+  
+  // Check for summarization content type
+  const summarizationContent = message.content.find(
+    (content): content is SummarizationRequestedContent => 
+      content.type === 'summarizationRequested'
+  );
+  
+  if (summarizationContent) {
+    return summarizationContent.msg;
+  }
+  
+  // Check for compacting text patterns
+  const textContent = getTextContent(message);
+  const compactingPatterns = [
+    /compacting/i,
+    /summarizing/i,
+    /condensing/i,
+    /reducing context/i,
+  ];
+  
+  for (const pattern of compactingPatterns) {
+    if (pattern.test(textContent)) {
+      return textContent;
+    }
+  }
+  
+  return undefined;
+}

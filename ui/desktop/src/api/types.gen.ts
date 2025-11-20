@@ -27,6 +27,13 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+export type ChatRequest = {
+    messages: Array<Message>;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    session_id: string;
+};
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -65,7 +72,7 @@ export type ConfigResponse = {
     };
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated | RawResource;
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -331,6 +338,12 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+export type Icon = {
+    mimeType?: string;
+    sizes?: string;
+    src: string;
+};
+
 export type ImageContent = {
     _meta?: {
         [key: string]: unknown;
@@ -499,6 +512,11 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+export type RawAudioContent = {
+    data: string;
+    mimeType: string;
+};
+
 export type RawEmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -516,9 +534,11 @@ export type RawImageContent = {
 
 export type RawResource = {
     description?: string;
+    icons?: Array<Icon>;
     mimeType?: string;
     name: string;
     size?: number;
+    title?: string;
     uri: string;
 };
 
@@ -822,6 +842,7 @@ export type Tool = {
         [key: string]: unknown;
     };
     description?: string;
+    icons?: Array<Icon>;
     inputSchema: {
         [key: string]: unknown;
     };
@@ -829,6 +850,7 @@ export type Tool = {
     outputSchema?: {
         [key: string]: unknown;
     };
+    title?: string;
 };
 
 export type ToolAnnotations = {
@@ -1782,6 +1804,31 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ReplyHandlerData = {
+    body: ChatRequest;
+    path?: never;
+    query?: never;
+    url: '/reply';
+};
+
+export type ReplyHandlerErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReplyHandlerResponses = {
+    /**
+     * Chat response stream
+     */
+    200: unknown;
+};
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

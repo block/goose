@@ -521,6 +521,9 @@ impl ServerHandler for MemoryServer {
             server_info: Implementation {
                 name: "goose-memory".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
+                icons: None, // Add missing icons field
+                title: None, // Add missing title field
+                website_url: None, // Add missing website_url field
             },
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(self.instructions.clone()),
