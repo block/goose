@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
@@ -10,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
 use tracing::{debug, info};
 
-const DEFAULT_MAX_SESSION: usize = 100;
+const DEFAULT_MAX_SESSION: usize = 10;
 
 static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 
@@ -38,7 +39,7 @@ impl AgentManager {
         let scheduler = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
-            .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
+            .unwrap_or_else(|| NonZeroUsize::new(10).unwrap());
 
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
@@ -52,7 +53,10 @@ impl AgentManager {
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let manager = Self::new(Some(DEFAULT_MAX_SESSION)).await?;
+                let max_sessions = Config::global()
+                    .get_goose_max_active_agents()
+                    .unwrap_or(DEFAULT_MAX_SESSION);
+                let manager = Self::new(Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -174,7 +178,7 @@ mod tests {
         AgentManager::reset_for_test();
         let manager = AgentManager::instance().await.unwrap();
 
-        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
+        let sessions: Vec<_> = (0..10).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
             manager.get_or_create_agent(session.clone()).await.unwrap();
@@ -184,7 +188,7 @@ mod tests {
         let new_session = "new-session".to_string();
         let _new_agent = manager.get_or_create_agent(new_session).await.unwrap();
 
-        assert_eq!(manager.session_count().await, 100);
+        assert_eq!(manager.session_count().await, 10);
     }
 
     #[tokio::test]
