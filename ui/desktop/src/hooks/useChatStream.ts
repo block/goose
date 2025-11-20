@@ -236,6 +236,8 @@ export function useChatStream({
     accumulatedTotalTokens: 0,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
+  const initialSessionIdRef = useRef<string>(sessionId);
+  const hasLoadedSessionRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (session) {

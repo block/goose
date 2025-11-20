@@ -189,7 +189,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
       <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
         {activeTabState && (
           <BaseChat2
-            key={activeTabState.tab.sessionId} // Force React to create new instance for each session
+            key={activeTabState.tab.id} // Use stable tab ID instead of changing session ID
             sessionId={activeTabState.tab.sessionId}
             setChat={handleSetChat}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
