@@ -46,18 +46,30 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         </Tabs>
 
         :::tip
-        On macOS, you can drag and drop a folder onto the goose icon in the dock to open a new session in that directory.
+        On macOS, you can use the goose dock icon to quickly start sessions:
+            - **Drag and drop** a folder onto the goose icon to open a new session in that directory
+            - **Right-click** the goose icon and select `New Window` to open a new session in your most recent directory
         :::
 
-        You can also use keyboard shortcuts to start a new session or bring focus to open goose windows.
+        You can also use keyboard shortcuts to start a new session or manage goose windows.
         
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
-        | New Session in Current Directory | `Cmd+N`  | `Ctrl+N`  |
-        | New Session in Different Directory  | `Cmd+O` | `Ctrl+O` |
-        | Focus goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+        | New Session with [Quick Launcher](#quick-launcher) | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+        | New Session in Current Directory | `Cmd+N` | `Ctrl+N` |
+        | New Session in Current Directory (Same Window) | `Cmd+T` | `Ctrl+T` |
+        | New Session in Different Directory | `Cmd+O` | `Ctrl+O` |
         | Toggle Sidebar | `Cmd+B` | `Ctrl+B` |
+        | Open Settings | `Cmd+,` | `Ctrl+,` |
         | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
+        
+        <br />
+        #### Quick Launcher
+        Start a new session by typing your prompt into a popup:
+        1. Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) to open the popup
+        2. Type your prompt and press `Enter`
+
+        The session opens to your most recently opened directory in a new goose window.
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">

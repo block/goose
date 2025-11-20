@@ -822,6 +822,9 @@ export type TokenState = {
 };
 
 export type Tool = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: ToolAnnotations | {
         [key: string]: unknown;
     };
@@ -869,6 +872,7 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
+    thoughtSignature?: string | null;
     toolCall: {
         [key: string]: unknown;
     };
@@ -1733,6 +1737,32 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type McpUiProxyData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Secret key for authentication
+         */
+        secret: string;
+    };
+    url: '/mcp-ui-proxy';
+};
+
+export type McpUiProxyErrors = {
+    /**
+     * Unauthorized - invalid or missing secret
+     */
+    401: unknown;
+};
+
+export type McpUiProxyResponses = {
+    /**
+     * MCP UI proxy HTML page
+     */
+    200: unknown;
+};
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
