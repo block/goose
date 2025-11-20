@@ -194,6 +194,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
             setChat={handleSetChat}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
+            onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
             suppressEmptyState={false}
             showPopularTopics={true}
             loadingChat={activeTabState.loadingChat}

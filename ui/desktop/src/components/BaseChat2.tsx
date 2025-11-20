@@ -38,6 +38,7 @@ interface BaseChatProps {
   suppressEmptyState: boolean;
   sessionId: string;
   initialMessage?: string;
+  onSessionIdChange?: (newSessionId: string) => void;
   // Matrix integration props
   showParticipantsBar?: boolean;
   matrixRoomId?: string;
@@ -57,6 +58,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  onSessionIdChange,
   showParticipantsBar = false,
   matrixRoomId,
   showPendingInvites = false,
@@ -183,6 +185,7 @@ function BaseChatContent({
     sessionId,
     onStreamFinish,
     initialMessage,
+    onSessionIdChange,
   });
 
   // Create append function for adding messages programmatically

@@ -54,6 +54,7 @@ interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
   initialMessage?: string;
+  onSessionIdChange?: (newSessionId: string) => void;
 }
 
 interface UseChatStreamReturn {
@@ -219,6 +220,7 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
   initialMessage,
+  onSessionIdChange,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -428,6 +430,15 @@ export function useChatStream({
               originalSessionId: sessionId,
               actualSessionId: currentSession.id,
             });
+
+            // Notify parent component that session ID has changed
+            if (onSessionIdChange && currentSession.id !== sessionId) {
+              log.session('notifying-session-id-change', currentSession.id, {
+                from: sessionId,
+                to: currentSession.id,
+              });
+              onSessionIdChange(currentSession.id);
+            }
           } catch (createError) {
             log.error('failed-to-create-session-for-message', createError);
             
@@ -534,7 +545,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, setMessagesAndLog, onFinish]
+    [sessionId, session, setMessagesAndLog, onFinish, onSessionIdChange]
   );
 
   const setRecipeUserParams = useCallback(
