@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
 use tracing::{debug, info};
 
-const DEFAULT_MAX_SESSION: usize = 10;
+const DEFAULT_MAX_SESSION: usize = 100;
 
 static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 
@@ -178,7 +178,7 @@ mod tests {
         AgentManager::reset_for_test();
         let manager = AgentManager::instance().await.unwrap();
 
-        let sessions: Vec<_> = (0..10).map(|i| format!("session-{}", i)).collect();
+        let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
             manager.get_or_create_agent(session.clone()).await.unwrap();
@@ -188,7 +188,7 @@ mod tests {
         let new_session = "new-session".to_string();
         let _new_agent = manager.get_or_create_agent(new_session).await.unwrap();
 
-        assert_eq!(manager.session_count().await, 10);
+        assert_eq!(manager.session_count().await, 100);
     }
 
     #[tokio::test]
