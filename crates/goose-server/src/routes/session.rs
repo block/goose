@@ -60,7 +60,7 @@ pub enum EditType {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EditMessageRequest {
-    message_row_id: i64,
+    timestamp: i64,
     new_content: String,
     #[serde(default = "default_edit_type")]
     edit_type: EditType,
@@ -370,7 +370,7 @@ async fn edit_message(
         EditType::Fork => {
             let new_session = SessionManager::fork_session_at_message(
                 &session_id,
-                request.message_row_id,
+                request.timestamp,
                 request.new_content,
             )
             .await
@@ -392,7 +392,7 @@ async fn edit_message(
         EditType::Edit => {
             let updated_session = SessionManager::edit_message_in_place(
                 &session_id,
-                request.message_row_id,
+                request.timestamp,
                 request.new_content,
             )
             .await

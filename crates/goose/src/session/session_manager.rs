@@ -290,25 +290,39 @@ impl SessionManager {
         Self::instance().await?.import_session(json).await
     }
 
+    pub async fn copy_session(session_id: &str, new_name: String) -> Result<Session> {
+        Self::instance()
+            .await?
+            .copy_session(session_id, new_name)
+            .await
+    }
+
+    pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
+        Self::instance()
+            .await?
+            .truncate_conversation(session_id, timestamp)
+            .await
+    }
+
     pub async fn fork_session_at_message(
         session_id: &str,
-        message_row_id: i64,
+        timestamp: i64,
         new_message_content: String,
     ) -> Result<Session> {
         Self::instance()
             .await?
-            .fork_session_at_message(session_id, message_row_id, new_message_content)
+            .fork_session_at_message(session_id, timestamp, new_message_content)
             .await
     }
 
     pub async fn edit_message_in_place(
         session_id: &str,
-        message_row_id: i64,
+        timestamp: i64,
         new_message_content: String,
     ) -> Result<Session> {
         Self::instance()
             .await?
-            .edit_message_in_place(session_id, message_row_id, new_message_content)
+            .edit_message_in_place(session_id, timestamp, new_message_content)
             .await
     }
 
@@ -960,15 +974,15 @@ impl SessionStorage {
     }
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
-        let rows = sqlx::query_as::<_, (i64, String, String, i64, Option<String>)>(
-            "SELECT id, role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? ORDER BY timestamp",
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
+            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? ORDER BY timestamp",
         )
             .bind(session_id)
             .fetch_all(&self.pool)
             .await?;
 
         let mut messages = Vec::new();
-        for (idx, (row_id, role_str, content_json, created_timestamp, metadata_json)) in
+        for (idx, (role_str, content_json, created_timestamp, metadata_json)) in
             rows.into_iter().enumerate()
         {
             let role = match role_str.as_str() {
@@ -984,7 +998,6 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
-            message.row_id = Some(row_id);
             message = message.with_id(format!("msg_{}_{}", session_id, idx));
             messages.push(message);
         }
@@ -1160,52 +1173,13 @@ impl SessionStorage {
         self.get_session(&session.id, true).await
     }
 
-    async fn fork_session_at_message(
-        &self,
-        session_id: &str,
-        message_row_id: i64,
-        new_message_content: String,
-    ) -> Result<Session> {
-        use crate::conversation::message::MessageContent;
-
-        let original_session = self.get_session(session_id, false).await?;
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? AND id < ? ORDER BY id",
-        )
-            .bind(session_id)
-            .bind(message_row_id)
-            .fetch_all(&self.pool)
-            .await?;
-
-        let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
-            let role = match role_str.as_str() {
-                "user" => Role::User,
-                "assistant" => Role::Assistant,
-                _ => continue,
-            };
-
-            let content = serde_json::from_str(&content_json)?;
-            let metadata = metadata_json
-                .and_then(|json| serde_json::from_str(&json).ok())
-                .unwrap_or_default();
-
-            let mut message = Message::new(role, created_timestamp, content);
-            message.metadata = metadata;
-            messages.push(message);
-        }
-
-        let new_user_message = Message::new(
-            Role::User,
-            chrono::Utc::now().timestamp_millis(),
-            vec![MessageContent::text(&new_message_content)],
-        );
-        messages.push(new_user_message);
+    async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
+        let original_session = self.get_session(session_id, true).await?;
 
         let new_session = self
             .create_session(
                 original_session.working_dir.clone(),
-                format!("{} (edited)", original_session.name),
+                new_name,
                 original_session.session_type,
             )
             .await?;
@@ -1218,57 +1192,68 @@ impl SessionStorage {
 
         self.apply_update(builder).await?;
 
-        let conversation = Conversation::new_unvalidated(messages);
-        self.replace_conversation(&new_session.id, &conversation)
-            .await?;
+        if let Some(conversation) = original_session.conversation {
+            self.replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
 
         self.get_session(&new_session.id, true).await
     }
 
-    async fn edit_message_in_place(
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+            .bind(session_id)
+            .bind(timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn fork_session_at_message(
         &self,
         session_id: &str,
-        message_row_id: i64,
+        timestamp: i64,
         new_message_content: String,
     ) -> Result<Session> {
         use crate::conversation::message::MessageContent;
 
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? AND id < ? ORDER BY id",
-        )
-            .bind(session_id)
-            .bind(message_row_id)
-            .fetch_all(&self.pool)
+        let original_session = self.get_session(session_id, true).await?;
+
+        let new_session = self
+            .copy_session(session_id, format!("{} (edited)", original_session.name))
             .await?;
 
-        let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json) in rows {
-            let role = match role_str.as_str() {
-                "user" => Role::User,
-                "assistant" => Role::Assistant,
-                _ => continue,
-            };
-
-            let content = serde_json::from_str(&content_json)?;
-            let metadata = metadata_json
-                .and_then(|json| serde_json::from_str(&json).ok())
-                .unwrap_or_default();
-
-            let mut message = Message::new(role, created_timestamp, content);
-            message.metadata = metadata;
-            messages.push(message);
-        }
+        self.truncate_conversation(&new_session.id, timestamp)
+            .await?;
 
         let new_user_message = Message::new(
             Role::User,
             chrono::Utc::now().timestamp_millis(),
             vec![MessageContent::text(&new_message_content)],
         );
-        messages.push(new_user_message);
 
-        let conversation = Conversation::new_unvalidated(messages);
-        self.replace_conversation(session_id, &conversation).await?;
+        self.add_message(&new_session.id, &new_user_message).await?;
+        self.get_session(&new_session.id, true).await
+    }
 
+    async fn edit_message_in_place(
+        &self,
+        session_id: &str,
+        timestamp: i64,
+        new_message_content: String,
+    ) -> Result<Session> {
+        use crate::conversation::message::MessageContent;
+
+        self.truncate_conversation(session_id, timestamp).await?;
+
+        let new_user_message = Message::new(
+            Role::User,
+            chrono::Utc::now().timestamp_millis(),
+            vec![MessageContent::text(&new_message_content)],
+        );
+
+        self.add_message(session_id, &new_user_message).await?;
         self.get_session(session_id, true).await
     }
 
@@ -1328,7 +1313,6 @@ mod tests {
                         &session.id,
                         &Message {
                             id: None,
-                            row_id: None,
                             role: Role::User,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("hello world")],
@@ -1343,7 +1327,6 @@ mod tests {
                         &session.id,
                         &Message {
                             id: None,
-                            row_id: None,
                             role: Role::Assistant,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("sup world?")],
@@ -1437,7 +1420,6 @@ mod tests {
                 &original.id,
                 &Message {
                     id: None,
-                    row_id: None,
                     role: Role::User,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(USER_MESSAGE)],
@@ -1452,7 +1434,6 @@ mod tests {
                 &original.id,
                 &Message {
                     id: None,
-                    row_id: None,
                     role: Role::Assistant,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(ASSISTANT_MESSAGE)],

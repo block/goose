@@ -2512,19 +2512,19 @@
       "EditMessageRequest": {
         "type": "object",
         "required": [
-          "messageRowId",
+          "timestamp",
           "newContent"
         ],
         "properties": {
           "editType": {
             "$ref": "#/components/schemas/EditType"
           },
-          "messageRowId": {
-            "type": "integer",
-            "format": "int64"
-          },
           "newContent": {
             "type": "string"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -3226,11 +3226,6 @@
           },
           "role": {
             "$ref": "#/components/schemas/Role"
-          },
-          "rowId": {
-            "type": "integer",
-            "format": "int64",
-            "nullable": true
           }
         }
       },

@@ -185,28 +185,10 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
-      // Reload the session to get auto generated/incremented rowIds for all messages
-      try {
-        const { getSession } = await import('../api');
-        const response = await getSession({
-          path: { session_id: sessionId },
-          throwOnError: true,
-        });
-
-        if (response.data?.conversation) {
-          window.electron.logInfo(
-            `Reloaded session with ${response.data.conversation.length} messages with rowIds`
-          );
-          updateMessages(response.data.conversation);
-        }
-      } catch (reloadError) {
-        window.electron.logInfo(`Failed to reload session: ${errorMessage(reloadError)}`);
-      }
-
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId, updateMessages]
+    [onStreamFinish, sessionId]
   );
 
   // Load session on mount or sessionId change
@@ -382,18 +364,12 @@ export function useChatStream({
           throw new Error(`Message with id ${messageId} not found in current messages`);
         }
 
-        if (!message.rowId) {
-          throw new Error(
-            `Message ${messageId} is missing rowId. This might be an old session - please reload the page and try again.`
-          );
-        }
-
         const response = await editMessage({
           path: {
             session_id: sessionId,
           },
           body: {
-            messageRowId: message.rowId,
+            timestamp: message.created,
             newContent,
             editType,
           },

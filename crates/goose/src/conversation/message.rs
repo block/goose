@@ -468,8 +468,6 @@ impl MessageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub row_id: Option<i64>,
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
@@ -481,7 +479,6 @@ impl Message {
     pub fn new(role: Role, created: i64, content: Vec<MessageContent>) -> Self {
         Message {
             id: None,
-            row_id: None,
             role,
             created,
             content,
@@ -496,7 +493,6 @@ impl Message {
     pub fn user() -> Self {
         Message {
             id: None,
-            row_id: None,
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
@@ -508,7 +504,6 @@ impl Message {
     pub fn assistant() -> Self {
         Message {
             id: None,
-            row_id: None,
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),

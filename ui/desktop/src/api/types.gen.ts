@@ -124,8 +124,8 @@ export type DeleteRecipeRequest = {
 
 export type EditMessageRequest = {
     editType?: EditType;
-    messageRowId: number;
     newContent: string;
+    timestamp: number;
 };
 
 export type EditMessageResponse = {
@@ -363,7 +363,6 @@ export type Message = {
     id?: string | null;
     metadata: MessageMetadata;
     role: Role;
-    rowId?: number | null;
 };
 
 /**
