@@ -37,6 +37,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const instanceIdRef = useRef<string>(`browser-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const isVisibleRef = useRef<boolean>(true);
+  const isEditingUrlRef = useRef<boolean>(false);
 
   // Create BrowserView when component mounts
   useEffect(() => {
@@ -55,7 +56,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
       };
 
       try {
-        const result = await window.electron.createBrowserView(currentUrl, bounds);
+        const result = await window.electron.createBrowserView(initialUrl, bounds);
         
         if (result.success && result.viewId) {
           setViewId(result.viewId);
@@ -86,7 +87,12 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [currentUrl, isInitialized]);
+  }, [initialUrl, isInitialized]); // Removed pollNavigationState dependency
+
+  // Sync ref with state
+  useEffect(() => {
+    isEditingUrlRef.current = isEditingUrl;
+  }, [isEditingUrl]);
 
   // Poll navigation state
   const pollNavigationState = useCallback((browserViewId: string) => {
@@ -98,7 +104,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
           setCurrentUrl(state.url);
           
           // Only update input URL if user is not actively editing it
-          if (!isEditingUrl) {
+          if (!isEditingUrlRef.current) {
             setInputUrl(state.url);
           }
         }
@@ -111,7 +117,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     };
 
     updateState();
-  }, [isEditingUrl]);
+  }, []); // No dependencies to prevent recreation
 
   // Manage BrowserView visibility based on component visibility
   useEffect(() => {
