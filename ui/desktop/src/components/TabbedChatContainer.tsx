@@ -28,7 +28,8 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     handleMessageSubmit: contextHandleMessageSubmit,
     getActiveTabState,
     syncTabTitleWithBackend,
-    updateTabTitleFromMessage
+    updateTabTitleFromMessage,
+    updateSessionId
   } = useTabContext();
 
   const handleMessageSubmitWrapper = useCallback(async (message: string, tabId: string) => {
@@ -108,6 +109,19 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNewTab, handleTabClose, handleTabClick, activeTabId, tabStates]);
 
+  // Handle session updates from BaseChat2 (when a new session gets a real backend ID)
+  const handleSessionUpdate = useCallback((newSessionId: string, tabId: string) => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (tabState && tabState.tab.sessionId !== newSessionId) {
+      console.log('🔄 Session ID changed for tab:', {
+        tabId,
+        oldSessionId: tabState.tab.sessionId,
+        newSessionId
+      });
+      updateSessionId(tabId, newSessionId);
+    }
+  }, [tabStates, updateSessionId]);
+
   const activeTabState = getActiveTabState();
 
   return (
@@ -130,7 +144,13 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
           <BaseChat2
             key={activeTabState.tab.sessionId} // Force React to create new instance for each session
             sessionId={activeTabState.tab.sessionId}
-            setChat={(chat) => handleChatUpdate(activeTabState.tab.id, chat)}
+            setChat={(chat) => {
+              // Handle session ID updates
+              if (chat.sessionId && chat.sessionId !== activeTabState.tab.sessionId) {
+                handleSessionUpdate(chat.sessionId, activeTabState.tab.id);
+              }
+              handleChatUpdate(activeTabState.tab.id, chat);
+            }}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
             suppressEmptyState={false}

@@ -25,6 +25,7 @@ interface TabContextType {
   syncTabTitleWithBackend: (tabId: string) => Promise<void>;
   updateTabTitleFromMessage: (tabId: string, message: string) => Promise<void>;
   openExistingSession: (sessionId: string, title?: string) => void;
+  updateSessionId: (tabId: string, newSessionId: string) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -368,6 +369,21 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
   }, [tabStates, syncTabTitleWithBackend]);
 
+  // Update session ID for a tab (used when a new session gets a real backend ID)
+  const updateSessionId = useCallback((tabId: string, newSessionId: string) => {
+    console.log('🔄 Updating session ID for tab:', { tabId, newSessionId });
+    
+    setTabStates(prev => prev.map(ts => 
+      ts.tab.id === tabId 
+        ? { 
+            ...ts, 
+            tab: { ...ts.tab, sessionId: newSessionId },
+            chat: { ...ts.chat, sessionId: newSessionId }
+          }
+        : ts
+    ));
+  }, []);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -382,7 +398,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     clearTabState,
     syncTabTitleWithBackend,
     updateTabTitleFromMessage,
-    openExistingSession
+    openExistingSession,
+    updateSessionId
   };
 
   return (

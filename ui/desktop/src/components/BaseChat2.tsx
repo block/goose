@@ -316,9 +316,15 @@ function BaseChatContent({
     messageHistoryIndex: 0,
     messages,
     recipe,
-    sessionId,
+    sessionId: session?.id || sessionId, // Use actual session ID if available
     name: session?.name || 'No Session',
+    title: session?.description || (messages.length > 0 ? 'Chat' : 'New Chat'),
   };
+
+  // Update parent with chat state whenever it changes
+  useEffect(() => {
+    setChat(chat);
+  }, [setChat, session?.id, sessionId, messages, session?.description, session?.name, recipe]);
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
