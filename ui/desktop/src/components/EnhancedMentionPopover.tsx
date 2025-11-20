@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import { FileIcon } from './FileIcon';
 import { Users, UserPlus, File } from 'lucide-react';
 import { useMatrix } from '../contexts/MatrixContext';
@@ -243,14 +244,18 @@ const EnhancedMentionPopover = forwardRef<
 
   if (!isOpen) return null;
 
-  return (
+  // Try to render in the dedicated popover zone, fallback to document.body
+  const popoverZone = document.getElementById('mention-popover-zone');
+  const renderTarget = popoverZone || document.body;
+
+  const popoverContent = (
     <div
       ref={popoverRef}
-      className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md"
+      className="absolute z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md pointer-events-auto"
       style={{
-        left: '50%', // Center horizontally
-        top: '50px', // Position near the very top of screen
-        transform: 'translateX(-50%)', // Center the popover horizontally
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)', // Center in the popover zone
       }}
     >
       <div className="p-3">
@@ -344,6 +349,8 @@ const EnhancedMentionPopover = forwardRef<
       </div>
     </div>
   );
+
+  return createPortal(popoverContent, renderTarget);
 });
 
 EnhancedMentionPopover.displayName = 'EnhancedMentionPopover';
