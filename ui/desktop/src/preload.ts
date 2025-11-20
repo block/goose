@@ -167,6 +167,10 @@ type ElectronAPI = {
   removeApp: (appId: string) => Promise<{ success: boolean; error?: string }>;
   showItemInFolder: (path: string) => Promise<void>;
   loadSavedApps: () => Promise<{ success: boolean; apps: any[]; error?: string }>;
+  
+  // Document persistence functions
+  showSaveDialog: (options: any) => Promise<{ cancelled: boolean; filePath?: string; error?: string }>;
+  showOpenDialog: (options: any) => Promise<{ cancelled: boolean; filePaths?: string[]; error?: string }>;
 };
 
 type AppConfigAPI = {
@@ -349,6 +353,10 @@ const electronAPI: ElectronAPI = {
   removeApp: (appId: string) => ipcRenderer.invoke('remove-app', appId),
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
   loadSavedApps: () => ipcRenderer.invoke('load-saved-apps'),
+  
+  // Document persistence functions
+  showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
+  showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
 };
 
 const appConfigAPI: AppConfigAPI = {
