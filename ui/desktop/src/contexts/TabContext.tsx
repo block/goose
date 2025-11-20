@@ -33,6 +33,7 @@ interface TabContextType {
   getSidecarState: (tabId: string) => TabSidecarState | undefined;
   showDiffViewer: (tabId: string, diffContent: string, fileName?: string, instanceId?: string) => void;
   showLocalhostViewer: (tabId: string, url?: string, title?: string, instanceId?: string) => void;
+  showWebViewer: (tabId: string, url?: string, title?: string, instanceId?: string) => void;
   showFileViewer: (tabId: string, filePath: string, instanceId?: string) => void;
   showDocumentEditor: (tabId: string, filePath?: string, initialContent?: string, instanceId?: string) => void;
 }
@@ -517,6 +518,22 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     showSidecarView(tabId, localhostView);
   }, [showSidecarView]);
 
+  const showWebViewer = useCallback((tabId: string, url = 'https://google.com', title = 'Web Browser', instanceId?: string) => {
+    const id = instanceId ? `web-${instanceId}` : 'web';
+    
+    const webView: TabSidecarView = {
+      id,
+      title,
+      iconType: 'web',
+      contentType: 'web',
+      contentProps: { url, title },
+      fileName: url,
+      instanceId,
+    };
+    
+    showSidecarView(tabId, webView);
+  }, [showSidecarView]);
+
   const showFileViewer = useCallback((tabId: string, filePath: string, instanceId?: string) => {
     const fileName = filePath.split('/').pop() || filePath;
     const id = instanceId ? `file-${instanceId}` : 'file';
@@ -574,6 +591,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     getSidecarState,
     showDiffViewer,
     showLocalhostViewer,
+    showWebViewer,
     showFileViewer,
     showDocumentEditor
   };

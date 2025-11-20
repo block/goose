@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, SquareSplitHorizontal, BetweenHorizontalStart, FileDiff, Globe, FileText, Edit } from 'lucide-react';
+import { X, SquareSplitHorizontal, BetweenHorizontalStart, FileDiff, Globe, FileText, Edit, Monitor } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
@@ -59,6 +59,8 @@ const renderIcon = (iconType: string) => {
       return <FileDiff size={16} />;
     case 'localhost':
       return <Globe size={16} />;
+    case 'web':
+      return <Monitor size={16} />;
     case 'file':
       return <FileText size={16} />;
     case 'editor':
@@ -75,6 +77,8 @@ const renderContent = (contentType: string, contentProps: Record<string, any>) =
       return <MonacoDiffViewer diffContent={contentProps.diffContent || ''} />;
     case 'localhost':
       return <LocalhostViewer url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
+    case 'web':
+      return <LocalhostViewer url={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
     case 'file':
       return <SimpleFileViewer path={contentProps.path || ''} />;
     case 'editor':

@@ -20,6 +20,7 @@ export const TabSidecarInvoker: React.FC<TabSidecarInvokerProps> = ({
   // Get tab-specific sidecar functions
   const {
     showLocalhostViewer,
+    showWebViewer,
     showFileViewer,
     showDocumentEditor,
     showDiffViewer
@@ -97,7 +98,7 @@ export const TabSidecarInvoker: React.FC<TabSidecarInvokerProps> = ({
 
   const handleWebViewerClick = () => {
     console.log('🔍 TabSidecarInvoker: Web Viewer button clicked for tab:', tabId);
-    showLocalhostViewer(tabId, 'https://google.com', 'Web Browser', 'web-viewer');
+    showWebViewer(tabId, 'https://google.com', 'Web Browser', 'web-viewer');
     setIsHovering(false);
   };
 
