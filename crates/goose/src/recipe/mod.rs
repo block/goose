@@ -94,6 +94,9 @@ pub struct Settings {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -181,6 +184,7 @@ impl fmt::Display for RecipeParameterInputType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,

@@ -14,16 +14,10 @@ use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMP
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::recipe_tools::dynamic_task_tools::{
-    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
-};
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
-use crate::agents::subagent_execution_tool::lib::ExecutionMode;
-use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
-    self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
-};
+use crate::agents::subagent_execution_tool::subagent_tool::{self, SUBAGENT_TOOL_NAME};
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
@@ -58,7 +52,6 @@ use tracing::{debug, error, info, instrument, warn};
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
@@ -412,8 +405,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         if session.session_type == crate::session::SessionType::SubAgent
-            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
-                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+            && tool_call.name == SUBAGENT_TOOL_NAME
         {
             return (
                 request_id,
@@ -473,97 +465,25 @@ impl Agent {
                     &session.working_dir,
                 )
                 .await
-        } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
-            let provider = match self.provider().await {
-                Ok(p) => p,
-                Err(_) => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Provider is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
+        } else if tool_call.name == SUBAGENT_TOOL_NAME {
             // Get extensions from the agent's runtime state rather than global config
             // This ensures subagents inherit extensions that were dynamically enabled by the parent
             let extensions = self.get_extension_configs().await;
 
-            let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-
-            let arguments = match tool_call.arguments.clone() {
-                Some(args) => Value::Object(args),
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Tool call arguments are required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-            let task_ids: Vec<String> = match arguments.get("task_ids") {
-                Some(v) => match serde_json::from_value(v.clone()) {
-                    Ok(ids) => ids,
-                    Err(_) => {
-                        return (
-                            request_id,
-                            Err(ErrorData::new(
-                                ErrorCode::INVALID_PARAMS,
-                                "Invalid task_ids format".to_string(),
-                                None,
-                            )),
-                        );
-                    }
-                },
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "task_ids parameter is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let execution_mode = arguments
-                .get("execution_mode")
-                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
-                .unwrap_or(ExecutionMode::Sequential);
-
-            subagent_execute_task_tool::run_tasks(
-                task_ids,
-                execution_mode,
-                task_config,
-                &self.tasks_manager,
-                cancellation_token,
-            )
-            .await
-        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            // Get loaded extensions for shortname resolution
-            let loaded_extensions = self
-                .extension_manager
-                .list_extensions()
-                .await
-                .unwrap_or_default();
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(
+                .unwrap_or(Value::Null);
+
+            subagent_tool::run_subagent_tool(
                 arguments,
                 &self.tasks_manager,
-                loaded_extensions,
+                self.provider.clone(),
+                &session.id,
                 &session.working_dir,
+                extensions,
+                cancellation_token,
             )
             .await
         } else if self.is_frontend_tool(&tool_call.name).await {
@@ -704,8 +624,6 @@ impl Agent {
             // Add platform tools
             // TODO: migrate the manage schedule tool as well
             prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
-            // Dynamic task tool
-            prefixed_tools.push(create_dynamic_task_tool());
         }
 
         if extension_name.is_none() {
@@ -715,7 +633,7 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+            prefixed_tools.push(subagent_tool::create_subagent_tool());
         }
 
         prefixed_tools
@@ -1486,6 +1404,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            system_prompt: None,
         };
 
         tracing::debug!(
