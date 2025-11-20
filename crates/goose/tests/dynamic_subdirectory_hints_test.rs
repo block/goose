@@ -95,6 +95,107 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_hint_loading_security_guards() -> anyhow::Result<()> {
+    // Setup
+    let temp_dir = tempfile::TempDir::new()?;
+    let repo_root = temp_dir.path().join("repo");
+    std::fs::create_dir_all(&repo_root)?;
+    std::fs::create_dir(repo_root.join(".git"))?;
+
+    let outside_dir = temp_dir.path().join("outside");
+    std::fs::create_dir(&outside_dir)?;
+    std::fs::write(outside_dir.join("AGENTS.md"), "Forbidden hints")?;
+    std::fs::write(outside_dir.join("file.py"), "pass")?;
+
+    let agent = Agent::new();
+    let session = SessionManager::create_session(
+        repo_root.clone(),
+        "hint-security-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: Some(10),
+        retry_config: None,
+    };
+
+    // Test 1: Path outside working directory
+    let loaded = agent
+        .maybe_load_directory_hints(&outside_dir.join("file.py"), &session_config, 1)
+        .await?;
+    assert!(!loaded, "Should not load hints from outside working directory");
+
+    // Verify hints NOT loaded
+    let session_data = SessionManager::get_session(&session.id, false).await?;
+    let loaded_state = get_or_create_loaded_agents_state(&session_data.extension_data);
+    assert!(loaded_state.loaded_directories.is_empty());
+
+    // Cleanup
+    SessionManager::delete_session(&session.id).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_hint_loading_filesystem_updates() -> anyhow::Result<()> {
+    let temp_dir = tempfile::TempDir::new()?;
+    let repo_root = temp_dir.path();
+    std::fs::create_dir(repo_root.join(".git"))?;
+    
+    let src_dir = repo_root.join("src");
+    std::fs::create_dir(&src_dir)?;
+    let file_path = src_dir.join("main.rs");
+    std::fs::write(&file_path, "fn main() {}")?;
+
+    let agent = Agent::new();
+    let session = SessionManager::create_session(
+        repo_root.to_path_buf(),
+        "hint-fs-update-test".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: Some(10),
+        retry_config: None,
+    };
+
+    // Turn 1: Access file, no hints exist yet
+    let loaded = agent
+        .maybe_load_directory_hints(&file_path, &session_config, 1)
+        .await?;
+    assert!(!loaded, "Should not load anything (no hints file)");
+
+    // Verify state: NOT marked as loaded (so we retry later)
+    {
+        let session_data = SessionManager::get_session(&session.id, false).await?;
+        let loaded_state = get_or_create_loaded_agents_state(&session_data.extension_data);
+        assert!(!loaded_state.is_loaded(&src_dir));
+    }
+
+    // Add hints file
+    std::fs::write(src_dir.join("AGENTS.md"), "New hints")?;
+
+    // Turn 2: Access again, should load now
+    let loaded = agent
+        .maybe_load_directory_hints(&file_path, &session_config, 2)
+        .await?;
+    assert!(loaded, "Should load newly created hints file");
+
+    // Verify loaded
+    {
+        let session_data = SessionManager::get_session(&session.id, false).await?;
+        let loaded_state = get_or_create_loaded_agents_state(&session_data.extension_data);
+        assert!(loaded_state.is_loaded(&src_dir));
+    }
+
+    SessionManager::delete_session(&session.id).await?;
+    Ok(())
+}
+
 #[test]
 fn test_conversation_turn_state_increment() {
     let mut state = ConversationTurnState::new();
@@ -167,8 +268,9 @@ fn test_hierarchical_hint_loading() {
             assert!(result.is_some(), "Should load hints");
             let content = result.unwrap();
 
-            // Should contain hints from root, features, and auth (hierarchical loading)
-            assert!(content.contains("Root hints"), "Should load from root");
+            // Should contain hints from features and auth (hierarchical loading)
+            // Should NOT contain root hints (they are loaded at startup)
+            assert!(!content.contains("Root hints"), "Should NOT load from root (avoid dupes)");
             assert!(
                 content.contains("Features hints"),
                 "Should load from features/"
