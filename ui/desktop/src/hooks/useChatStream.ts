@@ -22,6 +22,48 @@ const sessionCreationInProgress = new Set<string>();
 // Debug logging - set to false in production
 const DEBUG_CHAT_STREAM = true;
 
+// Check if a message contains goose commands or mentions that shouldn't trigger AI response
+function checkForGooseCommands(message: string): boolean {
+  const trimmedMessage = message.trim();
+  
+  // Check for goose control commands
+  const gooseCommands = [
+    '@goose off',
+    '@goose stop', 
+    '@goose quiet',
+    '@goose pause',
+    '@goose',
+  ];
+  
+  // Check if the message starts with any goose command
+  for (const command of gooseCommands) {
+    if (trimmedMessage.toLowerCase().startsWith(command.toLowerCase())) {
+      console.log('🦆 Detected goose command:', command, '- skipping AI response');
+      return true;
+    }
+  }
+  
+  // Check for friend mentions (Matrix user IDs or @username patterns)
+  // Matrix user IDs start with @ and contain a colon (e.g., @user:domain.com)
+  const matrixUserPattern = /@[a-zA-Z0-9._-]+:[a-zA-Z0-9.-]+/;
+  if (matrixUserPattern.test(trimmedMessage)) {
+    console.log('👥 Detected Matrix user mention - skipping AI response');
+    return true;
+  }
+  
+  // Check for simple @username mentions (without domain)
+  const simpleMentionPattern = /^@[a-zA-Z0-9._-]+(\s|$)/;
+  if (simpleMentionPattern.test(trimmedMessage)) {
+    // But allow @goose commands to pass through to be handled above
+    if (!trimmedMessage.toLowerCase().startsWith('@goose')) {
+      console.log('👥 Detected user mention - skipping AI response');
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 const log = {
   session: (action: string, sessionId: string, details?: Record<string, unknown>) => {
     if (!DEBUG_CHAT_STREAM) return;
@@ -384,8 +426,21 @@ export function useChatStream({
         userMessageLength: userMessage.length,
       });
 
+      // Check if this is a goose control command or mention that shouldn't trigger AI response
+      const shouldSkipAI = checkForGooseCommands(userMessage);
+      
       const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
       setMessagesAndLog(currentMessages, 'user-entered');
+
+      // If this is a goose control command or mention, don't send to AI
+      if (shouldSkipAI) {
+        log.messages('skipping-ai-for-command', currentMessages.length, {
+          reason: 'goose command or mention detected',
+          message: userMessage.slice(0, 50)
+        });
+        setChatState(ChatState.Idle);
+        return;
+      }
 
       log.state(ChatState.Streaming, { reason: 'user submit' });
       setChatState(ChatState.Streaming);
