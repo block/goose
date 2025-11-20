@@ -66,12 +66,23 @@ export class DocumentPersistence {
    */
   static async saveAs(content: string, options: FileDialogOptions = {}): Promise<SaveResult> {
     try {
+      // Check if the function exists
+      if (!window.electron || typeof window.electron.showSaveDialog !== 'function') {
+        console.error('window.electron.showSaveDialog is not available');
+        return {
+          success: false,
+          error: 'Save dialog not available. Please restart the application.',
+        };
+      }
+
       const dialogOptions = {
         title: options.title || 'Save Document As',
         defaultPath: options.defaultPath,
         filters: options.filters || this.getDefaultFileFilters(),
       };
 
+      console.log('Calling showSaveDialog with options:', dialogOptions);
+      
       // Show save dialog
       const result = await window.electron.showSaveDialog(dialogOptions);
 
@@ -118,6 +129,15 @@ export class DocumentPersistence {
       let targetPath = filePath;
 
       if (!targetPath) {
+        // Check if the function exists
+        if (!window.electron || typeof window.electron.showOpenDialog !== 'function') {
+          console.error('window.electron.showOpenDialog is not available');
+          return {
+            success: false,
+            error: 'Open dialog not available. Please restart the application.',
+          };
+        }
+
         // Show open dialog
         const result = await window.electron.showOpenDialog({
           title: 'Open Document',
