@@ -24,8 +24,7 @@ async fn main() {
         "max-turn-test".to_string(),
         SessionType::Hidden,
     )
-    .await
-    .expect("session manager creation failed");
+    .await?;
 
     let _ = agent.update_provider(provider, &session.id).await;
 
