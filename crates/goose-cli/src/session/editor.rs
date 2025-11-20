@@ -6,17 +6,17 @@ use std::process::Command;
 use tempfile::Builder;
 use tempfile::NamedTempFile;
 
-/// Get the editor command from config or environment
-fn get_editor_command() -> Result<String> {
+/// Get the editor command from config
+fn get_editor_command() -> String {
     use goose::config::Config;
 
     // Try config first
-    if let Some(editor) = Config::global().get_goose_prompt_editor()? {
-        return Ok(editor);
+    if let Ok(Some(editor)) = Config::global().get_goose_prompt_editor() {
+        return editor;
     }
 
     // Fall back to default editor
-    Ok("vi".to_string())
+    "vi".into()
 }
 
 /// Create temporary markdown file with conversation history
@@ -101,7 +101,7 @@ pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
     };
 
     // Get editor command
-    let editor_cmd = get_editor_command()?;
+    let editor_cmd = get_editor_command();
 
     // Launch editor
     launch_editor(&editor_cmd, &file_path)?;
@@ -299,7 +299,7 @@ with multiple lines.
 
     #[test]
     fn test_editor_command_detection() {
-        let result = get_editor_command().unwrap();
+        let result = get_editor_command();
         assert!(!result.is_empty());
     }
 
