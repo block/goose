@@ -304,14 +304,34 @@ export function useChatStream({
         log.session('attempting-resume', sessionId);
         setChatState(ChatState.Thinking);
 
+        console.log('🔄 About to call resumeAgent with sessionId:', sessionId);
+        
         // Try to resume the existing session
         const resumeResponse = await resumeAgent({
           body: { session_id: sessionId },
           throwOnError: true,
         });
 
+        console.log('🔄 resumeAgent response:', {
+          hasData: !!resumeResponse.data,
+          session: resumeResponse.data?.session,
+          conversationLength: resumeResponse.data?.conversation?.length,
+          fullResponse: resumeResponse
+        });
+
         if (resumeResponse.data) {
           const { session: loadedSession, conversation } = resumeResponse.data;
+          
+          console.log('🔄 Processing resumed session:', {
+            sessionId: loadedSession.id,
+            sessionName: loadedSession.name,
+            sessionDescription: loadedSession.description,
+            conversationLength: conversation.length,
+            firstFewMessages: conversation.slice(0, 3).map(m => ({
+              role: m.role,
+              content: m.content[0]?.text?.slice(0, 100)
+            }))
+          });
           
           log.session('resumed-existing', sessionId, {
             messageCount: conversation.length,
@@ -327,11 +347,15 @@ export function useChatStream({
           resultsCache.set(sessionId, { session: loadedSession, messages: conversation });
           
           setChatState(ChatState.Idle);
+          
+          console.log('🔄 Session loaded successfully, messages set to:', conversation.length);
         } else {
           log.session('resume-response-empty', sessionId);
+          console.log('🔄 Resume response was empty');
         }
       } catch (error) {
         log.session('resume-failed', sessionId, { error });
+        console.log('🔄 Resume failed:', error);
         
         // If resume fails, treat as new session
         log.session('treating-as-new', sessionId, { note: 'resume failed, will create on first message' });
