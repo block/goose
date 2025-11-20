@@ -9,6 +9,7 @@ import WebBrowser from './WebBrowser';
 interface TabSidecarProps {
   sidecarState: TabSidecarState;
   onHideView: (viewId: string) => void;
+  tabId: string; // Add tabId to ensure proper component isolation
   className?: string;
 }
 
@@ -70,26 +71,27 @@ const renderIcon = (iconType: string) => {
 };
 
 // Content renderer
-const renderContent = (contentType: string, contentProps: Record<string, any>) => {
+const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string) => {
   switch (contentType) {
     case 'diff':
-      return <MonacoDiffViewer diffContent={contentProps.diffContent || ''} />;
+      return <MonacoDiffViewer key={`diff-${tabId}`} diffContent={contentProps.diffContent || ''} />;
     case 'localhost':
-      return <LocalhostViewer url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
+      return <LocalhostViewer key={`localhost-${tabId}`} url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
     case 'web':
-      return <WebBrowser initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
+      return <WebBrowser key={`web-${tabId}`} initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
     case 'file':
-      return <SimpleFileViewer path={contentProps.path || ''} />;
+      return <SimpleFileViewer key={`file-${tabId}`} path={contentProps.path || ''} />;
     case 'editor':
-      return <RichDocumentEditor path={contentProps.path} content={contentProps.content} />;
+      return <RichDocumentEditor key={`editor-${tabId}`} path={contentProps.path} content={contentProps.content} />;
     default:
-      return <div className="h-full p-4 bg-background-default">Unknown content type: {contentType}</div>;
+      return <div key={`unknown-${tabId}`} className="h-full p-4 bg-background-default">Unknown content type: {contentType}</div>;
   }
 };
 
 export const TabSidecar: React.FC<TabSidecarProps> = ({
   sidecarState,
   onHideView,
+  tabId,
   className = ''
 }) => {
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('unified');
@@ -194,7 +196,7 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
 
         {/* Sidecar Content */}
         <div className="flex-1 overflow-hidden">
-          {renderContent(currentView.contentType, currentView.contentProps)}
+          {renderContent(currentView.contentType, currentView.contentProps, tabId)}
         </div>
       </div>
     </div>

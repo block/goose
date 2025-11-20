@@ -224,6 +224,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                   <TabSidecar
                     sidecarState={sidecarState}
                     onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
+                    tabId={activeTabState.tab.id}
                   />
                 }
                 initialLeftWidth={chatWidth}

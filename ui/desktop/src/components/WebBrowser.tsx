@@ -34,6 +34,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const browserContainerRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
+  const instanceIdRef = useRef<string>(`browser-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   // Create BrowserView when component mounts
   useEffect(() => {
@@ -57,15 +58,15 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         if (result.success && result.viewId) {
           setViewId(result.viewId);
           setIsInitialized(true);
-          console.log('WebBrowser: BrowserView created successfully:', result.viewId);
+          console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView created successfully:`, result.viewId);
           
           // Start polling for navigation state
           pollNavigationState(result.viewId);
         } else {
-          console.error('WebBrowser: Failed to create BrowserView:', result.error);
+          console.error(`WebBrowser [${instanceIdRef.current}]: Failed to create BrowserView:`, result.error);
         }
       } catch (error) {
-        console.error('WebBrowser: Error creating BrowserView:', error);
+        console.error(`WebBrowser [${instanceIdRef.current}]: Error creating BrowserView:`, error);
       }
     };
 
@@ -73,8 +74,11 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
 
     // Cleanup on unmount
     return () => {
+      console.log(`WebBrowser [${instanceIdRef.current}]: Cleaning up, destroying BrowserView:`, viewId);
       if (viewId) {
-        window.electron.destroyBrowserView(viewId).catch(console.error);
+        window.electron.destroyBrowserView(viewId).catch((error) => {
+          console.error(`WebBrowser [${instanceIdRef.current}]: Error destroying BrowserView:`, error);
+        });
       }
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
@@ -290,24 +294,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         {/* This div serves as a placeholder and positioning reference */}
       </div>
 
-      {/* Status Bar */}
-      <div className="flex items-center justify-between px-3 py-1 text-xs text-text-muted bg-background-muted border-t border-border-subtle">
-        <div className="flex items-center gap-2">
-          {navigationState.isLoading && (
-            <>
-              <RotateCcw size={12} className="animate-spin" />
-              <span>Loading...</span>
-            </>
-          )}
-          {!navigationState.isLoading && (
-            <span>Ready</span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="font-mono">{new URL(currentUrl).hostname}</span>
-        </div>
-      </div>
+
     </div>
   );
 };
