@@ -3,6 +3,7 @@ import { X, SquareSplitHorizontal, BetweenHorizontalStart, FileDiff, Globe, File
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
+import DocumentEditor from './DocumentEditor';
 
 interface TabSidecarProps {
   sidecarState: TabSidecarState;
@@ -39,15 +40,12 @@ const SimpleFileViewer: React.FC<{ path: string }> = ({ path }) => (
   </div>
 );
 
-const SimpleDocumentEditor: React.FC<{ path?: string; content?: string }> = ({ path, content }) => (
-  <div className="h-full p-4 bg-background-default flex flex-col">
-    <div className="text-sm text-textMuted mb-2">
-      {path ? `Editing: ${path}` : 'New Document'}
-    </div>
-    <textarea 
-      className="flex-1 w-full border border-borderSubtle rounded p-2 text-sm resize-none"
+const RichDocumentEditor: React.FC<{ path?: string; content?: string }> = ({ path, content }) => (
+  <div className="h-full">
+    <DocumentEditor
+      filePath={path}
+      initialContent={content}
       placeholder="Start writing your document..."
-      defaultValue={content || ''}
     />
   </div>
 );
@@ -82,7 +80,7 @@ const renderContent = (contentType: string, contentProps: Record<string, any>) =
     case 'file':
       return <SimpleFileViewer path={contentProps.path || ''} />;
     case 'editor':
-      return <SimpleDocumentEditor path={contentProps.path} content={contentProps.content} />;
+      return <RichDocumentEditor path={contentProps.path} content={contentProps.content} />;
     default:
       return <div className="h-full p-4 bg-background-default">Unknown content type: {contentType}</div>;
   }
