@@ -89,7 +89,7 @@ function BaseChatContent({
   const [isHoveringChatInput, setIsHoveringChatInput] = useState(false);
 
   // Comment state management
-  const commentState = useComments({ sessionId });
+  const commentState = useComments();
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();

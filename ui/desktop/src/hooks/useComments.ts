@@ -1,18 +1,47 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { MessageComment, TextSelection, CommentState, CommentActions } from '../types/comment';
+import { CommentStorage } from '../utils/commentStorage';
+import { useChatContext } from '../contexts/ChatContext';
 
-interface UseCommentsOptions {
-  sessionId: string;
-  // In the future, this could load/save from persistent storage
-}
-
-export function useComments({ sessionId }: UseCommentsOptions): CommentState & CommentActions {
+export function useComments(): CommentState & CommentActions {
+  const chatContext = useChatContext();
+  const sessionId = chatContext?.chat?.sessionId || '';
+  
   const [comments, setComments] = useState<Map<string, MessageComment[]>>(new Map());
   const [activeSelection, setActiveSelection] = useState<TextSelection | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [isCreatingComment, setIsCreatingComment] = useState(false);
   const [activePosition, setActivePosition] = useState<{ x: number; y: number } | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+
+  // Load comments from storage when sessionId changes
+  useEffect(() => {
+    if (sessionId) {
+      const storedComments = CommentStorage.loadComments(sessionId);
+      const commentsMap = new Map<string, MessageComment[]>();
+      
+      Object.entries(storedComments).forEach(([messageId, messageComments]) => {
+        commentsMap.set(messageId, messageComments);
+      });
+      
+      setComments(commentsMap);
+    } else {
+      setComments(new Map());
+    }
+  }, [sessionId]);
+
+  // Save comments to storage whenever comments change
+  useEffect(() => {
+    if (sessionId && comments.size > 0) {
+      const commentsObject: Record<string, MessageComment[]> = {};
+      comments.forEach((messageComments, messageId) => {
+        if (messageComments.length > 0) {
+          commentsObject[messageId] = messageComments;
+        }
+      });
+      CommentStorage.saveComments(sessionId, commentsObject);
+    }
+  }, [sessionId, comments]);
 
   const createComment = useCallback((messageId: string, selection: TextSelection, content: string, position?: { x: number; y: number }) => {
     const newComment: MessageComment = {
