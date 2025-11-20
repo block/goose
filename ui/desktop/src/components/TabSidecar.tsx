@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
 import DocumentEditor from './DocumentEditor';
+import WebBrowser from './WebBrowser';
 
 interface TabSidecarProps {
   sidecarState: TabSidecarState;
@@ -76,7 +77,7 @@ const renderContent = (contentType: string, contentProps: Record<string, any>) =
     case 'localhost':
       return <LocalhostViewer url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
     case 'web':
-      return <LocalhostViewer url={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
+      return <WebBrowser initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
     case 'file':
       return <SimpleFileViewer path={contentProps.path || ''} />;
     case 'editor':

@@ -1,0 +1,315 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, ArrowRight, RotateCcw, Home, Globe, X } from 'lucide-react';
+import { Button } from './ui/button';
+
+interface WebBrowserProps {
+  initialUrl?: string;
+  title?: string;
+  onClose?: () => void;
+  className?: string;
+}
+
+interface NavigationState {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  isLoading: boolean;
+  url: string;
+}
+
+export const WebBrowser: React.FC<WebBrowserProps> = ({
+  initialUrl = 'https://google.com',
+  title = 'Web Browser',
+  onClose,
+  className = ''
+}) => {
+  const [currentUrl, setCurrentUrl] = useState(initialUrl);
+  const [inputUrl, setInputUrl] = useState(initialUrl);
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [navigationState, setNavigationState] = useState<NavigationState>({
+    canGoBack: false,
+    canGoForward: false,
+    isLoading: false,
+    url: initialUrl
+  });
+  const [isInitialized, setIsInitialized] = useState(false);
+  const browserContainerRef = useRef<HTMLDivElement>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Create BrowserView when component mounts
+  useEffect(() => {
+    const initializeBrowser = async () => {
+      if (!browserContainerRef.current || isInitialized) return;
+
+      const container = browserContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      
+      // Account for the address bar height (60px)
+      const bounds = {
+        x: rect.left,
+        y: rect.top + 60, // Offset for address bar
+        width: rect.width,
+        height: rect.height - 60
+      };
+
+      try {
+        const result = await window.electron.createBrowserView(currentUrl, bounds);
+        
+        if (result.success && result.viewId) {
+          setViewId(result.viewId);
+          setIsInitialized(true);
+          console.log('WebBrowser: BrowserView created successfully:', result.viewId);
+          
+          // Start polling for navigation state
+          pollNavigationState(result.viewId);
+        } else {
+          console.error('WebBrowser: Failed to create BrowserView:', result.error);
+        }
+      } catch (error) {
+        console.error('WebBrowser: Error creating BrowserView:', error);
+      }
+    };
+
+    initializeBrowser();
+
+    // Cleanup on unmount
+    return () => {
+      if (viewId) {
+        window.electron.destroyBrowserView(viewId).catch(console.error);
+      }
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [currentUrl, isInitialized]);
+
+  // Poll navigation state
+  const pollNavigationState = useCallback((browserViewId: string) => {
+    const updateState = async () => {
+      try {
+        const state = await window.electron.browserViewNavigationState(browserViewId);
+        if (state) {
+          setNavigationState(state);
+          setCurrentUrl(state.url);
+          setInputUrl(state.url);
+        }
+      } catch (error) {
+        console.error('WebBrowser: Error getting navigation state:', error);
+      }
+      
+      // Continue polling
+      updateTimeoutRef.current = setTimeout(() => updateState(), 1000);
+    };
+
+    updateState();
+  }, []);
+
+  // Update BrowserView bounds when container resizes
+  useEffect(() => {
+    const updateBounds = () => {
+      if (!viewId || !browserContainerRef.current) return;
+
+      const container = browserContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      
+      const bounds = {
+        x: rect.left,
+        y: rect.top + 60, // Offset for address bar
+        width: rect.width,
+        height: rect.height - 60
+      };
+
+      window.electron.updateBrowserViewBounds(viewId, bounds).catch(console.error);
+    };
+
+    const resizeObserver = new ResizeObserver(updateBounds);
+    if (browserContainerRef.current) {
+      resizeObserver.observe(browserContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [viewId]);
+
+  // Navigation handlers
+  const handleNavigate = useCallback(async (url: string) => {
+    if (!viewId) return;
+
+    try {
+      // Ensure URL has protocol
+      let fullUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        // Check if it looks like a domain
+        if (url.includes('.') && !url.includes(' ')) {
+          fullUrl = `https://${url}`;
+        } else {
+          // Treat as search query
+          fullUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+        }
+      }
+
+      await window.electron.browserViewNavigate(viewId, fullUrl);
+      setCurrentUrl(fullUrl);
+      setInputUrl(fullUrl);
+    } catch (error) {
+      console.error('WebBrowser: Navigation error:', error);
+    }
+  }, [viewId]);
+
+  const handleGoBack = useCallback(async () => {
+    if (!viewId || !navigationState.canGoBack) return;
+    
+    try {
+      await window.electron.browserViewGoBack(viewId);
+    } catch (error) {
+      console.error('WebBrowser: Go back error:', error);
+    }
+  }, [viewId, navigationState.canGoBack]);
+
+  const handleGoForward = useCallback(async () => {
+    if (!viewId || !navigationState.canGoForward) return;
+    
+    try {
+      await window.electron.browserViewGoForward(viewId);
+    } catch (error) {
+      console.error('WebBrowser: Go forward error:', error);
+    }
+  }, [viewId, navigationState.canGoForward]);
+
+  const handleRefresh = useCallback(async () => {
+    if (!viewId) return;
+    
+    try {
+      await window.electron.browserViewRefresh(viewId);
+    } catch (error) {
+      console.error('WebBrowser: Refresh error:', error);
+    }
+  }, [viewId]);
+
+  const handleHome = useCallback(() => {
+    handleNavigate('https://google.com');
+  }, [handleNavigate]);
+
+  const handleUrlSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    handleNavigate(inputUrl);
+  }, [inputUrl, handleNavigate]);
+
+  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputUrl(e.target.value);
+  }, []);
+
+  return (
+    <div className={`flex flex-col h-full bg-background-default ${className}`}>
+      {/* Browser Toolbar */}
+      <div className="flex items-center gap-2 p-3 border-b border-border-subtle bg-background-muted">
+        {/* Navigation Buttons */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGoBack}
+            disabled={!navigationState.canGoBack}
+            title="Go back"
+          >
+            <ArrowLeft size={16} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGoForward}
+            disabled={!navigationState.canGoForward}
+            title="Go forward"
+          >
+            <ArrowRight size={16} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={navigationState.isLoading}
+            title="Refresh"
+          >
+            <RotateCcw size={16} className={navigationState.isLoading ? 'animate-spin' : ''} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleHome}
+            title="Home"
+          >
+            <Home size={16} />
+          </Button>
+        </div>
+
+        {/* Address Bar */}
+        <form onSubmit={handleUrlSubmit} className="flex-1 flex items-center gap-2">
+          <div className="flex-1 relative">
+            <Globe size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted" />
+            <input
+              type="text"
+              value={inputUrl}
+              onChange={handleUrlChange}
+              placeholder="Enter URL or search..."
+              className="w-full pl-10 pr-4 py-2 text-sm bg-background-default border border-border-subtle rounded-lg focus:outline-none focus:ring-2 focus:ring-border-prominent focus:border-transparent"
+            />
+          </div>
+        </form>
+
+        {/* Close Button */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            title="Close browser"
+          >
+            <X size={16} />
+          </Button>
+        )}
+      </div>
+
+      {/* Browser Content Area */}
+      <div 
+        ref={browserContainerRef}
+        className="flex-1 bg-white relative"
+      >
+        {!isInitialized && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background-muted">
+            <div className="flex items-center gap-2 text-text-muted">
+              <RotateCcw size={20} className="animate-spin" />
+              <span>Loading browser...</span>
+            </div>
+          </div>
+        )}
+        
+        {/* The actual web content will be rendered by Electron's BrowserView */}
+        {/* This div serves as a placeholder and positioning reference */}
+      </div>
+
+      {/* Status Bar */}
+      <div className="flex items-center justify-between px-3 py-1 text-xs text-text-muted bg-background-muted border-t border-border-subtle">
+        <div className="flex items-center gap-2">
+          {navigationState.isLoading && (
+            <>
+              <RotateCcw size={12} className="animate-spin" />
+              <span>Loading...</span>
+            </>
+          )}
+          {!navigationState.isLoading && (
+            <span>Ready</span>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="font-mono">{new URL(currentUrl).hostname}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default WebBrowser;
