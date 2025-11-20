@@ -117,22 +117,20 @@ function BaseChatContent({
     onSessionLoaded: handleSessionLoaded,
   });
 
-  // Handle auto-submission when session is loaded and we have an initial message
   useEffect(() => {
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
     if (sessionLoaded && initialMessage && !hasSubmittedInitialMessage) {
       setHasSubmittedInitialMessage(true);
       handleSubmit(initialMessage);
+      return;
     }
-  }, [sessionLoaded, initialMessage, hasSubmittedInitialMessage, handleSubmit]);
-
-  useEffect(() => {
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
     if (
       sessionLoaded &&
       shouldStartAgent &&
       messages.length > 0 &&
       !hasTriggeredAgentForFork &&
+      !initialMessage &&
       chatState === ChatState.Idle
     ) {
       setHasTriggeredAgentForFork(true);
@@ -140,6 +138,8 @@ function BaseChatContent({
     }
   }, [
     sessionLoaded,
+    initialMessage,
+    hasSubmittedInitialMessage,
     searchParams,
     messages.length,
     hasTriggeredAgentForFork,
@@ -240,8 +240,9 @@ function BaseChatContent({
       const customEvent = event as CustomEvent<{
         newSessionId: string;
         shouldStartAgent?: boolean;
+        editedMessage?: string;
       }>;
-      const { newSessionId, shouldStartAgent } = customEvent.detail;
+      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);
@@ -252,6 +253,7 @@ function BaseChatContent({
       navigate(`/pair?${params.toString()}`, {
         state: {
           disableAnimation: true,
+          initialMessage: editedMessage,
         },
       });
     };

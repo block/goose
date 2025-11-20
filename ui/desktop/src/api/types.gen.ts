@@ -124,19 +124,11 @@ export type DeleteRecipeRequest = {
 
 export type EditMessageRequest = {
     editType?: EditType;
-    newContent: string;
     timestamp: number;
 };
 
 export type EditMessageResponse = {
-    /**
-     * Conversation (either in new session for fork, or updated current session for edit)
-     */
-    conversation: Array<Message>;
-    /**
-     * New session ID created from the fork (only present for fork edit_type)
-     */
-    newSessionId?: string | null;
+    sessionId: string;
 };
 
 export type EditType = 'fork' | 'edit';
@@ -2451,7 +2443,7 @@ export type EditMessageData = {
 
 export type EditMessageErrors = {
     /**
-     * Bad request - Invalid message ID or empty content
+     * Bad request - Invalid message timestamp
      */
     400: unknown;
     /**
@@ -2470,7 +2462,7 @@ export type EditMessageErrors = {
 
 export type EditMessageResponses = {
     /**
-     * Message edited successfully
+     * Session prepared for editing - frontend should submit the edited message
      */
     200: EditMessageResponse;
 };

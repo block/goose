@@ -9,7 +9,6 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use goose::conversation::message::Message;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
@@ -61,7 +60,6 @@ pub enum EditType {
 #[serde(rename_all = "camelCase")]
 pub struct EditMessageRequest {
     timestamp: i64,
-    new_content: String,
     #[serde(default = "default_edit_type")]
     edit_type: EditType,
 }
@@ -73,11 +71,7 @@ fn default_edit_type() -> EditType {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EditMessageResponse {
-    /// New session ID created from the fork (only present for fork edit_type)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    new_session_id: Option<String>,
-    /// Conversation (either in new session for fork, or updated current session for edit)
-    conversation: Vec<Message>,
+    session_id: String,
 }
 
 const MAX_NAME_LENGTH: usize = 200;
@@ -346,8 +340,8 @@ async fn import_session(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Message edited successfully", body = EditMessageResponse),
-        (status = 400, description = "Bad request - Invalid message ID or empty content"),
+        (status = 200, description = "Session prepared for editing - frontend should submit the edited message", body = EditMessageResponse),
+        (status = 400, description = "Bad request - Invalid message timestamp"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session or message not found"),
         (status = 500, description = "Internal server error")
@@ -361,54 +355,36 @@ async fn edit_message(
     Path(session_id): Path<String>,
     Json(request): Json<EditMessageRequest>,
 ) -> Result<Json<EditMessageResponse>, StatusCode> {
-    if request.new_content.trim().is_empty() {
-        tracing::warn!("edit_message: empty content provided");
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
     match request.edit_type {
         EditType::Fork => {
-            let new_session = SessionManager::fork_session_at_message(
-                &session_id,
-                request.timestamp,
-                request.new_content,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fork session: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            let new_session = SessionManager::copy_session(&session_id, "(edited)".to_string())
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to copy session: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
 
-            let conversation = new_session.conversation.ok_or_else(|| {
-                tracing::error!("Forked session has no conversation");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            SessionManager::truncate_conversation(&new_session.id, request.timestamp)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to truncate conversation: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
 
             Ok(Json(EditMessageResponse {
-                new_session_id: Some(new_session.id),
-                conversation: conversation.messages().to_vec(),
+                session_id: new_session.id,
             }))
         }
         EditType::Edit => {
-            let updated_session = SessionManager::edit_message_in_place(
-                &session_id,
-                request.timestamp,
-                request.new_content,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to edit message in place: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-            let conversation = updated_session.conversation.ok_or_else(|| {
-                tracing::error!("Updated session has no conversation");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            SessionManager::truncate_conversation(&session_id, request.timestamp)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to truncate conversation: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
 
             Ok(Json(EditMessageResponse {
-                new_session_id: None,
-                conversation: conversation.messages().to_vec(),
+                session_id: session_id.clone(),
             }))
         }
     }

@@ -304,28 +304,6 @@ impl SessionManager {
             .await
     }
 
-    pub async fn fork_session_at_message(
-        session_id: &str,
-        timestamp: i64,
-        new_message_content: String,
-    ) -> Result<Session> {
-        Self::instance()
-            .await?
-            .fork_session_at_message(session_id, timestamp, new_message_content)
-            .await
-    }
-
-    pub async fn edit_message_in_place(
-        session_id: &str,
-        timestamp: i64,
-        new_message_content: String,
-    ) -> Result<Session> {
-        Self::instance()
-            .await?
-            .edit_message_in_place(session_id, timestamp, new_message_content)
-            .await
-    }
-
     pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = Self::get_session(id, true).await?;
 
@@ -1208,53 +1186,6 @@ impl SessionStorage {
             .await?;
 
         Ok(())
-    }
-
-    async fn fork_session_at_message(
-        &self,
-        session_id: &str,
-        timestamp: i64,
-        new_message_content: String,
-    ) -> Result<Session> {
-        use crate::conversation::message::MessageContent;
-
-        let original_session = self.get_session(session_id, true).await?;
-
-        let new_session = self
-            .copy_session(session_id, format!("{} (edited)", original_session.name))
-            .await?;
-
-        self.truncate_conversation(&new_session.id, timestamp)
-            .await?;
-
-        let new_user_message = Message::new(
-            Role::User,
-            chrono::Utc::now().timestamp_millis(),
-            vec![MessageContent::text(&new_message_content)],
-        );
-
-        self.add_message(&new_session.id, &new_user_message).await?;
-        self.get_session(&new_session.id, true).await
-    }
-
-    async fn edit_message_in_place(
-        &self,
-        session_id: &str,
-        timestamp: i64,
-        new_message_content: String,
-    ) -> Result<Session> {
-        use crate::conversation::message::MessageContent;
-
-        self.truncate_conversation(session_id, timestamp).await?;
-
-        let new_user_message = Message::new(
-            Role::User,
-            chrono::Utc::now().timestamp_millis(),
-            vec![MessageContent::text(&new_message_content)],
-        );
-
-        self.add_message(session_id, &new_user_message).await?;
-        self.get_session(session_id, true).await
     }
 
     async fn search_chat_history(

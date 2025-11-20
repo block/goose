@@ -1945,7 +1945,7 @@
         },
         "responses": {
           "200": {
-            "description": "Message edited successfully",
+            "description": "Session prepared for editing - frontend should submit the edited message",
             "content": {
               "application/json": {
                 "schema": {
@@ -1955,7 +1955,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid message ID or empty content"
+            "description": "Bad request - Invalid message timestamp"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -2512,15 +2512,11 @@
       "EditMessageRequest": {
         "type": "object",
         "required": [
-          "timestamp",
-          "newContent"
+          "timestamp"
         ],
         "properties": {
           "editType": {
             "$ref": "#/components/schemas/EditType"
-          },
-          "newContent": {
-            "type": "string"
           },
           "timestamp": {
             "type": "integer",
@@ -2531,20 +2527,11 @@
       "EditMessageResponse": {
         "type": "object",
         "required": [
-          "conversation"
+          "sessionId"
         ],
         "properties": {
-          "conversation": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "description": "Conversation (either in new session for fork, or updated current session for edit)"
-          },
-          "newSessionId": {
-            "type": "string",
-            "description": "New session ID created from the fork (only present for fork edit_type)",
-            "nullable": true
+          "sessionId": {
+            "type": "string"
           }
         }
       },

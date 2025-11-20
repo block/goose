@@ -370,37 +370,37 @@ export function useChatStream({
           },
           body: {
             timestamp: message.created,
-            newContent,
             editType,
           },
           throwOnError: true,
         });
 
+        const targetSessionId = response.data?.sessionId;
+        if (!targetSessionId) {
+          throw new Error('No session ID returned from edit_message');
+        }
+
         if (editType === 'fork') {
-          if (response.data?.newSessionId && response.data?.conversation) {
-            const newSessionId = response.data.newSessionId;
-            const event = new CustomEvent('session-forked', {
-              detail: {
-                newSessionId,
-                shouldStartAgent: true,
-              },
-            });
-            window.dispatchEvent(event);
-            window.electron.logInfo(`Dispatched session-forked event`);
-          } else {
-            window.electron.logInfo(
-              `Unexpected fork response format: ${JSON.stringify(response.data)}`
-            );
-          }
+          const event = new CustomEvent('session-forked', {
+            detail: {
+              newSessionId: targetSessionId,
+              shouldStartAgent: true,
+              editedMessage: newContent,
+            },
+          });
+          window.dispatchEvent(event);
+          window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
         } else {
-          if (response.data?.conversation) {
-            updateMessages(response.data.conversation);
-            await handleSubmit('', { isContinuation: true });
-          } else {
-            window.electron.logInfo(
-              `Unexpected edit response format: ${JSON.stringify(response.data)}`
-            );
+          const { getSession } = await import('../api');
+          const sessionResponse = await getSession({
+            path: { session_id: targetSessionId },
+            throwOnError: true,
+          });
+
+          if (sessionResponse.data?.conversation) {
+            updateMessages(sessionResponse.data.conversation);
           }
+          await handleSubmit(newContent);
         }
       } catch (error) {
         const errorMsg = errorMessage(error);
@@ -412,7 +412,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, updateMessages, handleSubmit]
+    [sessionId, handleSubmit, updateMessages]
   );
 
   const cached = resultsCache.get(sessionId);
