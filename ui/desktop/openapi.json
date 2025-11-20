@@ -2244,9 +2244,6 @@
           },
           "session_id": {
             "type": "string"
-          },
-          "skip_add_user_message": {
-            "type": "boolean"
           }
         }
       },

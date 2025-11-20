@@ -134,7 +134,7 @@ function BaseChatContent({
       chatState === ChatState.Idle
     ) {
       setHasTriggeredAgentForFork(true);
-      handleSubmit('', { isContinuation: true });
+      handleSubmit('');
     }
   }, [
     sessionLoaded,

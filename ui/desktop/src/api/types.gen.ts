@@ -30,7 +30,6 @@ export type ChatRequest = {
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
-    skip_add_user_message?: boolean;
 };
 
 export type CheckProviderRequest = {

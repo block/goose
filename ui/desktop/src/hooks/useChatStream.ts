@@ -29,7 +29,7 @@ interface UseChatStreamReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
-  handleSubmit: (userMessage: string, options?: { isContinuation?: boolean }) => Promise<void>;
+  handleSubmit: (userMessage: string) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
@@ -244,38 +244,37 @@ export function useChatStream({
   }, [sessionId, updateMessages, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string, options?: { isContinuation?: boolean }) => {
+    async (userMessage: string) => {
       // Guard: Don't submit if session hasn't been loaded yet
       if (!session || chatState === ChatState.LoadingConversation) {
         return;
       }
 
-      // Check if this is a continuation request (agent should respond to existing messages)
-      const isContinuationRequest = options?.isContinuation || false;
-      if (!isContinuationRequest && !userMessage.trim()) {
+      const hasExistingMessages = messagesRef.current.length > 0;
+      const hasNewMessage = userMessage.trim().length > 0;
+
+      // Don't submit if there's no message and no conversation to continue
+      if (!hasNewMessage && !hasExistingMessages) {
         return;
       }
 
-      if (messagesRef.current.length === 0 && !isContinuationRequest) {
+      // Emit session-created event for first message in a new session
+      if (!hasExistingMessages && hasNewMessage) {
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      // For continuation requests, don't add a new user message
-      const currentMessages = isContinuationRequest
-        ? [...messagesRef.current]
-        : [...messagesRef.current, createUserMessage(userMessage)];
+      // Build message list: add new message if provided, otherwise continue with existing
+      const currentMessages = hasNewMessage
+        ? [...messagesRef.current, createUserMessage(userMessage)]
+        : [...messagesRef.current];
 
-      window.electron.logInfo(
-        `handleSubmit: isContinuationRequest=${isContinuationRequest}, messagesRef.current.length=${messagesRef.current.length}, currentMessages.length=${currentMessages.length}`
-      );
-
-      // Don't update messages if it's a continuation request (messages are already correct)
-      if (!isContinuationRequest) {
+      // Update UI with new message before streaming
+      if (hasNewMessage) {
         updateMessages(currentMessages);
       }
+
       setChatState(ChatState.Streaming);
       setNotifications([]);
-
       abortControllerRef.current = new AbortController();
 
       try {
@@ -283,7 +282,6 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             messages: currentMessages,
-            skip_add_user_message: isContinuationRequest, // Tell backend not to add the message again
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
