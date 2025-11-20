@@ -940,7 +940,7 @@ export default function ChatInput({
 
     if (isSlashTrigger) {
       // Open action popover for / trigger - position above the bottom controls area
-      console.log('🔍 Opening action popover for /', { query: afterTrigger });
+      console.log('🔍 Opening action popover for /', { query: afterTrigger, position: { x: bottomControlsRect.left, y: bottomControlsRect.top } });
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover({
         isOpen: true,
@@ -954,10 +954,15 @@ export default function ChatInput({
       });
     } else {
       // Open mention popover for @ trigger - position above the bottom controls area
-      console.log('🔍 Opening mention popover for @', { query: afterTrigger, mentionStart: triggerIndex });
+      console.log('🔍 Opening mention popover for @', { 
+        query: afterTrigger, 
+        mentionStart: triggerIndex, 
+        position: { x: bottomControlsRect.left, y: bottomControlsRect.top },
+        bottomControlsRect: bottomControlsRect 
+      });
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
-      setMentionPopover((prev) => ({
-        ...prev,
+      const newMentionPopover = {
+        ...mentionPopover,
         isOpen: true,
         position: {
           x: bottomControlsRect.left,
@@ -966,7 +971,9 @@ export default function ChatInput({
         query: afterTrigger,
         mentionStart: triggerIndex,
         selectedIndex: 0,
-      }));
+      };
+      console.log('🔍 Setting mention popover state:', newMentionPopover);
+      setMentionPopover(newMentionPopover);
     }
   };
 
