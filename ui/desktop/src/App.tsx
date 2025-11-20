@@ -20,6 +20,7 @@ import ProviderGuard from './components/ProviderGuard';
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
 import Pair, { PairRouteState } from './components/pair';
+import { TabbedPairRoute } from './components/TabbedPairRoute';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -51,6 +52,7 @@ import {
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
+import { TabProvider } from './contexts/TabContext';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -621,6 +623,14 @@ export function AppInner() {
             <Route
               path="pair"
               element={
+                <TabbedPairRoute
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                />
+              }
+            />
+            <Route
+              path="pair-old"
+              element={
                 <PairRouteWrapper
                   chat={chat}
                   setChat={setChat}
@@ -628,6 +638,14 @@ export function AppInner() {
                   loadCurrentChat={loadCurrentChat}
                   setFatalError={setFatalError}
                   setAgentWaitingMessage={setAgentWaitingMessage}
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                />
+              }
+            />
+            <Route
+              path="tabs"
+              element={
+                <TabbedPairRoute
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                 />
               }
@@ -671,10 +689,12 @@ export default function App() {
       <DraftProvider>
         <ModelAndProviderProvider>
           <MatrixProvider matrixService={matrixService}>
-            <HashRouter>
-              <AppInner />
-            </HashRouter>
-            <AnnouncementModal />
+            <TabProvider>
+              <HashRouter>
+                <AppInner />
+              </HashRouter>
+              <AnnouncementModal />
+            </TabProvider>
           </MatrixProvider>
         </ModelAndProviderProvider>
       </DraftProvider>
