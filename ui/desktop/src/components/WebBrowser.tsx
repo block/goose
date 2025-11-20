@@ -89,6 +89,30 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     };
   }, [initialUrl, isInitialized]); // Removed pollNavigationState dependency
 
+  // Listen for sidecar closing events to trigger explicit cleanup
+  useEffect(() => {
+    const handleSidecarClosing = (event: CustomEvent) => {
+      const { tabId, viewId: closingViewId } = event.detail;
+      console.log(`WebBrowser [${instanceIdRef.current}]: Received sidecar closing event for tabId:${tabId}, viewId:${closingViewId}`);
+      
+      // If this WebBrowser instance should be cleaned up, destroy the BrowserView immediately
+      if (viewId) {
+        console.log(`WebBrowser [${instanceIdRef.current}]: Triggering immediate cleanup due to sidecar closing`);
+        window.electron.destroyBrowserView(viewId).catch((error) => {
+          console.error(`WebBrowser [${instanceIdRef.current}]: Error destroying BrowserView during sidecar close:`, error);
+        });
+        setViewId(null);
+        setIsInitialized(false);
+      }
+    };
+
+    window.addEventListener('sidecar-web-view-closing', handleSidecarClosing as EventListener);
+    
+    return () => {
+      window.removeEventListener('sidecar-web-view-closing', handleSidecarClosing as EventListener);
+    };
+  }, [viewId]);
+
   // Sync ref with state
   useEffect(() => {
     isEditingUrlRef.current = isEditingUrl;

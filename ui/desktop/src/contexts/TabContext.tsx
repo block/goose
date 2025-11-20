@@ -445,6 +445,19 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const hideSidecarView = useCallback((tabId: string, viewId: string) => {
     console.log('🔧 TabContext: Hiding sidecar view for tab:', tabId, 'view:', viewId);
     
+    // If this is a web viewer, trigger explicit cleanup
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (tabState?.tab.sidecarState) {
+      const view = tabState.tab.sidecarState.views.find(v => v.id === viewId);
+      if (view && view.contentType === 'web') {
+        console.log('🔧 TabContext: Triggering cleanup for web viewer:', viewId);
+        // Dispatch a custom event to trigger WebBrowser cleanup
+        window.dispatchEvent(new CustomEvent('sidecar-web-view-closing', { 
+          detail: { tabId, viewId } 
+        }));
+      }
+    }
+    
     setTabStates(prev => prev.map(ts => {
       if (ts.tab.id !== tabId || !ts.tab.sidecarState) return ts;
       
@@ -459,7 +472,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         }
       };
     }));
-  }, []);
+  }, [tabStates]);
 
   const hideAllSidecarViews = useCallback((tabId: string) => {
     console.log('🔧 TabContext: Hiding all sidecar views for tab:', tabId);
