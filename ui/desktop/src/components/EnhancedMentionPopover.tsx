@@ -249,7 +249,7 @@ const EnhancedMentionPopover = forwardRef<
       className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md"
       style={{
         left: '50%', // Center horizontally
-        top: '20%', // Position in upper portion of screen
+        top: '50px', // Position near the very top of screen
         transform: 'translateX(-50%)', // Center the popover horizontally
       }}
     >
