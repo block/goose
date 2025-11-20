@@ -372,4 +372,29 @@ mod tests {
         _guard.set("GOOSE_CONTEXT_LIMIT", "64000");
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
     }
+    
+    #[tokio::test]
+    async fn test_groq_provider_config_keys() {
+        // Test that Groq provider shows correct config keys
+        let providers_list = providers().await;
+        
+        // Find the Groq provider
+        let groq_provider = providers_list.iter().find(|(meta, _)| meta.name == "groq");
+        assert!(groq_provider.is_some(), "Groq provider should be registered");
+        
+        let (groq_meta, _) = groq_provider.unwrap();
+        
+        // The first config key should be GROQ_API_KEY, not OPENAI_API_KEY
+        assert!(!groq_meta.config_keys.is_empty(), "Groq provider should have config keys");
+        assert_eq!(groq_meta.config_keys[0].name, "GROQ_API_KEY", 
+                  "First config key should be GROQ_API_KEY, got {}", groq_meta.config_keys[0].name);
+        assert!(groq_meta.config_keys[0].required, "GROQ_API_KEY should be required");
+        assert!(groq_meta.config_keys[0].secret, "GROQ_API_KEY should be secret");
+        
+        // Other config keys should be standard OpenAI ones
+        if groq_meta.config_keys.len() > 1 {
+            assert_eq!(groq_meta.config_keys[1].name, "OPENAI_HOST");
+            assert_eq!(groq_meta.config_keys[2].name, "OPENAI_BASE_PATH");
+        }
+    }
 }

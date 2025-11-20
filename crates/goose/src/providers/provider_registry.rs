@@ -96,6 +96,13 @@ impl ProviderRegistry {
             })
             .collect();
 
+        // Generate appropriate config keys based on the provider engine and configuration
+        let mut config_keys = base_metadata.config_keys.clone();
+        // Update the first config key (API key) to use the provider-specific environment variable
+        if !config_keys.is_empty() {
+            config_keys[0] = super::base::ConfigKey::new(&config.api_key_env, true, true, None);
+        }
+
         let custom_metadata = ProviderMetadata {
             name: config.name.clone(),
             display_name: config.display_name.clone(),
@@ -103,7 +110,7 @@ impl ProviderRegistry {
             default_model,
             known_models,
             model_doc_link: base_metadata.model_doc_link,
-            config_keys: base_metadata.config_keys,
+            config_keys,
         };
 
         self.entries.insert(
