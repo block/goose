@@ -19,7 +19,7 @@ PROVIDERS=(
   "xai:grok-3"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo:gpt-5"
   "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
-  "google:gemini-2.5-pro:gemini-2.5-flash"
+  "google:gemini-2.5-pro:gemini-2.5-flash:gemini-3-pro-preview"
   "tetrate:claude-sonnet-4-20250514"
 )
 

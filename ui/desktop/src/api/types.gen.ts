@@ -860,6 +860,7 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
+    thoughtSignature?: string | null;
     toolCall: {
         [key: string]: unknown;
     };

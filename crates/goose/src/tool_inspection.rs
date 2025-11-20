@@ -295,6 +295,7 @@ mod tests {
                 name: "test_tool".into(),
                 arguments: Some(object!({})),
             }),
+            thought_signature: None,
         };
 
         let permission_result = PermissionCheckResult {

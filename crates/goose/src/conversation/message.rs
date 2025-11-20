@@ -53,6 +53,8 @@ pub struct ToolRequest {
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 impl ToolRequest {
@@ -201,6 +203,19 @@ impl MessageContent {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
+            thought_signature: None,
+        })
+    }
+
+    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
+        id: S1,
+        tool_call: ToolResult<CallToolRequestParam>,
+        thought_signature: Option<S2>,
+    ) -> Self {
+        MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            thought_signature: thought_signature.map(|s| s.into()),
         })
     }
 
