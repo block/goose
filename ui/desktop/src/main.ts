@@ -1161,7 +1161,7 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
 
     console.log('[Main] Creating BrowserView with bounds:', bounds);
 
-    // Create a new BrowserView
+    // Create a new BrowserView with enhanced compatibility
     const view = new BrowserView({
       webPreferences: {
         nodeIntegration: false,
@@ -1169,6 +1169,12 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
         webSecurity: true,
         allowRunningInsecureContent: false,
         experimentalFeatures: true,
+        // Enable additional features for better website compatibility
+        webgl: true,
+        plugins: false,
+        java: false,
+        // Set a standard user agent to avoid detection issues
+        // This helps with sites that might serve different content to Electron
       },
     });
 
@@ -1189,6 +1195,9 @@ ipcMain.handle('create-browser-view', async (event, url: string, bounds: { x: nu
     
     console.log('[Main] Adjusted bounds for BrowserView:', adjustedBounds);
     view.setBounds(adjustedBounds);
+    
+    // Set a standard user agent to improve compatibility
+    view.webContents.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     // Load the URL
     await view.webContents.loadURL(url);
