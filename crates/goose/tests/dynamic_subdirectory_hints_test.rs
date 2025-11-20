@@ -57,7 +57,6 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
             .get(&auth_dir.to_string_lossy().to_string())
             .unwrap();
         assert_eq!(context.access_turn, 1);
-        assert_eq!(context.access_turn, 1);
     }
 
     // Turn 2: Access again (should update access time)

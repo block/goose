@@ -385,7 +385,7 @@ mod tests {
 
         // With max_idle_turns=11:
         let stale = state.get_stale_directories(20, 11);
-        assert_eq!(stale.len(), 2); // auth is not stale (idle 12), api is not stale (idle 10)
+        assert_eq!(stale.len(), 2); // auth is stale (idle 12), payments is stale (idle 18), api is not stale (idle 10)
     }
 
     #[test]

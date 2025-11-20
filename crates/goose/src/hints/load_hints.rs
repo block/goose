@@ -55,20 +55,11 @@ pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
 fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
     match git_root {
         Some(git_root) => {
-            let mut directories = Vec::new();
-            let mut current_dir = cwd;
-
-            loop {
-                directories.push(current_dir.to_path_buf());
-                if current_dir == git_root {
-                    break;
-                }
-                if let Some(parent) = current_dir.parent() {
-                    current_dir = parent;
-                } else {
-                    break;
-                }
-            }
+            let mut directories: Vec<_> = cwd
+                .ancestors()
+                .take_while(|d| d.starts_with(git_root))
+                .map(|d| d.to_path_buf())
+                .collect();
             directories.reverse();
             directories
         }
@@ -172,28 +163,11 @@ pub fn load_hints_from_directory(
     }
 
     // Build path from working_dir to directory
-    let mut directories = Vec::new();
-    let mut current = directory;
-
-    // Walk up from directory to working_dir
-    loop {
-        directories.push(current.to_path_buf());
-
-        if current == working_dir {
-            break;
-        }
-
-        match current.parent() {
-            Some(parent) => {
-                // Stop if we've reached or passed working_dir
-                if !parent.starts_with(working_dir) {
-                    break;
-                }
-                current = parent;
-            }
-            None => break,
-        }
-    }
+    let mut directories: Vec<_> = directory
+        .ancestors()
+        .take_while(|d| d.starts_with(working_dir))
+        .map(|d| d.to_path_buf())
+        .collect();
 
     // Reverse so we load from working_dir down to directory
     directories.reverse();

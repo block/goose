@@ -162,29 +162,24 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         // Extras are additional instructions appended to the system prompt
         // They can be tagged for later removal (e.g., dynamic directory hints)
         // Hints from .goosehints/AGENTS.md files are also added as extras (but untagged)
-        let mut system_prompt_extras: Vec<String> = self
+        let mut sanitized_system_prompt_extras: Vec<String> = self
             .manager
             .system_prompt_extras
             .iter()
-            .map(|extra| extra.content.clone())
+            .map(|extra| sanitize_unicode_tags(&extra.content))
             .collect();
 
         // Add hints if provided (from .goosehints/AGENTS.md files)
         if let Some(hints) = self.hints {
-            system_prompt_extras.push(hints);
+            sanitized_system_prompt_extras.push(sanitize_unicode_tags(&hints));
         }
 
         if goose_mode == GooseMode::Chat {
-            system_prompt_extras.push(
+            sanitized_system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),
             );
         }
-
-        let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
-            .into_iter()
-            .map(|extra| sanitize_unicode_tags(&extra))
-            .collect();
 
         if sanitized_system_prompt_extras.is_empty() {
             base_prompt
@@ -437,17 +432,17 @@ mod tests {
         assert!(manager
             .system_prompt_extras
             .iter()
-            .any(|(extra)| extra.content == "Context 2"));
+            .any(|extra| extra.content == "Context 2"));
         assert!(manager
             .system_prompt_extras
             .iter()
-            .any(|(extra)| extra.content == "Untagged"));
+            .any(|extra| extra.content == "Untagged"));
 
         // Verify dir1 is gone
         assert!(!manager
             .system_prompt_extras
             .iter()
-            .any(|(extra)| extra.content == "Context 1"));
+            .any(|extra| extra.content == "Context 1"));
     }
 
     #[test]
