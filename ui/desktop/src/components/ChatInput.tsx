@@ -1787,8 +1787,8 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      {/* Popover Zone - Reserved space above chat input for mention popovers */}
-      <div id="mention-popover-zone" className="flex-shrink-0 relative z-50 h-24 bg-transparent pointer-events-none max-w-4xl mx-auto w-full">
+      {/* Popover Zone - Absolute positioned above chat input, doesn't affect layout */}
+      <div id="mention-popover-zone" className="absolute -top-24 left-0 right-0 z-50 h-24 bg-transparent pointer-events-none">
         {/* This space is reserved for mention popovers to render above the chat input */}
       </div>
 
