@@ -54,6 +54,7 @@ export default function RecipesView() {
   const [slashCommandRecipeManifest, setSlashCommandRecipeManifest] =
     useState<RecipeManifest | null>(null);
   const [slashCommand, setSlashCommand] = useState<string>('');
+  const [scheduleValid, setScheduleIsValid] = useState(true);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -580,6 +581,7 @@ export default function RecipesView() {
                     : null
                 }
                 onChange={setScheduleCron}
+                isValid={setScheduleIsValid}
               />
               <div className="flex gap-2 justify-end">
                 {scheduleRecipeManifest.schedule_cron && (
@@ -590,7 +592,9 @@ export default function RecipesView() {
                 <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSaveSchedule}>Save</Button>
+                <Button onClick={handleSaveSchedule} disabled={!scheduleValid}>
+                  Save
+                </Button>
               </div>
             </div>
           </DialogContent>

@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.14.0"
+    "version": "1.15.0"
   },
   "paths": {
     "/agent/add_extension": {
@@ -1058,6 +1058,33 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/mcp-ui-proxy": {
+      "get": {
+        "tags": [
+          "super::routes::mcp_ui_proxy"
+        ],
+        "operationId": "mcp_ui_proxy",
+        "parameters": [
+          {
+            "name": "secret",
+            "in": "query",
+            "description": "Secret key for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP UI proxy HTML page"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing secret"
           }
         }
       }
@@ -4940,6 +4967,10 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "thoughtSignature": {
+            "type": "string",
+            "nullable": true
           },
           "toolCall": {
             "type": "object"

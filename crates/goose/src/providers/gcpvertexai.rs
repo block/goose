@@ -197,6 +197,7 @@ impl GcpVertexAIProvider {
         let endpoint = match provider {
             ModelProvider::Anthropic => "streamRawPredict",
             ModelProvider::Google => "generateContent",
+            ModelProvider::MaaS(_) => "generateContent",
         };
 
         // Construct path for URL
@@ -586,8 +587,12 @@ mod tests {
 
     #[test]
     fn test_model_provider_conversion() {
-        assert_eq!(ModelProvider::Anthropic.as_str(), "anthropic");
-        assert_eq!(ModelProvider::Google.as_str(), "google");
+        assert_eq!(ModelProvider::Anthropic.as_str(), "anthropic".to_string());
+        assert_eq!(ModelProvider::Google.as_str(), "google".to_string());
+        assert_eq!(
+            ModelProvider::MaaS("qwen".to_string()).as_str(),
+            "qwen".to_string()
+        );
     }
 
     #[test]
