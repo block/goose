@@ -35,6 +35,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
   const browserContainerRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const instanceIdRef = useRef<string>(`browser-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const isVisibleRef = useRef<boolean>(true);
 
   // Create BrowserView when component mounts
   useEffect(() => {
@@ -107,22 +108,64 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     updateState();
   }, []);
 
+  // Manage BrowserView visibility based on component visibility
+  useEffect(() => {
+    if (!viewId) return;
+
+    // Show the BrowserView when component mounts or becomes visible
+    const showBrowserView = async () => {
+      if (!browserContainerRef.current) return;
+      
+      const container = browserContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      
+      // Only show if the container is actually visible (has dimensions)
+      if (rect.width > 0 && rect.height > 0) {
+        const bounds = {
+          x: rect.left,
+          y: rect.top + 60, // Offset for address bar
+          width: rect.width,
+          height: rect.height - 60
+        };
+        
+        await window.electron.updateBrowserViewBounds(viewId, bounds);
+        isVisibleRef.current = true;
+        console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView shown with bounds:`, bounds);
+      }
+    };
+
+    showBrowserView();
+
+    // Hide the BrowserView when component unmounts
+    return () => {
+      if (viewId && isVisibleRef.current) {
+        // Hide by setting bounds to zero
+        window.electron.updateBrowserViewBounds(viewId, { x: 0, y: 0, width: 0, height: 0 }).catch(console.error);
+        isVisibleRef.current = false;
+        console.log(`WebBrowser [${instanceIdRef.current}]: BrowserView hidden on unmount`);
+      }
+    };
+  }, [viewId]);
+
   // Update BrowserView bounds when container resizes
   useEffect(() => {
     const updateBounds = () => {
-      if (!viewId || !browserContainerRef.current) return;
+      if (!viewId || !browserContainerRef.current || !isVisibleRef.current) return;
 
       const container = browserContainerRef.current;
       const rect = container.getBoundingClientRect();
       
-      const bounds = {
-        x: rect.left,
-        y: rect.top + 60, // Offset for address bar
-        width: rect.width,
-        height: rect.height - 60
-      };
+      // Only update if the container has dimensions (is visible)
+      if (rect.width > 0 && rect.height > 0) {
+        const bounds = {
+          x: rect.left,
+          y: rect.top + 60, // Offset for address bar
+          width: rect.width,
+          height: rect.height - 60
+        };
 
-      window.electron.updateBrowserViewBounds(viewId, bounds).catch(console.error);
+        window.electron.updateBrowserViewBounds(viewId, bounds).catch(console.error);
+      }
     };
 
     const resizeObserver = new ResizeObserver(updateBounds);
