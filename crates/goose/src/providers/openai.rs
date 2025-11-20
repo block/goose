@@ -192,7 +192,6 @@ impl OpenAiProvider {
     fn uses_responses_api(model_name: &str) -> bool {
         model_name.starts_with("gpt-5-codex")
             || model_name.starts_with("gpt-5.1-codex")
-            || model_name.starts_with("gpt-5-codex")
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
