@@ -953,8 +953,19 @@ impl Agent {
 
                     // 2. Prune stale hints
                     // We do this here to avoid fetching/saving session twice per loop
-                    if let Err(e) = self.prune_stale_hints_internal(&mut session.extension_data, current_turn).await {
-                        warn!("Failed to prune stale directory hints: {}", e);
+                    match self.prune_stale_hints_internal(&mut session.extension_data, current_turn).await {
+                        Ok(count) => {
+                            if count > 0 {
+                                info!("Pruned {} stale directory hints, rebuilding system prompt", count);
+                                let prepared = self.prepare_tools_and_prompt(&working_dir).await?;
+                                tools = prepared.0;
+                                toolshim_tools = prepared.1;
+                                system_prompt = prepared.2;
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to prune stale directory hints: {}", e);
+                        }
                     }
 
                     // Single atomic update to session
@@ -1353,15 +1364,14 @@ impl Agent {
         };
 
         // Extract directory from file path
-        let directory = if file_path.is_file() {
+        // Handle both existing files and new files (where is_file() is false)
+        let directory = if file_path.is_dir() {
+            file_path
+        } else {
             match file_path.parent() {
                 Some(parent) => parent,
                 None => return Ok(false),
             }
-        } else if file_path.is_dir() {
-            file_path
-        } else {
-            return Ok(false);
         };
 
         // Only process absolute paths
@@ -1371,10 +1381,10 @@ impl Agent {
 
         // Security check: Verify directory is within working directory
         // We trust load_hints_from_directory to handle hierarchical loading safely
-        let session = SessionManager::get_session(&session_config.id, false).await?;
-        let working_dir = &session.working_dir;
+        let mut session = SessionManager::get_session(&session_config.id, false).await?;
+        let working_dir = session.working_dir.clone();
 
-        if !directory.starts_with(working_dir) {
+        if !directory.starts_with(&working_dir) {
             debug!(
                 "Skipping hint loading for {} - outside working directory ({})",
                 directory.display(),
@@ -1386,20 +1396,15 @@ impl Agent {
         let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
         let mut save_needed = false;
         let mut hints_loaded = false;
-        let directory_str = directory.to_string_lossy().to_string();
 
-        if let Some(context) = loaded_state.loaded_directories.get_mut(&directory_str) {
-            // Already loaded, check if we need to update access time
-            if context.access_turn != current_turn {
-                context.access_turn = current_turn;
-                save_needed = true;
-            }
-        } else {
+        if loaded_state.mark_accessed(directory, current_turn) {
+            save_needed = true;
+        } else if !loaded_state.is_loaded(directory) {
             // Try to load hints
-            let gitignore = build_gitignore(working_dir);
+            let gitignore = build_gitignore(&working_dir);
             let hints_filenames = get_context_filenames();
 
-            match load_hints_from_directory(directory, working_dir, &hints_filenames, &gitignore) {
+            match load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
                 Some(content) => {
                     let tag = loaded_state.mark_loaded(directory, current_turn);
                     
@@ -1425,10 +1430,9 @@ impl Agent {
         }
 
         if save_needed {
-            let mut session_to_update = SessionManager::get_session(&session_config.id, false).await?;
-            save_loaded_agents_state(&mut session_to_update.extension_data, &loaded_state)?;
+            save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
             SessionManager::update_session(&session_config.id)
-                .extension_data(session_to_update.extension_data)
+                .extension_data(session.extension_data)
                 .apply()
                 .await?;
         }

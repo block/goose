@@ -164,12 +164,16 @@ impl LoadedAgentsState {
         tag
     }
 
-    /// Update last access time for a directory
-    pub fn mark_accessed(&mut self, directory: &Path, turn: u32) {
+    /// Update last access time for a directory. Returns true if updated.
+    pub fn mark_accessed(&mut self, directory: &Path, turn: u32) -> bool {
         let path_str = directory.to_string_lossy().to_string();
         if let Some(context) = self.loaded_directories.get_mut(&path_str) {
-            context.access_turn = turn;
+            if context.access_turn != turn {
+                context.access_turn = turn;
+                return true;
+            }
         }
+        false
     }
 
     /// Prune directories that haven't been accessed in N turns

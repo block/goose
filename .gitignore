@@ -72,4 +72,4 @@ result
 
 # Goose self-test artifacts
 gooseselftest/
-.vscode/settings.json
+.vscode/
