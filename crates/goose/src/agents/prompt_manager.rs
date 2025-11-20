@@ -175,10 +175,9 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         }
 
         if goose_mode == GooseMode::Chat {
-            sanitized_system_prompt_extras.push(
-                "Right now you are in the chat only mode, no access to any tool use and system."
-                    .to_string(),
-            );
+            sanitized_system_prompt_extras.push(sanitize_unicode_tags(
+                "Right now you are in the chat only mode, no access to any tool use and system.",
+            ));
         }
 
         if sanitized_system_prompt_extras.is_empty() {
