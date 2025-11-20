@@ -7,18 +7,67 @@
     <script>
       // Initialize theme before any content loads
       (function () {
+        function applyCustomThemeInline(baseColor, isDark) {
+          const root = document.documentElement;
+          
+          // Tint background colors more, text colors less for readability
+          if (isDark) {
+            // Dark mode: Tint dark backgrounds (950-600) more, keep text colors (500-50) cleaner
+            root.style.setProperty('--color-neutral-950', 'color-mix(in srgb, ' + baseColor + ' 8%, #22252a 92%)');
+            root.style.setProperty('--color-neutral-900', 'color-mix(in srgb, ' + baseColor + ' 8%, #32353b 92%)');
+            root.style.setProperty('--color-neutral-800', 'color-mix(in srgb, ' + baseColor + ' 7%, #3f434b 93%)');
+            root.style.setProperty('--color-neutral-700', 'color-mix(in srgb, ' + baseColor + ' 6%, #474e57 94%)');
+            root.style.setProperty('--color-neutral-600', 'color-mix(in srgb, ' + baseColor + ' 5%, #525b68 95%)');
+            root.style.setProperty('--color-neutral-500', 'color-mix(in srgb, ' + baseColor + ' 4%, #606c7a 96%)');
+            root.style.setProperty('--color-neutral-400', 'color-mix(in srgb, ' + baseColor + ' 3%, #878787 97%)');
+            root.style.setProperty('--color-neutral-300', 'color-mix(in srgb, ' + baseColor + ' 2%, #a7b0b9 98%)');
+            root.style.setProperty('--color-neutral-200', 'color-mix(in srgb, ' + baseColor + ' 2%, #cbd1d6 98%)');
+            root.style.setProperty('--color-neutral-100', 'color-mix(in srgb, ' + baseColor + ' 2%, #e3e6ea 98%)');
+            root.style.setProperty('--color-neutral-50', 'color-mix(in srgb, ' + baseColor + ' 2%, #f4f6f7 98%)');
+          } else {
+            // Light mode: Tint light backgrounds (50-300) more, keep darker text colors cleaner
+            root.style.setProperty('--color-neutral-50', 'color-mix(in srgb, ' + baseColor + ' 8%, #f4f6f7 92%)');
+            root.style.setProperty('--color-neutral-100', 'color-mix(in srgb, ' + baseColor + ' 7%, #e3e6ea 93%)');
+            root.style.setProperty('--color-neutral-200', 'color-mix(in srgb, ' + baseColor + ' 6%, #cbd1d6 94%)');
+            root.style.setProperty('--color-neutral-300', 'color-mix(in srgb, ' + baseColor + ' 5%, #a7b0b9 95%)');
+            root.style.setProperty('--color-neutral-400', 'color-mix(in srgb, ' + baseColor + ' 4%, #878787 96%)');
+            root.style.setProperty('--color-neutral-500', 'color-mix(in srgb, ' + baseColor + ' 3%, #606c7a 97%)');
+            root.style.setProperty('--color-neutral-600', 'color-mix(in srgb, ' + baseColor + ' 3%, #525b68 97%)');
+            root.style.setProperty('--color-neutral-700', 'color-mix(in srgb, ' + baseColor + ' 2%, #474e57 98%)');
+            root.style.setProperty('--color-neutral-800', 'color-mix(in srgb, ' + baseColor + ' 2%, #3f434b 98%)');
+            root.style.setProperty('--color-neutral-900', 'color-mix(in srgb, ' + baseColor + ' 2%, #32353b 98%)');
+            root.style.setProperty('--color-neutral-950', 'color-mix(in srgb, ' + baseColor + ' 2%, #22252a 98%)');
+          }
+          
+          // Apply accent color (lighter in dark mode)
+          const accentColor = isDark 
+            ? 'color-mix(in srgb, ' + baseColor + ' 70%, white 30%)'
+            : baseColor;
+          root.style.setProperty('--color-accent', accentColor);
+        }
+
         function initializeTheme() {
           try {
             if (window.localStorage) {
               const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               const savedTheme = localStorage.getItem('theme');
+              
               const isDark = useSystemTheme ? systemPrefersDark : (savedTheme ? savedTheme === 'dark' : systemPrefersDark);
               
               if (isDark) {
                 document.documentElement.classList.add('dark');
               } else {
                 document.documentElement.classList.remove('dark');
+              }
+
+              // Apply custom theme if enabled
+              const customThemeEnabled = localStorage.getItem('custom_theme_enabled') === 'true';
+              if (customThemeEnabled) {
+                const customColor = localStorage.getItem('custom_theme_color') || '#32353b';
+                if (/^#[0-9A-Fa-f]{6}$/.test(customColor)) {
+                  applyCustomThemeInline(customColor, isDark);
+                }
               }
             } else {
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
