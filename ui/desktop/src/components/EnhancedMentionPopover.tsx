@@ -248,9 +248,9 @@ const EnhancedMentionPopover = forwardRef<
       ref={popoverRef}
       className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md"
       style={{
-        left: Math.max(10, position.x), // Ensure it's not off-screen
-        top: Math.max(10, position.y - 200), // Position well above the input area
-        transform: 'translate(0)', // Explicitly set to no translation
+        left: '50%', // Center horizontally
+        top: '20%', // Position in upper portion of screen
+        transform: 'translateX(-50%)', // Center the popover horizontally
       }}
     >
       <div className="p-3">
