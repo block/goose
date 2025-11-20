@@ -32,6 +32,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     url: initialUrl
   });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
   const browserContainerRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const instanceIdRef = useRef<string>(`browser-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
@@ -95,7 +96,11 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
         if (state) {
           setNavigationState(state);
           setCurrentUrl(state.url);
-          setInputUrl(state.url);
+          
+          // Only update input URL if user is not actively editing it
+          if (!isEditingUrl) {
+            setInputUrl(state.url);
+          }
         }
       } catch (error) {
         console.error('WebBrowser: Error getting navigation state:', error);
@@ -106,7 +111,7 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
     };
 
     updateState();
-  }, []);
+  }, [isEditingUrl]);
 
   // Manage BrowserView visibility based on component visibility
   useEffect(() => {
@@ -239,11 +244,24 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
 
   const handleUrlSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    setIsEditingUrl(false);
     handleNavigate(inputUrl);
   }, [inputUrl, handleNavigate]);
 
   const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsEditingUrl(true);
     setInputUrl(e.target.value);
+  }, []);
+
+  const handleUrlFocus = useCallback(() => {
+    setIsEditingUrl(true);
+  }, []);
+
+  const handleUrlBlur = useCallback(() => {
+    // Delay setting editing to false to allow for form submission
+    setTimeout(() => {
+      setIsEditingUrl(false);
+    }, 100);
   }, []);
 
   return (
@@ -300,6 +318,8 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
               type="text"
               value={inputUrl}
               onChange={handleUrlChange}
+              onFocus={handleUrlFocus}
+              onBlur={handleUrlBlur}
               placeholder="Enter URL or search..."
               className="w-full pl-10 pr-4 py-2 text-sm bg-background-default border border-border-subtle rounded-lg focus:outline-none focus:ring-2 focus:ring-border-prominent focus:border-transparent"
             />
