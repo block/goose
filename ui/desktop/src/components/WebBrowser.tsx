@@ -47,12 +47,12 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
       const container = browserContainerRef.current;
       const rect = container.getBoundingClientRect();
       
-      // Account for the address bar height (60px)
+      // Use the container bounds directly (it's already positioned below the address bar)
       const bounds = {
         x: rect.left,
-        y: rect.top + 60, // Offset for address bar
+        y: rect.top,
         width: rect.width,
-        height: rect.height - 60
+        height: rect.height
       };
 
       try {
@@ -134,9 +134,9 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
       if (rect.width > 0 && rect.height > 0) {
         const bounds = {
           x: rect.left,
-          y: rect.top + 60, // Offset for address bar
+          y: rect.top, // Use the container's actual top position
           width: rect.width,
-          height: rect.height - 60
+          height: rect.height // Use the container's actual height
         };
         
         await window.electron.updateBrowserViewBounds(viewId, bounds);
@@ -170,9 +170,9 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
       if (rect.width > 0 && rect.height > 0) {
         const bounds = {
           x: rect.left,
-          y: rect.top + 60, // Offset for address bar
+          y: rect.top, // Use container's actual position
           width: rect.width,
-          height: rect.height - 60
+          height: rect.height
         };
 
         window.electron.updateBrowserViewBounds(viewId, bounds).catch(console.error);
@@ -348,7 +348,13 @@ export const WebBrowser: React.FC<WebBrowserProps> = ({
       {/* Browser Content Area */}
       <div 
         ref={browserContainerRef}
-        className="flex-1 bg-white relative"
+        className="flex-1 relative overflow-hidden"
+        style={{ 
+          background: 'transparent',
+          margin: 0,
+          padding: 0,
+          border: 'none'
+        }}
       >
         {!isInitialized && (
           <div className="absolute inset-0 flex items-center justify-center bg-background-muted">
