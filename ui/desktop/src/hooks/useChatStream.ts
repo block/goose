@@ -594,6 +594,33 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
+  // Listen for Matrix messages from BaseChat2's append function
+  useEffect(() => {
+    const handleMatrixMessage = (event: CustomEvent) => {
+      const { message } = event.detail;
+      console.log('🔄 useChatStream received matrix-message-received event:', {
+        messageId: message.id,
+        role: message.role,
+        sender: message.sender?.displayName || message.sender?.userId || 'unknown',
+        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
+      });
+      
+      // Add the Matrix message to our current messages
+      const currentMessages = [...messagesRef.current, message];
+      setMessagesAndLog(currentMessages, 'matrix-message-added');
+      
+      console.log('🔄 Matrix message added to stream, total messages:', currentMessages.length);
+    };
+
+    // Type assertion to handle the mismatch between CustomEvent and EventListener
+    const eventListener = handleMatrixMessage as (event: globalThis.Event) => void;
+    window.addEventListener('matrix-message-received', eventListener);
+
+    return () => {
+      window.removeEventListener('matrix-message-received', eventListener);
+    };
+  }, [setMessagesAndLog]);
+
   const cached = resultsCache.get(sessionId);
   
   // Always prefer the current messages if we have them, otherwise fall back to cache

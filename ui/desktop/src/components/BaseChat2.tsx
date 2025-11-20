@@ -189,8 +189,29 @@ function BaseChatContent({
   });
 
   // Create append function for adding messages programmatically
-  const append = useCallback((text: string) => {
-    streamHandleSubmit(text);
+  const append = useCallback((textOrMessage: string | Message) => {
+    if (typeof textOrMessage === 'string') {
+      // Handle string input (for existing functionality)
+      streamHandleSubmit(textOrMessage);
+    } else {
+      // Handle Message object input (for Matrix integration)
+      const message = textOrMessage;
+      console.log('📥 BaseChat2 append called with Message object:', {
+        id: message.id,
+        role: message.role,
+        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+      });
+      
+      // For Matrix messages, we dispatch a custom event that useChatStream can listen to
+      // This allows Matrix messages to be integrated into the message stream
+      const messageEvent = new CustomEvent('matrix-message-received', {
+        detail: { message }
+      });
+      window.dispatchEvent(messageEvent);
+      
+      console.log('📥 BaseChat2 dispatched matrix-message-received event for message:', message.id);
+    }
   }, [streamHandleSubmit]);
 
   // Create simple command history from messages
