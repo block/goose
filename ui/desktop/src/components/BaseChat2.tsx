@@ -323,10 +323,11 @@ function BaseChatContent({
     title: session?.description || (messages.length > 0 ? 'Chat' : 'New Chat'),
   }), [messages, recipe, session?.id, sessionId, session?.name, session?.description]);
 
+  // TODO: Re-enable this once we fix the infinite loop issue
   // Update parent with chat state whenever it changes
-  useEffect(() => {
-    setChat(chat);
-  }, [setChat, chat]);
+  // useEffect(() => {
+  //   setChat(chat);
+  // }, [setChat, chat]);
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';
 
