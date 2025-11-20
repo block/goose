@@ -312,6 +312,9 @@ export default function ChatInput({
     selectItem: (index: number) => void;
   }>(null);
 
+  // Ref for the bottom controls area (where app icons are)
+  const bottomControlsRef = useRef<HTMLDivElement>(null);
+
   // Whisper hook for voice dictation
   const {
     isRecording,
@@ -924,41 +927,41 @@ export default function ChatInput({
       return;
     }
 
-    // Calculate position for the popover - position it above the chat input
-    let textAreaRect;
+    // Calculate position for the popover - position it above the bottom controls area (where app icons are)
+    let bottomControlsRect;
     try {
-      // Use the RichChatInput's getBoundingClientRect method which returns the display div's rect
-      textAreaRect = textAreaRef.current?.getBoundingClientRect?.() || new DOMRect();
-      console.log('🔍 Got textAreaRect:', { x: textAreaRect.left, y: textAreaRect.top, width: textAreaRect.width, height: textAreaRect.height });
+      // Use the bottom controls area's bounding rect to position the popover above the app icons
+      bottomControlsRect = bottomControlsRef.current?.getBoundingClientRect?.() || new DOMRect();
+      console.log('🔍 Got bottomControlsRect:', { x: bottomControlsRect.left, y: bottomControlsRect.top, width: bottomControlsRect.width, height: bottomControlsRect.height });
     } catch (error) {
-      console.error('🔍 Error getting bounding rect:', error);
-      textAreaRect = new DOMRect();
+      console.error('🔍 Error getting bottom controls bounding rect:', error);
+      bottomControlsRect = new DOMRect();
     }
 
     if (isSlashTrigger) {
-      // Open action popover for / trigger
+      // Open action popover for / trigger - position above the bottom controls area
       console.log('🔍 Opening action popover for /', { query: afterTrigger });
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       setActionPopover({
         isOpen: true,
         position: {
-          x: textAreaRect.left,
-          y: textAreaRect.top,
+          x: bottomControlsRect.left,
+          y: bottomControlsRect.top,
         },
         selectedIndex: 0,
         cursorPosition: cursorPosition,
         query: afterTrigger,
       });
     } else {
-      // Open mention popover for @ trigger (existing functionality)
+      // Open mention popover for @ trigger - position above the bottom controls area
       console.log('🔍 Opening mention popover for @', { query: afterTrigger, mentionStart: triggerIndex });
       setActionPopover((prev) => ({ ...prev, isOpen: false }));
       setMentionPopover((prev) => ({
         ...prev,
         isOpen: true,
         position: {
-          x: textAreaRect.left,
-          y: textAreaRect.top,
+          x: bottomControlsRect.left,
+          y: bottomControlsRect.top,
         },
         query: afterTrigger,
         mentionStart: triggerIndex,
@@ -2109,7 +2112,7 @@ export default function ChatInput({
       )}
 
       {/* Secondary actions and controls row below input */}
-      <div className="flex flex-row items-center gap-1 p-2 relative">
+      <div ref={bottomControlsRef} className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
         <DirSwitcher shouldShowIconOnly={shouldShowIconOnly} />
         <div className="w-px h-4 bg-border-default mx-2" />
