@@ -3,11 +3,23 @@ import { MessageComment, TextSelection, CommentState, CommentActions } from '../
 import { CommentStorage } from '../utils/commentStorage';
 import { useChatContext } from '../contexts/ChatContext';
 
-export function useComments(): CommentState & CommentActions {
+export function useComments(sessionId?: string): CommentState & CommentActions {
   const chatContext = useChatContext();
-  const sessionId = chatContext?.chat?.sessionId || '';
+  const effectiveSessionId = sessionId || chatContext?.chat?.sessionId || '';
   
-  const [comments, setComments] = useState<Map<string, MessageComment[]>>(new Map());
+  const [comments, setComments] = useState<Map<string, MessageComment[]>>(() => {
+    if (effectiveSessionId) {
+      const storedComments = CommentStorage.loadComments(effectiveSessionId);
+      const commentsMap = new Map<string, MessageComment[]>();
+      
+      Object.entries(storedComments).forEach(([messageId, messageComments]) => {
+        commentsMap.set(messageId, messageComments);
+      });
+      
+      return commentsMap;
+    }
+    return new Map();
+  });
   const [activeSelection, setActiveSelection] = useState<TextSelection | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [isCreatingComment, setIsCreatingComment] = useState(false);
@@ -16,8 +28,8 @@ export function useComments(): CommentState & CommentActions {
 
   // Load comments from storage when sessionId changes
   useEffect(() => {
-    if (sessionId) {
-      const storedComments = CommentStorage.loadComments(sessionId);
+    if (effectiveSessionId) {
+      const storedComments = CommentStorage.loadComments(effectiveSessionId);
       const commentsMap = new Map<string, MessageComment[]>();
       
       Object.entries(storedComments).forEach(([messageId, messageComments]) => {
@@ -28,20 +40,20 @@ export function useComments(): CommentState & CommentActions {
     } else {
       setComments(new Map());
     }
-  }, [sessionId]);
+  }, [effectiveSessionId]);
 
   // Save comments to storage whenever comments change
   useEffect(() => {
-    if (sessionId && comments.size > 0) {
+    if (effectiveSessionId) {
       const commentsObject: Record<string, MessageComment[]> = {};
       comments.forEach((messageComments, messageId) => {
         if (messageComments.length > 0) {
           commentsObject[messageId] = messageComments;
         }
       });
-      CommentStorage.saveComments(sessionId, commentsObject);
+      CommentStorage.saveComments(effectiveSessionId, commentsObject);
     }
-  }, [sessionId, comments]);
+  }, [effectiveSessionId, comments]);
 
   const createComment = useCallback((messageId: string, selection: TextSelection, content: string, position?: { x: number; y: number }) => {
     const newComment: MessageComment = {

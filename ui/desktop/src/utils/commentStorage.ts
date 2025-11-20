@@ -17,7 +17,10 @@ export class CommentStorage {
     try {
       const storageKey = this.getStorageKey(sessionId);
       const stored = localStorage.getItem(storageKey);
-      if (!stored) return {};
+      
+      if (!stored) {
+        return {};
+      }
 
       const data = JSON.parse(stored) as StoredCommentData;
       const now = Date.now();
