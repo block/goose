@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { Tab } from '../components/TabBar';
 import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
+import { getSession, updateSessionDescription } from '../api';
 
 interface TabState {
   tab: Tab;
@@ -21,6 +22,8 @@ interface TabContextType {
   getActiveTabState: () => TabState | undefined;
   restoreTabState: () => void;
   clearTabState: () => void;
+  syncTabTitleWithBackend: (tabId: string) => Promise<void>;
+  updateTabTitleFromMessage: (tabId: string, message: string) => Promise<void>;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -213,6 +216,81 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     setActiveTabId(initialState[0].tab.id);
   }, []);
 
+  // Sync tab title with backend session description
+  const syncTabTitleWithBackend = useCallback(async (tabId: string) => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (!tabState) return;
+
+    try {
+      console.log('🏷️ Syncing tab title with backend for session:', tabState.tab.sessionId);
+      const response = await getSession({
+        path: { session_id: tabState.tab.sessionId }
+      });
+
+      if (response.data && response.data.description) {
+        const backendTitle = response.data.description;
+        console.log('🏷️ Got backend title:', backendTitle);
+        
+        setTabStates(prev => prev.map(ts => 
+          ts.tab.id === tabId 
+            ? { 
+                ...ts, 
+                tab: { ...ts.tab, title: backendTitle },
+                chat: { ...ts.chat, title: backendTitle }
+              }
+            : ts
+        ));
+      }
+    } catch (error) {
+      console.warn('Failed to sync tab title with backend:', error);
+      // Don't throw - this is a nice-to-have feature
+    }
+  }, [tabStates]);
+
+  // Update tab title from first message and sync with backend
+  const updateTabTitleFromMessage = useCallback(async (tabId: string, message: string) => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (!tabState) return;
+
+    // Generate a meaningful title from the message
+    let newTitle = message.trim();
+    
+    // Truncate long messages
+    if (newTitle.length > 50) {
+      newTitle = newTitle.substring(0, 47) + '...';
+    }
+    
+    // Fallback for empty or very short messages
+    if (newTitle.length < 3) {
+      newTitle = `Chat ${new Date().toLocaleTimeString()}`;
+    }
+
+    console.log('🏷️ Updating tab title from message:', newTitle);
+
+    // Update local state immediately for responsive UI
+    setTabStates(prev => prev.map(ts => 
+      ts.tab.id === tabId 
+        ? { 
+            ...ts, 
+            tab: { ...ts.tab, title: newTitle },
+            chat: { ...ts.chat, title: newTitle }
+          }
+        : ts
+    ));
+
+    // Sync with backend (async, don't wait)
+    try {
+      await updateSessionDescription({
+        path: { session_id: tabState.tab.sessionId },
+        body: { description: newTitle }
+      });
+      console.log('🏷️ Successfully updated backend session description');
+    } catch (error) {
+      console.warn('Failed to update backend session description:', error);
+      // Don't throw - local title update is more important
+    }
+  }, [tabStates]);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -224,7 +302,9 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     handleMessageSubmit,
     getActiveTabState,
     restoreTabState,
-    clearTabState
+    clearTabState,
+    syncTabTitleWithBackend,
+    updateTabTitleFromMessage
   };
 
   return (

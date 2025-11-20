@@ -26,13 +26,54 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     handleNewTab,
     handleChatUpdate,
     handleMessageSubmit: contextHandleMessageSubmit,
-    getActiveTabState
+    getActiveTabState,
+    syncTabTitleWithBackend,
+    updateTabTitleFromMessage
   } = useTabContext();
 
-  const handleMessageSubmitWrapper = useCallback((message: string, tabId: string) => {
+  const handleMessageSubmitWrapper = useCallback(async (message: string, tabId: string) => {
+    // Find the tab state to check if this is the first message
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    const isFirstMessage = tabState && tabState.chat.messages.length === 0 && tabState.tab.title === 'New Chat';
+    
+    // Handle the message submission
     contextHandleMessageSubmit(message, tabId);
     onMessageSubmit?.(message, tabId);
-  }, [contextHandleMessageSubmit, onMessageSubmit]);
+    
+    // Update tab title from first message
+    if (isFirstMessage && message.trim()) {
+      console.log('🏷️ First message detected, updating tab title');
+      try {
+        await updateTabTitleFromMessage(tabId, message);
+      } catch (error) {
+        console.warn('Failed to update tab title from message:', error);
+      }
+    }
+  }, [contextHandleMessageSubmit, onMessageSubmit, tabStates, updateTabTitleFromMessage]);
+
+  // Sync tab titles with backend when component mounts or tabs change
+  useEffect(() => {
+    const syncAllTabTitles = async () => {
+      for (const tabState of tabStates) {
+        // Only sync tabs that have session IDs but still show "New Chat"
+        if (tabState.tab.sessionId && 
+            tabState.tab.title === 'New Chat' && 
+            !tabState.tab.sessionId.startsWith('new_')) {
+          try {
+            console.log('🏷️ Syncing title for existing session:', tabState.tab.sessionId);
+            await syncTabTitleWithBackend(tabState.tab.id);
+          } catch (error) {
+            console.warn('Failed to sync tab title:', error);
+          }
+        }
+      }
+    };
+
+    // Only run on mount or when we have tabs to sync
+    if (tabStates.length > 0) {
+      syncAllTabTitles();
+    }
+  }, [tabStates, syncTabTitleWithBackend]); // Run when tabStates change
 
   // Keyboard shortcuts
   useEffect(() => {
