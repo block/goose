@@ -313,6 +313,18 @@ function BaseChatContent({
   const shouldShowPopularTopics = showPopularTopics && 
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
+  // Debug logging for empty state
+  console.log('BaseChat2 render state:', {
+    sessionId: sessionId.slice(0, 8),
+    messagesLength: messages.length,
+    chatState,
+    shouldShowPopularTopics,
+    loadingChat,
+    hasSession: !!session,
+    sessionName: session?.name,
+    sessionDescription: session?.description
+  });
+
   // Memoize the chat object to prevent infinite re-renders
   const chat: ChatType = useMemo(() => ({
     messageHistoryIndex: 0,
