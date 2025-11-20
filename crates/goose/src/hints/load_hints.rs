@@ -10,11 +10,7 @@ use crate::hints::import_files::read_referenced_files;
 /// Build a gitignore matcher for the given directory
 pub fn build_gitignore(working_dir: &Path) -> Gitignore {
     let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
-    builder.build().unwrap_or_else(|_| {
-        ignore::gitignore::GitignoreBuilder::new(working_dir)
-            .build()
-            .expect("Failed to build default gitignore")
-    })
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
 }
 
 /// Get configured hint filenames or defaults
@@ -166,6 +162,7 @@ pub fn load_hints_from_directory(
     let mut directories: Vec<_> = directory
         .ancestors()
         .take_while(|d| d.starts_with(working_dir))
+        .filter(|d| *d != working_dir)
         .map(|d| d.to_path_buf())
         .collect();
 
@@ -558,14 +555,16 @@ End of hints"#;
     fn test_load_hints_from_directory_enabled_by_default() {
         temp_env::with_var_unset(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, || {
             let temp_dir = tempfile::tempdir().unwrap();
-            let agents_path = temp_dir.path().join("AGENTS.md");
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
             std::fs::write(&agents_path, "Test content").unwrap();
 
             let gitignore = create_dummy_gitignore();
 
             // Should be enabled by default when env var not set
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -578,14 +577,16 @@ End of hints"#;
     fn test_load_hints_from_directory_can_be_disabled() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("false"), || {
             let temp_dir = tempfile::tempdir().unwrap();
-            let agents_path = temp_dir.path().join("AGENTS.md");
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
             std::fs::write(&agents_path, "Test content").unwrap();
 
             let gitignore = create_dummy_gitignore();
 
             // Should be disabled when explicitly set to false
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -598,13 +599,15 @@ End of hints"#;
     fn test_load_hints_from_directory_enabled() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
-            let agents_path = temp_dir.path().join("AGENTS.md");
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
             std::fs::write(&agents_path, "Test content").unwrap();
 
             let gitignore = create_dummy_gitignore();
 
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -621,10 +624,12 @@ End of hints"#;
     fn test_load_hints_from_directory_no_file() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
             let gitignore = create_dummy_gitignore();
 
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -638,18 +643,20 @@ End of hints"#;
     fn test_load_hints_from_directory_respects_gitignore() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
-            let agents_path = temp_dir.path().join("AGENTS.md");
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
             std::fs::write(&agents_path, "Test content").unwrap();
 
             let gitignore_path = temp_dir.path().join(".gooseignore");
-            std::fs::write(&gitignore_path, "AGENTS.md").unwrap();
+            std::fs::write(&gitignore_path, "subdir/AGENTS.md").unwrap();
 
             let mut builder = ignore::gitignore::GitignoreBuilder::new(temp_dir.path());
             builder.add(&gitignore_path);
             let gitignore = builder.build().unwrap();
 
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,
@@ -663,19 +670,21 @@ End of hints"#;
     fn test_load_hints_from_directory_with_imports() {
         temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
             let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
 
-            // Create an included file
+            // Create an included file in root (to verify we can import from parent)
             let included_path = temp_dir.path().join("included.md");
             std::fs::write(&included_path, "Included content").unwrap();
 
-            // Create agents.md with import
-            let agents_path = temp_dir.path().join("AGENTS.md");
-            std::fs::write(&agents_path, "Main content\n@included.md\n").unwrap();
+            // Create agents.md with import in subdir
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Main content\n@../included.md\n").unwrap();
 
             let gitignore = create_dummy_gitignore();
 
             let result = load_hints_from_directory(
-                temp_dir.path(),
+                &subdir,
                 temp_dir.path(),
                 &[AGENTS_MD_FILENAME.to_string()],
                 &gitignore,

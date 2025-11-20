@@ -1155,6 +1155,21 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
+                                    // Pre-calculate map of request_id -> file_path for text_editor calls to avoid rescanning
+                                    let text_editor_paths: HashMap<String, std::path::PathBuf> = remaining_requests
+                                        .iter()
+                                        .filter_map(|req| {
+                                            if let Ok(call) = &req.tool_call {
+                                                if call.name == "developer__text_editor" {
+                                                    if let Some(path) = Self::extract_file_path_from_args(&call.arguments) {
+                                                        return Some((req.id.clone(), path));
+                                                    }
+                                                }
+                                            }
+                                            None
+                                        })
+                                        .collect();
+
                                     while let Some((request_id, item)) = combined.next().await {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
@@ -1168,33 +1183,20 @@ impl Agent {
                                                 }
 
                                                 // Check if we should load directory context for this tool call
-                                                let mut context_loaded = false;
-                                                if let Some(tool_request) = remaining_requests.iter().find(|tr| tr.id == request_id) {
-                                                    if let Ok(tool_call) = &tool_request.tool_call {
-                                                        if tool_call.name == "developer__text_editor" {
-                                                            if let Some(file_path) = Self::extract_file_path_from_args(&tool_call.arguments) {
-                                                                // Attempt to load directory hints
-                                                                match self.maybe_load_directory_hints(&file_path, &session_config, conversation_turn).await {
-                                                                    Ok(true) => {
-                                                                        context_loaded = true;
-                                                                        info!("Directory hints loaded, will rebuild system prompt");
-                                                                    }
-                                                                    Ok(false) => {
-                                                                        // No hints loaded or access time updated
-                                                                    }
-                                                                    Err(e) => {
-                                                                        warn!("Failed to load directory hints for {}: {}", file_path.display(), e);
-                                                                    }
-                                                                }
-                                                            }
+                                                if let Some(file_path) = text_editor_paths.get(&request_id) {
+                                                    // Attempt to load directory hints
+                                                    match self.maybe_load_directory_hints(file_path, &session_config, conversation_turn).await {
+                                                        Ok(true) => {
+                                                            tools_updated = true;
+                                                            info!("Directory hints loaded, will rebuild system prompt");
+                                                        }
+                                                        Ok(false) => {
+                                                            // No hints loaded or access time updated
+                                                        }
+                                                        Err(e) => {
+                                                            warn!("Failed to load directory hints for {}: {}", file_path.display(), e);
                                                         }
                                                     }
-                                                }
-
-                                                // If context was loaded, mark that we need to rebuild the system prompt
-                                                // This ensures the new context is available for the next LLM request in THIS turn
-                                                if context_loaded {
-                                                    tools_updated = true;
                                                 }
 
                                                 let mut response = message_tool_response.lock().await;
@@ -1411,7 +1413,6 @@ impl Agent {
                     // Extend system prompt
                     let mut prompt_manager = self.prompt_manager.lock().await;
                     prompt_manager.add_system_prompt_extra_with_tag(content, tag);
-                    drop(prompt_manager);
 
                     info!(
                         "Loaded directory hints from {} (turn {})",
@@ -1422,9 +1423,8 @@ impl Agent {
                     hints_loaded = true;
                 }
                 None => {
-                    // Mark as loaded (checked) to avoid retries
-                    loaded_state.mark_loaded(directory, current_turn);
-                    save_needed = true;
+                    // Do not mark as loaded if no hints found, so we re-check next time
+                    // This allows users to add hints later and have them picked up
                 }
             }
         }
@@ -1470,7 +1470,6 @@ impl Agent {
                 path, max_idle_turns
             );
         }
-        drop(prompt_manager);
 
         save_loaded_agents_state(extension_data, &loaded_state)?;
         Ok(stale_dirs.len())

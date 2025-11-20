@@ -366,10 +366,18 @@ mod tests {
         let path = Path::new("/repo/features/auth");
 
         state.mark_loaded(path, 1);
-        state.mark_accessed(path, 5);
+        
+        // Same turn - should return false
+        assert!(!state.mark_accessed(path, 1));
+        
+        // New turn - should return true and update
+        assert!(state.mark_accessed(path, 5));
 
         let context = state.loaded_directories.get("/repo/features/auth").unwrap();
         assert_eq!(context.access_turn, 5);
+        
+        // Same turn again - should return false
+        assert!(!state.mark_accessed(path, 5));
     }
 
     #[test]
