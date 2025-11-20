@@ -4808,6 +4808,10 @@
           "id": {
             "type": "string"
           },
+          "thoughtSignature": {
+            "type": "string",
+            "nullable": true
+          },
           "toolCall": {
             "type": "object"
           }
