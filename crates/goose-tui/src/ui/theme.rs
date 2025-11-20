@@ -31,18 +31,40 @@ pub struct StatusColors {
 
 impl Default for Theme {
     fn default() -> Self {
-        Theme::goose()
+        Theme::gemini()
     }
 }
 
 impl Theme {
     pub fn from_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
+            "goose" => Theme::goose(),
             "light" => Theme::light(),
             "dark" => Theme::dark(),
             "midnight" => Theme::midnight(),
             "matrix" => Theme::matrix(),
-            _ => Theme::goose(),
+            _ => Theme::gemini(),
+        }
+    }
+
+    pub fn gemini() -> Self {
+        Self {
+            name: "Gemini".to_string(),
+            base: BaseColors {
+                background: Color::Reset,             // User's terminal background
+                foreground: Color::Rgb(205, 214, 244), // #CDD6F4
+                cursor: Color::Rgb(137, 220, 235),     // #89DCEB (AccentCyan)
+                selection: Color::Rgb(49, 50, 68),     // #313244
+                border: Color::Rgb(108, 112, 134),     // #6C7086
+                border_active: Color::Rgb(137, 180, 250), // #89B4FA
+            },
+            status: StatusColors {
+                info: Color::Rgb(137, 180, 250),     // #89B4FA
+                success: Color::Rgb(166, 227, 161),  // #A6E3A1
+                warning: Color::Rgb(249, 226, 175),  // #F9E2AF
+                error: Color::Rgb(243, 139, 168),    // #F38BA8
+                thinking: Color::Rgb(203, 166, 247), // #CBA6F7
+            },
         }
     }
 

@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
             // Generate a secure random token for this session
             let secret_key = Uuid::new_v4().to_string();
             env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
-            env::set_var("GOOSE_SERVER__PORT", "0"); // Ephemeral port
+            env::set_var("GOOSE_PORT", "0"); // Ephemeral port
 
             info!("Initializing embedded server...");
 
