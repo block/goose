@@ -217,7 +217,7 @@ export default function GooseMessage({
           />
         ) : (
           <div className="w-8 h-8 flex items-center justify-center">
-            <div className="w-4 h-0.5 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
           </div>
         )}
       </div>
