@@ -927,7 +927,8 @@ export default function ChatInput({
     // Calculate position for the popover - position it above the chat input
     let textAreaRect;
     try {
-      textAreaRect = textArea.getBoundingClientRect ? textArea.getBoundingClientRect() : textAreaRef.current?.getBoundingClientRect?.() || new DOMRect();
+      // Use the RichChatInput's getBoundingClientRect method which returns the display div's rect
+      textAreaRect = textAreaRef.current?.getBoundingClientRect?.() || new DOMRect();
       console.log('🔍 Got textAreaRect:', { x: textAreaRect.left, y: textAreaRect.top, width: textAreaRect.width, height: textAreaRect.height });
     } catch (error) {
       console.error('🔍 Error getting bounding rect:', error);
