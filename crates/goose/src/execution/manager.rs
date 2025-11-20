@@ -39,7 +39,7 @@ impl AgentManager {
         let scheduler = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
-            .unwrap_or_else(|| NonZeroUsize::new(10).unwrap());
+            .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
 
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
