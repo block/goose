@@ -16,7 +16,6 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::session::SessionManager;
 use rmcp::model::Tool;
 
@@ -120,15 +119,6 @@ impl Agent {
         // If router is disabled and no tools were returned, fall back to regular tools
         if !router_enabled && tools.is_empty() {
             tools = self.list_tools(None).await;
-            let provider = self.provider().await?;
-            let model_name = provider.get_model_config().model_name;
-
-            if !should_enabled_subagents(&model_name) {
-                tools.retain(|tool| {
-                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
-                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
-                });
-            }
         }
 
         // Add frontend tools
@@ -150,16 +140,16 @@ impl Agent {
         // Get model name from provider
         let provider = self.provider().await?;
         let model_config = provider.get_model_config();
-        let model_name = &model_config.model_name;
 
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager
-            .builder(model_name)
+            .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_router_enabled(router_enabled)
             .with_hints(working_dir)
+            .with_enable_subagents(self.subagents_enabled().await)
             .build();
 
         // Handle toolshim if enabled

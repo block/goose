@@ -693,6 +693,28 @@ impl Agent {
         Ok(())
     }
 
+    pub async fn subagents_enabled(&self) -> bool {
+        let config = crate::config::Config::global();
+        let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
+        if !is_autonomous {
+            return false;
+        }
+        if self
+            .provider()
+            .await
+            .map(|provider| provider.get_active_model_name().starts_with("gemini"))
+            .unwrap_or(true)
+        {
+            return false;
+        }
+        !self
+            .extension_manager
+            .list_extensions()
+            .await
+            .map(|ext| ext.is_empty())
+            .unwrap_or(true)
+    }
+
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
@@ -700,12 +722,12 @@ impl Agent {
             .await
             .unwrap_or_default();
 
+        let subagents_enabled = self.subagents_enabled().await;
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
-            // Add platform tools
-            // TODO: migrate the manage schedule tool as well
-            prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
-            // Dynamic task tool
-            prefixed_tools.push(create_dynamic_task_tool());
+            prefixed_tools.push(platform_tools::manage_schedule_tool());
+            if subagents_enabled {
+                prefixed_tools.push(create_dynamic_task_tool());
+            }
         }
 
         if extension_name.is_none() {
@@ -715,7 +737,10 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+            if subagents_enabled {
+                prefixed_tools
+                    .push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+            }
         }
 
         prefixed_tools
@@ -1346,7 +1371,7 @@ impl Agent {
 
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
-            .builder(model_name)
+            .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
@@ -1566,7 +1591,7 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.builder("gpt-4o").build();
+        let system_prompt = prompt_manager.builder().build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

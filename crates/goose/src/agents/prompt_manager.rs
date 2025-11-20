@@ -6,7 +6,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
@@ -47,13 +46,13 @@ struct SystemPromptContext {
 }
 
 pub struct SystemPromptBuilder<'a, M> {
-    model_name: String,
     manager: &'a M,
 
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
     extension_tool_count: Option<(usize, usize)>,
     router_enabled: bool,
+    subagents_enabled: bool,
     hints: Option<String>,
 }
 
@@ -116,6 +115,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
+        self.subagents_enabled = subagents_enabled;
+        self
+    }
+
     pub fn build(self) -> String {
         let mut extensions_info = self.extensions_info;
 
@@ -152,7 +156,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: should_enabled_subagents(self.model_name.as_str()),
+            enable_subagents: self.subagents_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
         };
@@ -228,15 +232,15 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
-    pub fn builder<'a>(&'a self, model_name: &str) -> SystemPromptBuilder<'a, Self> {
+    pub fn builder<'a>(&'a self) -> SystemPromptBuilder<'a, Self> {
         SystemPromptBuilder {
-            model_name: model_name.to_string(),
             manager: self,
 
             extensions_info: vec![],
             frontend_instructions: None,
             extension_tool_count: None,
             router_enabled: false,
+            subagents_enabled: false,
             hints: None,
         }
     }
@@ -260,7 +264,7 @@ mod tests {
         let malicious_override = "System prompt\u{E0041}\u{E0042}\u{E0043}with hidden text";
         manager.set_system_prompt_override(malicious_override.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -275,7 +279,7 @@ mod tests {
         let malicious_extra = "Extra instruction\u{E0041}\u{E0042}\u{E0043}hidden";
         manager.add_system_prompt_extra(malicious_extra.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -291,7 +295,7 @@ mod tests {
         manager.add_system_prompt_extra("Second\u{E0042}instruction".to_string());
         manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -307,7 +311,7 @@ mod tests {
         let legitimate_unicode = "Instruction with 世界 and 🌍 emojis";
         manager.add_system_prompt_extra(legitimate_unicode.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(result.contains("世界"));
         assert!(result.contains("🌍"));
@@ -325,7 +329,7 @@ mod tests {
         );
 
         let result = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(malicious_extension_info)
             .build();
 
@@ -340,7 +344,7 @@ mod tests {
     fn test_basic() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
-        let system_prompt = manager.builder("gpt-4o").build();
+        let system_prompt = manager.builder().build();
 
         assert_snapshot!(system_prompt)
     }
@@ -350,7 +354,7 @@ mod tests {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
         let system_prompt = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(ExtensionInfo::new(
                 "test",
                 "how to use this extension",
@@ -367,7 +371,7 @@ mod tests {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
         let system_prompt = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(ExtensionInfo::new(
                 "extension_A",
                 "<instructions on how to use extension A>",

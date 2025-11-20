@@ -9,7 +9,6 @@ use crate::agents::subagent_execution_tool::{
     task_types::{Task, TaskPayload},
 };
 use crate::agents::tool_execution::ToolCallResult;
-use crate::config::GooseMode;
 use crate::recipe::{Recipe, RecipeBuilder};
 use crate::session::SessionManager;
 use anyhow::{anyhow, Result};
@@ -88,18 +87,6 @@ pub struct TaskParameter {
     /// If true, return only the last message from the subagent (default: false, returns full conversation)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub return_last_only: Option<bool>,
-}
-
-pub fn should_enabled_subagents(model_name: &str) -> bool {
-    let config = crate::config::Config::global();
-    let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
-    if !is_autonomous {
-        return false;
-    }
-    if model_name.starts_with("gemini") {
-        return false;
-    }
-    true
 }
 
 pub fn create_dynamic_task_tool() -> Tool {
