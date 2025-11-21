@@ -753,17 +753,11 @@ impl Config {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let json_value = serde_json::to_string(&values)?;
-                let result = self.handle_keyring_operation(
+                self.handle_keyring_operation(
                     |entry| entry.set_password(&json_value),
                     service,
                     Some(&values),
-                );
-
-                if let Err(ConfigError::FallbackToFileStorage) = result {
-                    return Err(ConfigError::FallbackToFileStorage);
-                } else if let Err(e) = result {
-                    return Err(e);
-                }
+                )?;
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
@@ -793,17 +787,11 @@ impl Config {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let json_value = serde_json::to_string(&values)?;
-                let result = self.handle_keyring_operation(
+                self.handle_keyring_operation(
                     |entry| entry.set_password(&json_value),
                     service,
                     Some(&values),
-                );
-
-                if let Err(ConfigError::FallbackToFileStorage) = result {
-                    return Err(ConfigError::FallbackToFileStorage);
-                } else if let Err(e) = result {
-                    return Err(e);
-                }
+                )?;
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
