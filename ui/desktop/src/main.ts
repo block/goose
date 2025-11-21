@@ -406,8 +406,8 @@ async function handleFileOpen(filePath: string) {
       newWindow.focus();
       newWindow.moveTop();
     }
-  } catch {
-    console.error('Failed to handle file open');
+  } catch (error) {
+    console.error('Failed to handle file open:', error);
 
     // Show user-friendly error notification
     new Notification({
@@ -1049,7 +1049,8 @@ function parseRecipeDeeplink(url: string): string | undefined {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
       } catch (error) {
-        console.error('[Main] parseRecipeDeeplink - Failed to decode:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage);
         return undefined;
       }
     }
