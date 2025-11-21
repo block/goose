@@ -566,9 +566,10 @@ export const useSessionSharing = ({
             const allSessionRoomIdsMatch = roomId === targetRoomId && roomId === currentState.roomId;
             const isSessionMatch = messageData.sessionId === sessionId;
             
-            // CRITICAL: For Matrix rooms, ALL room IDs must match exactly
-            // For regular sessions, session IDs must match AND room IDs must match
-            const shouldProcessMessage = hasValidSessionRoomId && allSessionRoomIdsMatch && (isMatrixRoom ? true : isSessionMatch);
+            // CRITICAL: For Matrix rooms, we ONLY care that the room IDs match
+            // The session IDs will be different because each user has their own backend session
+            // For regular sessions, both session IDs AND room IDs must match
+            const shouldProcessMessage = hasValidSessionRoomId && allSessionRoomIdsMatch && (isMatrixRoom || isSessionMatch);
             
             console.log('🔍 Session message processing check (gooseSessionSync):', {
               messageSessionId: messageData.sessionId,
