@@ -91,7 +91,55 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          // CRITICAL FIX: Validate and sanitize restored tab state
+          const sanitizedTabs = parsed.map((tabState: any) => {
+            const tab = tabState.tab;
+            
+            // Validate Matrix tab properties
+            if (tab.type === 'matrix') {
+              // Matrix tabs must have matrixRoomId and proper sessionId format
+              if (!tab.matrixRoomId || !tab.sessionId?.startsWith('matrix_')) {
+                console.warn('🚨 Invalid Matrix tab detected during restore, converting to regular chat:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                  }
+                };
+              }
+            } else {
+              // Regular chat tabs must NOT have Matrix properties
+              if (tab.matrixRoomId || tab.matrixRecipientId || tab.sessionId?.startsWith('matrix_')) {
+                console.warn('🚨 Regular chat tab with Matrix properties detected during restore, sanitizing:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                  }
+                };
+              }
+            }
+            
+            return tabState;
+          });
+          
+          console.log('🔄 Restored and sanitized tab states:', sanitizedTabs.map(ts => ({
+            id: ts.tab.id,
+            type: ts.tab.type,
+            sessionId: ts.tab.sessionId,
+            matrixRoomId: ts.tab.matrixRoomId,
+            title: ts.tab.title
+          })));
+          
+          return sanitizedTabs;
         }
       }
     } catch (error) {
@@ -223,8 +271,48 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setTabStates(parsed);
-          const activeTab = parsed.find((ts: TabState) => ts.tab.isActive);
+          // Apply the same sanitization logic as in initial load
+          const sanitizedTabs = parsed.map((tabState: any) => {
+            const tab = tabState.tab;
+            
+            // Validate Matrix tab properties
+            if (tab.type === 'matrix') {
+              // Matrix tabs must have matrixRoomId and proper sessionId format
+              if (!tab.matrixRoomId || !tab.sessionId?.startsWith('matrix_')) {
+                console.warn('🚨 Invalid Matrix tab detected during manual restore, converting to regular chat:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                  }
+                };
+              }
+            } else {
+              // Regular chat tabs must NOT have Matrix properties
+              if (tab.matrixRoomId || tab.matrixRecipientId || tab.sessionId?.startsWith('matrix_')) {
+                console.warn('🚨 Regular chat tab with Matrix properties detected during manual restore, sanitizing:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                  }
+                };
+              }
+            }
+            
+            return tabState;
+          });
+          
+          setTabStates(sanitizedTabs);
+          const activeTab = sanitizedTabs.find((ts: TabState) => ts.tab.isActive);
           if (activeTab) {
             setActiveTabId(activeTab.tab.id);
           }
