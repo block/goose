@@ -1,7 +1,9 @@
+pub mod ascii_art;
 pub mod markdown;
 pub mod theme;
 
 use crate::app::{App, InputMode};
+use crate::ui::ascii_art::GOOSE_LOGO;
 use crate::ui::markdown::MarkdownParser;
 use goose::conversation::message::MessageContent;
 use ratatui::widgets::{
@@ -943,6 +945,51 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Track the last seen tool call to provide context for the response
     let mut last_tool_call: Option<(String, String)> = None;
+
+    if app.messages.is_empty() {
+        // Render Logo & Hints
+        let logo_lines: Vec<&str> = GOOSE_LOGO.lines().collect();
+        let logo_height = logo_lines.len() as u16;
+        let hints = vec![
+            "Tips for getting started:",
+            "1. Ask questions, edit files, or run commands.",
+            "2. Be specific for the best results.",
+            "3. Type /help for more information.",
+        ];
+        let total_content_height = logo_height + 2 + hints.len() as u16; // logo + spacer + hints
+
+        // Center vertically
+        let start_y = area.height.saturating_sub(total_content_height) / 2;
+        
+        // 1. Logo
+        for (i, line) in logo_lines.iter().enumerate() {
+            // Center horizontally
+            let width = line.chars().count() as u16;
+            let start_x = area.width.saturating_sub(width) / 2;
+            let line_area = Rect::new(
+                area.x + start_x,
+                area.y + start_y + i as u16,
+                width,
+                1,
+            );
+            // Using Paragraph instead of direct buffer writes for convenience
+            f.render_widget(Paragraph::new(Span::styled(*line, Style::default().fg(Color::Cyan))), line_area);
+        }
+
+        // 2. Hints
+        let hint_start_y = start_y + logo_height + 2;
+        for (i, hint) in hints.iter().enumerate() {
+             let width = hint.chars().count() as u16;
+             let start_x = area.width.saturating_sub(width) / 2;
+             let line_area = Rect::new(
+                 area.x + start_x,
+                 area.y + hint_start_y + i as u16,
+                 width,
+                 1,
+             );
+             f.render_widget(Paragraph::new(Span::styled(*hint, Style::default().fg(Color::DarkGray))), line_area);
+        }
+    }
 
     for (msg_idx, message) in app.messages.iter().enumerate() {
         match message.role {
