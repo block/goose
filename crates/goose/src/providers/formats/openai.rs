@@ -63,6 +63,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         });
 
         let mut output = Vec::new();
+        let mut content_array = Vec::new(); // Build content array instead of overwriting
 
         for content in &message.content {
             match content {
@@ -72,16 +73,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         if let Some(image_path) = detect_image_path(&text.text) {
                             // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
+                                content_array.push(json!({"type": "text", "text": text.text}));
+                                content_array.push(convert_image(&image, image_format));
                             } else {
                                 // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                content_array.push(json!({"type": "text", "text": text.text}));
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            content_array.push(json!({"type": "text", "text": text.text}));
                         }
                     }
                 }
@@ -205,8 +204,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Skip tool confirmation requests
                 }
                 MessageContent::Image(image) => {
-                    // Handle direct image content
-                    converted["content"] = json!([convert_image(image, image_format)]);
+                    // Add image to content array instead of overwriting
+                    content_array.push(convert_image(image, image_format));
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -241,6 +240,22 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                 },
+            }
+        }
+
+        // Set content once at the end - handle both array and string formats
+        if !content_array.is_empty() {
+            // If we have multiple items or any images, use array format
+            converted["content"] = json!(content_array);
+        } else if converted.get("content").is_none() {
+            // If no content was added, set empty array
+            converted["content"] = json!([]);
+        } else if let Some(existing_content) = converted.get("content") {
+            // If content was set elsewhere (e.g., from image path detection in text),
+            // ensure it's in the right format
+            if existing_content.is_string() && !content_array.is_empty() {
+                // This shouldn't happen with the new logic, but handle it just in case
+                converted["content"] = json!(content_array);
             }
         }
 
