@@ -265,9 +265,9 @@ export default function GooseMessage({
           <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
         </div>
         
-        {/* Small user badge for collaborator messages - positioned to the right */}
+        {/* Small user badge for collaborator messages - positioned to the left */}
         {isFromCollaborator && senderInfo.avatarUrl && (
-          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden bg-background-default" style={{ right: '-20px' }}>
+          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden bg-background-default" style={{ right: '20px' }}>
             <AvatarImage
               avatarUrl={senderInfo.avatarUrl}
               displayName={senderInfo.displayName || 'User'}
@@ -276,7 +276,7 @@ export default function GooseMessage({
           </div>
         )}
         {isFromCollaborator && !senderInfo.avatarUrl && (
-          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center" style={{ right: '-20px' }}>
+          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center" style={{ right: '20px' }}>
             <span className="text-[8px] text-white font-bold">
               {(senderInfo.displayName || senderInfo.userId || 'U').charAt(0).toUpperCase()}
             </span>
