@@ -234,7 +234,6 @@ PROXY_SETUP_LOG=$(mktemp)
 
 # Pre-install proxy dependencies (so first run doesn't take forever)
 echo "Installing proxy dependencies..."
-# Force UV to use public PyPI (override any local/corporate mirrors)
 export UV_INDEX_URL="https://pypi.org/simple"
 if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
   echo "✗ FAILED: Could not install proxy dependencies"
@@ -273,7 +272,7 @@ else
     echo "Proxy log:"
     cat "$PROXY_LOG"
     kill $PROXY_PID 2>/dev/null || true
-    RESULTS+=("✗ Out-of-Context Error (proxy failed)")
+    RESULTS+=("✗ Out-of-Context Test Error (proxy failed)")
   else
     # Configure provider to use proxy and skip backoff
     export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
@@ -288,7 +287,7 @@ else
 
     if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
       echo "✗ FAILED: Could not create session"
-      RESULTS+=("✗ Out-of-Context Error (no session)")
+      RESULTS+=("✗ Out-of-Context Test Error (no session)")
     else
       echo ""
       echo "Session created: $SESSION_ID"
@@ -296,18 +295,18 @@ else
 
       # Check for compaction in the output
       if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
-        echo "✓ SUCCESS: Out-of-context error triggered compaction"
+        echo "✓ SUCCESS: Out-of-context Test error triggered compaction"
 
         if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
-          RESULTS+=("✓ Out-of-Context Error")
+          RESULTS+=("✓ Out-of-Context Test Error")
         else
-          RESULTS+=("✗ Out-of-Context Error (structure validation failed)")
+          RESULTS+=("✗ Out-of-Context Test Error (structure validation failed)")
         fi
       else
         echo "✗ FAILED: No evidence of compaction after context-length error"
         echo "   Output:"
         cat "$OUTPUT"
-        RESULTS+=("✗ Out-of-Context Error")
+        RESULTS+=("✗ Out-of-Context Test Error")
       fi
     fi
 
