@@ -10,7 +10,7 @@ use goose::conversation::message::{Message, MessageContent};
 use goose_server::routes::reply::MessageEvent;
 use ratatui::widgets::ListState;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
@@ -58,6 +58,8 @@ pub struct App<'a> {
     pub showing_help_popup: bool,
     pub showing_about_popup: bool,
     pub has_worked: bool, // Track if goose has started working at least once
+    pub flash_message: Option<String>,
+    pub flash_message_expiry: Option<Instant>,
 
     // Command Builder State
     pub showing_command_builder: bool,
@@ -137,6 +139,8 @@ impl<'a> App<'a> {
             showing_help_popup: false,
             showing_about_popup: false,
             has_worked: false,
+            flash_message: None,
+            flash_message_expiry: None,
 
             showing_command_builder: false,
             builder_state: BuilderState::SelectTool,
@@ -506,6 +510,15 @@ impl<'a> App<'a> {
                             // Shift+Enter = Newline
                             self.input.insert_newline();
                         } else {
+                            if self.waiting_for_response {
+                                self.flash_message = Some(
+                                    "Cannot send a new message while goose is working, hit Ctrl+C to interrupt...".to_string(),
+                                );
+                                self.flash_message_expiry =
+                                    Some(Instant::now() + Duration::from_secs(5));
+                                return;
+                            }
+
                             use crate::commands::{self, CommandResult};
 
                             // ... (inside handle_input, Enter case)
