@@ -197,7 +197,7 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
-    let session = SessionManager::get_session(&payload.session_id, false)
+    let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
