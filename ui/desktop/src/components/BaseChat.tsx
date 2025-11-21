@@ -1,12 +1,4 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
@@ -102,7 +94,7 @@ function BaseChatContent({
     sessionLoadError,
     setRecipeUserParams,
     tokenState,
-    notifications,
+    notifications: toolCallNotifications,
     onMessageUpdate,
   } = useChatStream({
     sessionId,
@@ -250,17 +242,6 @@ function BaseChatContent({
       msg: `"${recipe.title}" has been saved and is ready to use.`,
     });
   };
-
-  const toolCallNotifications = useMemo(() => {
-    return notifications.reduce((map, notification) => {
-      const key = notification.request_id;
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
-      map.get(key)!.push(notification);
-      return map;
-    }, new Map());
-  }, [notifications]);
 
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>

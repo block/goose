@@ -9,11 +9,11 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  NotificationEvent,
 } from '../types/message';
 import { Message, confirmPermission } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
-import { NotificationEvent } from '../hooks/useChatStream';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 
@@ -121,6 +121,11 @@ export default function GooseMessage({
             });
           } catch (error) {
             console.error('Failed to send tool cancellation to backend:', error);
+            const { toastError } = await import('../toasts');
+            toastError({
+              title: 'Failed to cancel tool',
+              msg: 'The agent may be waiting for a response. Please try restarting the session.',
+            });
           }
         })();
       }

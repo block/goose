@@ -71,12 +71,14 @@ impl Agent {
                             }
                         });
 
-                    let confirmation = Message::assistant().with_tool_confirmation_request(
-                        request.id.clone(),
-                        tool_call.name.to_string().clone(),
-                        tool_call.arguments.clone().unwrap_or_default(),
-                        security_message,
-                    );
+                    let confirmation = Message::assistant()
+                        .with_tool_confirmation_request(
+                            request.id.clone(),
+                            tool_call.name.to_string().clone(),
+                            tool_call.arguments.clone().unwrap_or_default(),
+                            security_message,
+                        )
+                        .user_only();
                     yield confirmation;
 
                     let mut rx = self.confirmation_rx.lock().await;

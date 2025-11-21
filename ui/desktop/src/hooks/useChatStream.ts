@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
@@ -12,12 +12,15 @@ import {
   updateSessionUserRecipeValues,
 } from '../api';
 
-import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
+import {
+  createUserMessage,
+  getCompactingMessage,
+  getThinkingMessage,
+  NotificationEvent,
+} from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
-
-export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -34,7 +37,7 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
-  notifications: NotificationEvent[];
+  notifications: Map<string, NotificationEvent[]>;
   onMessageUpdate: (
     messageId: string,
     newContent: string,
@@ -417,6 +420,17 @@ export function useChatStream({
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
 
+  const notificationsMap = useMemo(() => {
+    return notifications.reduce((map, notification) => {
+      const key = notification.request_id;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(notification);
+      return map;
+    }, new Map<string, NotificationEvent[]>());
+  }, [notifications]);
+
   return {
     sessionLoadError,
     messages: maybe_cached_messages,
@@ -426,7 +440,7 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState,
-    notifications,
+    notifications: notificationsMap,
     onMessageUpdate,
   };
 }

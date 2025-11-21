@@ -1,7 +1,8 @@
-import { Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, MessageEvent, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
+export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
 const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
