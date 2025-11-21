@@ -123,6 +123,17 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
+export type EditMessageRequest = {
+    editType?: EditType;
+    timestamp: number;
+};
+
+export type EditMessageResponse = {
+    sessionId: string;
+};
+
+export type EditType = 'fork' | 'edit';
+
 export type EmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -2549,6 +2560,46 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type EditMessageData = {
+    body: EditMessageRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/edit_message';
+};
+
+export type EditMessageErrors = {
+    /**
+     * Bad request - Invalid message timestamp
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or message not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type EditMessageResponses = {
+    /**
+     * Session prepared for editing - frontend should submit the edited message
+     */
+    200: EditMessageResponse;
+};
+
+export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
 
 export type ExportSessionData = {
     body?: never;

@@ -307,6 +307,20 @@ impl SessionManager {
         Self::instance().await?.import_session(json).await
     }
 
+    pub async fn copy_session(session_id: &str, new_name: String) -> Result<Session> {
+        Self::instance()
+            .await?
+            .copy_session(session_id, new_name)
+            .await
+    }
+
+    pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
+        Self::instance()
+            .await?
+            .truncate_conversation(session_id, timestamp)
+            .await
+    }
+
     pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = Self::get_session(id, true).await?;
 
@@ -1212,6 +1226,43 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
+        let original_session = self.get_session(session_id, true).await?;
+
+        let new_session = self
+            .create_session(
+                original_session.working_dir.clone(),
+                new_name,
+                original_session.session_type,
+            )
+            .await?;
+
+        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+            .extension_data(original_session.extension_data)
+            .schedule_id(original_session.schedule_id)
+            .recipe(original_session.recipe)
+            .user_recipe_values(original_session.user_recipe_values);
+
+        self.apply_update(builder).await?;
+
+        if let Some(conversation) = original_session.conversation {
+            self.replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
+
+        self.get_session(&new_session.id, true).await
+    }
+
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+            .bind(session_id)
+            .bind(timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn search_chat_history(

@@ -2021,6 +2021,64 @@
         ]
       }
     },
+    "/sessions/{session_id}/edit_message": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "edit_message",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session prepared for editing - frontend should submit the edited message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid message timestamp"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session or message not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2559,6 +2617,39 @@
             "type": "string"
           }
         }
+      },
+      "EditMessageRequest": {
+        "type": "object",
+        "required": [
+          "timestamp"
+        ],
+        "properties": {
+          "editType": {
+            "$ref": "#/components/schemas/EditType"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EditMessageResponse": {
+        "type": "object",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        }
+      },
+      "EditType": {
+        "type": "string",
+        "enum": [
+          "fork",
+          "edit"
+        ]
       },
       "EmbeddedResource": {
         "type": "object",
