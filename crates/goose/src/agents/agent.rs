@@ -803,8 +803,8 @@ impl Agent {
             )
             .await?;
         } else {
-        SessionManager::add_message(&session_config.id, &user_message).await?;
-}
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
         let session = SessionManager::get_session(&session_config.id, true).await?;
         let conversation = session
             .conversation
