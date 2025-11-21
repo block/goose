@@ -96,21 +96,139 @@ pub struct ResponseUsage {
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ResponsesStreamEvent {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub delta: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<Vec<ResponseOutputItem>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponsesStreamEvent {
+    #[serde(rename = "response.created")]
+    ResponseCreated {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.in_progress")]
+    ResponseInProgress {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.output_item.added")]
+    OutputItemAdded {
+        sequence_number: i32,
+        output_index: i32,
+        item: ResponseOutputItemInfo,
+    },
+    #[serde(rename = "response.content_part.added")]
+    ContentPartAdded {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        part: ContentPart,
+    },
+    #[serde(rename = "response.output_text.delta")]
+    OutputTextDelta {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        delta: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        logprobs: Option<Vec<Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        obfuscation: Option<String>,
+    },
+    #[serde(rename = "response.output_item.done")]
+    OutputItemDone {
+        sequence_number: i32,
+        output_index: i32,
+        item: ResponseOutputItemInfo,
+    },
+    #[serde(rename = "response.content_part.done")]
+    ContentPartDone {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        part: ContentPart,
+    },
+    #[serde(rename = "response.completed")]
+    ResponseCompleted {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.function_call_arguments.delta")]
+    FunctionCallArgumentsDelta {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        delta: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        obfuscation: Option<String>,
+    },
+    #[serde(rename = "response.function_call_arguments.done")]
+    FunctionCallArgumentsDone {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        arguments: String,
+    },
+    #[serde(rename = "error")]
+    Error {
+        error: Value,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseMetadata {
+    pub id: String,
+    pub object: String,
+    pub created_at: i64,
+    pub status: String,
+    pub model: String,
+    pub output: Vec<ResponseOutputItemInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<ResponseUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
+    pub reasoning: Option<ResponseReasoningInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseOutputItemInfo {
+    Reasoning {
+        id: String,
+        summary: Vec<String>,
+    },
+    Message {
+        id: String,
+        status: String,
+        role: String,
+        content: Vec<ContentPart>,
+    },
+    FunctionCall {
+        id: String,
+        status: String,
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ContentPart {
+    OutputText {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        annotations: Option<Vec<Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        logprobs: Option<Vec<Value>>,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        arguments: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -881,133 +999,159 @@ where
     try_stream! {
         use futures::StreamExt;
 
-        let mut accumulated_content = String::new();
-        let mut accumulated_tool_calls: Vec<(String, String, String)> = Vec::new(); // (id, name, arguments)
+        let mut accumulated_text = String::new();
         let mut response_id: Option<String> = None;
         let mut model_name: Option<String> = None;
         let mut final_usage: Option<ProviderUsage> = None;
-        let mut has_tool_calls = false;
+        let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
+        let mut is_text_response = false;
 
         'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                break 'outer;
-            }
             let response_str = response?;
-            let line = strip_data_prefix(&response_str);
 
-            if line.is_none() || line.is_some_and(|l| l.is_empty()) {
+            // Skip empty lines
+            if response_str.trim().is_empty() {
                 continue;
             }
 
-            let event: ResponsesStreamEvent = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse Responses stream event: {}: {:?}", e, &line))?;
+            // Parse SSE format: "event: <type>\ndata: <json>"
+            // For now, we only care about the data line
+            let data_line = if response_str.starts_with("data: ") {
+                response_str.strip_prefix("data: ").unwrap()
+            } else if response_str.starts_with("event: ") {
+                // Skip event type lines
+                continue;
+            } else {
+                // Try to parse as-is in case there's no prefix
+                &response_str
+            };
 
-            // Collect metadata
-            if let Some(id) = event.response_id {
-                response_id = Some(id);
-            }
-            if let Some(model) = event.model {
-                model_name = Some(model);
-            }
-
-            // Handle usage data
-            if let Some(usage) = event.usage {
-                if let Some(model) = &model_name {
-                    final_usage = Some(ProviderUsage {
-                        usage: Usage::new(
-                            Some(usage.input_tokens),
-                            Some(usage.output_tokens),
-                            Some(usage.total_tokens),
-                        ),
-                        model: model.clone(),
-                    });
-                }
-            }
-
-            // Handle complete output items first (to detect tool calls early)
-            if let Some(output_items) = &event.output {
-                for item in output_items {
-                    match item {
-                        ResponseOutputItem::Reasoning { .. } => {
-                            // Skip reasoning items
-                            continue;
-                        }
-                        ResponseOutputItem::Message { content: msg_content, .. } => {
-                            for block in msg_content {
-                                match block {
-                                    ResponseContentBlock::ToolCall { id, name, input } => {
-                                        has_tool_calls = true;
-                                        let arguments_str = serde_json::to_string(&input)
-                                            .unwrap_or_else(|_| "{}".to_string());
-                                        accumulated_tool_calls.push((id.clone(), name.clone(), arguments_str));
-                                    }
-                                    ResponseContentBlock::OutputText { text, .. } => {
-                                        if !text.is_empty() && !has_tool_calls {
-                                            accumulated_content.push_str(&text);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        ResponseOutputItem::FunctionCall { id, name, arguments, .. } => {
-                            has_tool_calls = true;
-                            accumulated_tool_calls.push((id.clone(), name.clone(), arguments.clone()));
-                        }
-                    }
-                }
-            }
-
-            // Accumulate deltas first
-            if let Some(delta) = event.delta {
-                if !delta.is_empty() {
-                    accumulated_content.push_str(&delta);
-
-                    // Check if accumulated content looks like JSON (potential tool call)
-                    let trimmed = accumulated_content.trim();
-                    let looks_like_json = trimmed.starts_with('{') || trimmed.starts_with('[');
-
-                    // Only stream if we haven't detected tool calls AND content doesn't look like JSON
-                    if !has_tool_calls && !looks_like_json {
-                        // Yield incremental text updates only for text responses
-                        let mut content = Vec::new();
-                        if !accumulated_content.is_empty() {
-                            content.push(MessageContent::text(&accumulated_content));
-                        }
-                        let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
-                        yield (Some(msg), None);
-                    }
-                }
-            }
-
-            // Check if streaming is complete
-            if event.status.as_deref() == Some("completed") {
+            // Skip [DONE] marker
+            if data_line == "[DONE]" {
                 break 'outer;
+            }
+
+            let event: ResponsesStreamEvent = serde_json::from_str(data_line)
+                .map_err(|e| anyhow!("Failed to parse Responses stream event: {}: {:?}", e, data_line))?;
+
+            match event {
+                ResponsesStreamEvent::ResponseCreated { response, .. } |
+                ResponsesStreamEvent::ResponseInProgress { response, .. } => {
+                    response_id = Some(response.id);
+                    model_name = Some(response.model);
+                }
+
+                ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
+                    is_text_response = true;
+                    accumulated_text.push_str(&delta);
+
+                    // Yield incremental text updates for true streaming
+                    let mut content = Vec::new();
+                    if !accumulated_text.is_empty() {
+                        content.push(MessageContent::text(&accumulated_text));
+                    }
+                    let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                    yield (Some(msg), None);
+                }
+
+                ResponsesStreamEvent::OutputItemDone { item, .. } => {
+                    output_items.push(item);
+                }
+
+                ResponsesStreamEvent::ResponseCompleted { response, .. } => {
+                    // Collect final usage data
+                    if let Some(usage) = response.usage {
+                        if let Some(model) = &model_name {
+                            final_usage = Some(ProviderUsage {
+                                usage: Usage::new(
+                                    Some(usage.input_tokens),
+                                    Some(usage.output_tokens),
+                                    Some(usage.total_tokens),
+                                ),
+                                model: model.clone(),
+                            });
+                        }
+                    }
+
+                    // For complete output, use the response output items
+                    if !response.output.is_empty() {
+                        output_items = response.output;
+                    }
+
+                    break 'outer;
+                }
+
+                ResponsesStreamEvent::FunctionCallArgumentsDelta { .. } => {
+                    // Function call arguments are being streamed, but we'll get the complete
+                    // arguments in the OutputItemDone event, so we can ignore deltas for now
+                }
+
+                ResponsesStreamEvent::FunctionCallArgumentsDone { .. } => {
+                    // Arguments are complete, will be in the OutputItemDone event
+                }
+
+                ResponsesStreamEvent::Error { error } => {
+                    Err(anyhow!("Responses API error: {:?}", error))?;
+                }
+
+                _ => {
+                    // Ignore other event types (OutputItemAdded, ContentPartAdded, ContentPartDone)
+                }
             }
         }
 
-        // Yield final complete message if we have tool calls or if we haven't streamed yet
-        if has_tool_calls || (!accumulated_content.is_empty() && accumulated_tool_calls.is_empty()) {
+        // Yield final message if we have tool calls or non-text output
+        if !is_text_response || !output_items.is_empty() {
             let mut content = Vec::new();
 
-            if !accumulated_content.is_empty() && !has_tool_calls {
-                content.push(MessageContent::text(&accumulated_content));
-            }
+            // Process output items for tool calls
+            for item in output_items {
+                match item {
+                    ResponseOutputItemInfo::Reasoning { .. } => {
+                        // Skip reasoning items
+                    }
+                    ResponseOutputItemInfo::Message { content: parts, .. } => {
+                        for part in parts {
+                            match part {
+                                ContentPart::OutputText { text, .. } => {
+                                    if !text.is_empty() && !is_text_response {
+                                        content.push(MessageContent::text(&text));
+                                    }
+                                }
+                                ContentPart::ToolCall { id, name, arguments } => {
+                                    let parsed_args = if arguments.is_empty() {
+                                        json!({})
+                                    } else {
+                                        serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                                    };
 
-            for (id, name, arguments) in accumulated_tool_calls {
-                let parsed_args = if arguments.is_empty() {
-                    json!({})
-                } else {
-                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                };
+                                    content.push(MessageContent::tool_request(
+                                        id,
+                                        Ok(CallToolRequestParam {
+                                            name: name.into(),
+                                            arguments: Some(object(parsed_args)),
+                                        }),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
+                        let parsed_args = if arguments.is_empty() {
+                            json!({})
+                        } else {
+                            serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                        };
 
-                content.push(MessageContent::tool_request(
-                    id,
-                    Ok(CallToolRequestParam {
-                        name: name.into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
-                ));
+                        content.push(MessageContent::tool_request(
+                            call_id,
+                            Ok(CallToolRequestParam {
+                                name: name.into(),
+                                arguments: Some(object(parsed_args)),
+                            }),
+                        ));
+                    }
+                }
             }
 
             if !content.is_empty() {
