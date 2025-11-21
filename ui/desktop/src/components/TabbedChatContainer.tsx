@@ -220,6 +220,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                 <ResizableSplitter
                   leftContent={
                     <BaseChat2
+                      key={`${tabState.tab.id}-${tabState.tab.sessionId}`} // Force re-mount when session ID changes
                       sessionId={tabState.tab.sessionId}
                       setChat={isActive ? handleSetChat : undefined} // Only active tab can update chat
                       setIsGoosehintsModalOpen={isActive ? setIsGoosehintsModalOpen : undefined}
@@ -261,6 +262,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
               ) : (
                 /* Full Width Chat */
                 <BaseChat2
+                  key={`${tabState.tab.id}-${tabState.tab.sessionId}`} // Force re-mount when session ID changes
                   sessionId={tabState.tab.sessionId}
                   setChat={isActive ? handleSetChat : undefined} // Only active tab can update chat
                   setIsGoosehintsModalOpen={isActive ? setIsGoosehintsModalOpen : undefined}

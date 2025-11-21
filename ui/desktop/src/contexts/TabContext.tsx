@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { Tab, TabSidecarState, TabSidecarView } from '../components/TabBar';
 import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
-import { getSession, updateSessionDescription } from '../api';
+import { getSession, updateSessionDescription, startAgent, deleteSession } from '../api';
 import { sessionMappingService } from '../services/SessionMappingService';
 
 interface TabState {
@@ -29,6 +29,8 @@ interface TabContextType {
   updateSessionId: (tabId: string, newSessionId: string) => void;
   // Matrix-specific methods
   openMatrixChat: (roomId: string, senderId: string) => void;
+  morphTabToMatrix: (tabId: string, roomId: string, recipientId: string, roomTitle?: string) => Promise<void>;
+  createBackendSession: (tabId: string) => Promise<string>;
   // Sidecar management functions
   showSidecarView: (tabId: string, view: TabSidecarView) => void;
   hideSidecarView: (tabId: string, viewId: string) => void;
@@ -46,16 +48,17 @@ const TabContext = createContext<TabContextType | undefined>(undefined);
 const TAB_STATE_STORAGE_KEY = 'goose-tab-state';
 
 const createNewTab = (overrides: Partial<Tab> = {}): Tab => {
-  // Generate a truly unique session ID with additional entropy
+  // Generate a truly unique tab ID
   const timestamp = Date.now();
   const random = Math.random().toString(36).substr(2, 9);
-  const sessionId = overrides.sessionId || `new_${timestamp}_${random}`;
   
+  // For new tabs, we'll create the backend session immediately
+  // The sessionId will be set after the backend session is created
   return {
     id: `tab-${timestamp}-${random}`,
     title: 'New Chat',
     type: 'chat',
-    sessionId,
+    sessionId: '', // Will be set immediately after creation
     isActive: false,
     hasUnsavedChanges: false,
     ...overrides
@@ -72,7 +75,8 @@ const createNewChat = (sessionId: string): ChatType => ({
 });
 
 const createInitialTabState = (): TabState[] => {
-  const firstTab = createNewTab({ isActive: true });
+  // Start with a temporary session - we'll create the backend session after component mounts
+  const firstTab = createNewTab({ sessionId: `temp_initial_${Date.now()}`, isActive: true });
   return [{
     tab: firstTab,
     chat: createNewChat(firstTab.sessionId),
@@ -171,6 +175,27 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     })));
   }, [activeTabId]);
 
+  // Create backend sessions for any temporary sessions after component mounts
+  useEffect(() => {
+    const createBackendSessionsForTempTabs = async () => {
+      const tempTabs = tabStates.filter(ts => ts.tab.sessionId.startsWith('temp_'));
+      
+      for (const tabState of tempTabs) {
+        try {
+          console.log('🔄 Converting temporary session to backend session:', tabState.tab.sessionId);
+          await createBackendSession(tabState.tab.id);
+        } catch (error) {
+          console.error('❌ Failed to create backend session for temp tab:', tabState.tab.id, error);
+        }
+      }
+    };
+
+    // Only run this once after initial mount, with a small delay to ensure everything is initialized
+    const timeoutId = setTimeout(createBackendSessionsForTempTabs, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, []); // Empty dependency array - only run once on mount
+
   const handleTabClick = useCallback((tabId: string) => {
     console.log('🖱️ TabContext: handleTabClick called:', { 
       clickedTabId: tabId, 
@@ -182,7 +207,95 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     console.log('🖱️ TabContext: setActiveTabId called');
   }, [activeTabId]);
 
-  const handleTabClose = useCallback((tabId: string) => {
+  const handleNewTab = useCallback(async () => {
+    try {
+      console.log('🆕 Creating new tab with immediate backend session');
+      
+      // Create a new backend session immediately using startAgent
+      const response = await startAgent({
+        body: {
+          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+        }
+      });
+
+      if (!response.data?.id) {
+        throw new Error('Failed to create backend session - no session ID returned');
+      }
+
+      const sessionId = response.data.id;
+      console.log('✅ Created backend session for new tab:', sessionId);
+
+      // Create the tab with the real backend session ID
+      const newTab = createNewTab({ sessionId });
+      const newTabState: TabState = {
+        tab: newTab,
+        chat: createNewChat(sessionId),
+        loadingChat: false
+      };
+      
+      setTabStates(prev => [...prev, newTabState]);
+      setActiveTabId(newTab.id);
+      
+      console.log('✅ New tab created successfully:', { tabId: newTab.id, sessionId });
+    } catch (error) {
+      console.error('❌ Failed to create new tab with backend session:', error);
+      
+      // Fallback: create tab with temporary session ID and try to create backend session later
+      const newTab = createNewTab({ sessionId: `temp_${Date.now()}` });
+      const newTabState: TabState = {
+        tab: newTab,
+        chat: createNewChat(newTab.sessionId),
+        loadingChat: false
+      };
+      
+      setTabStates(prev => [...prev, newTabState]);
+      setActiveTabId(newTab.id);
+      
+      // Try to create backend session in the background
+      setTimeout(async () => {
+        try {
+          const backendSessionId = await createBackendSession(newTab.id);
+          console.log('✅ Successfully created backend session for fallback tab:', backendSessionId);
+        } catch (bgError) {
+          console.error('❌ Failed to create backend session in background:', bgError);
+        }
+      }, 1000);
+    }
+  }, []);
+
+  const handleTabClose = useCallback(async (tabId: string) => {
+    // Get the tab being closed for cleanup logic
+    const closingTab = tabStates.find(ts => ts.tab.id === tabId);
+    
+    // Perform session cleanup if needed
+    if (closingTab) {
+      console.log('🗑️ Closing tab:', { tabId, sessionId: closingTab.tab.sessionId, hasMessages: closingTab.chat.messages.length > 0 });
+      
+      // Check if the session should be cleaned up (empty sessions only)
+      const shouldCleanupSession = closingTab.chat.messages.length === 0 && 
+                                  closingTab.tab.sessionId && 
+                                  !closingTab.tab.sessionId.startsWith('temp_') &&
+                                  !closingTab.tab.sessionId.startsWith('new_');
+      
+      if (shouldCleanupSession) {
+        try {
+          console.log('🧹 Cleaning up empty session:', closingTab.tab.sessionId);
+          await deleteSession({
+            path: { session_id: closingTab.tab.sessionId }
+          });
+          console.log('✅ Successfully deleted empty session:', closingTab.tab.sessionId);
+        } catch (error) {
+          console.warn('⚠️ Failed to delete empty session (may not exist):', closingTab.tab.sessionId, error);
+          // Don't block tab closing if session deletion fails
+        }
+      } else if (closingTab.chat.messages.length > 0) {
+        console.log('💾 Preserving session with messages:', closingTab.tab.sessionId);
+      } else {
+        console.log('⏭️ Skipping cleanup for temporary/new session:', closingTab.tab.sessionId);
+      }
+    }
+
+    // Update tab states
     setTabStates(prev => {
       const newStates = prev.filter(ts => ts.tab.id !== tabId);
       
@@ -193,32 +306,16 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         setActiveTabId(newStates[nextActiveIndex].tab.id);
       }
       
-      // If this was the last tab, create a new one
+      // If this was the last tab, create a new one with immediate backend session
       if (newStates.length === 0) {
-        const newTab = createNewTab({ isActive: true });
-        setActiveTabId(newTab.id);
-        return [{
-          tab: newTab,
-          chat: createNewChat(newTab.sessionId),
-          loadingChat: false
-        }];
+        // Create a new tab immediately - this will trigger handleNewTab logic
+        handleNewTab();
+        return prev; // Return current state, handleNewTab will update it
       }
       
       return newStates;
     });
-  }, [activeTabId]);
-
-  const handleNewTab = useCallback(() => {
-    const newTab = createNewTab();
-    const newTabState: TabState = {
-      tab: newTab,
-      chat: createNewChat(newTab.sessionId),
-      loadingChat: false
-    };
-    
-    setTabStates(prev => [...prev, newTabState]);
-    setActiveTabId(newTab.id);
-  }, []);
+  }, [activeTabId, tabStates, handleNewTab]);
 
   const handleChatUpdate = useCallback((tabId: string, chat: ChatType) => {
     setTabStates(prev => prev.map(ts => 
@@ -457,12 +554,17 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
 
     // CRITICAL: Check if this is a Matrix session by looking up Matrix metadata
+    // BUT ONLY if the user explicitly requested a Matrix session
     let isMatrixSession = false;
     let matrixMetadata: any = null;
     
-    if (!sessionId.startsWith('new_')) {
+    // SECURITY: Only check for Matrix metadata if this is NOT a solo session creation
+    // Solo sessions should NEVER be treated as Matrix sessions unless explicitly requested
+    const isExplicitMatrixRequest = title && title.includes('Matrix');
+    
+    if (!sessionId.startsWith('new_') && isExplicitMatrixRequest) {
       try {
-        console.log('🔍 Checking if session is Matrix session:', sessionId);
+        console.log('🔍 Checking if session is Matrix session (explicit Matrix request):', sessionId);
         matrixMetadata = await sessionMappingService.getMatrixMetadataForBackendSession(sessionId);
         if (matrixMetadata) {
           isMatrixSession = true;
@@ -473,6 +575,13 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       } catch (error) {
         console.warn('⚠️ Failed to check Matrix metadata for session:', error);
       }
+    } else {
+      console.log('🚫 Skipping Matrix metadata check for solo session:', {
+        sessionId,
+        title,
+        isExplicitMatrixRequest,
+        startsWithNew: sessionId.startsWith('new_')
+      });
     }
 
     // Create new tab with appropriate properties based on session type
@@ -814,6 +923,125 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     setActiveTabId(newTab.id);
   }, [tabStates]);
 
+  // Create a backend session for a tab (converts new_ session to real backend session)
+  const createBackendSession = useCallback(async (tabId: string): Promise<string> => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (!tabState) {
+      throw new Error(`Tab not found: ${tabId}`);
+    }
+
+    // If already has a backend session (not temporary), return it
+    if (!tabState.tab.sessionId.startsWith('temp_') && !tabState.tab.sessionId.startsWith('new_')) {
+      console.log('🏗️ Tab already has backend session:', tabState.tab.sessionId);
+      return tabState.tab.sessionId;
+    }
+
+    try {
+      console.log('🏗️ Creating backend session for tab:', tabId);
+      
+      // Create a new backend session using startAgent
+      const response = await startAgent({
+        body: {
+          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+        }
+      });
+
+      if (!response.data?.id) {
+        throw new Error('Failed to create backend session - no session ID returned');
+      }
+
+      const newSessionId = response.data.id;
+      console.log('✅ Created backend session:', newSessionId);
+
+      // Update the tab with the new session ID
+      setTabStates(prev => prev.map(ts => 
+        ts.tab.id === tabId 
+          ? { 
+              ...ts, 
+              tab: { ...ts.tab, sessionId: newSessionId },
+              chat: { ...ts.chat, sessionId: newSessionId }
+            }
+          : ts
+      ));
+
+      return newSessionId;
+    } catch (error) {
+      console.error('❌ Failed to create backend session:', error);
+      throw error;
+    }
+  }, [tabStates]);
+
+  // Morph a regular chat tab into a Matrix session
+  const morphTabToMatrix = useCallback(async (
+    tabId: string, 
+    roomId: string, 
+    recipientId: string, 
+    roomTitle?: string
+  ): Promise<void> => {
+    const tabState = tabStates.find(ts => ts.tab.id === tabId);
+    if (!tabState) {
+      throw new Error(`Tab not found: ${tabId}`);
+    }
+
+    console.log('🔄 Morphing tab to Matrix:', {
+      tabId,
+      currentSessionId: tabState.tab.sessionId,
+      roomId,
+      recipientId,
+      roomTitle
+    });
+
+    try {
+      // Ensure we have a backend session first
+      let backendSessionId = tabState.tab.sessionId;
+      if (backendSessionId.startsWith('temp_') || backendSessionId.startsWith('new_')) {
+        console.log('🏗️ Creating backend session before morphing to Matrix');
+        backendSessionId = await createBackendSession(tabId);
+      }
+
+      // Create the Matrix mapping in the session mapping service
+      await sessionMappingService.createMapping(roomId, backendSessionId, roomTitle || `Matrix Chat`, recipientId);
+      console.log('✅ Created Matrix mapping for backend session:', backendSessionId);
+
+      // Update the tab to Matrix type with Matrix properties
+      const matrixTitle = roomTitle || `Matrix Chat ${roomId.substring(1, 8)}`;
+      
+      setTabStates(prev => prev.map(ts => 
+        ts.tab.id === tabId 
+          ? { 
+              ...ts, 
+              tab: { 
+                ...ts.tab, 
+                type: 'matrix',
+                matrixRoomId: roomId,
+                matrixRecipientId: recipientId,
+                title: matrixTitle,
+                sessionId: backendSessionId // Keep the backend session ID
+              },
+              chat: { 
+                ...ts.chat, 
+                title: matrixTitle,
+                sessionId: backendSessionId,
+                aiEnabled: false // Matrix chats typically have AI disabled
+              }
+            }
+          : ts
+      ));
+
+      console.log('✅ Successfully morphed tab to Matrix:', {
+        tabId,
+        backendSessionId,
+        roomId,
+        recipientId,
+        title: matrixTitle
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to morph tab to Matrix:', error);
+      throw error;
+    }
+  }, [tabStates, createBackendSession]);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -832,6 +1060,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     updateSessionId,
     // Matrix-specific methods
     openMatrixChat,
+    morphTabToMatrix,
+    createBackendSession,
     // Sidecar functions
     showSidecarView,
     hideSidecarView,

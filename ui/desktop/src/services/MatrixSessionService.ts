@@ -21,6 +21,12 @@ export interface MatrixSessionInfo {
 
 export class MatrixSessionService {
   private static instance: MatrixSessionService;
+  private isInitialized = false;
+  private lastSyncTime = 0;
+  private cachedSessions: Session[] = [];
+  private syncInProgress = false;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  private readonly SYNC_COOLDOWN = 30 * 1000; // 30 seconds between syncs
 
   private constructor() {}
 
@@ -32,7 +38,7 @@ export class MatrixSessionService {
   }
 
   /**
-   * Get all Matrix rooms that have session mappings and convert them to Session format
+   * Get all Matrix rooms and convert them to Session format (with intelligent caching)
    */
   public async getMatrixSessions(): Promise<Session[]> {
     try {
@@ -43,16 +49,51 @@ export class MatrixSessionService {
         return [];
       }
 
+      // Check if we have valid cached sessions
+      const now = Date.now();
+      if (this.cachedSessions.length > 0 && (now - this.lastSyncTime) < this.CACHE_DURATION) {
+        console.log('📋 Returning cached Matrix sessions (', this.cachedSessions.length, 'sessions)');
+        return this.cachedSessions;
+      }
+
+      // Check if sync is already in progress
+      if (this.syncInProgress) {
+        console.log('📋 Matrix session sync already in progress, returning cached sessions');
+        return this.cachedSessions;
+      }
+
+      // Check sync cooldown to prevent too frequent syncs
+      if ((now - this.lastSyncTime) < this.SYNC_COOLDOWN) {
+        console.log('📋 Matrix session sync in cooldown, returning cached sessions');
+        return this.cachedSessions;
+      }
+
+      // Perform the sync
+      this.syncInProgress = true;
+      console.log('📋 Starting Matrix session sync...');
+
       const rooms = matrixService.getRooms();
-      const mappings = sessionMappingService.getAllMappings();
       const matrixSessions: Session[] = [];
 
-      console.log('📋 Found', rooms.length, 'Matrix rooms and', mappings.length, 'session mappings');
+      console.log('📋 Found', rooms.length, 'Matrix rooms, checking for new mappings...');
 
+      // Check which rooms need new mappings (optimization)
+      const roomsNeedingMappings = rooms.filter(room => !sessionMappingService.getMapping(room.roomId));
+      
+      if (roomsNeedingMappings.length > 0) {
+        console.log('📋 Creating mappings for', roomsNeedingMappings.length, 'new Matrix rooms...');
+        
+        // Only create mappings for rooms that don't have them
+        await this.createMappingsForNewRooms(roomsNeedingMappings);
+      } else {
+        console.log('📋 All Matrix rooms already have mappings, skipping mapping creation');
+      }
+
+      // Now process all rooms (this is much faster since mappings exist)
       for (const room of rooms) {
         const mapping = sessionMappingService.getMapping(room.roomId);
         if (!mapping) {
-          // Skip rooms without session mappings
+          console.warn('📋 Skipping room without mapping:', room.roomId);
           continue;
         }
 
@@ -60,8 +101,61 @@ export class MatrixSessionService {
           // Get room history to calculate message count and create conversation
           const history = await matrixService.getRoomHistoryAsGooseMessages(room.roomId, 100);
           
-          // Generate contextual title for the room
-          const roomType = room.isDirectMessage ? 'dm' : (room.members.length > 2 ? 'collaborative' : 'group');
+          // Sync room history to backend session if we have a backend session ID
+          if (mapping.gooseSessionId && history.length > 0) {
+            try {
+              console.log('📜 Syncing Matrix room history to backend session:', {
+                roomId: room.roomId.substring(0, 20) + '...',
+                sessionId: mapping.gooseSessionId,
+                messageCount: history.length
+              });
+              
+              // Import the API function to sync messages to backend
+              const { replyHandler } = await import('../api');
+              
+              // Convert Matrix messages to backend format
+              const backendMessages = history.map((msg, index) => ({
+                id: `matrix_${msg.timestamp.getTime()}_${index}`,
+                role: msg.role,
+                content: [{
+                  type: 'text' as const,
+                  text: msg.content,
+                }],
+                created: Math.floor(msg.timestamp.getTime() / 1000),
+                // Include sender info if available
+                ...(msg.sender && { 
+                  sender: {
+                    userId: msg.metadata?.senderInfo?.userId || msg.sender,
+                    displayName: msg.metadata?.senderInfo?.displayName || msg.sender.split(':')[0].substring(1),
+                    avatarUrl: msg.metadata?.senderInfo?.avatarUrl || null,
+                  }
+                })
+              }));
+              
+              // Sync messages to backend session
+              await replyHandler({
+                body: {
+                  session_id: mapping.gooseSessionId,
+                  messages: backendMessages,
+                },
+                throwOnError: false, // Don't throw on error to prevent breaking the session list
+              });
+              
+              console.log('✅ Successfully synced Matrix room history to backend session');
+            } catch (syncError) {
+              console.warn('⚠️ Failed to sync Matrix room history to backend session:', syncError);
+              // Don't fail the entire session creation if sync fails
+            }
+          }
+          
+          // Enhanced room type detection for collaborative sessions
+          const isCollaborativeSession = this.isCollaborativeSession(room);
+          const roomType = room.isDirectMessage 
+            ? 'dm' 
+            : isCollaborativeSession 
+              ? 'collaborative' 
+              : 'group';
+              
           const generatedTitle = await llmTitleGenerationService.generateRoomTitle(room.roomId, {
             roomType,
             fallbackName: room.name || mapping.title,
@@ -69,14 +163,16 @@ export class MatrixSessionService {
             includeParticipants: true,
           });
           
-          // Determine working directory based on room type
+          // Determine working directory based on room type with collaborative distinction
           const workingDir = room.isDirectMessage 
             ? 'Direct Message' 
-            : room.members.length > 2 
-              ? 'Collaborative Session' 
-              : 'Group Chat';
+            : isCollaborativeSession
+              ? 'Collaborative AI Session'
+              : room.members.length > 2 
+                ? 'Group Chat'
+                : 'Matrix Room';
           
-          // Convert Matrix room to Session format
+          // Convert Matrix room to Session format with enhanced collaborative metadata
           const session: Session = {
             id: room.roomId, // Use Matrix room ID as session ID for UI purposes
             description: generatedTitle.title,
@@ -91,11 +187,20 @@ export class MatrixSessionService {
                 roomId: room.roomId,
                 participants: room.members.map(m => m.userId),
                 isDirectMessage: room.isDirectMessage,
+                isCollaborativeSession: isCollaborativeSession,
                 backendSessionId: mapping.gooseSessionId,
                 matrixRoomName: room.name,
                 participantCount: room.members.length,
                 generatedTitle: generatedTitle,
                 roomType: roomType,
+                // Enhanced collaborative session metadata
+                collaborativeMetadata: isCollaborativeSession ? {
+                  sessionType: 'ai_collaboration',
+                  createdViaInvite: this.wasCreatedViaInvite(room),
+                  hasGooseParticipant: this.hasGooseParticipant(room),
+                  collaborationLevel: this.getCollaborationLevel(room),
+                  workflowType: this.detectWorkflowType(room, history),
+                } : undefined,
               }
             },
             accumulated_input_tokens: null,
@@ -120,12 +225,231 @@ export class MatrixSessionService {
         }
       }
 
-      console.log('📋 Successfully converted', matrixSessions.length, 'Matrix rooms to sessions');
+      // Cache the results and update sync time
+      this.cachedSessions = matrixSessions;
+      this.lastSyncTime = now;
+      this.isInitialized = true;
+
+      console.log('📋 Successfully synced', matrixSessions.length, 'Matrix rooms to sessions (cached for', this.CACHE_DURATION / 1000 / 60, 'minutes)');
       return matrixSessions;
     } catch (error) {
       console.error('📋 Error getting Matrix sessions:', error);
-      return [];
+      return this.cachedSessions; // Return cached sessions on error
+    } finally {
+      this.syncInProgress = false;
     }
+  }
+
+  /**
+   * Create mappings for new Matrix rooms (batch operation for efficiency)
+   */
+  private async createMappingsForNewRooms(rooms: any[]): Promise<void> {
+    const currentUserId = matrixService.getCurrentUser()?.userId;
+    
+    for (const room of rooms) {
+      try {
+        console.log('📋 Creating session mapping for new Matrix room:', room.roomId.substring(0, 20) + '...');
+        
+        // Determine room name and participants
+        const participants = room.members.map((m: any) => m.userId);
+        
+        let roomName: string;
+        if (room.name) {
+          roomName = room.name;
+        } else if (room.isDirectMessage) {
+          // For DMs, create a name based on the other participant
+          const otherParticipant = room.members.find((m: any) => m.userId !== currentUserId);
+          const otherName = otherParticipant?.displayName || otherParticipant?.userId?.split(':')[0].substring(1) || 'Unknown';
+          roomName = `DM with ${otherName}`;
+        } else {
+          roomName = `Matrix Room ${room.roomId.substring(1, 8)}`;
+        }
+
+        try {
+          // Create mapping with backend session
+          await sessionMappingService.createMappingWithBackendSession(
+            room.roomId,
+            participants,
+            roomName
+          );
+          console.log('✅ Created backend session mapping for new Matrix room:', {
+            roomId: room.roomId.substring(0, 20) + '...',
+            roomName
+          });
+        } catch (error) {
+          console.error('❌ Failed to create backend session for Matrix room, using fallback:', error);
+          // Fallback to regular mapping
+          sessionMappingService.createMapping(room.roomId, participants, roomName);
+          console.log('📋 Created fallback mapping for new Matrix room:', {
+            roomId: room.roomId.substring(0, 20) + '...',
+            roomName
+          });
+        }
+      } catch (error) {
+        console.error('❌ Failed to create mapping for room:', room.roomId, error);
+        // Continue with other rooms
+      }
+    }
+  }
+
+  /**
+   * Force refresh Matrix sessions (clears cache and re-syncs)
+   */
+  public async forceRefresh(): Promise<Session[]> {
+    console.log('📋 Force refreshing Matrix sessions...');
+    this.cachedSessions = [];
+    this.lastSyncTime = 0;
+    this.isInitialized = false;
+    return await this.getMatrixSessions();
+  }
+
+  /**
+   * Invalidate cache (for when new rooms are joined or left)
+   */
+  public invalidateCache(): void {
+    console.log('📋 Invalidating Matrix sessions cache...');
+    this.cachedSessions = [];
+    this.lastSyncTime = 0;
+  }
+
+  /**
+   * Determine if a Matrix room is a true collaborative session
+   */
+  private isCollaborativeSession(room: any): boolean {
+    // Criteria for collaborative sessions:
+    // 1. More than 2 participants (not a DM)
+    // 2. Has explicit room name (indicates intentional creation)
+    // 3. Has Goose participant or AI-related content
+    // 4. Created via invitation/sharing (not just a random group chat)
+    
+    if (room.isDirectMessage) {
+      return false; // DMs are never collaborative sessions
+    }
+    
+    if (room.members.length <= 2) {
+      return false; // Need more than 2 people for collaboration
+    }
+    
+    // Check if room has explicit name (indicates intentional creation)
+    const hasExplicitName = room.name && room.name.trim() !== '';
+    
+    // Check if room was created for AI/Goose collaboration
+    const hasAIIndicators = this.hasAICollaborationIndicators(room);
+    
+    // Check if room was created via invitation (not just random group)
+    const wasCreatedViaInvite = this.wasCreatedViaInvite(room);
+    
+    // A room is collaborative if it meets at least 2 of these criteria:
+    const criteria = [hasExplicitName, hasAIIndicators, wasCreatedViaInvite];
+    const metCriteria = criteria.filter(Boolean).length;
+    
+    return metCriteria >= 2;
+  }
+
+  /**
+   * Check if room has AI/Goose collaboration indicators
+   */
+  private hasAICollaborationIndicators(room: any): boolean {
+    // Check room name for AI/collaboration keywords
+    const aiKeywords = ['goose', 'ai', 'collaboration', 'session', 'project', 'work'];
+    const roomName = (room.name || '').toLowerCase();
+    const hasAIName = aiKeywords.some(keyword => roomName.includes(keyword));
+    
+    // Check if there's a Goose participant
+    const hasGooseParticipant = this.hasGooseParticipant(room);
+    
+    // Check room topic for AI indicators
+    const roomTopic = (room.topic || '').toLowerCase();
+    const hasAITopic = aiKeywords.some(keyword => roomTopic.includes(keyword));
+    
+    return hasAIName || hasGooseParticipant || hasAITopic;
+  }
+
+  /**
+   * Check if room has a Goose participant
+   */
+  private hasGooseParticipant(room: any): boolean {
+    return room.members.some((member: any) => {
+      const userId = (member.userId || '').toLowerCase();
+      const displayName = (member.displayName || '').toLowerCase();
+      
+      // Check for Goose-related user IDs or display names
+      const gooseIndicators = ['goose', 'bot', 'ai', 'assistant'];
+      return gooseIndicators.some(indicator => 
+        userId.includes(indicator) || displayName.includes(indicator)
+      );
+    });
+  }
+
+  /**
+   * Check if room was created via invitation/sharing
+   */
+  private wasCreatedViaInvite(room: any): boolean {
+    // This is a heuristic - in a full implementation, you'd check the room's creation events
+    // For now, we assume rooms with explicit names and multiple participants were created intentionally
+    const hasExplicitName = room.name && room.name.trim() !== '';
+    const hasMultipleParticipants = room.members.length > 2;
+    
+    // Check if current user was invited (not the creator)
+    const currentUserId = matrixService.getCurrentUser()?.userId;
+    const currentUserMember = room.members.find((m: any) => m.userId === currentUserId);
+    
+    // If we can't determine membership details, assume it was via invite if it has a name
+    return hasExplicitName && hasMultipleParticipants;
+  }
+
+  /**
+   * Determine collaboration level
+   */
+  private getCollaborationLevel(room: any): 'light' | 'medium' | 'intensive' {
+    const participantCount = room.members.length;
+    const hasGoose = this.hasGooseParticipant(room);
+    
+    if (participantCount >= 5 || hasGoose) {
+      return 'intensive'; // Large groups or AI-assisted
+    } else if (participantCount >= 3) {
+      return 'medium'; // Small groups
+    } else {
+      return 'light'; // Minimal collaboration
+    }
+  }
+
+  /**
+   * Detect workflow type based on room and message history
+   */
+  private detectWorkflowType(room: any, history: any[]): 'brainstorming' | 'project_work' | 'code_review' | 'general' {
+    const roomName = (room.name || '').toLowerCase();
+    const hasGoose = this.hasGooseParticipant(room);
+    
+    // Analyze room name for workflow indicators
+    if (roomName.includes('brainstorm') || roomName.includes('idea')) {
+      return 'brainstorming';
+    }
+    
+    if (roomName.includes('project') || roomName.includes('work') || roomName.includes('task')) {
+      return 'project_work';
+    }
+    
+    if (roomName.includes('review') || roomName.includes('code') || hasGoose) {
+      return 'code_review';
+    }
+    
+    // Analyze message history for patterns (simplified)
+    const messageContent = history.map(msg => msg.content.toLowerCase()).join(' ');
+    
+    if (messageContent.includes('code') || messageContent.includes('function') || messageContent.includes('bug')) {
+      return 'code_review';
+    }
+    
+    if (messageContent.includes('project') || messageContent.includes('task') || messageContent.includes('deadline')) {
+      return 'project_work';
+    }
+    
+    if (messageContent.includes('idea') || messageContent.includes('think') || messageContent.includes('brainstorm')) {
+      return 'brainstorming';
+    }
+    
+    return 'general';
   }
 
   /**

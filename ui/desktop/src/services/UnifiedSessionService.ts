@@ -164,12 +164,13 @@ export class UnifiedSessionService {
   }
 
   /**
-   * Get session type for UI display purposes
+   * Get session type for UI display purposes (enhanced with collaborative detection)
    */
   public getSessionType(session: Session): 'regular' | 'matrix' | 'collaborative' {
     if (matrixSessionService.isMatrixSession(session.id)) {
-      const participantCount = session.extension_data?.matrix?.participantCount || 0;
-      return participantCount > 2 ? 'collaborative' : 'matrix';
+      // Use the enhanced collaborative session detection
+      const isCollaborative = session.extension_data?.matrix?.isCollaborativeSession || false;
+      return isCollaborative ? 'collaborative' : 'matrix';
     }
     return 'regular';
   }

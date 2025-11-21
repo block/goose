@@ -434,6 +434,79 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         }));
     }, [rooms, currentUser]);
 
+    // Helper function to get recent message participants from conversation
+    const getRecentMessageParticipants = useCallback((session: Session) => {
+      // TEMPORARILY DISABLED: Message participant display to debug cross-contamination issue
+      // The issue appears to be that Matrix sessions are sharing conversation data
+      // or there's cross-contamination in the MatrixSessionService
+      
+      console.log('🚫 Message participants temporarily disabled for debugging');
+      return [];
+      
+      // Only show message participants for Matrix sessions that have conversation data
+      // Regular sessions don't load conversation data in the list view for performance
+      const isMatrix = session.extension_data?.matrix?.roomId;
+      const matrixRoomId = session.extension_data?.matrix?.roomId;
+      
+      if (!isMatrix || !session.conversation || session.conversation.length === 0) {
+        return [];
+      }
+      
+      console.log('🔍 Processing conversation for Matrix session:', {
+        sessionId: session.id,
+        matrixRoomId,
+        hasConversation: !!session.conversation,
+        messageCount: session.conversation?.length || 0,
+        isMatrix,
+        firstFewMessages: session.conversation.slice(0, 3).map(m => ({
+          role: m.role,
+          contentPreview: m.content?.[0]?.type === 'text' ? m.content[0].text?.substring(0, 50) + '...' : 'non-text',
+          created: m.created
+        }))
+      });
+      
+      // CRITICAL: Verify this conversation actually belongs to this Matrix room
+      // Check if the session ID matches the Matrix room ID or if there's proper mapping
+      if (session.id !== matrixRoomId && !session.id.startsWith(matrixRoomId)) {
+        console.warn('🚨 Session ID mismatch with Matrix room ID:', {
+          sessionId: session.id,
+          matrixRoomId,
+          description: session.description
+        });
+        // For now, still process but log the mismatch
+      }
+      
+      // Get unique participants from the last 10 messages
+      const recentMessages = session.conversation.slice(-10);
+      const participantMap = new Map<string, { role: string; count: number; lastSeen: number }>();
+      
+      recentMessages.forEach((message, index) => {
+        if (message.role && message.role !== 'system') {
+          const existing = participantMap.get(message.role);
+          if (existing) {
+            existing.count += 1;
+            existing.lastSeen = index;
+          } else {
+            participantMap.set(message.role, { role: message.role, count: 1, lastSeen: index });
+          }
+        }
+      });
+      
+      // Sort by last seen (most recent first) and return formatted list
+      const participants = Array.from(participantMap.entries())
+        .sort(([, a], [, b]) => b.lastSeen - a.lastSeen)
+        .map(([role, data]) => ({
+          role,
+          count: data.count,
+          displayName: role === 'user' ? 'You' : role === 'assistant' ? 'Goose' : role,
+          isUser: role === 'user',
+          isAssistant: role === 'assistant',
+        }));
+      
+      console.log('🔍 Found participants for session:', session.id, participants);
+      return participants;
+    }, []);
+
     // Component to display participant avatars
     const ParticipantAvatars = React.memo(({ session }: { session: Session }) => {
       const participants = getParticipantDetails(session);
@@ -484,6 +557,43 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     });
 
     ParticipantAvatars.displayName = 'ParticipantAvatars';
+
+    // Component to display recent message participants with role indicators
+    const RecentMessageParticipants = React.memo(({ session }: { session: Session }) => {
+      const participants = getRecentMessageParticipants(session);
+      
+      if (participants.length === 0) return null;
+      
+      return (
+        <div className="flex items-center gap-1 text-xs">
+          {participants.slice(0, 3).map((participant, index) => (
+            <div
+              key={participant.role}
+              className={`flex items-center gap-1 px-2 py-1 rounded-full ${
+                participant.isUser
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  : participant.isAssistant
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+              }`}
+              title={`${participant.displayName}: ${participant.count} message${participant.count > 1 ? 's' : ''}`}
+            >
+              <span className="font-medium">{participant.displayName}</span>
+              {participant.count > 1 && (
+                <span className="text-xs opacity-75">×{participant.count}</span>
+              )}
+            </div>
+          ))}
+          {participants.length > 3 && (
+            <div className="text-xs text-text-muted">
+              +{participants.length - 3} more
+            </div>
+          )}
+        </div>
+      );
+    });
+
+    RecentMessageParticipants.displayName = 'RecentMessageParticipants';
 
     const SessionItem = React.memo(function SessionItem({
       session,
@@ -550,9 +660,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const isMatrixDM = isMatrix && session.extension_data?.matrix?.isDirectMessage;
       const isCollaborative = displayInfo.type === 'collaborative';
 
-      // All sessions use the same neutral styling
-      const borderStyle = '';
-      const bgStyle = '';
+      // Enhanced styling for collaborative sessions
+      const borderStyle = isCollaborative 
+        ? 'border-l-4 border-l-purple-500 dark:border-l-purple-400' 
+        : '';
+      const bgStyle = isCollaborative 
+        ? 'bg-gradient-to-r from-purple-50/50 to-transparent dark:from-purple-900/20 dark:to-transparent' 
+        : '';
 
       return (
         <Card
@@ -612,6 +726,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <h3 className="text-base break-words flex-1">
                 {session.description || session.id}
               </h3>
+              {/* Collaborative session badge */}
+              {isCollaborative && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                  <Users className="w-3 h-3" />
+                  <span>Collaborative</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center text-text-muted text-xs mb-1">
@@ -628,6 +749,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <span className="truncate">{displayInfo.participants.length} participants</span>
               </div>
             )}
+            
+            {/* Show recent message participants for all sessions */}
+            <div className="mb-1">
+              <RecentMessageParticipants session={session} />
+            </div>
           </div>
 
           <div className="flex items-center justify-between mt-1 pt-2">

@@ -359,64 +359,57 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // HYBRID APPROACH: Matrix detection based on tab properties, not sessionId format
+  // BACKEND-CENTRIC APPROACH: Matrix detection based on tab properties AND backend state
   const tabContext = useTabContext();
   
   // Get Matrix room info from TabContext (primary source)
   let tabMatrixRoomId = null;
   let tabMatrixRecipientId = null;
+  let isExplicitMatrixTab = false;
+  
   if (tabContext) {
     try {
       const activeTabState = tabContext.getActiveTabState();
       if (activeTabState?.tab.type === 'matrix') {
         tabMatrixRoomId = activeTabState.tab.matrixRoomId || null;
         tabMatrixRecipientId = activeTabState.tab.matrixRecipientId || null;
+        isExplicitMatrixTab = true;
       }
     } catch (error) {
       console.debug('TabContext not available for Matrix detection');
     }
   }
   
-  // Fallback: Check if this session is mapped from a Matrix room (for legacy support)
-  const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
+  // STRICT TAB-CENTRIC Matrix detection: ONLY rely on tab context, not backend mapping
+  const isNewSession = sessionId?.startsWith('new_') || false;
+  const hasTabMatrixRoom = !!(tabMatrixRoomId && tabMatrixRoomId.startsWith('!'));
   
-  // CRITICAL: Matrix detection is now based on tab properties, not sessionId format
-  // The sessionId is always a real backend session ID in the hybrid approach
-  const isMatrixRoom = !!(
-    tabMatrixRoomId ||  // Primary: tab has Matrix properties
-    (sessionId && sessionId.startsWith('!')) ||  // Legacy: direct Matrix room ID
-    matrixRoomId  // Fallback: session mapping service
-  );
+  // Matrix room detection: ONLY explicit Matrix tab properties (no backend fallback)
+  const isMatrixRoom = isExplicitMatrixTab && hasTabMatrixRoom;
   
-  // Get the actual Matrix room ID for useSessionSharing - prioritize TabContext
+  // Get the actual Matrix room ID for useSessionSharing - ONLY for explicit Matrix tabs
   let actualMatrixRoomId = null;
-  if (tabMatrixRoomId) {
-    // From active tab context (most reliable in hybrid approach)
+  if (isExplicitMatrixTab && tabMatrixRoomId) {
+    // CRITICAL: Only set Matrix room ID if this is explicitly a Matrix tab
+    // This prevents solo tabs from accidentally getting Matrix room IDs
     actualMatrixRoomId = tabMatrixRoomId;
-  } else if (sessionId && sessionId.startsWith('!')) {
-    // Legacy: Direct Matrix room ID (should be rare in hybrid approach)
-    actualMatrixRoomId = sessionId;
-  } else if (matrixRoomId) {
-    // From session mapping service (fallback)
-    actualMatrixRoomId = matrixRoomId;
   }
   
-  console.log('🔍 ChatInput Matrix room detection (HYBRID):', {
+  console.log('🔍 ChatInput Matrix room detection (STRICT TAB-CENTRIC):', {
     sessionId,
+    isNewSession,
     tabMatrixRoomId,
     tabMatrixRecipientId,
-    matrixRoomId,
+    isExplicitMatrixTab,
+    hasTabMatrixRoom,
     isMatrixRoom,
     actualMatrixRoomId,
-    sessionIdStartsWithExclamation: sessionId?.startsWith('!'),
     tabContextAvailable: !!tabContext,
-    detectionMethod: tabMatrixRoomId ? 'TabContext-Primary' : 
-                    (sessionId?.startsWith('!') ? 'Legacy-DirectRoomId' :
-                    matrixRoomId ? 'SessionMapping-Fallback' : 'None'),
+    detectionMethod: isMatrixRoom ? 'TabContext-Explicit-Only' : 'None',
     // Additional debugging for useSessionSharing
     willPassToUseSessionSharing: {
       sessionId: sessionId, // Always use actual backend session ID
-      initialRoomId: actualMatrixRoomId, // Matrix room ID for Matrix operations
+      initialRoomId: actualMatrixRoomId, // Matrix room ID for Matrix operations (only from tab)
       isMatrixMode: isMatrixRoom
     }
   });
@@ -430,16 +423,18 @@ export default function ChatInput({
     timestamp: new Date().toISOString()
   });
   
-  // Get Matrix context for current user information
-  const { currentUser } = useMatrix();
+  // Get Matrix context for current user information and sending functionality
+  const { currentUser, sendMessage } = useMatrix();
   
   // Session sharing hook - HYBRID: always use backend session ID, pass Matrix room ID separately
   const sessionSharing = useSessionSharing({
     sessionId: sessionId, // Always use actual backend session ID for API calls
     sessionTitle: isMatrixRoom && actualMatrixRoomId ? `Matrix Room ${actualMatrixRoomId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
     messages: messages, // Always sync messages
-    onMessageSync: (message) => {
-      console.log('💬 ChatInput: *** RECEIVED MESSAGE FROM useSessionSharing ***', message);
+    // CRITICAL FIX: Only provide onMessageSync callback for Matrix tabs
+    // This prevents non-Matrix tabs from receiving Matrix messages through the append function
+    onMessageSync: isMatrixRoom && actualMatrixRoomId ? (message) => {
+      console.log('💬 ChatInput: *** RECEIVED MESSAGE FROM useSessionSharing (MATRIX TAB ONLY) ***', message);
       console.log('💬 ChatInput: Message details:', {
         id: message.id,
         role: message.role,
@@ -453,16 +448,14 @@ export default function ChatInput({
         timestamp: new Date().toISOString()
       });
       
-      // For Matrix rooms, messages from Matrix should appear normally
-      // For regular sessions, messages should also appear normally
-      // The key is that useSessionSharing handles both cases the same way
+      // Only Matrix tabs should receive Matrix messages through onMessageSync
       if (append) {
-        console.log('💬 ChatInput: *** CALLING APPEND FUNCTION WITH MESSAGE ***');
+        console.log('💬 ChatInput: *** CALLING APPEND FUNCTION WITH MESSAGE (MATRIX TAB) ***');
         console.log('💬 ChatInput: *** MESSAGE BEING SENT TO APPEND ***:', JSON.stringify(message, null, 2));
         try {
           const result = append(message);
           console.log('💬 ChatInput: *** APPEND FUNCTION RETURNED ***:', result);
-          console.log('💬 ChatInput: *** APPEND SUCCESSFUL - MESSAGE SHOULD APPEAR IN CHAT ***');
+          console.log('💬 ChatInput: *** APPEND SUCCESSFUL - MESSAGE SHOULD APPEAR IN MATRIX TAB ***');
           
           // Also dispatch a custom event to verify message was processed
           window.dispatchEvent(new CustomEvent('matrix-message-received', {
@@ -475,7 +468,7 @@ export default function ChatInput({
       } else {
         console.warn('⚠️ ChatInput: *** APPEND FUNCTION IS NOT AVAILABLE! ***');
       }
-    },
+    } : undefined, // Non-Matrix tabs get undefined, so they won't receive Matrix messages
     initialRoomId: actualMatrixRoomId, // FIXED: Always pass Matrix room ID if available, regardless of isMatrixRoom flag
     onParticipantJoin: (participant) => {
       console.log('👥 Participant joined session:', participant);
@@ -490,7 +483,9 @@ export default function ChatInput({
   // Updated: Fixed all commandHistory.length accesses with safeCommandHistory
   // Final fix: All .length accesses now properly null-checked
   useEffect(() => {
-    if (!sessionSharing.isSessionActive || !messages || !Array.isArray(messages) || messages.length === 0) return;
+    // CRITICAL: Only sync AI responses for non-Matrix rooms
+    // Matrix rooms handle AI responses directly through Matrix, not through sync
+    if (!sessionSharing.isSessionActive || isMatrixRoom || !messages || !Array.isArray(messages) || messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
     
@@ -500,8 +495,10 @@ export default function ChatInput({
         lastMessage.role === 'assistant' && 
         !lastMessage.id?.startsWith('shared-') && 
         !lastMessage.id?.startsWith('matrix-') &&
-        !lastMessage.sender) { // Messages from Matrix have sender info, local AI responses don't
-      console.log('🤖 Syncing AI response to session:', lastMessage);
+        !lastMessage.sender && // Messages from Matrix have sender info, local AI responses don't
+        !lastMessage.metadata?.isFromMatrix && // Additional check for Matrix-originated messages
+        !lastMessage.metadata?.isFromCollaborator) { // Additional check for collaborator messages
+      console.log('🤖 Syncing AI response to collaborative session (non-Matrix):', lastMessage);
       
       // Extract text content from the message - with robust null checking
       let textContent = '';
@@ -523,7 +520,7 @@ export default function ChatInput({
         });
       }
     }
-  }, [messages, sessionSharing]);
+  }, [messages, sessionSharing, isMatrixRoom]);
 
 
 
@@ -1358,7 +1355,7 @@ export default function ChatInput({
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
 
   const performSubmit = useCallback(
-    (text?: string) => {
+    async (text?: string) => {
       const validPastedImageFilesPaths = pastedImages
         .filter((img) => img.filePath && !img.error && !img.isLoading)
         .map((img) => img.filePath as string);
@@ -1383,15 +1380,28 @@ export default function ChatInput({
           LocalMessageStorage.addMessage(allFilePaths.join(' '));
         }
 
-        // Sync message with session participants if session is active
-        if (sessionSharing.isSessionActive) {
-          console.log('🔄 Syncing user message to Matrix:', textToSend);
+        // CRITICAL: Handle message sending based on room type
+        if (sessionSharing.isSessionActive && !isMatrixRoom) {
+          // Non-Matrix collaborative sessions: sync through sessionSharing
+          console.log('🔄 Syncing user message to collaborative session (non-Matrix):', textToSend);
           sessionSharing.syncMessage({
             id: Date.now().toString(),
             role: 'user',
             content: textToSend,
             timestamp: new Date().toISOString(),
           });
+        } else if (isMatrixRoom && actualMatrixRoomId && sendMessage) {
+          // Matrix rooms: send directly to Matrix
+          console.log('📤 Sending message to Matrix room:', actualMatrixRoomId);
+          try {
+            await sendMessage(actualMatrixRoomId, textToSend);
+            console.log('✅ Successfully sent message to Matrix room');
+          } catch (error) {
+            console.error('❌ Failed to send message to Matrix room:', error);
+            // Still proceed with the normal handleSubmit to show the message locally
+          }
+        } else if (isMatrixRoom) {
+          console.log('⚠️ Matrix room detected but missing actualMatrixRoomId or sendMessage function');
         }
 
         handleSubmit(
@@ -1447,6 +1457,9 @@ export default function ChatInput({
       pastedImages,
       sessionSharing,
       setLocalDroppedFiles,
+      isMatrixRoom,
+      actualMatrixRoomId,
+      sendMessage,
     ]
   );
 

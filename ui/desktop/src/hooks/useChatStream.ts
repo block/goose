@@ -106,6 +106,7 @@ interface UseChatStreamProps {
   onStreamFinish: () => void;
   initialMessage?: string;
   onSessionIdChange?: (newSessionId: string) => void;
+  isMatrixTab?: boolean; // Flag to indicate if this is a Matrix tab that should listen for Matrix messages
 }
 
 interface UseChatStreamReturn {
@@ -272,6 +273,7 @@ export function useChatStream({
   onStreamFinish,
   initialMessage,
   onSessionIdChange,
+  isMatrixTab = false,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -326,10 +328,15 @@ export function useChatStream({
     if (!sessionId) return;
 
     // Reset state when sessionId changes
-    log.session('loading', sessionId);
+    log.session('loading', sessionId, {
+      previousSessionId: session?.id,
+      currentMessagesCount: messages.length,
+      willReset: true
+    });
     setMessagesAndLog([], 'session-reset');
     setSession(undefined);
     setSessionLoadError(undefined);
+    setChatState(ChatState.Idle);
 
     // Check if this is a cached session first
     const cached = resultsCache.get(sessionId);
@@ -672,22 +679,56 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
-  // Listen for Matrix messages from BaseChat2's append function
+  // Listen for Matrix messages from BaseChat2's append function - ONLY FOR MATRIX TABS
   useEffect(() => {
+    // CRITICAL SECURITY: Only Matrix tabs should listen for Matrix messages
+    // This prevents Matrix messages from appearing in non-Matrix tabs
+    if (!isMatrixTab) {
+      console.log('🚫 useChatStream: Not a Matrix tab, skipping Matrix message listener setup:', {
+        sessionId: sessionId.substring(0, 8),
+        isMatrixTab
+      });
+      return;
+    }
+
+    console.log('✅ useChatStream: Setting up Matrix message listener for Matrix tab:', {
+      sessionId: sessionId.substring(0, 8),
+      isMatrixTab
+    });
+
     const handleMatrixMessage = (event: CustomEvent) => {
-      const { message } = event.detail;
-      console.log('🔄 useChatStream received matrix-message-received event:', {
+      const { message, targetSessionId, timestamp } = event.detail;
+      
+      // CRITICAL: Only process messages intended for THIS specific session
+      if (targetSessionId !== sessionId) {
+        console.log('🚫 useChatStream ignoring matrix message for different session:', {
+          eventTargetSessionId: targetSessionId?.substring(0, 8),
+          thisSessionId: sessionId.substring(0, 8),
+          messageId: message.id,
+          sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+        });
+        return;
+      }
+      
+      console.log('✅ useChatStream received SESSION-SPECIFIC matrix-message-received event (MATRIX TAB ONLY):', {
+        sessionId: sessionId.substring(0, 8),
         messageId: message.id,
         role: message.role,
         sender: message.sender?.displayName || message.sender?.userId || 'unknown',
-        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A'
+        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+        timestamp,
+        isMatrixTab
       });
       
       // Add the Matrix message to our current messages
       const currentMessages = [...messagesRef.current, message];
       setMessagesAndLog(currentMessages, 'matrix-message-added');
       
-      console.log('🔄 Matrix message added to stream, total messages:', currentMessages.length);
+      console.log('✅ Matrix message added to stream for Matrix tab:', {
+        sessionId: sessionId.substring(0, 8),
+        totalMessages: currentMessages.length,
+        messageId: message.id
+      });
     };
 
     // Type assertion to handle the mismatch between CustomEvent and EventListener
@@ -696,21 +737,35 @@ export function useChatStream({
 
     return () => {
       window.removeEventListener('matrix-message-received', eventListener);
+      console.log('🧹 useChatStream: Cleaned up Matrix message listener for Matrix tab:', {
+        sessionId: sessionId.substring(0, 8),
+        isMatrixTab
+      });
     };
-  }, [setMessagesAndLog]);
+  }, [setMessagesAndLog, sessionId, isMatrixTab]); // IMPORTANT: Include isMatrixTab in dependencies
 
   const cached = resultsCache.get(sessionId);
   
-  // Always prefer the current messages if we have them, otherwise fall back to cache
-  const finalMessages = messages.length > 0 ? messages : (cached?.messages || []);
-  const finalSession = session ?? cached?.session;
+  // CRITICAL FIX: Only use cache if it's for the EXACT same session ID
+  // and we don't have current messages loaded yet
+  const shouldUseCachedMessages = cached && 
+    cached.session.id === sessionId && 
+    messages.length === 0 && 
+    !session;
+    
+  const finalMessages = shouldUseCachedMessages ? cached.messages : messages;
+  const finalSession = session ?? (shouldUseCachedMessages ? cached.session : undefined);
 
   console.log('>> returning', sessionId, Date.now(), {
     messagesLength: finalMessages.length,
     hasSession: !!finalSession,
     chatState,
     cached: !!cached,
-    cachedMessageCount: cached?.messages?.length || 0
+    cachedMessageCount: cached?.messages?.length || 0,
+    shouldUseCachedMessages,
+    sessionMatch: cached?.session.id === sessionId,
+    currentSessionId: session?.id,
+    cachedSessionId: cached?.session.id
   });
 
   return {

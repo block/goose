@@ -112,6 +112,7 @@ function BaseChatContent({
     onStreamFinish,
     initialMessage,
     onSessionIdChange,
+    isMatrixTab: !!matrixRoomId, // Pass Matrix tab flag based on whether we have a matrixRoomId
   });
 
   // Create append function for adding messages programmatically
@@ -123,22 +124,31 @@ function BaseChatContent({
       // Handle Message object input (for Matrix integration)
       const message = textOrMessage;
       console.log('📥 BaseChat2 append called with Message object:', {
+        sessionId: sessionId.substring(0, 8),
         id: message.id,
         role: message.role,
         content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
         sender: message.sender?.displayName || message.sender?.userId || 'unknown'
       });
       
-      // For Matrix messages, we dispatch a custom event that useChatStream can listen to
-      // This allows Matrix messages to be integrated into the message stream
+      // FIXED: Make Matrix message events SESSION-SPECIFIC to prevent cross-tab contamination
+      // Include sessionId in the event detail so only the correct useChatStream instance processes it
       const messageEvent = new CustomEvent('matrix-message-received', {
-        detail: { message }
+        detail: { 
+          message,
+          targetSessionId: sessionId, // CRITICAL: Only this session should process this message
+          timestamp: new Date().toISOString()
+        }
       });
       window.dispatchEvent(messageEvent);
       
-      console.log('📥 BaseChat2 dispatched matrix-message-received event for message:', message.id);
+      console.log('📥 BaseChat2 dispatched SESSION-SPECIFIC matrix-message-received event:', {
+        messageId: message.id,
+        targetSessionId: sessionId.substring(0, 8),
+        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+      });
     }
-  }, [streamHandleSubmit]);
+  }, [streamHandleSubmit, sessionId]);
 
   // Create simple command history from messages
   const commandHistory = useMemo(() => {
@@ -265,7 +275,8 @@ function BaseChatContent({
 
   // Debug logging for empty state
   console.log('BaseChat2 render state:', {
-    sessionId: sessionId.slice(0, 8),
+    sessionId: sessionId, // Show full session ID for debugging
+    sessionIdShort: sessionId.slice(0, 8), // Also show truncated for readability
     messagesLength: messages.length,
     chatState,
     shouldShowPopularTopics,

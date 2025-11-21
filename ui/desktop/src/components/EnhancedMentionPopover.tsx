@@ -244,18 +244,19 @@ const EnhancedMentionPopover = forwardRef<
 
   if (!isOpen) return null;
 
-  // Try to render in the dedicated popover zone, fallback to document.body
-  const popoverZone = document.getElementById('mention-popover-zone');
-  const renderTarget = popoverZone || document.body;
+  // Always render to document.body for reliable positioning
+  const renderTarget = document.body;
 
   const popoverContent = (
     <div
       ref={popoverRef}
-      className="absolute z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md pointer-events-auto"
+      className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-80 max-w-md pointer-events-auto"
       style={{
         left: '50%',
-        bottom: '8px', // Position near the bottom of the popover zone, close to chat
-        transform: 'translateX(-50%)', // Only center horizontally
+        bottom: '120px', // Position above the chat input with enough space
+        transform: 'translateX(-50%)', // Center horizontally
+        maxHeight: '300px',
+        overflowY: 'auto',
       }}
     >
       <div className="p-3">

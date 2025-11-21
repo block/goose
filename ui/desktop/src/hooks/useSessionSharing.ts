@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMatrix } from '../contexts/MatrixContext';
 import { MatrixUser } from '../services/MatrixService';
 import { Message } from '../types/message';
+import { useTabContext } from '../contexts/TabContext';
+import { matrixRealtimeSync } from '../services/MatrixRealtimeSync';
 
 // Force rebuild timestamp: 2025-01-15T01:00:00Z - Fixed friends.length and useEffect dependency array
 
@@ -120,6 +122,23 @@ export const useSessionSharing = ({
   // Track processed messages to prevent duplicates - ALWAYS call this hook
   const processedMessages = useRef<Set<string>>(new Set());
 
+  // Define targetRoomId and hasExplicitMatrixRoomId based on current state
+  // CRITICAL: Always prioritize initialRoomId over state.roomId to ensure consistency
+  const targetRoomId = initialRoomId || state.roomId;
+  const hasExplicitMatrixRoomId = !!initialRoomId;
+
+  // Debug logging for targetRoomId calculation
+  useEffect(() => {
+    console.log('🎯 useSessionSharing: targetRoomId calculation:', {
+      sessionId,
+      initialRoomId,
+      stateRoomId: state.roomId,
+      targetRoomId,
+      hasExplicitMatrixRoomId,
+      isMatrixRoom
+    });
+  }, [sessionId, initialRoomId, state.roomId, targetRoomId, hasExplicitMatrixRoomId, isMatrixRoom]);
+
   // Helper function to create a deduplication key based on content and timestamp
   const createMessageKey = (content: string, sender: string, timestamp?: number) => {
     const time = timestamp || Date.now();
@@ -129,58 +148,92 @@ export const useSessionSharing = ({
     return `${sender}-${roundedTime}-${content.substring(0, 50)}`;
   };
 
-  // Listen for session-related Matrix messages
+  // Global registry to ensure only ONE tab per Matrix room has active listeners
+  // This prevents message leaking between tabs for the same Matrix room
+  const globalMatrixListenerRegistry = useRef<Map<string, string>>(
+    (window as any).__gooseMatrixListenerRegistry || new Map()
+  );
+  
+  // Store the registry globally so it persists across component instances
+  useEffect(() => {
+    (window as any).__gooseMatrixListenerRegistry = globalMatrixListenerRegistry.current;
+  }, []);
+
+  // Start/stop Matrix real-time sync service
   useEffect(() => {
     if (!isConnected) {
-      console.log('🔌 useSessionSharing: Not connected, skipping listener setup');
+      console.log('🔌 useSessionSharing: Not connected, skipping Matrix sync setup');
       return;
     }
 
-    // CRITICAL FIX: Only set up Matrix listeners if this session actually has a Matrix room
-    // This prevents Matrix messages from leaking into regular chats
-    // Check both current state and initialRoomId parameter
-    const currentRoomId = stateRef.current.roomId;
-    const hasMatrixRoom = !!(currentRoomId || initialRoomId);
-    
-    console.log('🔍 useSessionSharing: Matrix listener setup check:', {
-      sessionId,
-      currentRoomId,
-      initialRoomId,
-      hasMatrixRoom,
-      stateIsShared: stateRef.current.isShared,
-      willSetupListeners: hasMatrixRoom
-    });
-    
-    if (!hasMatrixRoom) {
-      console.log('🚫 useSessionSharing: No Matrix room ID - skipping Matrix listener setup for regular chat session:', sessionId);
+    // Start the Matrix real-time sync service when Matrix is connected
+    // This service will handle syncing ALL Matrix messages to their corresponding backend sessions
+    console.log('🚀 useSessionSharing: Starting Matrix real-time sync service');
+    matrixRealtimeSync.start();
+
+    return () => {
+      // Note: We don't stop the service here because it should run globally
+      // The service handles all Matrix rooms, not just this specific session
+      console.log('🔧 useSessionSharing: Matrix sync service continues running globally');
+    };
+  }, [isConnected]);
+
+  // Listen for session-related Matrix messages (invitations, joins, etc.)
+  useEffect(() => {
+    if (!isConnected) {
+      console.log('🔌 useSessionSharing: Not connected, skipping session message listeners');
       return;
     }
 
-    console.log('🔧 useSessionSharing: Setting up Matrix message listeners for session:', sessionId);
-    console.log('🔧 useSessionSharing: Current state when setting up listeners:', {
-      sessionId,
-      roomId: stateRef.current.roomId,
-      isShared: stateRef.current.isShared,
-      participantsCount: stateRef.current.participants.length,
-      onMessageSyncAvailable: !!onMessageSync
-    });
-    
-    // Debug: Test the onMessageSync callback immediately
-    if (onMessageSync) {
-      console.log('🔧 useSessionSharing: Testing onMessageSync callback...');
-      // Don't actually call it, just confirm it exists
-      console.log('🔧 useSessionSharing: onMessageSync callback is available and callable');
-    } else {
-      console.warn('⚠️ useSessionSharing: onMessageSync callback is NOT available!');
+    // Check if required Matrix functions are available
+    if (!onMessage || !onSessionMessage) {
+      console.log('🔌 useSessionSharing: Matrix functions not available, skipping session message listeners', {
+        hasOnMessage: !!onMessage,
+        hasOnSessionMessage: !!onSessionMessage
+      });
+      return;
     }
 
+    // CRITICAL: Only Matrix tabs should handle Matrix messages for a specific room
+    // Non-Matrix tabs should NEVER claim ownership of Matrix rooms
+    if (!targetRoomId) {
+      console.log('🚫 useSessionSharing: No targetRoomId, this is not a Matrix tab, skipping Matrix listeners:', {
+        sessionId,
+        initialRoomId,
+        hasExplicitMatrixRoomId
+      });
+      return;
+    }
+
+    // Check if another tab is already handling this Matrix room
+    if (globalMatrixListenerRegistry.current.has(targetRoomId)) {
+      const existingOwner = globalMatrixListenerRegistry.current.get(targetRoomId);
+      if (existingOwner !== sessionId) {
+        console.log('🚫 useSessionSharing: Another tab already handles this Matrix room, skipping listeners:', {
+          roomId: targetRoomId,
+          existingOwner,
+          thisSessionId: sessionId,
+          registrySize: globalMatrixListenerRegistry.current.size
+        });
+        return;
+      }
+    }
+
+    // CLAIM OWNERSHIP of this Matrix room (only Matrix tabs should reach this point)
+    globalMatrixListenerRegistry.current.set(targetRoomId, sessionId);
+    console.log('🔒 useSessionSharing: CLAIMED Matrix room ownership:', {
+      roomId: targetRoomId,
+      owner: sessionId,
+      hasExplicitMatrixRoomId,
+      registrySize: globalMatrixListenerRegistry.current.size
+    });
+
+    console.log('🔧 useSessionSharing: Setting up session management listeners for session:', sessionId);
+
+    // Only handle session management messages (invitations, joins)
+    // Regular Matrix messages are now handled by MatrixRealtimeSync service
     const handleSessionMessage = (data: any) => {
       const { content, sender, roomId, senderInfo } = data;
-      
-      // Only log session messages that aren't the repetitive goose-session-message ones
-      if (!content.includes('goose-session-message:')) {
-        console.log('📨 Received session message:', { content: content?.substring(0, 50) + '...', sender, roomId });
-      }
       
       // Handle session invitation messages
       if (content.includes('goose-session-invite:')) {
@@ -231,130 +284,8 @@ export const useSessionSharing = ({
         }
       }
       
-      // Handle session messages (AI prompts/responses)
-      if (content.includes('goose-session-message:')) {
-        try {
-          const messageData = JSON.parse(content.split('goose-session-message:')[1]);
-          
-          // In Matrix collaboration, we want to process session messages from the current room only
-          // We check both session ID match AND room ID match to avoid cross-contamination
-          const isMatrixRoom = sessionId && sessionId.startsWith('!'); // Matrix room IDs start with !
-          const isFromCurrentRoom = !roomId || roomId === sessionId; // Either no roomId filter or matches current room
-          const isSessionMatch = messageData.sessionId === sessionId;
-          
-          // For Matrix rooms, prioritize room ID matching over session ID matching
-          // This handles cases where messages have regular session IDs but are sent in Matrix rooms
-          const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : (isSessionMatch || isFromCurrentRoom);
-          
-          console.log('🔍 Session message processing check:', {
-            messageSessionId: messageData.sessionId,
-            currentSessionId: sessionId,
-            messageRoomId: roomId,
-            isMatrixRoom,
-            isFromCurrentRoom,
-            isSessionMatch,
-            shouldProcessMessage,
-            sender,
-            messageRole: messageData.role,
-            messageContent: messageData.content?.substring(0, 50) + '...'
-          });
-          
-          if (shouldProcessMessage) {
-            // Get sender information for proper attribution
-            let senderData = senderInfo;
-            if (!senderData && sender) {
-              // Try to find sender in friends list
-              const friend = friendsRef.current.find(f => f.userId === sender);
-              if (friend) {
-                senderData = {
-                  userId: friend.userId,
-                  displayName: friend.displayName,
-                  avatarUrl: friend.avatarUrl,
-                };
-              } else {
-                // Fallback to basic sender info from Matrix ID
-                senderData = {
-                  userId: sender,
-                  displayName: sender.split(':')[0].substring(1), // Extract username from Matrix ID
-                };
-              }
-            }
-            
-            // Enhanced role detection for session messages
-            let finalRole = messageData.role as 'user' | 'assistant';
-            
-            // If the role is 'assistant', double-check that it's actually from a Goose instance
-            if (finalRole === 'assistant') {
-              const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
-                                senderData?.userId?.toLowerCase().includes('goose') ||
-                                messageData.content?.includes('🦆') ||
-                                messageData.content?.includes('🤖');
-              
-              if (!isFromGoose) {
-                console.log('🔍 Role correction: Message marked as assistant but not from Goose, changing to user');
-                finalRole = 'user';
-              }
-            }
-            
-            // If the role is 'user' but content looks like a Goose response, correct it
-            if (finalRole === 'user') {
-              const looksLikeGooseResponse = messageData.content && (
-                messageData.content.includes('🦆') ||
-                messageData.content.includes('🤖') ||
-                messageData.content.startsWith('I\'m') ||
-                messageData.content.includes('I can help') ||
-                messageData.content.includes('Let me') ||
-                (messageData.content.length > 100 && messageData.content.includes('\n\n')) ||
-                /```[\s\S]*```/.test(messageData.content) // Contains code blocks
-              );
-              
-              const isFromGoose = senderData?.displayName?.toLowerCase().includes('goose') ||
-                                senderData?.userId?.toLowerCase().includes('goose');
-              
-              if (looksLikeGooseResponse || isFromGoose) {
-                console.log('🔍 Role correction: Message marked as user but looks like Goose response, changing to assistant');
-                finalRole = 'assistant';
-              }
-            }
-            
-            // Convert to local message format with proper sender attribution
-            const message: Message = {
-              id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              role: finalRole,
-              created: Math.floor(Date.now() / 1000),
-              content: [{
-                type: 'text',
-                text: messageData.content,
-              }],
-              sender: senderData, // Include sender information
-              metadata: {
-                originalRole: messageData.role,
-                correctedRole: finalRole,
-                isFromMatrix: true,
-                skipLocalResponse: true, // Prevent triggering local AI response
-                preventAutoResponse: true,
-                isFromCollaborator: true,
-                sessionMessageId: messageData.sessionId
-              }
-            };
-            
-            console.log('💬 Syncing session message to local session:', {
-              messageId: message.id,
-              originalRole: messageData.role,
-              finalRole: finalRole,
-              sender: senderData?.displayName || senderData?.userId,
-              content: messageData.content?.substring(0, 50) + '...'
-            });
-            
-            onMessageSync?.(message);
-          } else {
-            console.log('🚫 Skipping session message - not from current room/session');
-          }
-        } catch (error) {
-          console.error('Failed to parse session message:', error);
-          console.error('Raw content that failed to parse:', content);
-        }
-      }
+      // NOTE: Regular Matrix messages (goose-session-message:) are now handled by MatrixRealtimeSync
+      // which writes them directly to backend sessions, and the normal chat streaming displays them
     };
 
     // Also listen for regular messages that might contain session data
@@ -363,6 +294,24 @@ export const useSessionSharing = ({
       
       const currentState = stateRef.current;
       const currentUserFromRef = currentUserRef.current;
+      
+      // IMMEDIATE EARLY RETURN: If no room ID or doesn't match our target, exit immediately
+      if (!roomId || !targetRoomId || roomId !== targetRoomId) {
+        console.log('🚫 EARLY EXIT - handleRegularMessage: Room ID mismatch or missing', {
+          messageRoomId: roomId,
+          targetRoomId,
+          hasRoomId: !!roomId,
+          hasTargetRoomId: !!targetRoomId,
+          roomIdMatch: roomId === targetRoomId
+        });
+        return;
+      }
+      
+      // IMMEDIATE EARLY RETURN: If this is from ourselves, exit immediately
+      if (sender === currentUserFromRef?.userId) {
+        console.log('🚫 EARLY EXIT - handleRegularMessage: Message from self, ignoring');
+        return;
+      }
       
       // Simple deduplication: check if we've seen this exact message content at this time
       const messageKey = createMessageKey(content || '', sender, timestamp?.getTime?.());
@@ -378,12 +327,35 @@ export const useSessionSharing = ({
         sender, 
         roomId,
         currentRoomId: currentState.roomId,
+        targetRoomId,
         isFromSelf: sender === currentUserFromRef?.userId,
-        sessionId
+        sessionId,
+        roomIdMatch: roomId === currentState.roomId,
+        targetRoomIdMatch: roomId === targetRoomId
       });
       
-      // Only process messages from Matrix rooms that are part of our session
-      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
+      // ULTRA-STRICT FILTERING: Only process messages from the exact Matrix room this tab is listening to
+      // This prevents Matrix messages from leaking to other tabs
+      const isFromTargetRoom = roomId === targetRoomId;
+      const isFromCurrentStateRoom = currentState.roomId && roomId === currentState.roomId;
+      const isNotFromSelf = sender !== currentUserFromRef?.userId;
+      const hasValidRoomId = !!(roomId && targetRoomId && currentState.roomId);
+      const allRoomIdsMatch = roomId === targetRoomId && roomId === currentState.roomId;
+      
+      // CRITICAL: All conditions must be true AND we must have valid room IDs
+      const shouldProcessMessage = hasValidRoomId && allRoomIdsMatch && isNotFromSelf;
+      
+      console.log('🔍 Message filtering check:', {
+        roomId,
+        targetRoomId,
+        currentStateRoomId: currentState.roomId,
+        isFromTargetRoom,
+        isFromCurrentStateRoom,
+        isNotFromSelf,
+        shouldProcessMessage
+      });
+      
+      if (shouldProcessMessage) {
         console.log('💬 Processing message in session room:', { messageKey, content, sender, roomId, senderInfo });
         
         // Skip if this is a goose-session-message (should be handled by handleGooseSessionSync)
@@ -480,7 +452,9 @@ export const useSessionSharing = ({
         console.log('💬 Converting Goose message to local message and syncing:', message);
         console.log('🔍 onMessageSync callback available?', !!onMessageSync);
         
-        if (onMessageSync) {
+        // CRITICAL SAFETY CHECK: Only call onMessageSync if we have explicit Matrix room setup
+        if (onMessageSync && hasExplicitMatrixRoomId) {
+          console.log('✅ CALLING onMessageSync - Matrix room explicitly configured');
           console.log('📤 Calling onMessageSync with message:', {
             messageId: message.id,
             role: message.role,
@@ -489,7 +463,11 @@ export const useSessionSharing = ({
           });
           onMessageSync(message);
         } else {
-          console.warn('⚠️ onMessageSync callback is not available!');
+          console.log('🚫 BLOCKING onMessageSync - No explicit Matrix room configuration', {
+            hasOnMessageSync: !!onMessageSync,
+            hasExplicitMatrixRoomId: hasExplicitMatrixRoomId,
+            initialRoomId: initialRoomId
+          });
         }
       } else {
         console.log('🚫 Skipping message - not from current session room or from self');
@@ -509,22 +487,60 @@ export const useSessionSharing = ({
       const currentState = stateRef.current;
       const currentUserFromRef = currentUserRef.current;
       
+      // IMMEDIATE EARLY RETURN: If no room ID or doesn't match our target, exit immediately
+      if (!roomId || !targetRoomId || roomId !== targetRoomId) {
+        console.log('🚫 EARLY EXIT - handleGooseSessionSync: Room ID mismatch or missing', {
+          messageRoomId: roomId,
+          targetRoomId,
+          hasRoomId: !!roomId,
+          hasTargetRoomId: !!targetRoomId,
+          roomIdMatch: roomId === targetRoomId
+        });
+        return;
+      }
+      
+      // IMMEDIATE EARLY RETURN: If this is from ourselves, exit immediately
+      if (sender === currentUserFromRef?.userId) {
+        console.log('🚫 EARLY EXIT - handleGooseSessionSync: Message from self, ignoring');
+        return;
+      }
+      
       // Debug logging
       console.log('🔄 handleGooseSessionSync called:', { 
         content: content?.substring(0, 50) + '...', 
         sender, 
         roomId,
         currentRoomId: currentState.roomId,
+        targetRoomId,
         isFromSelf: sender === currentUserFromRef?.userId,
         sessionId,
         // Additional debugging
         hasCurrentRoomId: !!currentState.roomId,
         roomIdMatch: roomId === currentState.roomId,
-        shouldProcess: currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId
+        targetRoomIdMatch: roomId === targetRoomId
       });
       
-      // Only process messages from Matrix rooms that are part of our session and not from self
-      if (currentState.roomId && roomId === currentState.roomId && sender !== currentUserFromRef?.userId) {
+      // ULTRA-STRICT FILTERING: Apply the same filtering logic as handleRegularMessage
+      const isFromTargetRoom = roomId === targetRoomId;
+      const isFromCurrentStateRoom = currentState.roomId && roomId === currentState.roomId;
+      const isNotFromSelf = sender !== currentUserFromRef?.userId;
+      const hasValidRoomId = !!(roomId && targetRoomId && currentState.roomId);
+      const allRoomIdsMatch = roomId === targetRoomId && roomId === currentState.roomId;
+      
+      // CRITICAL: All conditions must be true AND we must have valid room IDs
+      const shouldProcessGooseSync = hasValidRoomId && allRoomIdsMatch && isNotFromSelf;
+      
+      console.log('🔄 GooseSessionSync filtering check:', {
+        roomId,
+        targetRoomId,
+        currentStateRoomId: currentState.roomId,
+        isFromTargetRoom,
+        isFromCurrentStateRoom,
+        isNotFromSelf,
+        shouldProcessGooseSync
+      });
+      
+      if (shouldProcessGooseSync) {
         console.log('🔄 Processing gooseSessionSync message in session room:', { content, sender, roomId, senderInfo });
         
         // If this is a goose-session-message, process it here since handleSessionMessage isn't being called
@@ -545,20 +561,25 @@ export const useSessionSharing = ({
             // Mark this message as processed
             processedMessages.current.add(messageKey);
             
-            // In Matrix collaboration, we want to process session messages from the current room only
+            // ULTRA-STRICT SESSION MESSAGE FILTERING: Only process if ALL room IDs match exactly
             const isMatrixRoom = sessionId && sessionId.startsWith('!');
-            const isFromCurrentRoom = !roomId || roomId === sessionId;
+            const hasValidSessionRoomId = !!(roomId && targetRoomId && currentState.roomId);
+            const allSessionRoomIdsMatch = roomId === targetRoomId && roomId === currentState.roomId;
             const isSessionMatch = messageData.sessionId === sessionId;
             
-            // For Matrix rooms, prioritize room ID matching over session ID matching
-            const shouldProcessMessage = isMatrixRoom ? isFromCurrentRoom : (isSessionMatch || isFromCurrentRoom);
+            // CRITICAL: For Matrix rooms, ALL room IDs must match exactly
+            // For regular sessions, session IDs must match AND room IDs must match
+            const shouldProcessMessage = hasValidSessionRoomId && allSessionRoomIdsMatch && (isMatrixRoom ? true : isSessionMatch);
             
             console.log('🔍 Session message processing check (gooseSessionSync):', {
               messageSessionId: messageData.sessionId,
               currentSessionId: sessionId,
               messageRoomId: roomId,
+              targetRoomId,
+              currentStateRoomId: currentState.roomId,
               isMatrixRoom,
-              isFromCurrentRoom,
+              hasValidSessionRoomId,
+              allSessionRoomIdsMatch,
               isSessionMatch,
               shouldProcessMessage,
               sender,
@@ -653,8 +674,17 @@ export const useSessionSharing = ({
                 content: messageData.content?.substring(0, 50) + '...'
               });
               
-              console.log('💬 *** CALLING onMessageSync FROM GOOSE SESSION SYNC ***');
-              onMessageSync?.(message);
+              // CRITICAL SAFETY CHECK: Only call onMessageSync if we have explicit Matrix room setup
+              if (onMessageSync && hasExplicitMatrixRoomId) {
+                console.log('✅ CALLING onMessageSync FROM GOOSE SESSION SYNC - Matrix room explicitly configured');
+                onMessageSync(message);
+              } else {
+                console.log('🚫 BLOCKING onMessageSync FROM GOOSE SESSION SYNC - No explicit Matrix room configuration', {
+                  hasOnMessageSync: !!onMessageSync,
+                  hasExplicitMatrixRoomId: hasExplicitMatrixRoomId,
+                  initialRoomId: initialRoomId
+                });
+              }
             } else {
               console.log('🚫 Skipping session message - not from current room/session (gooseSessionSync)');
             }
@@ -677,11 +707,22 @@ export const useSessionSharing = ({
     
     return () => {
       console.log('🔧 useSessionSharing: Cleaning up Matrix message listeners for session:', sessionId);
+      
+      // RELEASE OWNERSHIP of this Matrix room when cleaning up
+      if (targetRoomId && globalMatrixListenerRegistry.current.get(targetRoomId) === sessionId) {
+        globalMatrixListenerRegistry.current.delete(targetRoomId);
+        console.log('🔓 useSessionSharing: RELEASED Matrix room ownership:', {
+          roomId: targetRoomId,
+          previousOwner: sessionId,
+          registrySize: globalMatrixListenerRegistry.current.size
+        });
+      }
+      
       sessionCleanup();
       messageCleanup();
       gooseSessionCleanup();
     };
-  }, [isConnected, sessionId, currentUser?.userId || null, initialRoomId]);
+  }, [isConnected, sessionId, currentUser?.userId || null, initialRoomId, onMessage, onSessionMessage]);
   
   // Separate effect to log room ID changes without recreating listeners
   useEffect(() => {
@@ -695,6 +736,9 @@ export const useSessionSharing = ({
     });
   }, [state.roomId, state]);
 
+  // Get TabContext for morphing functionality
+  const tabContext = useTabContext();
+
   // Invite a friend to the current session
   const inviteToSession = useCallback(async (friendUserId: string) => {
     console.log('🚀 Starting invitation process for:', friendUserId);
@@ -702,6 +746,7 @@ export const useSessionSharing = ({
       isConnected, 
       currentUser: currentUser?.userId, 
       roomId: state.roomId,
+      sessionId,
       friends: friends?.length || 0 
     });
 
@@ -716,14 +761,18 @@ export const useSessionSharing = ({
       // Clear any previous errors
       setState(prev => ({ ...prev, error: null }));
 
-      // Create or get the Matrix room for this session if not exists
+      // BACKEND-CENTRIC APPROACH: Handle session morphing
       let roomId = state.roomId;
+      let needsTabMorphing = false;
+      
       if (!roomId) {
-        console.log('🏠 Creating new AI session room and inviting friend directly...');
-        // Create the session room and invite the friend immediately
-        roomId = await createAISession(`Shared Session: ${sessionTitle}`, [friendUserId]);
-        console.log('✅ Created session room with friend invited:', roomId);
+        console.log('🔄 No Matrix room exists - creating new Matrix room and morphing tab');
         
+        // Create the Matrix room and invite the friend
+        roomId = await createAISession(`Shared Session: ${sessionTitle}`, [friendUserId]);
+        console.log('✅ Created Matrix room with friend invited:', roomId);
+        
+        // Update local state first
         setState(prev => ({ 
           ...prev, 
           roomId,
@@ -734,14 +783,35 @@ export const useSessionSharing = ({
             joinedAt: new Date(),
           }],
         }));
+
+        // If we have TabContext and this is a regular session, morph it to Matrix
+        if (tabContext && sessionId && !sessionId.startsWith('!')) {
+          const activeTab = tabContext.getActiveTabState();
+          if (activeTab && activeTab.tab.sessionId === sessionId) {
+            console.log('🔄 Morphing current tab to Matrix session');
+            try {
+              const friendName = friendUserId.split(':')[0].substring(1);
+              await tabContext.morphTabToMatrix(
+                activeTab.tab.id, 
+                roomId, 
+                friendUserId, 
+                `Chat with ${friendName}`
+              );
+              console.log('✅ Successfully morphed tab to Matrix session');
+            } catch (morphError) {
+              console.error('❌ Failed to morph tab to Matrix:', morphError);
+              // Continue anyway - the Matrix room was created successfully
+            }
+          }
+        }
       } else {
-        console.log('🏠 Using existing room, inviting friend to session room:', roomId);
+        console.log('🏠 Using existing Matrix room, inviting friend:', roomId);
         // Invite the friend to the existing session room
         await inviteToRoom(roomId, friendUserId);
-        console.log('✅ Invited friend to existing session room');
+        console.log('✅ Invited friend to existing Matrix room');
       }
 
-      // Send a Goose collaboration invite instead of a simple welcome message
+      // Send a Goose collaboration invite
       console.log('📤 Sending Goose collaboration invite...');
       
       // Use the sendCollaborationInvite from the Matrix context
@@ -766,7 +836,7 @@ export const useSessionSharing = ({
         console.log('✅ Sent fallback welcome message');
       }
 
-      console.log(`✅ Successfully invited ${friendUserId} to session room and sent invite`);
+      console.log(`✅ Successfully invited ${friendUserId} to session and ${needsTabMorphing ? 'morphed tab to Matrix' : 'used existing Matrix room'}`);
       
       // Show success feedback
       setState(prev => ({ 
@@ -783,7 +853,7 @@ export const useSessionSharing = ({
       }));
       throw error;
     }
-  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, sendCollaborationInvite, friends?.length]);
+  }, [currentUser, isConnected, state.roomId, sessionId, sessionTitle, createAISession, sendMessage, inviteToRoom, sendCollaborationInvite, friends?.length, tabContext]);
 
   // Join a shared session
   const joinSession = useCallback(async (invitation: SessionInvitation) => {
@@ -845,17 +915,31 @@ export const useSessionSharing = ({
 
   // Sync a message to all session participants (debounced to prevent streaming spam)
   const syncMessage = useCallback(async (message: Message | { id: string; role: string; content: string; timestamp: string }) => {
-    if (!state.isShared || !state.roomId) return;
+    console.log('🔄 useSessionSharing.syncMessage called:', {
+      sessionId,
+      isShared: state.isShared,
+      roomId: state.roomId,
+      hasExplicitMatrixRoomId,
+      messageId: message.id,
+      messageRole: message.role
+    });
+
+    if (!state.isShared || !state.roomId) {
+      console.log('🚫 useSessionSharing.syncMessage: Not shared or no room ID, skipping sync');
+      return;
+    }
 
     try {
       let messageContent: string;
       let messageId: string;
+      let messageMetadata: any = null;
       
       // Handle both Message type and simple message object
       if ('content' in message && Array.isArray(message.content)) {
         // Standard Message type
         messageContent = message.content.map(c => c.type === 'text' ? c.text : '').join('');
         messageId = message.id;
+        messageMetadata = (message as Message).metadata;
       } else if ('content' in message && typeof message.content === 'string') {
         // Simple message object from ChatInput
         messageContent = message.content;
@@ -865,9 +949,16 @@ export const useSessionSharing = ({
         return;
       }
 
+      // CRITICAL: Prevent feedback loops by not syncing messages that came from Matrix
+      if (messageMetadata?.isFromMatrix || messageMetadata?.isFromCollaborator || messageMetadata?.skipLocalResponse) {
+        console.log('🚫 Skipping sync for Matrix-originated message to prevent feedback loop:', messageId);
+        return;
+      }
+
       // Skip if content hasn't changed (prevents duplicate syncing)
       const lastContent = lastSyncedContentRef.current.get(messageId);
       if (lastContent === messageContent) {
+        console.log('🚫 Skipping sync - content unchanged for message:', messageId);
         return;
       }
 

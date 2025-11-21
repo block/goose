@@ -495,13 +495,24 @@ export default function Pair({
       setIsLoadingMatrixHistory(true);
 
       try {
-        // Fetch room history from Matrix - increased limit for DM rooms
-        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 1000); // Much higher limit for DM history
-        console.log('📜 Fetched', roomHistory.length, 'messages from Matrix room');
+        // Fetch room history from Matrix - REDUCED limit to prevent overwhelming the chat
+        // Only load recent messages to avoid showing ALL historical Goose messages
+        const roomHistory = await getRoomHistoryAsGooseMessages(matrixRoomId, 20); // Reduced from 1000 to 20
+        console.log('📜 Fetched', roomHistory.length, 'messages from Matrix room (limited to recent messages)');
 
         if (roomHistory.length > 0) {
+          // Filter messages to only include recent ones (last 24 hours) to avoid overwhelming the chat
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const recentHistory = roomHistory.filter(msg => msg.timestamp > twentyFourHoursAgo);
+          
+          console.log('📜 Filtered to recent messages:', {
+            total: roomHistory.length,
+            recent: recentHistory.length,
+            cutoffTime: twentyFourHoursAgo.toISOString()
+          });
+          
           // Convert Matrix messages to Goose message format
-          const gooseMessages: Message[] = roomHistory.map((msg, index) => {
+          const gooseMessages: Message[] = recentHistory.map((msg, index) => {
             // Detect if this is a Goose message and correct the role if needed
             let messageRole = msg.role as 'user' | 'assistant';
             
