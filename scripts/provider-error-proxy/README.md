@@ -64,6 +64,38 @@ Use a custom port:
 uv run proxy.py --port 9000
 ```
 
+Start the proxy with an initial error mode (for automated testing):
+
+```bash
+# Start with context length error (3 times)
+uv run proxy.py --mode "c 3"
+
+# Start with rate limit error (30% of requests)
+uv run proxy.py --mode "r 30%"
+
+# Start with server error (all requests)
+uv run proxy.py --mode "u *"
+```
+
+Command-line options:
+- `--port PORT` - Port to listen on (default: 8888)
+- `--mode COMMAND` - Initial error mode command (e.g., "c 3", "r 30%", "u *", "n")
+  - Same syntax as interactive commands
+- `--no-stdin` - Disable stdin reader (for background/automated mode)
+
+For automated tests or background usage, combine `--no-stdin` with `--mode`:
+
+```bash
+# Run in background for automated testing
+uv run proxy.py --mode "c 3" --no-stdin &
+PROXY_PID=$!
+
+# ... run your tests ...
+
+# Stop the proxy
+kill $PROXY_PID
+```
+
 ### Interactive Commands
 
 Once the proxy is running, you can control error injection interactively:
