@@ -61,13 +61,22 @@ pub fn list_claude_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
             }
 
             if let Ok((session_id, working_dir, updated_at)) = parse_session_metadata(&file_path) {
-                tracing::debug!("Found Claude session: {} updated at {}", session_id, updated_at);
+                tracing::debug!(
+                    "Found Claude session: {} updated at {}",
+                    session_id,
+                    updated_at
+                );
                 sessions.push((session_id, working_dir, updated_at));
             }
         }
     }
 
     tracing::debug!("Total Claude sessions found: {}", sessions.len());
+
+    // Sort by timestamp (most recent first) and take top 10
+    sessions.sort_by(|a, b| b.2.cmp(&a.2));
+    sessions.truncate(10);
+
     Ok(sessions)
 }
 
