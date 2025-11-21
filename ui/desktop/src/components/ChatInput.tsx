@@ -359,13 +359,10 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
-  // Enhanced Matrix room detection with TabContext integration
+  // HYBRID APPROACH: Matrix detection based on tab properties, not sessionId format
   const tabContext = useTabContext();
   
-  // Check if this session is mapped from a Matrix room
-  const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
-  
-  // NEW: Get Matrix room info from TabContext if available
+  // Get Matrix room info from TabContext (primary source)
   let tabMatrixRoomId = null;
   let tabMatrixRecipientId = null;
   if (tabContext) {
@@ -380,47 +377,46 @@ export default function ChatInput({
     }
   }
   
-  // Determine if this is a Matrix room using multiple sources
+  // Fallback: Check if this session is mapped from a Matrix room (for legacy support)
+  const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
+  
+  // CRITICAL: Matrix detection is now based on tab properties, not sessionId format
+  // The sessionId is always a real backend session ID in the hybrid approach
   const isMatrixRoom = !!(
-    (sessionId && sessionId.startsWith('!')) ||
-    (sessionId && sessionId.startsWith('matrix_!')) ||
-    matrixRoomId ||
-    tabMatrixRoomId
+    tabMatrixRoomId ||  // Primary: tab has Matrix properties
+    (sessionId && sessionId.startsWith('!')) ||  // Legacy: direct Matrix room ID
+    matrixRoomId  // Fallback: session mapping service
   );
   
   // Get the actual Matrix room ID for useSessionSharing - prioritize TabContext
   let actualMatrixRoomId = null;
   if (tabMatrixRoomId) {
-    // From active tab context (most reliable)
+    // From active tab context (most reliable in hybrid approach)
     actualMatrixRoomId = tabMatrixRoomId;
   } else if (sessionId && sessionId.startsWith('!')) {
-    // Direct Matrix room ID
+    // Legacy: Direct Matrix room ID (should be rare in hybrid approach)
     actualMatrixRoomId = sessionId;
-  } else if (sessionId && sessionId.startsWith('matrix_!')) {
-    // Extract room ID from matrix_!roomId format
-    actualMatrixRoomId = sessionId.substring(7); // Remove 'matrix_' prefix
   } else if (matrixRoomId) {
-    // From session mapping service
+    // From session mapping service (fallback)
     actualMatrixRoomId = matrixRoomId;
   }
   
-  console.log('🔍 ChatInput Matrix room detection:', {
+  console.log('🔍 ChatInput Matrix room detection (HYBRID):', {
     sessionId,
-    matrixRoomId,
     tabMatrixRoomId,
     tabMatrixRecipientId,
+    matrixRoomId,
     isMatrixRoom,
     actualMatrixRoomId,
     sessionIdStartsWithExclamation: sessionId?.startsWith('!'),
-    sessionIdStartsWithMatrix: sessionId?.startsWith('matrix_!'),
-    detectionSource: actualMatrixRoomId === tabMatrixRoomId ? 'TabContext' : 
-                    actualMatrixRoomId === sessionId ? 'DirectSessionId' :
-                    actualMatrixRoomId === sessionId?.substring(7) ? 'MatrixSessionId' :
-                    actualMatrixRoomId === matrixRoomId ? 'SessionMapping' : 'None',
+    tabContextAvailable: !!tabContext,
+    detectionMethod: tabMatrixRoomId ? 'TabContext-Primary' : 
+                    (sessionId?.startsWith('!') ? 'Legacy-DirectRoomId' :
+                    matrixRoomId ? 'SessionMapping-Fallback' : 'None'),
     // Additional debugging for useSessionSharing
     willPassToUseSessionSharing: {
-      sessionId: actualMatrixRoomId || sessionId,
-      initialRoomId: actualMatrixRoomId,
+      sessionId: sessionId, // Always use actual backend session ID
+      initialRoomId: actualMatrixRoomId, // Matrix room ID for Matrix operations
       isMatrixMode: isMatrixRoom
     }
   });
@@ -428,9 +424,9 @@ export default function ChatInput({
   // Get Matrix context for current user information
   const { currentUser } = useMatrix();
   
-  // Session sharing hook - use actual Matrix room ID for Matrix sessions
+  // Session sharing hook - HYBRID: always use backend session ID, pass Matrix room ID separately
   const sessionSharing = useSessionSharing({
-    sessionId: actualMatrixRoomId || sessionId, // Use Matrix room ID for Matrix sessions, otherwise use sessionId
+    sessionId: sessionId, // Always use actual backend session ID for API calls
     sessionTitle: isMatrixRoom && actualMatrixRoomId ? `Matrix Room ${actualMatrixRoomId.substring(0, 8)}` : `Chat Session ${sessionId?.substring(0, 8) || 'default'}`,
     messages: messages, // Always sync messages
     onMessageSync: (message) => {

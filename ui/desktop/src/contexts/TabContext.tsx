@@ -478,20 +478,19 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     // Create new tab with appropriate properties based on session type
     let newTab: Tab;
     if (isMatrixSession && matrixMetadata) {
-      // Create Matrix tab with restored properties
-      const matrixSessionId = `matrix_${matrixMetadata.roomId}`;
+      // CRITICAL: Use the actual backend session ID, not matrix_ format
+      // The Matrix context comes from the tab properties, not the sessionId
       const matrixTitle = matrixMetadata.roomName || title || `Matrix Chat ${matrixMetadata.roomId.substring(1, 8)}`;
       
       console.log('📱 Creating Matrix tab from backend session:', {
-        sessionId,
-        matrixSessionId,
+        backendSessionId: sessionId, // Use actual backend session ID
         matrixRoomId: matrixMetadata.roomId,
         matrixRecipientId: matrixMetadata.recipientId,
         title: matrixTitle
       });
       
       newTab = createNewTab({
-        sessionId: matrixSessionId, // Use Matrix format for sessionId
+        sessionId: sessionId, // Use actual backend session ID for API calls
         title: matrixTitle,
         type: 'matrix',
         matrixRoomId: matrixMetadata.roomId,
@@ -727,7 +726,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, [showSidecarView]);
 
   // Open a Matrix chat in a new tab or switch to it if already open
-  const openMatrixChat = useCallback((roomId: string, senderId: string) => {
+  const openMatrixChat = useCallback(async (roomId: string, senderId: string) => {
     console.log('📱 TabContext: Opening Matrix chat for room:', roomId, 'sender:', senderId);
 
     // Check if we already have a tab for this Matrix room
@@ -737,50 +736,43 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     
     if (existingTab) {
       console.log('📱 Matrix room already open in tab, switching to it:', existingTab.tab.id);
-      console.log('📱 Existing tab details:', {
-        id: existingTab.tab.id,
-        sessionId: existingTab.tab.sessionId,
-        type: existingTab.tab.type,
-        matrixRoomId: existingTab.tab.matrixRoomId,
-        matrixRecipientId: existingTab.tab.matrixRecipientId,
-        title: existingTab.tab.title
-      });
-      
-      // CRITICAL FIX: Ensure the existing tab has the correct sessionId format
-      // This is essential for ChatInput to detect it as a Matrix room
-      const expectedSessionId = `matrix_${roomId}`;
-      if (existingTab.tab.sessionId !== expectedSessionId) {
-        console.log('📱 FIXING sessionId for existing Matrix tab:', {
-          currentSessionId: existingTab.tab.sessionId,
-          expectedSessionId: expectedSessionId,
-          willUpdate: true
-        });
-        
-        // Update the existing tab's sessionId to ensure consistency
-        setTabStates(prev => prev.map(ts => 
-          ts.tab.id === existingTab.tab.id 
-            ? {
-                ...ts,
-                tab: { ...ts.tab, sessionId: expectedSessionId },
-                chat: { ...ts.chat, sessionId: expectedSessionId }
-              }
-            : ts
-        ));
-      }
-      
       setActiveTabId(existingTab.tab.id);
       return;
     }
 
-    // Create a new Matrix tab
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substr(2, 9);
+    // Get or create the backend session for this Matrix room
+    let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
+    
+    if (!backendSessionId) {
+      console.log('📱 No existing mapping found, creating new Matrix session mapping');
+      try {
+        const senderName = senderId.split(':')[0].substring(1);
+        const roomTitle = `DM with ${senderName}`;
+        
+        // Create a backend session for this Matrix room
+        const mapping = await sessionMappingService.createMappingWithBackendSession(
+          roomId, 
+          [], 
+          roomTitle, 
+          senderId
+        );
+        backendSessionId = mapping.gooseSessionId;
+        console.log('✅ Created new backend session for Matrix room:', backendSessionId);
+      } catch (error) {
+        console.error('❌ Failed to create backend session for Matrix room:', error);
+        // Fallback to a temporary session ID - this won't have backend persistence
+        backendSessionId = `temp_matrix_${Date.now()}`;
+      }
+    } else {
+      console.log('📱 Found existing backend session for Matrix room:', backendSessionId);
+    }
+
+    // Create a new Matrix tab using the actual backend session ID
     const senderName = senderId.split(':')[0].substring(1);
-    const matrixSessionId = `matrix_${roomId}`;
     const tabTitle = `Chat with ${senderName}`;
 
-    console.log('📱 About to create new Matrix tab with:', {
-      matrixSessionId,
+    console.log('📱 Creating new Matrix tab with backend session:', {
+      backendSessionId,
       tabTitle,
       roomId,
       senderId,
@@ -788,7 +780,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     });
 
     const newTab = createNewTab({
-      sessionId: matrixSessionId,
+      sessionId: backendSessionId, // Use actual backend session ID
       title: tabTitle,
       type: 'matrix',
       matrixRoomId: roomId,
@@ -796,20 +788,10 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       isActive: true
     });
     
-    console.log('📱 Created newTab object:', {
-      id: newTab.id,
-      sessionId: newTab.sessionId,
-      type: newTab.type,
-      matrixRoomId: newTab.matrixRoomId,
-      matrixRecipientId: newTab.matrixRecipientId,
-      title: newTab.title,
-      fullTab: newTab
-    });
-    
     const newTabState: TabState = {
       tab: newTab,
       chat: {
-        sessionId: matrixSessionId,
+        sessionId: backendSessionId, // Use actual backend session ID
         title: tabTitle,
         messages: [],
         messageHistoryIndex: 0,
@@ -821,24 +803,14 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     
     console.log('📱 Creating new Matrix tab state:', {
       tabId: newTab.id,
-      sessionId: matrixSessionId,
+      backendSessionId,
       title: tabTitle,
       roomId,
       senderId,
-      fullTabState: newTabState
+      type: 'matrix'
     });
     
-    setTabStates(prev => {
-      const newStates = [...prev, newTabState];
-      console.log('📱 Updated tab states:', newStates.map(ts => ({
-        id: ts.tab.id,
-        sessionId: ts.tab.sessionId,
-        type: ts.tab.type,
-        matrixRoomId: ts.tab.matrixRoomId,
-        title: ts.tab.title
-      })));
-      return newStates;
-    });
+    setTabStates(prev => [...prev, newTabState]);
     setActiveTabId(newTab.id);
   }, [tabStates]);
 
