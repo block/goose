@@ -214,18 +214,18 @@ impl Provider for TetrateProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        // Enable streaming
         payload["stream"] = json!(true);
         payload["stream_options"] = json!({
             "include_usage": true,
         });
 
-        let response = self
+        let resp = self
             .api_client
             .response_post("v1/chat/completions", &payload)
             .await?;
 
-        let response = handle_status_openai_compat(response).await?;
+        let response = handle_status_openai_compat(resp).await?;
+
         let stream = response.bytes_stream().map_err(io::Error::other);
         let mut log = RequestLog::start(&self.model, &payload)?;
 

@@ -273,18 +273,12 @@ impl Provider for OllamaProvider {
                     .api_client
                     .response_post("v1/chat/completions", &payload)
                     .await?;
-                let status = resp.status();
-                if !status.is_success() {
-                    return Err(super::utils::map_http_error_to_provider_error(status, None));
-                }
-                Ok(resp)
+                handle_status_openai_compat(resp).await
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        let response = handle_status_openai_compat(response).await?;
-
         let stream = response.bytes_stream().map_err(io::Error::other);
 
         Ok(Box::pin(try_stream! {

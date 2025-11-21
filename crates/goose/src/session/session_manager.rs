@@ -1,6 +1,7 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
@@ -18,7 +19,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 5;
+const CURRENT_SCHEMA_VERSION: i32 = 6;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -89,6 +90,8 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    pub provider_name: Option<String>,
+    pub model_config: Option<ModelConfig>,
 }
 
 pub struct SessionUpdateBuilder {
@@ -107,6 +110,8 @@ pub struct SessionUpdateBuilder {
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
     user_recipe_values: Option<Option<HashMap<String, String>>>,
+    provider_name: Option<Option<String>>,
+    model_config: Option<Option<ModelConfig>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -134,6 +139,8 @@ impl SessionUpdateBuilder {
             schedule_id: None,
             recipe: None,
             user_recipe_values: None,
+            provider_name: None,
+            model_config: None,
         }
     }
 
@@ -215,6 +222,16 @@ impl SessionUpdateBuilder {
         user_recipe_values: Option<HashMap<String, String>>,
     ) -> Self {
         self.user_recipe_values = Some(user_recipe_values);
+        self
+    }
+
+    pub fn provider_name(mut self, provider_name: impl Into<String>) -> Self {
+        self.provider_name = Some(Some(provider_name.into()));
+        self
+    }
+
+    pub fn model_config(mut self, model_config: ModelConfig) -> Self {
+        self.model_config = Some(Some(model_config));
         self
     }
 
@@ -375,6 +392,8 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            provider_name: None,
+            model_config: None,
         }
     }
 }
@@ -396,6 +415,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values_json: Option<String> = row.try_get("user_recipe_values_json")?;
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
+
+        let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
+        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
 
         let name: String = {
             let name_val: String = row.try_get("name").unwrap_or_default();
@@ -434,6 +456,8 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            provider_name: row.try_get("provider_name").ok().flatten(),
+            model_config,
         })
     }
 }
@@ -521,7 +545,9 @@ impl SessionStorage {
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
                 recipe_json TEXT,
-                user_recipe_values_json TEXT
+                user_recipe_values_json TEXT,
+                provider_name TEXT,
+                model_config_json TEXT
             )
         "#,
         )
@@ -618,14 +644,20 @@ impl SessionStorage {
             None => None,
         };
 
+        let model_config_json = match &session.model_config {
+            Some(model_config) => Some(serde_json::to_string(model_config)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
             id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json, user_recipe_values_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, user_recipe_values_json,
+            provider_name, model_config_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
             .bind(&session.id)
@@ -645,6 +677,8 @@ impl SessionStorage {
             .bind(&session.schedule_id)
             .bind(recipe_json)
             .bind(user_recipe_values_json)
+            .bind(&session.provider_name)
+            .bind(model_config_json)
             .execute(&mut *tx)
             .await?;
 
@@ -771,6 +805,23 @@ impl SessionStorage {
                     .execute(&self.pool)
                     .await?;
             }
+            6 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN provider_name TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN model_config_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -824,7 +875,8 @@ impl SessionStorage {
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json, user_recipe_values_json
+               schedule_id, recipe_json, user_recipe_values_json,
+               provider_name, model_config_json
         FROM sessions
         WHERE id = ?
     "#,
@@ -850,6 +902,7 @@ impl SessionStorage {
         Ok(session)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
@@ -884,6 +937,8 @@ impl SessionStorage {
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
         add_update!(builder.user_recipe_values, "user_recipe_values_json");
+        add_update!(builder.provider_name, "provider_name");
+        add_update!(builder.model_config, "model_config_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -939,6 +994,15 @@ impl SessionStorage {
                 .map(|urv| serde_json::to_string(&urv))
                 .transpose()?;
             q = q.bind(user_recipe_values_json);
+        }
+        if let Some(provider_name) = builder.provider_name {
+            q = q.bind(provider_name);
+        }
+        if let Some(model_config) = builder.model_config {
+            let model_config_json = model_config
+                .map(|mc| serde_json::to_string(&mc))
+                .transpose()?;
+            q = q.bind(model_config_json);
         }
 
         let mut tx = self.pool.begin().await?;
@@ -1050,6 +1114,7 @@ impl SessionStorage {
                s.total_tokens, s.input_tokens, s.output_tokens,
                s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+               s.provider_name, s.model_config_json,
                COUNT(m.id) as message_count
         FROM sessions s
         INNER JOIN messages m ON s.id = m.session_id

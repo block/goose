@@ -26,8 +26,8 @@ impl AppState {
         }))
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
-        self.agent_manager.scheduler().await
+    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
+        self.agent_manager.scheduler()
     }
 
     pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {

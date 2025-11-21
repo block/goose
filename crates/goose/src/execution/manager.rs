@@ -59,8 +59,8 @@ impl AgentManager {
             .cloned()
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
-        Ok(Arc::clone(&self.scheduler))
+    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
+        Arc::clone(&self.scheduler)
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
@@ -87,7 +87,9 @@ impl AgentManager {
             })
             .await;
         if let Some(provider) = &*self.default_provider.read().await {
-            agent.update_provider(Arc::clone(provider)).await?;
+            agent
+                .update_provider(Arc::clone(provider), &session_id)
+                .await?;
         }
 
         let mut sessions = self.sessions.write().await;

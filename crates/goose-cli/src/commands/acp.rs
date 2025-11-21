@@ -230,18 +230,22 @@ impl GooseAcpAgent {
         };
         let provider = create(&provider_name, model_config).await?;
 
-        // Create a shared agent instance
-        let agent = Agent::new();
-        agent.update_provider(provider.clone()).await?;
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "ACP Session".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
-        // Load and add extensions just like the normal CLI
+        let agent = Agent::new();
+        agent.update_provider(provider.clone(), &session.id).await?;
+
         let extensions_to_run: Vec<_> = get_all_extensions()
             .into_iter()
             .filter(|ext| ext.enabled)
             .map(|ext| ext.config)
             .collect();
 
-        // Add extensions to the agent in parallel
         let agent_ptr = Arc::new(agent);
         let mut set = JoinSet::new();
         let mut waiting_on = HashSet::new();
@@ -257,7 +261,6 @@ impl GooseAcpAgent {
             });
         }
 
-        // Wait for all extensions to load
         while let Some(result) = set.join_next().await {
             match result {
                 Ok((name, Ok(_))) => {
@@ -274,7 +277,6 @@ impl GooseAcpAgent {
             }
         }
 
-        // Unwrap the Arc to get the agent back
         let agent = Arc::try_unwrap(agent_ptr)
             .map_err(|_| anyhow::anyhow!("Failed to unwrap agent Arc"))?;
 
