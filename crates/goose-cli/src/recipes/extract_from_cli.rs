@@ -15,12 +15,15 @@ pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
+    quiet: bool,
 ) -> Result<(InputConfig, RecipeInfo)> {
     let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
     });
-    print_recipe_info(&recipe, params);
+    if !quiet {
+        print_recipe_info(&recipe, params);
+    }
     let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
     if !additional_sub_recipes.is_empty() {
         for sub_recipe_name in additional_sub_recipes {
@@ -96,7 +99,7 @@ mod tests {
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
         let (input_config, recipe_info) =
-            extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+            extract_recipe_info_from_cli(recipe_name, params, Vec::new(), false).unwrap();
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;
@@ -161,7 +164,8 @@ mod tests {
         ];
 
         let (input_config, recipe_info) =
-            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes, false)
+                .unwrap();
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;

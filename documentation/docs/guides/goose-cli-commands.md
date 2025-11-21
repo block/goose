@@ -7,7 +7,20 @@ toc_max_heading_level: 4
 
 goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
 
+## Flag Naming Conventions
 
+goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
+
+- **`--session-id`**: Used for session identifiers (e.g., `20251108_1`)
+- **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
+- **`-n, --name`**: Used for human-readable names
+- **`-p, --path`**: Used for file paths (legacy support)
+- **`-o, --output`**: Used for output file paths
+- **`-r, --resume` or `-r, --regex`**: Context-dependent (resume for sessions, regex for filters)
+- **`-v, --verbose`**: Used for verbose output
+- **`-l, --limit`**: Used for limiting result counts
+- **`-f, --format`**: Used for specifying output formats
+- **`-w, --working_dir`**: Used for working directory filters
 
 ### Core Commands
 
@@ -90,7 +103,9 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`-p, --path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
+- **`--max-tool-repetitions <NUMBER>`**: Set the maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
 **Extension Options:**
@@ -134,7 +149,7 @@ List all saved sessions.
 **Options:**
 - **`-f, --format <format>`**: Specify output format (`text` or `json`). Default is `text`
 - **`--ascending`**: Sort sessions by date in ascending order (oldest first)
-- **`-p, --working-dir <path>`**: Filter sessions by working directory
+- **`-w, --working_dir <path>`**: Filter sessions by working directory
 - **`-l, --limit <number>`**: Limit the number of results
 
 **Usage:**
@@ -149,7 +164,7 @@ goose session list --format json
 goose session list --ascending
 
 # Filter sessions by working directory
-goose session list -p ~/projects/myapp
+goose session list -w ~/projects/myapp
 
 # List only the 10 most recent sessions
 goose session list --limit 10
@@ -161,8 +176,10 @@ goose session list --limit 10
 Remove one or more saved sessions.
 
 **Options:**
-- **`-i, --id <ID>`**: Remove a specific session by its session ID
-- **`-r, --regex <REGEX>`**: Remove sessions matching a regex pattern
+- **`--session-id <session_id>`**: Remove a specific session by its session ID
+- **`-n, --name <name>`**: Remove a specific session by its name
+- **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern
+- **`--path <path>`**: Remove a specific session by its file path (legacy)
 
 **Usage:**
 ```bash
@@ -170,7 +187,10 @@ Remove one or more saved sessions.
 goose session remove
 
 # Remove a specific session by ID
-goose session remove -i 20251108_3
+goose session remove --session-id 20251108_3
+
+# Remove a specific session by name
+goose session remove -n my-project
 
 # Remove all sessions starting with "project-"
 goose session remove -r "project-.*"
@@ -189,9 +209,9 @@ Session removal is permanent and cannot be undone. goose will show which session
 Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
-- **`-i, --id <ID>`**: Export a specific session by ID
+- **`--session-id <session_id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
-- **`-p, --path <path>`**: Export a specific session by file path
+- **`--path <path>`**: Export a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
 - **`--format <format>`**: Output format: `markdown`, `json`, `yaml`. Default is `markdown`
 
@@ -212,7 +232,7 @@ goose session export -n my-session --format json -o session-backup.json
 goose session export -n my-session -o session.md
 
 # Export to stdout in different formats
-goose session export -i 20251108_4 --format json
+goose session export --session-id 20251108_4 --format json
 goose session export -n my-session --format yaml
 
 # Export session by path (legacy)
@@ -227,6 +247,7 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 **Options:**
 - **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
+- **`--path <path>`**: Generate diagnostics for a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
 
 **What's included:**
@@ -241,10 +262,10 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 goose session diagnostics --session-id 20251108_5
 
 # Generate diagnostics for a session by name
-goose session diagnostics --name my-project-session
+goose session diagnostics -n my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --session-id 20251108_5 --output /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.zip
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
@@ -268,7 +289,10 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 **Input Options:**
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use `-` for stdin
 - **`-t, --text <TEXT>`**: Input text to provide to goose directly
+- **`--system <TEXT>`**: Provide additional system instructions to customize the agent's behavior
 - **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
+- **`--params <KEY=VALUE>`**: Key-value parameters to pass to the recipe file. Can be specified multiple times
+- **`--sub-recipe <RECIPE>`**: Specify sub-recipes to include alongside the main recipe. Can be specified multiple times
 
 **Session Options:**
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
@@ -285,8 +309,11 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Control Options:**
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--max-tool-repetitions <NUMBER>`**: Maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops
 - **`--max-turns <NUMBER>`**: Maximum number of turns allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
+- **`--render-recipe`**: Print the rendered recipe instead of running it
+- **`-q, --quiet`**: Quiet mode. Suppress non-response output, printing only the model response to stdout
 - **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
@@ -307,6 +334,9 @@ goose run --recipe recipe.yaml --debug
 
 # Show recipe details
 goose run --recipe recipe.yaml --explain
+
+# Run a recipe with parameters
+goose run --recipe recipe.yaml --params environment=production --params region=us-west-2
 
 # Run instructions from a file without session storage
 goose run --no-session -i instructions.txt
@@ -379,9 +409,10 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `remove`: Delete a scheduled job
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
+- `cron-help`: Show cron expression examples and help
 
 **Options:**
-- `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
+- `--schedule-id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression)
 - `--recipe-source <PATH>`: Path to the recipe YAML file
 - `-l, --limit <NUMBER>`: Max number of sessions to display when using the `sessions` command
@@ -391,19 +422,19 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 goose schedule <COMMAND>
 
 # Add a new scheduled recipe which runs every day at 9 AM
-goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+goose schedule add --schedule-id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
 
 # List all scheduled jobs
 goose schedule list
 
 # List the 10 most recent goose sessions created by a scheduled job
-goose schedule sessions --id daily-report -l 10
+goose schedule sessions --schedule-id daily-report -l 10
 
 # Run a recipe immediately
-goose schedule run-now --id daily-report
+goose schedule run-now --schedule-id daily-report
 
 # Remove a scheduled job
-goose schedule remove --id daily-report
+goose schedule remove --schedule-id daily-report
 ```
 
 ---

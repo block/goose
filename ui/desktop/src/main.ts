@@ -25,7 +25,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus, startGoosed } from './goosed';
-import { expandTilde, getBinaryPath } from './utils/pathUtils';
+import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
@@ -526,7 +526,7 @@ const createChat = async (
     minWidth: 450,
     resizable: true,
     useContentSize: true,
-    icon: path.join(__dirname, '../images/icon'),
+    icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
@@ -1597,11 +1597,6 @@ ipcMain.handle('check-ollama', async () => {
     console.error('Error checking for Ollama:', err);
     return false;
   }
-});
-
-// Handle binary path requests
-ipcMain.handle('get-binary-path', (_event, binaryName) => {
-  return getBinaryPath(app, binaryName);
 });
 
 ipcMain.handle('read-file', async (_event, filePath) => {

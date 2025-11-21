@@ -89,9 +89,8 @@ impl Agent {
                                 tracing::info!(
                                     counter.goose.prompt_injection_user_decisions = 1,
                                     decision = ?confirmation.permission,
-                                    "🔒 User security decision: {:?} for finding ID: {}",
-                                    confirmation.permission,
-                                    finding_id
+                                    finding_id = %finding_id,
+                                    "User security decision"
                                 );
                             }
 

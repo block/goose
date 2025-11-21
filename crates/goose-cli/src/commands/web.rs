@@ -158,12 +158,17 @@ pub async fn handle_web(
 
     let model_config = goose::model::ModelConfig::new(&model)?;
 
-    // Create the agent
+    let init_session = SessionManager::create_session(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        "Web Agent Initialization".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
     let agent = Agent::new();
     let provider = goose::providers::create(&provider_name, model_config).await?;
-    agent.update_provider(provider).await?;
+    agent.update_provider(provider, &init_session.id).await?;
 
-    // Load and enable extensions from config
     let enabled_configs = goose::config::get_enabled_extensions();
     for config in enabled_configs {
         if let Err(e) = agent.add_extension(config.clone()).await {
@@ -177,7 +182,6 @@ pub async fn handle_web(
         auth_token,
     };
 
-    // Build router
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/session/{session_name}", get(serve_session))

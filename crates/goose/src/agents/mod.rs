@@ -7,7 +7,7 @@ pub mod extension_manager_extension;
 pub mod final_output_tool;
 mod large_response_handler;
 pub mod mcp_client;
-pub mod model_selector;
+pub mod moim;
 pub mod platform_tools;
 pub mod prompt_manager;
 pub mod recipe_tools;
@@ -26,7 +26,7 @@ mod tool_route_manager;
 mod tool_router_index_manager;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGER};
+pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGERS};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;

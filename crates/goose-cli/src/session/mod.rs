@@ -30,7 +30,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
+use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
@@ -628,10 +628,22 @@ impl CliSession {
                         continue;
                     }
 
+                    if let Err(e) = SessionManager::update_session(&self.session_id)
+                        .total_tokens(Some(0))
+                        .input_tokens(Some(0))
+                        .output_tokens(Some(0))
+                        .apply()
+                        .await
+                    {
+                        output::render_error(&format!("Failed to reset token counts: {}", e));
+                        continue;
+                    }
+
                     self.messages.clear();
+
                     tracing::info!("Chat context cleared by user.");
                     output::render_message(
-                        &Message::assistant().with_text("Chat context cleared."),
+                        &Message::assistant().with_text("Chat context cleared.\n"),
                         self.debug,
                     );
 
@@ -691,7 +703,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGER));
+                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;

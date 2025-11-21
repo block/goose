@@ -52,10 +52,6 @@ export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
 
-:::info Automatic Multi-Model Switching
-The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
-:::
-
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
