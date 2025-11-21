@@ -4,6 +4,7 @@ import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
 import { getSession, updateSessionDescription, startAgent, deleteSession } from '../api';
 import { sessionMappingService } from '../services/SessionMappingService';
+import { matrixService } from '../services/MatrixService';
 
 interface TabState {
   tab: Tab;
@@ -925,33 +926,77 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     setActiveTabId(tempTab.id);
     
     console.log('📱 Created temporary loading tab:', tempTab.id);
+    
+    // CRITICAL: Clear cache for the backend session ID we're about to use
+    // This must happen BEFORE we update the tab with the real session ID
+    // Otherwise useChatStream might load from cache before we clear it
 
     // Get or create the backend session for this Matrix room (async)
     let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
     let hasExistingMessages = false;
     
     if (!backendSessionId) {
-      console.log('📱 No existing mapping found, creating new Matrix session mapping');
-      try {
-        const roomTitle = `DM with ${senderName}`;
+      console.log('📱 No existing mapping found for room:', roomId);
+      
+      // CRITICAL FIX: Check if we're already in this Matrix room
+      // If so, the mapping should have been created by MatrixService.ensureSessionMapping()
+      // Wait a moment and check again before creating a new one
+      const rooms = matrixService.getRooms();
+      const existingRoom = rooms.find(r => r.roomId === roomId);
+      
+      if (existingRoom) {
+        console.log('📱 Room exists in Matrix service, waiting for mapping to be created...');
         
-        // Create a backend session for this Matrix room
-        const mapping = await sessionMappingService.createMappingWithBackendSession(
-          roomId, 
-          [], 
-          roomTitle, 
-          senderId
-        );
-        backendSessionId = mapping.gooseSessionId;
-        console.log('✅ Created new backend session for Matrix room:', backendSessionId);
-        hasExistingMessages = false; // New session, no messages
-      } catch (error) {
-        console.error('❌ Failed to create backend session for Matrix room:', error);
-        // Keep the temporary session ID - this won't have backend persistence
-        backendSessionId = tempTab.sessionId;
-        hasExistingMessages = false;
+        // Wait up to 2 seconds for the mapping to appear (it should be created by ensureSessionMapping)
+        let attempts = 0;
+        while (attempts < 20 && !backendSessionId) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          backendSessionId = sessionMappingService.getGooseSessionId(roomId);
+          attempts++;
+          
+          if (backendSessionId) {
+            console.log('✅ Found mapping after waiting:', backendSessionId, 'attempts:', attempts);
+            break;
+          }
+        }
+        
+        // If still no mapping after waiting, the room might be joined but mapping creation failed
+        // In this case, we should NOT create a new recipe-based session
+        // Instead, just use a temporary ID and let the system handle it
+        if (!backendSessionId) {
+          console.warn('⚠️ Room is joined but no mapping found after waiting. This indicates ensureSessionMapping may have failed.');
+          console.log('📱 Using temporary session ID - user can retry or check Matrix connection');
+          backendSessionId = tempTab.sessionId;
+          hasExistingMessages = false;
+        }
+      } else {
+        // Room doesn't exist in our Matrix service - this is a new conversation
+        // or we're not joined yet. Create a mapping with backend session.
+        console.log('📱 Room not found in Matrix service, creating new mapping with backend session');
+        try {
+          const roomTitle = `DM with ${senderName}`;
+          
+          // Create a backend session for this Matrix room
+          const mapping = await sessionMappingService.createMappingWithBackendSession(
+            roomId, 
+            [], 
+            roomTitle, 
+            senderId
+          );
+          backendSessionId = mapping.gooseSessionId;
+          console.log('✅ Created new backend session for Matrix room:', backendSessionId);
+          hasExistingMessages = false; // New session, no messages
+        } catch (error) {
+          console.error('❌ Failed to create backend session for Matrix room:', error);
+          // Keep the temporary session ID - this won't have backend persistence
+          backendSessionId = tempTab.sessionId;
+          hasExistingMessages = false;
+        }
       }
-    } else {
+    }
+    
+    // If we found an existing backend session, check if it has messages
+    if (backendSessionId && !backendSessionId.startsWith('temp_')) {
       console.log('📱 Found existing backend session for Matrix room:', backendSessionId);
       
       // Check if this session has existing messages
@@ -968,27 +1013,117 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
 
     // Update the tab with the real backend session ID
-    // Keep loading state if there are existing messages (they need to load)
-    // Remove loading state if it's a new chat (show empty state immediately)
+    // CRITICAL: Keep loading state TRUE to trigger useChatStream to load the session
+    // The useChatStream hook will detect the sessionId change and load the history
+    // It will set loadingChat to false once loading is complete
     console.log('📱 Updating tab with backend session:', {
       tabId: tempTab.id,
-      backendSessionId,
+      oldSessionId: tempTab.sessionId,
+      newSessionId: backendSessionId,
       roomId,
       senderId,
       hasExistingMessages,
-      willShowLoading: hasExistingMessages
+      willTriggerReload: true
     });
     
-    setTabStates(prev => prev.map(ts => 
-      ts.tab.id === tempTab.id
-        ? {
+    // CRITICAL: Clear any cached results for this session before updating
+    // This ensures useChatStream will load fresh from backend
+    try {
+      // Access the resultsCache from useChatStream if available
+      if ((window as any).__useChatStreamCache) {
+        console.log('📱 Clearing cached results for session:', backendSessionId);
+        (window as any).__useChatStreamCache.delete(backendSessionId);
+      }
+    } catch (error) {
+      console.warn('📱 Could not clear cache:', error);
+    }
+    
+    // CRITICAL: Update state in a way that guarantees React detects the change
+    setTabStates(prev => {
+      const newStates = prev.map(ts => {
+        if (ts.tab.id === tempTab.id) {
+          console.log('📱 Updating tab state:', {
+            tabId: ts.tab.id,
+            oldSessionId: ts.tab.sessionId,
+            newSessionId: backendSessionId,
+            sessionIdChanged: ts.tab.sessionId !== backendSessionId
+          });
+          
+          return {
             ...ts,
-            tab: { ...ts.tab, sessionId: backendSessionId },
-            chat: { ...ts.chat, sessionId: backendSessionId },
-            loadingChat: hasExistingMessages // Keep loading if there are messages to load
+            tab: { 
+              ...ts.tab, 
+              sessionId: backendSessionId 
+            },
+            chat: { 
+              ...ts.chat, 
+              sessionId: backendSessionId 
+            },
+            loadingChat: true // Keep loading TRUE to trigger useChatStream reload
+          };
+        }
+        return ts;
+      });
+      
+      console.log('📱 Tab states after update:', newStates.map(ts => ({
+        tabId: ts.tab.id,
+        sessionId: ts.tab.sessionId,
+        loadingChat: ts.loadingChat
+      })));
+      
+      return newStates;
+    });
+    
+    // After a delay, check if loading completed and force reload if needed
+    // This handles the case where useChatStream doesn't update the loading state
+    setTimeout(() => {
+      console.log('📱 Checking if loading state needs to be cleared for tab:', tempTab.id);
+      setTabStates(prev => {
+        const tabState = prev.find(ts => ts.tab.id === tempTab.id);
+        
+        if (tabState && tabState.loadingChat) {
+          console.log('⚠️ Loading state still true after 15 seconds, forcing reload for tab:', tempTab.id);
+          
+          // FORCE RELOAD: Add a reload counter to force BaseChat2 to remount
+          // The key prop in TabbedChatContainer uses sessionId, so changing it forces remount
+          const currentSessionId = tabState.tab.sessionId;
+          const reloadCount = (tabState.tab as any).reloadCount || 0;
+          
+          console.log('🔄 Forcing reload by incrementing reload counter:', {
+            sessionId: currentSessionId,
+            reloadCount: reloadCount + 1
+          });
+          
+          return prev.map(ts => {
+            if (ts.tab.id === tempTab.id) {
+              return {
+                ...ts,
+                tab: { 
+                  ...ts.tab, 
+                  // Add reload counter to force key change
+                  reloadCount: reloadCount + 1
+                },
+                loadingChat: true // Keep loading true for the reload
+              };
+            }
+            return ts;
+          });
+        }
+        
+        return prev;
+      });
+      
+      // After another 3 seconds, clear the loading state regardless
+      setTimeout(() => {
+        setTabStates(prev => prev.map(ts => {
+          if (ts.tab.id === tempTab.id && ts.loadingChat) {
+            console.log('⚠️ Clearing loading state after reload attempt');
+            return { ...ts, loadingChat: false };
           }
-        : ts
-    ));
+          return ts;
+        }));
+      }, 3000);
+    }, 15000); // Give it 15 seconds to load
   }, [tabStates]);
 
   // Create a backend session for a tab (converts new_ session to real backend session)

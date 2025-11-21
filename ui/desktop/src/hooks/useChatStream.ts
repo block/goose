@@ -16,6 +16,11 @@ import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+// Expose cache globally for debugging and cache clearing
+if (typeof window !== 'undefined') {
+  (window as any).__useChatStreamCache = resultsCache;
+}
+
 // Session creation tracking to prevent conflicts
 const sessionCreationInProgress = new Set<string>();
 
@@ -330,7 +335,17 @@ export function useChatStream({
 
   // Load session on mount or sessionId change
   useEffect(() => {
-    if (!sessionId) return;
+    console.log('🔄 useChatStream useEffect fired:', {
+      sessionId,
+      hasSessionId: !!sessionId,
+      sessionIdLength: sessionId?.length,
+      willReturn: !sessionId
+    });
+    
+    if (!sessionId) {
+      console.log('🔄 Returning early - no sessionId');
+      return;
+    }
 
     // Reset state when sessionId changes
     log.session('loading', sessionId, {
@@ -345,7 +360,8 @@ export function useChatStream({
 
     // Check if this is a cached session first
     const cached = resultsCache.get(sessionId);
-    if (cached) {
+    if (cached && cached.messages.length > 0) {
+      // Only use cache if it has messages - empty cache means we haven't loaded yet
       log.session('loaded-from-cache', sessionId, {
         messageCount: cached.messages.length,
         sessionName: cached.session.name,
@@ -354,16 +370,22 @@ export function useChatStream({
       setMessagesAndLog(cached.messages, 'load-cached');
       setChatState(ChatState.Idle);
       return;
+    } else if (cached && cached.messages.length === 0) {
+      // Cache exists but is empty - clear it and load from backend
+      log.session('cache-empty-clearing', sessionId, {
+        note: 'cached session has no messages, will load from backend'
+      });
+      resultsCache.delete(sessionId);
     }
 
     // Try to load existing session from backend first
     const loadExistingSession = async () => {
-      // Skip backend loading for sessions that start with 'new_' (these are truly new)
-      if (sessionId.startsWith('new_')) {
-        log.session('new-session', sessionId, { note: 'will create on first message' });
+      // Skip backend loading for sessions that start with 'new_' or 'temp_' (these are truly new)
+      if (sessionId.startsWith('new_') || sessionId.startsWith('temp_')) {
+        log.session('new-or-temp-session', sessionId, { note: 'will create on first message or waiting for real session ID' });
         setChatState(ChatState.Idle);
         setSession(undefined);
-        setMessagesAndLog([], 'new-session');
+        setMessagesAndLog([], 'new-or-temp-session');
         setSessionLoadError(undefined);
         return;
       }
