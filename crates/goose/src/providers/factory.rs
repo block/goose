@@ -407,7 +407,7 @@ mod tests {
         );
 
         // Other config keys should be standard OpenAI ones
-        if groq_meta.config_keys.len() > 1 {
+        if groq_meta.config_keys.len() > 2 {
             assert_eq!(groq_meta.config_keys[1].name, "OPENAI_HOST");
             assert_eq!(groq_meta.config_keys[2].name, "OPENAI_BASE_PATH");
         }
