@@ -1,13 +1,10 @@
 use crate::app::App;
 use crate::ui::theme::Theme;
-use goose::conversation::message::Message;
-use rmcp::model::CallToolRequestParam;
 
 pub enum CommandResult {
     Continue,
     Quit,
     Reply(String),
-    ExecuteTool(Message),
     OpenBuilder,
 }
 

@@ -40,7 +40,6 @@ pub struct App<'a> {
     pub messages: Vec<Message>,
     pub config: TuiConfig,
     pub scroll_state: ListState,
-    pub port: u16,
     pub client: Client,
     pub session_id: String,
     pub tx: Option<mpsc::UnboundedSender<Event>>,
@@ -56,7 +55,6 @@ pub struct App<'a> {
     pub selectable_indices: Vec<usize>, // Indices of visual lines that are selectable
     pub showing_todo_popup: bool,
     pub todo_scroll: usize,
-    pub slash_popup_scroll: usize,
     pub showing_help_popup: bool,
     pub showing_about_popup: bool,
     pub has_worked: bool, // Track if goose has started working at least once
@@ -121,7 +119,6 @@ impl<'a> App<'a> {
             messages: vec![],
             config,
             scroll_state: ListState::default(),
-            port,
             client,
             session_id,
             tx: None,
@@ -137,7 +134,6 @@ impl<'a> App<'a> {
             selectable_indices: vec![],
             showing_todo_popup: false,
             todo_scroll: 0,
-            slash_popup_scroll: 0,
             showing_help_popup: false,
             showing_about_popup: false,
             has_worked: false,
@@ -164,6 +160,7 @@ impl<'a> App<'a> {
 
             match events.next().await {
                 Some(Event::Input(key)) => self.handle_input(key),
+                Some(Event::Paste(text)) => self.handle_paste(text),
                 Some(Event::Mouse(mouse)) => self.handle_mouse(mouse),
                 Some(Event::Tick) => {
                     self.animation_frame = self.animation_frame.wrapping_add(1);
@@ -349,6 +346,29 @@ impl<'a> App<'a> {
         }
     }
 
+    fn handle_paste(&mut self, text: String) {
+        // Normalize newlines
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+
+        if self.showing_command_builder {
+            self.builder_input.insert_str(&text);
+            return;
+        }
+
+        if self.showing_todo_popup
+            || self.showing_help_popup
+            || self.showing_about_popup
+            || self.focused_message_index.is_some()
+        {
+            return;
+        }
+
+        if self.input_mode == InputMode::Normal {
+            self.input_mode = InputMode::Editing;
+        }
+        self.input.insert_str(&text);
+    }
+
     fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
         match mouse.kind {
             crossterm::event::MouseEventKind::ScrollDown => self.scroll_down(),
@@ -514,40 +534,6 @@ impl<'a> App<'a> {
                                         CommandResult::Reply(msg) => {
                                             // Command generated a reply message (e.g. custom command alias)
                                             message_text = Some(msg);
-                                        }
-                                        CommandResult::ExecuteTool(msg) => {
-                                            // Inject Assistant Tool Request
-                                            self.messages.push(msg);
-                                            self.auto_scroll = true;
-                                            self.waiting_for_response = true;
-                                            self.has_user_input_pending = false;
-                                            self.has_worked = true;
-
-                                            if let Some(tx) = &self.tx {
-                                                let client = self.client.clone();
-                                                let messages = self.messages.clone();
-                                                let session_id = self.session_id.clone();
-                                                let tx = tx.clone();
-
-                                                let task = tokio::spawn(async move {
-                                                    if let Err(e) =
-                                                        client.reply(messages, session_id, tx).await
-                                                    {
-                                                        tracing::error!(
-                                                            "Failed to send message: {}",
-                                                            e
-                                                        );
-                                                    }
-                                                });
-                                                self.reply_task = Some(task);
-                                            }
-
-                                            self.input = TextArea::default();
-                                            self.input.set_cursor_line_style(
-                                                ratatui::style::Style::default(),
-                                            );
-                                            self.input.set_placeholder_text("Type a message...");
-                                            return;
                                         }
                                         CommandResult::OpenBuilder => {
                                             self.showing_command_builder = true;

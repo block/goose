@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 #[allow(dead_code)]
 pub enum Event {
     Input(KeyEvent),
+    Paste(String),
     Mouse(MouseEvent),
     Tick,
     Resize(u16, u16),
@@ -54,6 +55,11 @@ impl EventHandler {
                                     if tx_for_task.send(Event::Input(key)).is_err() {
                                         break;
                                     }
+                                }
+                            }
+                            CrosstermEvent::Paste(s) => {
+                                if tx_for_task.send(Event::Paste(s)).is_err() {
+                                    break;
                                 }
                             }
                             CrosstermEvent::Mouse(mouse) => {

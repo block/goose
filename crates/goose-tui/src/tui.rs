@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::{
     cursor,
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::backend::CrosstermBackend;
@@ -19,7 +19,12 @@ pub fn init() -> Result<Tui> {
     }));
 
     crossterm::terminal::enable_raw_mode()?;
-    crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    crossterm::execute!(
+        io::stdout(),
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        EnableBracketedPaste
+    )?;
 
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -35,6 +40,7 @@ pub fn restore() -> Result<()> {
         io::stdout(),
         LeaveAlternateScreen,
         DisableMouseCapture,
+        DisableBracketedPaste,
         cursor::Show
     )?;
     Ok(())
