@@ -253,20 +253,33 @@ export default function GooseMessage({
     avatarUrl: null,
   };
 
+  // Check if this is from a collaborator (has sender info and is from Matrix)
+  const isFromCollaborator = message.sender && (message as any).metadata?.isFromCollaborator;
+
   return (
     <div className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
-      {/* Goose Avatar on the left side */}
-      <div className="flex-shrink-0 mt-1">
-        {senderInfo.avatarUrl ? (
-          <AvatarImage
-            avatarUrl={senderInfo.avatarUrl}
-            displayName={senderInfo.displayName || 'Goose'}
-            size="md"
-            className="ring-1 ring-border-subtle ring-offset-1"
-          />
-        ) : (
-          <div className="w-8 h-8 flex items-center justify-center">
-            <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+      {/* Goose Avatar on the left side with optional user badge */}
+      <div className="flex-shrink-0 mt-1 relative">
+        {/* Main Goose dot avatar */}
+        <div className="w-8 h-8 flex items-center justify-center">
+          <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+        </div>
+        
+        {/* Small user badge for collaborator messages */}
+        {isFromCollaborator && senderInfo.avatarUrl && (
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden">
+            <AvatarImage
+              avatarUrl={senderInfo.avatarUrl}
+              displayName={senderInfo.displayName || 'User'}
+              size="xs"
+            />
+          </div>
+        )}
+        {isFromCollaborator && !senderInfo.avatarUrl && (
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center">
+            <span className="text-[8px] text-white font-bold">
+              {(senderInfo.displayName || senderInfo.userId || 'U').charAt(0).toUpperCase()}
+            </span>
           </div>
         )}
       </div>
@@ -277,7 +290,7 @@ export default function GooseMessage({
         {(displayText || isFirstInChain) && (
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-semibold text-text-prominent">
-              {senderInfo.displayName || 'Goose'}
+              {isFromCollaborator ? `Goose (${senderInfo.displayName || 'User'})` : 'Goose'}
             </span>
             <span className="text-xs text-text-muted font-mono">
               {timestamp}
