@@ -670,7 +670,16 @@ export const useSessionSharing = ({
                 originalRole: messageData.role,
                 finalRole: finalRole,
                 sender: senderData?.displayName || senderData?.userId,
+                senderUserId: senderData?.userId,
+                senderAvatarUrl: senderData?.avatarUrl,
                 content: messageData.content?.substring(0, 50) + '...'
+              });
+              
+              console.log('📤 Full message object being sent to onMessageSync:', {
+                id: message.id,
+                role: message.role,
+                sender: message.sender,
+                contentPreview: message.content[0]?.text?.substring(0, 50) + '...'
               });
               
               // CRITICAL SAFETY CHECK: Only call onMessageSync if we have explicit Matrix room setup
