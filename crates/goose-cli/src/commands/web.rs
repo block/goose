@@ -222,9 +222,7 @@ pub async fn handle_web(
     Ok(())
 }
 
-async fn serve_index(
-    uri: Uri,
-) -> Result<Redirect, (http::StatusCode, String)> {
+async fn serve_index(uri: Uri) -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),

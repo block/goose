@@ -473,12 +473,7 @@ async function loadSessionIfExists() {
                 resumeDiv.className = 'message system-message';
                 resumeDiv.innerHTML = `<em>Session resumed: ${sessionData.messages.length} messages loaded</em>`;
                 messagesContainer.appendChild(resumeDiv);
-                
-                // Load all messages from session
-                sessionData.messages.forEach(msg => {
-                    addMessage(msg.content, msg.role, msg.timestamp);
-                });
-                
+                                
                 // Update page title with session description if available
                 if (sessionData.metadata && sessionData.metadata.description) {
                     document.title = `goose chat - ${sessionData.metadata.description}`;
@@ -529,7 +524,6 @@ function getQueryParam() {
     }
 }
 
-// Populate query parameter if present
 getQueryParam();
 
 // Focus on input
