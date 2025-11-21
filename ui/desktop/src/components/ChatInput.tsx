@@ -52,7 +52,7 @@ const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backe
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 // Manual compact trigger message - must match backend constant
-const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
+const MANUAL_COMPACT_TRIGGER = '/compact';
 
 interface ModelLimit {
   pattern: string;
