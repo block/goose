@@ -23,15 +23,30 @@
   position: relative;
 }
 
+/* Invisible extended tap target area above the tab */
+.tab-item::after {
+  content: '';
+  position: absolute;
+  top: -24px; /* Extend 24px above the visible tab */
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Visual accent bar at bottom of tab */
 .tab-item::before {
   content: '';
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 2px;
+  height: 3px;
   background: transparent;
   transition: background-color 0.2s ease;
+  z-index: 2;
 }
 
 .tab-item:hover::before {
@@ -47,6 +62,8 @@
 .tab-close-button {
   transition: all 0.2s ease;
   border-radius: 4px;
+  position: relative;
+  z-index: 100; /* Ensure it's above the draggable area */
 }
 
 .tab-close-button:hover {
@@ -226,24 +243,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Tab separator lines */
-.tab-item:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 25%;
-  bottom: 25%;
-  width: 1px;
-  background: var(--color-border-default);
-  opacity: 0.3;
-  transition: opacity 0.2s ease;
-}
-
-.tab-item:hover::after,
-.tab-item.active::after,
-.tab-item:hover + .tab-item::after {
-  opacity: 0;
-}
+/* Tab separator lines - removed to allow ::after for extended tap target */
 
 /* Dark mode specific adjustments */
 @media (prefers-color-scheme: dark) {

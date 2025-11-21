@@ -116,13 +116,13 @@ export const TabBar: React.FC<TabBarProps> = ({
                 onTabClose(tab.id);
               }}
               className={cn(
-                "flex-shrink-0 p-1 rounded-md tab-close-button",
+                "flex-shrink-0 p-1.5 rounded-md tab-close-button",
                 "text-text-muted hover:text-text-standard transition-all duration-200",
-                "ml-1" // Add some margin for better spacing
+                "ml-1 -mr-1" // Add some margin for better spacing and extend clickable area
               )}
               title="Close tab"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
