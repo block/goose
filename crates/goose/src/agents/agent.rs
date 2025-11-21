@@ -71,7 +71,7 @@ pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
 
 /// Maximum number of turns a directory hint can be idle before pruning
 /// Can be overridden with GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS environment variable
-const DEFAULT_MAX_IDLE_TURNS: u32 = 3;
+const DEFAULT_HINT_PRUNING_TURNS: u32 = 3;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -1344,8 +1344,8 @@ impl Agent {
     /// If the directory hasn't been loaded yet, loads its hint files (agents.md, .goosehints)
     /// and extends the system prompt.
     ///
-    /// Security: Only loads hints from directories within the git repository or
-    /// working directory to prevent loading untrusted hints from arbitrary paths.
+    /// Security: Only loads hints from subdirectories of the working directory
+    /// to prevent loading untrusted hints from arbitrary paths.
     ///
     /// Note: This method is public for testing purposes only.
     pub async fn maybe_load_directory_hints(
@@ -1395,10 +1395,11 @@ impl Agent {
             save_needed = true;
         } else if !loaded_state.is_loaded(directory) {
             // Try to load hints
+            // We build a gitignore matcher to respect project ignore rules when loading hints
             let gitignore = build_gitignore(&working_dir);
             let hints_filenames = get_context_filenames();
 
-                match load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
+            match load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
                 Some(content) => {
                     let tag = loaded_state.mark_loaded(directory, current_turn);
                     
@@ -1450,7 +1451,7 @@ impl Agent {
         let max_idle_turns = std::env::var("GOOSE_DYNAMIC_SUBDIRECTORY_HINT_PRUNING_TURNS")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(DEFAULT_MAX_IDLE_TURNS);
+            .unwrap_or(DEFAULT_HINT_PRUNING_TURNS);
 
         let mut loaded_state = get_or_create_loaded_agents_state(extension_data);
         let stale_dirs = loaded_state.prune_stale(current_turn, max_idle_turns);
