@@ -96,11 +96,15 @@ impl ProviderRegistry {
             })
             .collect();
 
-        // Generate appropriate config keys based on the provider engine and configuration
         let mut config_keys = base_metadata.config_keys.clone();
-        // Update the first config key (API key) to use the provider-specific environment variable
-        if !config_keys.is_empty() {
-            config_keys[0] = super::base::ConfigKey::new(&config.api_key_env, true, true, None);
+
+        // Force the API key to be platform-specific over `OPENAI_API_KEY`
+        if let Some(api_key_index) = config_keys
+            .iter()
+            .position(|key| key.required && key.secret)
+        {
+            config_keys[api_key_index] =
+                super::base::ConfigKey::new(&config.api_key_env, true, true, None);
         }
 
         let custom_metadata = ProviderMetadata {
