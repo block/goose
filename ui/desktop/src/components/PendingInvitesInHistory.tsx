@@ -19,7 +19,8 @@ const PendingInvitesInHistory: React.FC<PendingInvitesInHistoryProps> = ({
     isConnected, 
     joinRoom,
     acceptCollaborationInvite,
-    declineCollaborationInvite 
+    declineCollaborationInvite,
+    getPendingInvitedRooms 
   } = useMatrix();
   
   const navigate = useNavigate();
@@ -31,9 +32,50 @@ const PendingInvitesInHistory: React.FC<PendingInvitesInHistoryProps> = ({
     if (!isConnected) return;
 
     const loadPendingInvites = () => {
-      const invites = matrixInviteStateService.getPendingInvites();
-      console.log('📋 PendingInvitesInHistory: Loaded pending invites:', invites.length);
-      setPendingInvites(invites);
+      // Fetch fresh invites from Matrix server
+      const matrixInvites = getPendingInvitedRooms();
+      console.log('📋 PendingInvitesInHistory: Fetched from Matrix server:', matrixInvites.length, 'invites');
+      
+      // Also get invites from local storage (for any that might not be synced yet)
+      const localInvites = matrixInviteStateService.getPendingInvites();
+      console.log('📋 PendingInvitesInHistory: Loaded from local storage:', localInvites.length, 'invites');
+      
+      // Merge and deduplicate by roomId
+      const inviteMap = new Map<string, InviteState>();
+      
+      // Add local invites first
+      localInvites.forEach(invite => {
+        inviteMap.set(invite.roomId, invite);
+      });
+      
+      // Add/update with Matrix server invites (these are more authoritative)
+      matrixInvites.forEach(matrixInvite => {
+        const existingInvite = inviteMap.get(matrixInvite.roomId);
+        if (existingInvite) {
+          // Update existing invite with fresh data from server
+          inviteMap.set(matrixInvite.roomId, {
+            ...existingInvite,
+            inviter: matrixInvite.inviter,
+            inviterName: matrixInvite.inviterName || existingInvite.inviterName,
+            timestamp: matrixInvite.timestamp,
+            roomName: matrixInvite.roomName || existingInvite.roomName,
+          });
+        } else {
+          // Add new invite from server
+          inviteMap.set(matrixInvite.roomId, {
+            roomId: matrixInvite.roomId,
+            inviter: matrixInvite.inviter,
+            inviterName: matrixInvite.inviterName,
+            timestamp: matrixInvite.timestamp,
+            status: 'pending',
+            roomName: matrixInvite.roomName,
+          });
+        }
+      });
+      
+      const mergedInvites = Array.from(inviteMap.values());
+      console.log('📋 PendingInvitesInHistory: Merged total:', mergedInvites.length, 'invites');
+      setPendingInvites(mergedInvites);
     };
 
     // Load initially
@@ -55,7 +97,7 @@ const PendingInvitesInHistory: React.FC<PendingInvitesInHistoryProps> = ({
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
-  }, [isConnected]);
+  }, [isConnected, getPendingInvitedRooms]);
 
   const handleAcceptInvite = async (invite: InviteState) => {
     setLoading(true);

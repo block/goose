@@ -1124,6 +1124,57 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Get pending room invitations from Matrix server
+   * Returns rooms where the user has been invited but hasn't joined yet
+   */
+  getPendingInvitedRooms(): Array<{
+    roomId: string;
+    roomName?: string;
+    inviter: string;
+    inviterName?: string;
+    timestamp: number;
+  }> {
+    if (!this.client) {
+      console.log('📭 getPendingInvitedRooms: Client not initialized');
+      return [];
+    }
+
+    const allRooms = this.client.getRooms();
+    const invitedRooms = allRooms.filter(room => room.getMyMembership() === 'invite');
+    
+    console.log(`📬 getPendingInvitedRooms: Found ${invitedRooms.length} pending invites from Matrix server`);
+    
+    const pendingInvites = invitedRooms.map(room => {
+      // Get the invite event to find who invited us
+      const inviteEvent = room.currentState.getStateEvents('m.room.member', this.config.userId!);
+      const inviter = inviteEvent?.getSender() || 'unknown';
+      
+      // Get inviter information
+      const inviterUser = this.client?.getUser(inviter);
+      const inviterMember = room.getMember(inviter);
+      const inviterName = inviterMember?.name || inviterUser?.displayName || inviter.split(':')[0].substring(1);
+      
+      // Get timestamp from the invite event
+      const timestamp = inviteEvent?.getTs() || Date.now();
+      
+      return {
+        roomId: room.roomId,
+        roomName: room.name || undefined,
+        inviter,
+        inviterName,
+        timestamp,
+      };
+    });
+
+    // Sync with matrixInviteStateService to ensure local storage is up to date
+    pendingInvites.forEach(invite => {
+      matrixInviteStateService.recordInvite(invite.roomId, invite.inviter, invite.inviterName);
+    });
+
+    return pendingInvites;
+  }
+
+  /**
    * Get friends (users in direct message rooms)
    */
   getFriends(): MatrixUser[] {

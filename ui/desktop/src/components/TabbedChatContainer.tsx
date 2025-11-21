@@ -232,7 +232,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                       initialMessage={isActive ? initialMessage : undefined} // Only pass to active tab
                       showParticipantsBar={tabState.tab.type === 'matrix'}
                       matrixRoomId={tabState.tab.matrixRoomId}
-                      showPendingInvites={tabState.tab.type === 'matrix'}
+                      showPendingInvites={true}
                       tabId={tabState.tab.id}
                       isTabActive={isActive} // New prop to indicate if tab is active
                     />
@@ -274,7 +274,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                   initialMessage={isActive ? initialMessage : undefined} // Only pass to active tab
                   showParticipantsBar={tabState.tab.type === 'matrix'}
                   matrixRoomId={tabState.tab.matrixRoomId}
-                  showPendingInvites={tabState.tab.type === 'matrix'}
+                  showPendingInvites={true}
                   tabId={tabState.tab.id}
                   isTabActive={isActive} // New prop to indicate if tab is active
                 />

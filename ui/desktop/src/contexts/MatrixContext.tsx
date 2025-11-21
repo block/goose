@@ -70,6 +70,15 @@ interface MatrixContextType {
     metadata?: Record<string, any>;
   }>>;
 
+  // Pending invites
+  getPendingInvitedRooms: () => Array<{
+    roomId: string;
+    roomName?: string;
+    inviter: string;
+    inviterName?: string;
+    timestamp: number;
+  }>;
+
   // Debug methods
   debugGooseMessage: (roomId: string) => Promise<void>;
   getDebugInfo: () => Record<string, any>;
@@ -320,6 +329,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     return await matrixService.getRoomHistoryAsGooseMessages(roomId, limit);
   };
 
+  // Pending invites method
+  const getPendingInvitedRooms = () => {
+    return matrixService.getPendingInvitedRooms();
+  };
+
   // Debug methods
   const debugGooseMessage = async (roomId: string) => {
     return await matrixService.debugGooseMessage(roomId);
@@ -370,6 +384,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     // Room history
     getRoomHistory,
     getRoomHistoryAsGooseMessages,
+    // Pending invites
+    getPendingInvitedRooms,
     // Debug methods
     debugGooseMessage,
     getDebugInfo,
