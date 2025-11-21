@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
@@ -59,14 +59,15 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
+    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -776,15 +777,35 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let is_manual_compact = user_message.content.iter().any(|c| {
-            if let MessageContent::Text(text) = c {
-                text.text.trim() == MANUAL_COMPACT_TRIGGER
-            } else {
-                false
-            }
-        });
+        let message_text = user_message.as_concat_text();
+        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
 
-        SessionManager::add_message(&session_config.id, &user_message).await?;
+        let slash_command_recipe = if message_text.trim().starts_with('/') {
+            let command = message_text.split_whitespace().next();
+            command.and_then(crate::slash_commands::resolve_slash_command)
+        } else {
+            None
+        };
+
+        if let Some(recipe) = slash_command_recipe {
+            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let prompt_message = Message::user()
+                .with_text(prompt)
+                .with_visibility(false, true);
+            SessionManager::add_message(&session_config.id, &prompt_message).await?;
+            SessionManager::add_message(
+                &session_config.id,
+                &user_message.with_visibility(true, false),
+            )
+            .await?;
+        } else {
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
+
         let session = SessionManager::get_session(&session_config.id, true).await?;
 
         let conversation = session
@@ -1238,13 +1259,23 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn update_provider(
+        &self,
+        provider: Arc<dyn Provider>,
+        session_id: &str,
+    ) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider), None)
+        self.update_router_tool_selector(Some(provider.clone()), None)
             .await?;
-        Ok(())
+
+        SessionManager::update_session(session_id)
+            .provider_name(provider.get_name())
+            .model_config(provider.get_model_config())
+            .apply()
+            .await
+            .context("Failed to persist provider config to session")
     }
 
     pub async fn update_router_tool_selector(

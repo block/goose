@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
@@ -41,7 +41,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.52",
     "@ai-sdk/ui-utils": "^1.2.11",
-    "@mcp-ui/client": "^5.13.0",
+    "@mcp-ui/client": "^5.14.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",

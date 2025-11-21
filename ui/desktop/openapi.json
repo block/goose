@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.14.0"
+    "version": "1.15.0"
   },
   "paths": {
     "/agent/add_extension": {
@@ -964,6 +964,26 @@
         "responses": {}
       }
     },
+    "/config/slash_commands": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_slash_commands",
+        "responses": {
+          "200": {
+            "description": "Slash commands retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlashCommandsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/upsert": {
       "post": {
         "tags": [
@@ -1124,6 +1144,33 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/mcp-ui-proxy": {
+      "get": {
+        "tags": [
+          "super::routes::mcp_ui_proxy"
+        ],
+        "operationId": "mcp_ui_proxy",
+        "parameters": [
+          {
+            "name": "secret",
+            "in": "query",
+            "description": "Secret key for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP UI proxy HTML page"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing secret"
           }
         }
       }
@@ -1427,6 +1474,64 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/recipes/schedule": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "schedule_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe scheduled successfully"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/recipes/slash-command": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "set_recipe_slash_command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSlashCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Slash command set successfully"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -2286,6 +2391,13 @@
           }
         }
       },
+      "CommandType": {
+        "type": "string",
+        "enum": [
+          "Builtin",
+          "Recipe"
+        ]
+      },
       "ConfigKey": {
         "type": "object",
         "description": "Configuration key metadata for provider setup",
@@ -3136,13 +3248,13 @@
       "ListRecipeResponse": {
         "type": "object",
         "required": [
-          "recipe_manifest_responses"
+          "manifests"
         ],
         "properties": {
-          "recipe_manifest_responses": {
+          "manifests": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RecipeManifestResponse"
+              "$ref": "#/components/schemas/RecipeManifest"
             }
           }
         }
@@ -3568,6 +3680,44 @@
           }
         }
       },
+      "ModelConfig": {
+        "type": "object",
+        "required": [
+          "model_name",
+          "toolshim"
+        ],
+        "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "fast_model": {
+            "type": "string",
+            "nullable": true
+          },
+          "max_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "nullable": true
+          },
+          "toolshim": {
+            "type": "boolean"
+          },
+          "toolshim_model": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -3956,22 +4106,34 @@
           }
         }
       },
-      "RecipeManifestResponse": {
+      "RecipeManifest": {
         "type": "object",
         "required": [
+          "id",
           "recipe",
-          "lastModified",
-          "id"
+          "file_path",
+          "last_modified"
         ],
         "properties": {
+          "file_path": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
-          "lastModified": {
+          "last_modified": {
             "type": "string"
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          },
+          "schedule_cron": {
+            "type": "string",
+            "nullable": true
+          },
+          "slash_command": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -4236,6 +4398,21 @@
           }
         }
       },
+      "ScheduleRecipeRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "cron_schedule": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "ScheduledJob": {
         "type": "object",
         "required": [
@@ -4329,12 +4506,24 @@
             "type": "integer",
             "minimum": 0
           },
+          "model_config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelConfig"
+              }
+            ],
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
           "output_tokens": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "provider_name": {
+            "type": "string",
             "nullable": true
           },
           "recipe": {
@@ -4506,6 +4695,21 @@
           }
         }
       },
+      "SetSlashCommandRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slash_command": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "Settings": {
         "type": "object",
         "properties": {
@@ -4536,6 +4740,39 @@
           },
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "SlashCommand": {
+        "type": "object",
+        "required": [
+          "command",
+          "help",
+          "command_type"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "command_type": {
+            "$ref": "#/components/schemas/CommandType"
+          },
+          "help": {
+            "type": "string"
+          }
+        }
+      },
+      "SlashCommandsResponse": {
+        "type": "object",
+        "required": [
+          "commands"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlashCommand"
+            }
           }
         }
       },
@@ -4866,6 +5103,10 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "thoughtSignature": {
+            "type": "string",
+            "nullable": true
           },
           "toolCall": {
             "type": "object"

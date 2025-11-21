@@ -212,6 +212,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [parsedRecipe, setParsedRecipe] = useState<Recipe | null>(null);
   const [cronExpression, setCronExpression] = useState<string>('0 0 14 * * *');
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
+  const [isValid, setIsValid] = useState(true);
 
   const handleDeepLinkChange = useCallback(async (value: string) => {
     setDeepLinkInput(value);
@@ -467,7 +468,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
           <div>
             <label className={modalLabelClassName}>Schedule:</label>
-            <CronPicker schedule={schedule} onChange={setCronExpression} />
+            <CronPicker schedule={schedule} onChange={setCronExpression} isValid={setIsValid} />
           </div>
         </form>
 
@@ -484,7 +485,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           <Button
             type="submit"
             form="schedule-form"
-            disabled={isLoadingExternally}
+            disabled={isLoadingExternally || !isValid}
             className="flex-1"
           >
             {isLoadingExternally
