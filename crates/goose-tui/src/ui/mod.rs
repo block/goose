@@ -398,7 +398,7 @@ fn draw_slash_commands_popup(f: &mut Frame, app: &App, input_area: Rect, query: 
     f.render_widget(list, area);
 }
 
-fn draw_todo_popup_window(f: &mut Frame, app: &App) {
+fn draw_todo_popup_window(f: &mut Frame, app: &mut App) {
     let area = centered_rect(60, 60, f.area());
     f.render_widget(Clear, area);
 
@@ -433,6 +433,25 @@ fn draw_todo_popup_window(f: &mut Frame, app: &App) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .style(Style::default().bg(app.config.theme.base.background));
+
+    // Calculate wrapped lines manually to determine total height
+    // The area available for text is area.width - 2 (borders)
+    // And area.height - 2 (borders)
+    let text_width = area.width.saturating_sub(2) as usize;
+    let mut total_lines = 0;
+
+    for line in &lines {
+        let content: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        if content.is_empty() {
+            total_lines += 1;
+        } else {
+            let wrapped = textwrap::wrap(&content, text_width);
+            total_lines += wrapped.len();
+        }
+    }
+
+    app.todo_popup_content_height = total_lines;
+    app.todo_popup_area_height = area.height.saturating_sub(2) as usize;
 
     let paragraph = Paragraph::new(Text::from(lines))
         .block(block)

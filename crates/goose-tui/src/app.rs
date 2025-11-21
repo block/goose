@@ -84,6 +84,8 @@ pub struct App<'a> {
     // Scrolling limits
     pub popup_content_height: usize,
     pub popup_area_height: usize,
+    pub todo_popup_content_height: usize,
+    pub todo_popup_area_height: usize,
 }
 
 fn to_rgb(color: Color) -> (u8, u8, u8) {
@@ -232,6 +234,8 @@ impl<'a> App<'a> {
 
             popup_content_height: 0,
             popup_area_height: 0,
+            todo_popup_content_height: 0,
+            todo_popup_area_height: 0,
         })
     }
 
@@ -549,11 +553,16 @@ impl<'a> App<'a> {
 
         // 1. Todo Popup
         if self.showing_todo_popup {
+            let max_scroll = self
+                .todo_popup_content_height
+                .saturating_sub(self.todo_popup_area_height);
+
             if amount < 0 {
                 self.todo_scroll = self.todo_scroll.saturating_sub(amount.abs() as usize);
             } else {
                 self.todo_scroll = self.todo_scroll.saturating_add(amount as usize);
             }
+            self.todo_scroll = self.todo_scroll.min(max_scroll);
             return;
         }
 
