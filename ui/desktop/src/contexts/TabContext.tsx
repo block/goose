@@ -928,6 +928,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
 
     // Get or create the backend session for this Matrix room (async)
     let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
+    let hasExistingMessages = false;
     
     if (!backendSessionId) {
       console.log('📱 No existing mapping found, creating new Matrix session mapping');
@@ -943,21 +944,39 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         );
         backendSessionId = mapping.gooseSessionId;
         console.log('✅ Created new backend session for Matrix room:', backendSessionId);
+        hasExistingMessages = false; // New session, no messages
       } catch (error) {
         console.error('❌ Failed to create backend session for Matrix room:', error);
         // Keep the temporary session ID - this won't have backend persistence
         backendSessionId = tempTab.sessionId;
+        hasExistingMessages = false;
       }
     } else {
       console.log('📱 Found existing backend session for Matrix room:', backendSessionId);
+      
+      // Check if this session has existing messages
+      try {
+        const sessionResponse = await getSession({
+          path: { session_id: backendSessionId }
+        });
+        hasExistingMessages = (sessionResponse.data?.message_count ?? 0) > 0;
+        console.log('📱 Session has existing messages:', hasExistingMessages, 'count:', sessionResponse.data?.message_count);
+      } catch (error) {
+        console.warn('⚠️ Failed to check message count:', error);
+        hasExistingMessages = true; // Assume it has messages to show loading state
+      }
     }
 
-    // Update the tab with the real backend session ID and remove loading state
+    // Update the tab with the real backend session ID
+    // Keep loading state if there are existing messages (they need to load)
+    // Remove loading state if it's a new chat (show empty state immediately)
     console.log('📱 Updating tab with backend session:', {
       tabId: tempTab.id,
       backendSessionId,
       roomId,
-      senderId
+      senderId,
+      hasExistingMessages,
+      willShowLoading: hasExistingMessages
     });
     
     setTabStates(prev => prev.map(ts => 
@@ -966,7 +985,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
             ...ts,
             tab: { ...ts.tab, sessionId: backendSessionId },
             chat: { ...ts.chat, sessionId: backendSessionId },
-            loadingChat: false // Remove loading state
+            loadingChat: hasExistingMessages // Keep loading if there are messages to load
           }
         : ts
     ));
