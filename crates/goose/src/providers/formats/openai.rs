@@ -91,6 +91,28 @@ pub struct ResponseUsage {
     pub total_tokens: i32,
 }
 
+// ============================================================================
+// Responses API Streaming Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponsesStreamEvent {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<Vec<ResponseOutputItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<ResponseUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
     name: Option<String>,
@@ -848,6 +870,157 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
             Some(u.total_tokens),
         )
     })
+}
+
+pub fn responses_api_to_streaming_message<S>(
+    mut stream: S,
+) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
+where
+    S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    try_stream! {
+        use futures::StreamExt;
+
+        let mut accumulated_content = String::new();
+        let mut accumulated_tool_calls: Vec<(String, String, String)> = Vec::new(); // (id, name, arguments)
+        let mut response_id: Option<String> = None;
+        let mut model_name: Option<String> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
+        let mut has_tool_calls = false;
+
+        'outer: while let Some(response) = stream.next().await {
+            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                break 'outer;
+            }
+            let response_str = response?;
+            let line = strip_data_prefix(&response_str);
+
+            if line.is_none() || line.is_some_and(|l| l.is_empty()) {
+                continue;
+            }
+
+            let event: ResponsesStreamEvent = serde_json::from_str(line
+                .ok_or_else(|| anyhow!("unexpected stream format"))?)
+                .map_err(|e| anyhow!("Failed to parse Responses stream event: {}: {:?}", e, &line))?;
+
+            // Collect metadata
+            if let Some(id) = event.response_id {
+                response_id = Some(id);
+            }
+            if let Some(model) = event.model {
+                model_name = Some(model);
+            }
+
+            // Handle usage data
+            if let Some(usage) = event.usage {
+                if let Some(model) = &model_name {
+                    final_usage = Some(ProviderUsage {
+                        usage: Usage::new(
+                            Some(usage.input_tokens),
+                            Some(usage.output_tokens),
+                            Some(usage.total_tokens),
+                        ),
+                        model: model.clone(),
+                    });
+                }
+            }
+
+            // Handle complete output items first (to detect tool calls early)
+            if let Some(output_items) = &event.output {
+                for item in output_items {
+                    match item {
+                        ResponseOutputItem::Reasoning { .. } => {
+                            // Skip reasoning items
+                            continue;
+                        }
+                        ResponseOutputItem::Message { content: msg_content, .. } => {
+                            for block in msg_content {
+                                match block {
+                                    ResponseContentBlock::ToolCall { id, name, input } => {
+                                        has_tool_calls = true;
+                                        let arguments_str = serde_json::to_string(&input)
+                                            .unwrap_or_else(|_| "{}".to_string());
+                                        accumulated_tool_calls.push((id.clone(), name.clone(), arguments_str));
+                                    }
+                                    ResponseContentBlock::OutputText { text, .. } => {
+                                        if !text.is_empty() && !has_tool_calls {
+                                            accumulated_content.push_str(&text);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ResponseOutputItem::FunctionCall { id, name, arguments, .. } => {
+                            has_tool_calls = true;
+                            accumulated_tool_calls.push((id.clone(), name.clone(), arguments.clone()));
+                        }
+                    }
+                }
+            }
+
+            // Accumulate deltas first
+            if let Some(delta) = event.delta {
+                if !delta.is_empty() {
+                    accumulated_content.push_str(&delta);
+
+                    // Check if accumulated content looks like JSON (potential tool call)
+                    let trimmed = accumulated_content.trim();
+                    let looks_like_json = trimmed.starts_with('{') || trimmed.starts_with('[');
+
+                    // Only stream if we haven't detected tool calls AND content doesn't look like JSON
+                    if !has_tool_calls && !looks_like_json {
+                        // Yield incremental text updates only for text responses
+                        let mut content = Vec::new();
+                        if !accumulated_content.is_empty() {
+                            content.push(MessageContent::text(&accumulated_content));
+                        }
+                        let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                        yield (Some(msg), None);
+                    }
+                }
+            }
+
+            // Check if streaming is complete
+            if event.status.as_deref() == Some("completed") {
+                break 'outer;
+            }
+        }
+
+        // Yield final complete message if we have tool calls or if we haven't streamed yet
+        if has_tool_calls || (!accumulated_content.is_empty() && accumulated_tool_calls.is_empty()) {
+            let mut content = Vec::new();
+
+            if !accumulated_content.is_empty() && !has_tool_calls {
+                content.push(MessageContent::text(&accumulated_content));
+            }
+
+            for (id, name, arguments) in accumulated_tool_calls {
+                let parsed_args = if arguments.is_empty() {
+                    json!({})
+                } else {
+                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                };
+
+                content.push(MessageContent::tool_request(
+                    id,
+                    Ok(CallToolRequestParam {
+                        name: name.into(),
+                        arguments: Some(object(parsed_args)),
+                    }),
+                ));
+            }
+
+            if !content.is_empty() {
+                let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                if let Some(id) = response_id {
+                    message = message.with_id(id);
+                }
+                yield (Some(message), final_usage);
+            } else if let Some(usage) = final_usage {
+                yield (None, Some(usage));
+            }
+        }
+    }
 }
 
 pub fn create_request(
