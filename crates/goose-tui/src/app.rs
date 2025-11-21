@@ -733,7 +733,7 @@ impl<'a> App<'a> {
 
         match self.input_mode {
             InputMode::Normal => match key.code {
-                KeyCode::Char('e') | KeyCode::Char('i') => {
+                KeyCode::Char('e') | KeyCode::Char('i') | KeyCode::Esc => {
                     self.input_mode = InputMode::Editing;
                     // Auto-scroll to follow AI response when returning to edit mode
                     if self.waiting_for_response {
@@ -755,12 +755,12 @@ impl<'a> App<'a> {
                     self.should_quit = true;
                 }
                 KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll_down();
+                    self.scroll_vertical(1);
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll_up();
+                    self.scroll_vertical(-1);
                 }
-                _ => {}
+                _ => {},
             },
             InputMode::Editing => {
                 match key.code {
