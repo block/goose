@@ -168,7 +168,7 @@ async fn handle_streaming_response(
                     total_chunks: None,
                     is_chunked: false,
                     is_streaming: true,
-                    is_first_chunk: is_first_chunk,
+                    is_first_chunk,
                     is_last_chunk: false,
                 };
                 send_response(ws_tx.clone(), tunnel_response).await?;
