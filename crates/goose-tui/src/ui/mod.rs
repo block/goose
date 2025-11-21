@@ -682,6 +682,7 @@ fn draw_todo_line(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     let mut spans = Vec::new();
+    let text_color = app.config.theme.base.foreground; // Common color for session, tokens, and CWD
 
     // 1. Mode Indicator
     let mode_bg_color = if app.waiting_for_response {
@@ -714,25 +715,53 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
 
     spans.push(Span::raw(" "));
 
-    // 2. Current Working Directory
+    // 2. Session ID (no "Session:" prefix, same color as CWD)
+    let short_session = if app.session_id.len() > 8 {
+        &app.session_id[..8]
+    } else {
+        &app.session_id
+    };
+    spans.push(Span::styled(short_session, Style::default().fg(text_color)));
+    spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+
+    // 3. Token usage (same color as CWD, using model_context_limit for denominator)
+    if app.token_state.accumulated_total_tokens > 0 {
+        // Format tokens with K suffix if > 1000
+        let format_tokens = |tokens: i32| -> String {
+            if tokens >= 1000 {
+                format!("{}k", tokens / 1000)
+            } else {
+                tokens.to_string()
+            }
+        };
+
+        spans.push(Span::styled(
+            format!(
+                "{}/{}",
+                format_tokens(app.token_state.total_tokens),
+                format_tokens(app.model_context_limit as i32)
+            ),
+            Style::default().fg(text_color),
+        ));
+        spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+    }
+
+    // 4. Current Working Directory (less aggressive truncation)
     if let Ok(cwd) = std::env::current_dir() {
         if let Some(cwd_str) = cwd.to_str() {
-            // Truncate path if too long
-            let max_path_len = 40;
+            // Increase max path length to be less aggressive with truncation
+            let max_path_len = 50;
             let display_path = if cwd_str.len() > max_path_len {
                 format!("...{}", &cwd_str[cwd_str.len() - max_path_len + 3..])
             } else {
                 cwd_str.to_string()
             };
-            spans.push(Span::styled(
-                format!("{} ", display_path),
-                Style::default().fg(app.config.theme.base.foreground),
-            ));
+            spans.push(Span::styled(display_path, Style::default().fg(text_color)));
             spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
         }
     }
 
-    // 3. Dynamic Key Hints
+    // 5. Dynamic Key Hints
     let mut hints = Vec::new();
 
     // Ctrl+C Hint

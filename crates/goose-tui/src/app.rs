@@ -6,7 +6,8 @@ use crate::ui;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use goose::config::Config;
-use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent, TokenState};
+use goose::model::ModelConfig;
 use goose_server::routes::reply::MessageEvent;
 use ratatui::style::Color;
 use ratatui::widgets::ListState;
@@ -62,6 +63,8 @@ pub struct App<'a> {
     pub flash_message: Option<String>,
     pub flash_message_expiry: Option<Instant>,
     pub current_border_color: (u8, u8, u8),
+    pub token_state: TokenState,    // Track token usage
+    pub model_context_limit: usize, // Model's context window size
 
     // Command Builder State
     pub showing_command_builder: bool,
@@ -123,6 +126,15 @@ impl<'a> App<'a> {
             .unwrap_or_else(|_| "openai".to_string());
         let model = global_config.get_goose_model().ok();
 
+        // Calculate model context limit
+        let model_context_limit = if let Some(ref model_name) = model {
+            ModelConfig::new(model_name)
+                .map(|config| config.context_limit())
+                .unwrap_or(128_000)
+        } else {
+            128_000 // Default fallback
+        };
+
         if let Err(e) = client.update_provider(&session_id, provider, model).await {
             tracing::error!("Failed to update provider: {}", e);
             // We don't error out here, but the agent might fail to reply
@@ -167,6 +179,8 @@ impl<'a> App<'a> {
             flash_message: None,
             flash_message_expiry: None,
             current_border_color: (128, 128, 128),
+            token_state: TokenState::default(),
+            model_context_limit,
 
             showing_command_builder: false,
             builder_state: BuilderState::SelectTool,
@@ -233,7 +247,12 @@ impl<'a> App<'a> {
                 Some(Event::Resize(..)) => {} // Autohandled by Ratatui usually
                 Some(Event::Server(msg)) => {
                     match msg {
-                        MessageEvent::Message { message, .. } => {
+                        MessageEvent::Message {
+                            message,
+                            token_state,
+                        } => {
+                            // Update token state
+                            self.token_state = token_state;
                             // Parse Todos from ToolRequest (todo__todo_write arguments)
                             for content in &message.content {
                                 if let MessageContent::ToolRequest(req) = content {
@@ -312,8 +331,9 @@ impl<'a> App<'a> {
                             self.has_user_input_pending = true;
                             self.reply_task = None;
                         }
-                        MessageEvent::Finish { .. } => {
-                            // Generation finished
+                        MessageEvent::Finish { token_state, .. } => {
+                            // Generation finished - update final token state
+                            self.token_state = token_state;
                             self.waiting_for_response = false;
                             self.has_user_input_pending = true;
                             self.reply_task = None;
