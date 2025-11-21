@@ -8,8 +8,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent};
 use goose_server::routes::reply::MessageEvent;
-use ratatui::widgets::ListState;
 use ratatui::style::Color;
+use ratatui::widgets::ListState;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -505,22 +505,22 @@ impl<'a> App<'a> {
 
         // Global shortcuts (Ctrl+C)
         if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            if !self.input.is_empty() {
-                // 1. Clear input if present
-                self.input = TextArea::default();
-                self.input
-                    .set_cursor_line_style(ratatui::style::Style::default());
-                self.input.set_placeholder_text("Type a message...");
-            } else if self.waiting_for_response {
-                // 2. Interrupt Goose if working
+            if self.waiting_for_response {
+                // 1. Interrupt Goose if working
                 if let Some(task) = self.reply_task.take() {
                     task.abort();
                 }
                 self.waiting_for_response = false;
                 self.has_user_input_pending = true;
                 tracing::info!("User interrupted response");
+            } else if !self.input.is_empty() {
+                // 2. Clear input if not working but has text
+                self.input = TextArea::default();
+                self.input
+                    .set_cursor_line_style(ratatui::style::Style::default());
+                self.input.set_placeholder_text("Type a message...");
             } else {
-                // 3. Exit if idle
+                // 3. Exit if idle and no input
                 self.should_quit = true;
             }
             return;

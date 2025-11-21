@@ -341,7 +341,12 @@ fn draw_slash_commands_popup(f: &mut Frame, app: &App, input_area: Rect, query: 
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).title("Commands"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Commands"),
+        )
         .style(Style::default().bg(app.config.theme.base.background)); // Match chat bg
 
     f.render_widget(list, area);
@@ -1078,7 +1083,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     if app.has_user_input_pending {
-        let blink_char = if app.animation_frame % 2 == 0 {
+        let blink_char = if (app.animation_frame / 10) % 2 == 0 {
             "_"
         } else {
             " "
