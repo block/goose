@@ -558,8 +558,7 @@ export const useSessionSharing = ({
               return;
             }
             
-            // Mark this message as processed
-            processedMessages.current.add(messageKey);
+            // DON'T mark as processed yet - wait until we successfully call onMessageSync
             
             // ULTRA-STRICT SESSION MESSAGE FILTERING: Only process if ALL room IDs match exactly
             const isMatrixRoom = sessionId && sessionId.startsWith('!');
@@ -678,6 +677,10 @@ export const useSessionSharing = ({
               if (onMessageSync && hasExplicitMatrixRoomId) {
                 console.log('✅ CALLING onMessageSync FROM GOOSE SESSION SYNC - Matrix room explicitly configured');
                 onMessageSync(message);
+                
+                // Mark as processed ONLY after successfully calling onMessageSync
+                processedMessages.current.add(messageKey);
+                console.log('✅ Marked message as processed:', messageKey);
               } else {
                 console.log('🚫 BLOCKING onMessageSync FROM GOOSE SESSION SYNC - No explicit Matrix room configuration', {
                   hasOnMessageSync: !!onMessageSync,
