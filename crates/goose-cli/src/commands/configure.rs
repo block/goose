@@ -862,24 +862,10 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => env_keys.push(keychain_key),
-                        Err(ConfigError::FallbackToFileStorage) => {
-                            handle_keyring_fallback()?;
-                            let _ = cliclack::log::success(
-                                "Successfully stored secret using file-based storage",
-                            );
-                            env_keys.push(keychain_key);
-                        }
-                        Err(e) => {
-                            cliclack::outro(
-                                style(format!("Failed to store secret: {}", e))
-                                    .on_red()
-                                    .white(),
-                            )?;
-                            return Ok(());
-                        }
+                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -965,24 +951,10 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => env_keys.push(keychain_key),
-                        Err(ConfigError::FallbackToFileStorage) => {
-                            handle_keyring_fallback()?;
-                            let _ = cliclack::log::success(
-                                "Successfully stored secret using file-based storage",
-                            );
-                            env_keys.push(keychain_key);
-                        }
-                        Err(e) => {
-                            cliclack::outro(
-                                style(format!("Failed to store secret: {}", e))
-                                    .on_red()
-                                    .white(),
-                            )?;
-                            return Ok(());
-                        }
+                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -1092,24 +1064,10 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &Value::String(value.clone())) {
-                        Ok(_) => env_keys.push(keychain_key),
-                        Err(ConfigError::FallbackToFileStorage) => {
-                            handle_keyring_fallback()?;
-                            let _ = cliclack::log::success(
-                                "Successfully stored secret using file-based storage",
-                            );
-                            env_keys.push(keychain_key);
-                        }
-                        Err(e) => {
-                            cliclack::outro(
-                                style(format!("Failed to store secret: {}", e))
-                                    .on_red()
-                                    .white(),
-                            )?;
-                            return Ok(());
-                        }
+                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
