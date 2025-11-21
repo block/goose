@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
@@ -57,6 +57,8 @@ function BaseChatContent({
   initialMessage,
 }: BaseChatProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
@@ -75,18 +77,13 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const [sessionLoaded, setSessionLoaded] = useState(false);
-  const [hasSubmittedInitialMessage, setHasSubmittedInitialMessage] = useState(false);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
+  const hasAutoSubmittedRef = useRef(false);
 
+  // Reset auto-submit flag when session changes
   useEffect(() => {
-    setSessionLoaded(false);
-    setHasSubmittedInitialMessage(false);
+    hasAutoSubmittedRef.current = false;
   }, [sessionId]);
-
-  const handleSessionLoaded = useCallback(() => {
-    setSessionLoaded(true);
-  }, []);
 
   const {
     session,
@@ -97,19 +94,30 @@ function BaseChatContent({
     sessionLoadError,
     setRecipeUserParams,
     tokenState,
+    notifications: toolCallNotifications,
+    onMessageUpdate,
   } = useChatStream({
     sessionId,
     onStreamFinish,
-    onSessionLoaded: handleSessionLoaded,
   });
 
-  // Handle auto-submission when session is loaded and we have an initial message
   useEffect(() => {
-    if (sessionLoaded && initialMessage && !hasSubmittedInitialMessage) {
-      setHasSubmittedInitialMessage(true);
-      handleSubmit(initialMessage);
+    if (!session || hasAutoSubmittedRef.current) {
+      return;
     }
-  }, [sessionLoaded, initialMessage, hasSubmittedInitialMessage, handleSubmit]);
+
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+
+    if (initialMessage) {
+      // Submit the initial message (e.g., from fork)
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+    } else if (shouldStartAgent) {
+      // Trigger agent to continue with existing conversation
+      hasAutoSubmittedRef.current = true;
+      handleSubmit('');
+    }
+  }, [session, initialMessage, searchParams, handleSubmit]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -198,6 +206,36 @@ function BaseChatContent({
     return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
   }, []);
 
+  useEffect(() => {
+    const handleSessionForked = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        newSessionId: string;
+        shouldStartAgent?: boolean;
+        editedMessage?: string;
+      }>;
+      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+
+      const params = new URLSearchParams();
+      params.set('resumeSessionId', newSessionId);
+      if (shouldStartAgent) {
+        params.set('shouldStartAgent', 'true');
+      }
+
+      navigate(`/pair?${params.toString()}`, {
+        state: {
+          disableAnimation: true,
+          initialMessage: editedMessage,
+        },
+      });
+    };
+
+    window.addEventListener('session-forked', handleSessionForked);
+
+    return () => {
+      window.removeEventListener('session-forked', handleSessionForked);
+    };
+  }, [location.pathname, navigate]);
+
   const handleRecipeCreated = (recipe: Recipe) => {
     toastSuccess({
       title: 'Recipe created successfully!',
@@ -210,15 +248,11 @@ function BaseChatContent({
       <ProgressiveMessageList
         messages={messages}
         chat={chat}
-        // toolCallNotifications={toolCallNotifications}
-        // appendMessage={(newMessage) => {
-        //   const updatedMessages = [...messages, newMessage];
-        //   setMessages(updatedMessages);
-        // }}
+        toolCallNotifications={toolCallNotifications}
         isUserMessage={(m: Message) => m.role === 'user'}
         isStreamingMessage={chatState !== ChatState.Idle}
-        // onMessageUpdate={onMessageUpdate}
         onRenderingComplete={handleRenderingComplete}
+        onMessageUpdate={onMessageUpdate}
       />
     </>
   );
@@ -244,7 +278,7 @@ function BaseChatContent({
   }
 
   const initialPrompt =
-    (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') || recipePrompt;
+    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
 
   if (sessionLoadError) {
     return (

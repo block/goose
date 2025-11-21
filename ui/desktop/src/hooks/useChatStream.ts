@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
@@ -12,7 +12,12 @@ import {
   updateSessionUserRecipeValues,
 } from '../api';
 
-import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
+import {
+  createUserMessage,
+  getCompactingMessage,
+  getThinkingMessage,
+  NotificationEvent,
+} from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -32,6 +37,12 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  notifications: Map<string, NotificationEvent[]>;
+  onMessageUpdate: (
+    messageId: string,
+    newContent: string,
+    editType?: 'fork' | 'edit'
+  ) => Promise<void>;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -62,6 +73,7 @@ async function streamFromResponse(
   updateMessages: (messages: Message[]) => void,
   updateTokenState: (tokenState: TokenState) => void,
   updateChatState: (state: ChatState) => void,
+  updateNotifications: (notification: NotificationEvent) => void,
   onFinish: (error?: string) => void
 ): Promise<void> {
   let currentMessages = initialMessages;
@@ -73,10 +85,18 @@ async function streamFromResponse(
           const msg = event.message;
           currentMessages = pushMessage(currentMessages, msg);
 
-          if (getCompactingMessage(msg)) {
+          const hasToolConfirmation = msg.content.some(
+            (content) => content.type === 'toolConfirmationRequest'
+          );
+
+          if (hasToolConfirmation) {
+            updateChatState(ChatState.WaitingForUserInput);
+          } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
           } else if (getThinkingMessage(msg)) {
             updateChatState(ChatState.Thinking);
+          } else {
+            updateChatState(ChatState.Streaming);
           }
 
           updateTokenState(event.token_state);
@@ -101,7 +121,10 @@ async function streamFromResponse(
           updateMessages(event.conversation);
           break;
         }
-        case 'Notification':
+        case 'Notification': {
+          updateNotifications(event as NotificationEvent);
+          break;
+        }
         case 'Ping':
           break;
       }
@@ -133,6 +156,7 @@ export function useChatStream({
     accumulatedOutputTokens: 0,
     accumulatedTotalTokens: 0,
   });
+  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -146,15 +170,28 @@ export function useChatStream({
     messagesRef.current = newMessages;
   }, []);
 
+  const updateNotifications = useCallback((notification: NotificationEvent) => {
+    setNotifications((prev) => [...prev, notification]);
+  }, []);
+
   const onFinish = useCallback(
-    (error?: string): void => {
+    async (error?: string): Promise<void> => {
       if (error) {
         setSessionLoadError(error);
       }
+
+      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
+      if (isNewSession) {
+        console.log(
+          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
+        );
+        window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish]
+    [onStreamFinish, sessionId]
   );
 
   // Load session on mount or sessionId change
@@ -216,10 +253,31 @@ export function useChatStream({
         return;
       }
 
-      const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
-      updateMessages(currentMessages);
-      setChatState(ChatState.Streaming);
+      const hasExistingMessages = messagesRef.current.length > 0;
+      const hasNewMessage = userMessage.trim().length > 0;
 
+      // Don't submit if there's no message and no conversation to continue
+      if (!hasNewMessage && !hasExistingMessages) {
+        return;
+      }
+
+      // Emit session-created event for first message in a new session
+      if (!hasExistingMessages && hasNewMessage) {
+        window.dispatchEvent(new CustomEvent('session-created'));
+      }
+
+      // Build message list: add new message if provided, otherwise continue with existing
+      const currentMessages = hasNewMessage
+        ? [...messagesRef.current, createUserMessage(userMessage)]
+        : [...messagesRef.current];
+
+      // Update UI with new message before streaming
+      if (hasNewMessage) {
+        updateMessages(currentMessages);
+      }
+
+      setChatState(ChatState.Streaming);
+      setNotifications([]);
       abortControllerRef.current = new AbortController();
 
       try {
@@ -238,6 +296,7 @@ export function useChatStream({
           updateMessages,
           setTokenState,
           setChatState,
+          updateNotifications,
           onFinish
         );
       } catch (error) {
@@ -250,7 +309,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, chatState, updateMessages, onFinish]
+    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
   );
 
   const setRecipeUserParams = useCallback(
@@ -296,9 +355,81 @@ export function useChatStream({
     setChatState(ChatState.Idle);
   }, []);
 
+  const onMessageUpdate = useCallback(
+    async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
+      try {
+        const { editMessage } = await import('../api');
+        const message = messagesRef.current.find((m) => m.id === messageId);
+
+        if (!message) {
+          throw new Error(`Message with id ${messageId} not found in current messages`);
+        }
+
+        const response = await editMessage({
+          path: {
+            session_id: sessionId,
+          },
+          body: {
+            timestamp: message.created,
+            editType,
+          },
+          throwOnError: true,
+        });
+
+        const targetSessionId = response.data?.sessionId;
+        if (!targetSessionId) {
+          throw new Error('No session ID returned from edit_message');
+        }
+
+        if (editType === 'fork') {
+          const event = new CustomEvent('session-forked', {
+            detail: {
+              newSessionId: targetSessionId,
+              shouldStartAgent: true,
+              editedMessage: newContent,
+            },
+          });
+          window.dispatchEvent(event);
+          window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
+        } else {
+          const { getSession } = await import('../api');
+          const sessionResponse = await getSession({
+            path: { session_id: targetSessionId },
+            throwOnError: true,
+          });
+
+          if (sessionResponse.data?.conversation) {
+            updateMessages(sessionResponse.data.conversation);
+          }
+          await handleSubmit(newContent);
+        }
+      } catch (error) {
+        const errorMsg = errorMessage(error);
+        console.error('Failed to edit message:', error);
+        const { toastError } = await import('../toasts');
+        toastError({
+          title: 'Failed to edit message',
+          msg: errorMsg,
+        });
+      }
+    },
+    [sessionId, handleSubmit, updateMessages]
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
+
+  const notificationsMap = useMemo(() => {
+    return notifications.reduce((map, notification) => {
+      const key = notification.request_id;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(notification);
+      return map;
+    }, new Map<string, NotificationEvent[]>());
+  }, [notifications]);
 
   return {
     sessionLoadError,
@@ -309,5 +440,7 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState,
+    notifications: notificationsMap,
+    onMessageUpdate,
   };
 }
