@@ -63,25 +63,23 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         });
 
         let mut output = Vec::new();
+        let mut text_parts = Vec::new();
 
         for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Check for image paths in the text
                         if let Some(image_path) = detect_image_path(&text.text) {
-                            // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
                                 converted["content"] = json!([
                                     {"type": "text", "text": text.text},
                                     convert_image(&image, image_format)
                                 ]);
                             } else {
-                                // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                text_parts.push(text.text.clone());
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            text_parts.push(text.text.clone());
                         }
                     }
                 }
@@ -244,9 +242,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             }
         }
 
+        if !text_parts.is_empty() {
+            converted["content"] = json!(text_parts.join("\n"));
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
+
         messages_spec.extend(output);
     }
 
@@ -1325,6 +1328,23 @@ mod tests {
             assert_eq!(obj.get(key).unwrap(), value);
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_multiple_text_blocks() -> anyhow::Result<()> {
+        let message = Message::user()
+            .with_text("--- Resource: file:///test.md ---\n# Test\n\n---\n")
+            .with_text(" What is in the file?");
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+        assert_eq!(
+            spec[0]["content"],
+            "--- Resource: file:///test.md ---\n# Test\n\n---\n\n What is in the file?"
+        );
         Ok(())
     }
 
