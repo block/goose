@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Calculate input height based on content, with a minimum of 3 (1 line + borders) and max of 50% screen
@@ -72,6 +72,7 @@ fn draw_command_builder_popup(f: &mut Frame, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     match &app.builder_state {
@@ -160,6 +161,7 @@ fn draw_command_builder_popup(f: &mut Frame, app: &mut App) {
             app.builder_input.set_block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
                     .title(format!("Value for '{}'", arg_name)),
             );
             f.render_widget(&app.builder_input, chunks[1]);
@@ -200,6 +202,7 @@ fn draw_command_builder_popup(f: &mut Frame, app: &mut App) {
             app.builder_input.set_block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
                     .title("Slash Command Name (e.g. myls)"),
             );
             f.render_widget(&app.builder_input, chunks[1]);
@@ -247,6 +250,7 @@ fn draw_help_popup(f: &mut Frame, _app: &App) {
     let block = Block::default()
         .title("Help (Esc to Close)")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     f.render_widget(Paragraph::new(Text::from(text)).block(block), area);
@@ -276,6 +280,7 @@ fn draw_about_popup(f: &mut Frame, _app: &App) {
     let block = Block::default()
         .title("About (Esc to Close)")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     f.render_widget(
@@ -330,7 +335,7 @@ fn draw_slash_commands_popup(f: &mut Frame, app: &App, input_area: Rect, query: 
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Commands"))
+        .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).title("Commands"))
         .style(Style::default().bg(app.config.theme.base.background)); // Match chat bg
 
     f.render_widget(list, area);
@@ -369,6 +374,7 @@ fn draw_todo_popup_window(f: &mut Frame, app: &App) {
     let block = Block::default()
         .title("Todos (Ctrl+T/Esc to Close)")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(app.config.theme.base.background));
 
     let paragraph = Paragraph::new(Text::from(lines))
@@ -502,6 +508,7 @@ fn draw_message_popup(f: &mut Frame, app: &App, msg_idx: usize) {
     let block = Block::default()
         .title("Detailed View (Esc to Close, j/k to Scroll)")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     let paragraph = Paragraph::new(Text::from(text_lines))
@@ -798,16 +805,16 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                 for content in &message.content {
                     match content {
                         MessageContent::Text(t) => {
-                            // Boxed User Message
+                            // Boxed User Message with rounded corners
                             let box_color = Color::DarkGray; // Border color
                             let text_color = Color::White;
                             // Use a slightly different background if desired, or keep transparent (Reset)
                             let bg_style = Style::default();
 
-                            // Header
-                            let header_len = 7; // "┌ User "
-                            let padding = content_width.saturating_sub(header_len + 1); // +1 for "┐"
-                            let header = format!("┌ User {:─<width$}┐", "", width = padding);
+                            // Header with rounded top corners
+                            let header_len = 7; // "╭ User "
+                            let padding = content_width.saturating_sub(header_len + 1); // +1 for "╮"
+                            let header = format!("╭ User {:─<width$}╮", "", width = padding);
                             list_items.push(
                                 ListItem::new(Line::from(Span::styled(
                                     header,
@@ -835,9 +842,9 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                                 app.visual_line_to_message_index.push(msg_idx);
                             }
 
-                            // Footer
+                            // Footer with rounded bottom corners
                             let footer = format!(
-                                "└{:─<width$}┘",
+                                "╰{:─<width$}╯",
                                 "",
                                 width = content_width.saturating_sub(2)
                             );
@@ -882,7 +889,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                                 content_width.saturating_sub(header_content.len() + fixed_chars);
 
                             let header_spans = vec![
-                                Span::styled("┌─ ", Style::default().fg(Color::DarkGray)),
+                                Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
                                 Span::styled(
                                     tool_name,
                                     Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -892,7 +899,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                                     Style::default().fg(Color::Gray),
                                 ),
                                 Span::styled(
-                                    format!("{:─<width$}┐", "", width = padding_len),
+                                    format!("{:─<width$}╮", "", width = padding_len),
                                     Style::default().fg(Color::DarkGray),
                                 ),
                             ];
@@ -958,9 +965,9 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                                 }
                             }
 
-                            // Footer
+                            // Footer with rounded corners
                             let footer = format!(
-                                "└{:─<width$}┘",
+                                "╰{:─<width$}╯",
                                 "",
                                 width = content_width.saturating_sub(2)
                             );
@@ -1077,6 +1084,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(border_color)),
         )
         .style(
@@ -1112,6 +1120,7 @@ fn draw_input(f: &mut Frame, app: &mut App, area: Rect) {
     app.input.set_block(
         Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .title("Message")
             .border_style(border_style),
     );
