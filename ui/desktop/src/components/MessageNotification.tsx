@@ -34,7 +34,7 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
   } = useMatrix();
   
   const location = useLocation();
-  const { shouldSuppressNotification } = useActiveSession();
+  const activeSessionHook = useActiveSession();
   
   const [notifications, setNotifications] = useState<MessageNotificationData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -50,8 +50,9 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       // Only show notifications for messages from others
       if (sender === currentUser.userId) return;
       
-      // Use the enhanced notification suppression logic
-      const shouldSuppress = shouldSuppressNotification(roomId, sender);
+      // CRITICAL: Call shouldSuppressNotification fresh each time to get current tab state
+      // Don't capture it in closure - this ensures we always check against current tabs
+      const shouldSuppress = activeSessionHook.shouldSuppressNotification(roomId, sender);
       console.log('🔍 MessageNotification suppression check:', {
         roomId,
         sender,
@@ -105,8 +106,39 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       // Only show notifications for messages from others
       if (metadata?.isFromSelf) return;
       
-      // Use the enhanced notification suppression logic
-      if (shouldSuppressNotification(roomId, sender)) {
+      // IMPORTANT: Don't show notifications for Goose assistant responses!
+      // These are AI responses, not human messages that need notification
+      // Parse the goose-session-message content to check the role
+      try {
+        if (content.startsWith('goose-session-message:')) {
+          const jsonContent = content.substring('goose-session-message:'.length);
+          const parsed = JSON.parse(jsonContent);
+          
+          // Suppress notifications for assistant messages (Goose's responses)
+          if (parsed.role === 'assistant') {
+            console.log('🔕 Suppressing Goose assistant message notification (AI response, not human):', {
+              roomId,
+              sender,
+              role: parsed.role
+            });
+            return;
+          }
+          
+          // Only show notifications for user messages (human messages in collaborative sessions)
+          console.log('🦆 Goose user message detected (human message in collab session):', {
+            roomId,
+            sender,
+            role: parsed.role
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to parse goose-session-message content:', error);
+        // If parsing fails, fall through to normal notification logic
+      }
+      
+      // CRITICAL: Call shouldSuppressNotification fresh each time to get current tab state
+      // Don't capture it in closure - this ensures we always check against current tabs
+      if (activeSessionHook.shouldSuppressNotification(roomId, sender)) {
         console.log('🔕 Suppressing Goose message notification for active session:', roomId);
         return;
       }

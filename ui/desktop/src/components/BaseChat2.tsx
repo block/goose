@@ -482,11 +482,16 @@ function BaseChatContent({
 
             {/* Loading indicator for initial chat loading */}
             {loadingChat && (
-              <div className="px-6 py-4">
-                <LoadingGoose
-                  message="loading conversation..."
-                  chatState={ChatState.Idle}
-                />
+              <div className="flex items-center justify-center h-full min-h-[400px]">
+                <div className="text-center">
+                  <LoadingGoose
+                    message="Loading conversation..."
+                    chatState={ChatState.Idle}
+                  />
+                  <p className="text-text-muted text-sm mt-4">
+                    Fetching message history...
+                  </p>
+                </div>
               </div>
             )}
           </div>

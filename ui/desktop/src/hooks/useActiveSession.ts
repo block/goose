@@ -210,20 +210,18 @@ export const useActiveSession = () => {
       // For now, we rely on the Matrix room check above
     }
 
-    // Legacy: If we're in pair view with a specific recipient and the message is from that recipient, suppress it
-    if (currentView.path.startsWith('/pair') && 
-        currentView.matrixRecipientId && 
-        messageSenderId === currentView.matrixRecipientId) {
-      console.log('🔕 Suppressing notification: message from current pair recipient (legacy)', {
-        messageSenderId,
-        currentRecipientId: currentView.matrixRecipientId,
-        path: currentView.path
-      });
-      return true;
-    }
+    // REMOVED BUGGY LEGACY LOGIC: The old /pair view suppression was checking sender ID
+    // instead of room ID, causing messages from other rooms to be suppressed incorrectly.
+    // The Matrix room check above (line ~169) is the correct way to suppress notifications.
+    // Legacy /pair view is deprecated in favor of tabbed architecture.
 
     // Don't suppress - show the notification
-    console.log('✅ Not suppressing notification: no active session match');
+    console.log('✅ Not suppressing notification: no active session match', {
+      messageRoomId,
+      currentMatrixRoomId: currentView.matrixRoomId,
+      roomsMatch: messageRoomId === currentView.matrixRoomId,
+      isMatrixMode: currentView.isMatrixMode
+    });
     return false;
   };
 

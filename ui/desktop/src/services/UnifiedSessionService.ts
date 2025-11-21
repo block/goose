@@ -42,6 +42,18 @@ export class UnifiedSessionService {
 
       const regularSessions = regularSessionsResponse.data?.sessions || [];
       
+      // Debug: Check if Matrix sessions have extension_data
+      const matrixSessionsWithExtData = matrixSessions.filter(s => s.extension_data?.matrix);
+      console.log('🔍 Matrix sessions extension_data check:', {
+        totalMatrixSessions: matrixSessions.length,
+        withExtensionData: matrixSessionsWithExtData.length,
+        sampleSession: matrixSessions[0] ? {
+          id: matrixSessions[0].id,
+          hasExtData: !!matrixSessions[0].extension_data?.matrix,
+          roomId: matrixSessions[0].extension_data?.matrix?.roomId,
+        } : null,
+      });
+      
       // Combine sessions and sort by updated_at (most recent first)
       const allSessions = [...regularSessions, ...matrixSessions].sort((a, b) => {
         const dateA = new Date(a.updated_at).getTime();

@@ -849,13 +849,44 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       return;
     }
 
-    // Get or create the backend session for this Matrix room
+    // Create a temporary tab with loading state first for immediate feedback
+    const senderName = senderId.split(':')[0].substring(1);
+    const tabTitle = `Chat with ${senderName}`;
+    
+    const tempTab = createNewTab({
+      sessionId: `temp_matrix_${Date.now()}`, // Temporary ID until we get the real one
+      title: tabTitle,
+      type: 'matrix',
+      matrixRoomId: roomId,
+      matrixRecipientId: senderId,
+      isActive: true
+    });
+    
+    const tempTabState: TabState = {
+      tab: tempTab,
+      chat: {
+        sessionId: tempTab.sessionId,
+        title: tabTitle,
+        messages: [],
+        messageHistoryIndex: 0,
+        recipeConfig: null,
+        aiEnabled: false,
+      },
+      loadingChat: true // Show loading state
+    };
+    
+    // Add the loading tab immediately
+    setTabStates(prev => [...prev, tempTabState]);
+    setActiveTabId(tempTab.id);
+    
+    console.log('📱 Created temporary loading tab:', tempTab.id);
+
+    // Get or create the backend session for this Matrix room (async)
     let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
     
     if (!backendSessionId) {
       console.log('📱 No existing mapping found, creating new Matrix session mapping');
       try {
-        const senderName = senderId.split(':')[0].substring(1);
         const roomTitle = `DM with ${senderName}`;
         
         // Create a backend session for this Matrix room
@@ -869,58 +900,31 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         console.log('✅ Created new backend session for Matrix room:', backendSessionId);
       } catch (error) {
         console.error('❌ Failed to create backend session for Matrix room:', error);
-        // Fallback to a temporary session ID - this won't have backend persistence
-        backendSessionId = `temp_matrix_${Date.now()}`;
+        // Keep the temporary session ID - this won't have backend persistence
+        backendSessionId = tempTab.sessionId;
       }
     } else {
       console.log('📱 Found existing backend session for Matrix room:', backendSessionId);
     }
 
-    // Create a new Matrix tab using the actual backend session ID
-    const senderName = senderId.split(':')[0].substring(1);
-    const tabTitle = `Chat with ${senderName}`;
-
-    console.log('📱 Creating new Matrix tab with backend session:', {
+    // Update the tab with the real backend session ID and remove loading state
+    console.log('📱 Updating tab with backend session:', {
+      tabId: tempTab.id,
       backendSessionId,
-      tabTitle,
       roomId,
-      senderId,
-      type: 'matrix'
-    });
-
-    const newTab = createNewTab({
-      sessionId: backendSessionId, // Use actual backend session ID
-      title: tabTitle,
-      type: 'matrix',
-      matrixRoomId: roomId,
-      matrixRecipientId: senderId,
-      isActive: true
+      senderId
     });
     
-    const newTabState: TabState = {
-      tab: newTab,
-      chat: {
-        sessionId: backendSessionId, // Use actual backend session ID
-        title: tabTitle,
-        messages: [],
-        messageHistoryIndex: 0,
-        recipeConfig: null,
-        aiEnabled: false, // Matrix chats have AI disabled by default
-      },
-      loadingChat: false
-    };
-    
-    console.log('📱 Creating new Matrix tab state:', {
-      tabId: newTab.id,
-      backendSessionId,
-      title: tabTitle,
-      roomId,
-      senderId,
-      type: 'matrix'
-    });
-    
-    setTabStates(prev => [...prev, newTabState]);
-    setActiveTabId(newTab.id);
+    setTabStates(prev => prev.map(ts => 
+      ts.tab.id === tempTab.id
+        ? {
+            ...ts,
+            tab: { ...ts.tab, sessionId: backendSessionId },
+            chat: { ...ts.chat, sessionId: backendSessionId },
+            loadingChat: false // Remove loading state
+          }
+        : ts
+    ));
   }, [tabStates]);
 
   // Create a backend session for a tab (converts new_ session to real backend session)

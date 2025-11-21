@@ -365,23 +365,35 @@ export function AppInner() {
 
   // Handle opening chat from message notifications
   const handleOpenChat = useCallback((roomId: string, senderId: string) => {
-    console.log('📱 Opening chat for room:', roomId, 'sender:', senderId);
+    console.log('📱 App: Opening chat for room:', roomId, 'sender:', senderId);
     
     // For Matrix rooms (starting with !), navigate to pair view and let the tabbed system handle it
     if (roomId.startsWith('!')) {
-      console.log('📱 Opening Matrix shared session for room:', roomId);
+      console.log('📱 App: Opening Matrix chat for room:', roomId);
       
-      // Navigate to pair view first (this will ensure we're in the tabbed system)
-      navigate('/pair');
+      // Check if we're already on the /pair route
+      const isOnPairRoute = location.pathname === '/pair' || location.pathname === '/tabs';
       
-      // Dispatch a custom event to create a Matrix tab
-      // This will be handled by a component that has access to TabContext
-      setTimeout(() => {
+      if (isOnPairRoute) {
+        // Already on pair route - just dispatch the event immediately
+        console.log('📱 App: Already on pair route, dispatching create-matrix-tab event immediately');
         const event = new CustomEvent('create-matrix-tab', {
           detail: { roomId, senderId }
         });
         window.dispatchEvent(event);
-      }, 100); // Small delay to ensure navigation completes
+      } else {
+        // Navigate to pair view first, then dispatch event
+        console.log('📱 App: Navigating to /pair first, then will dispatch event');
+        navigate('/pair');
+        
+        // Dispatch event after navigation completes
+        setTimeout(() => {
+          const event = new CustomEvent('create-matrix-tab', {
+            detail: { roomId, senderId }
+          });
+          window.dispatchEvent(event);
+        }, 100);
+      }
     } else {
       // For non-Matrix rooms, navigate to peers view
       navigate('/peers', { 
@@ -392,7 +404,7 @@ export function AppInner() {
         } 
       });
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');

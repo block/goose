@@ -42,12 +42,22 @@ export class MatrixSessionService {
    */
   public async getMatrixSessions(): Promise<Session[]> {
     try {
-      // Only return Matrix sessions if Matrix service is connected
+      // Check if Matrix service is connected OR syncing (both states mean we have rooms)
       const connectionStatus = matrixService.getConnectionStatus();
-      if (!connectionStatus.connected) {
-        console.log('📋 Matrix service not connected, skipping Matrix sessions');
+      console.log('🔍 MatrixSessionService.getMatrixSessions() called - connection status:', {
+        connected: connectionStatus.connected,
+        syncState: connectionStatus.syncState,
+      });
+      
+      const isUsable = connectionStatus.connected || connectionStatus.syncState === 'SYNCING' || connectionStatus.syncState === 'PREPARED';
+      
+      if (!isUsable) {
+        console.log('❌ Matrix service not ready (state:', connectionStatus.syncState, '), skipping Matrix sessions');
         return [];
       }
+      
+      console.log('✅ Matrix service ready (connected:', connectionStatus.connected, ', syncState:', connectionStatus.syncState, ')');
+
 
       // Check if we have valid cached sessions
       const now = Date.now();
@@ -98,8 +108,11 @@ export class MatrixSessionService {
         }
 
         try {
-          // Get room history to calculate message count and create conversation
-          const history = await matrixService.getRoomHistoryAsGooseMessages(room.roomId, 100);
+          // OPTIMIZATION: Don't load full history for list view - it's too slow!
+          // Just get a rough message count from the room object
+          // Full history will be loaded when user clicks into the session
+          const history: any[] = []; // Empty for list view
+          const messageCount = room.lastActivity ? 1 : 0; // Rough estimate
           
           // Sync room history to backend session if we have a backend session ID
           if (mapping.gooseSessionId && history.length > 0) {
@@ -218,6 +231,8 @@ export class MatrixSessionService {
             sessionId: session.id,
             messageCount: session.message_count,
             participants: room.members.length,
+            hasExtensionData: !!session.extension_data?.matrix,
+            extensionDataKeys: session.extension_data?.matrix ? Object.keys(session.extension_data.matrix) : [],
           });
         } catch (error) {
           console.warn('📋 Failed to convert Matrix room to session:', room.roomId, error);

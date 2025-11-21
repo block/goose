@@ -440,7 +440,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       // The issue appears to be that Matrix sessions are sharing conversation data
       // or there's cross-contamination in the MatrixSessionService
       
-      console.log('🚫 Message participants temporarily disabled for debugging');
+      // Silently return empty array without logging to avoid console spam
       return [];
       
       // Only show message participants for Matrix sessions that have conversation data
@@ -659,6 +659,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       const isMatrix = displayInfo.type === 'matrix' || displayInfo.type === 'collaborative';
       const isMatrixDM = isMatrix && session.extension_data?.matrix?.isDirectMessage;
       const isCollaborative = displayInfo.type === 'collaborative';
+      
+      // Debug logging to see what's happening
+      if (session.extension_data?.matrix) {
+        console.log('🔍 Matrix session detected:', {
+          sessionId: session.id,
+          displayInfoType: displayInfo.type,
+          isMatrix,
+          isCollaborative,
+          hasMatrixData: !!session.extension_data?.matrix,
+          roomId: session.extension_data?.matrix?.roomId,
+        });
+      }
 
       // Enhanced styling for collaborative sessions
       const borderStyle = isCollaborative 
@@ -747,6 +759,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex items-center text-text-muted text-xs mb-1">
                 <Users className="w-3 h-3 mr-1 flex-shrink-0" />
                 <span className="truncate">{displayInfo.participants.length} participants</span>
+              </div>
+            )}
+            
+            {/* Show Matrix Room ID for Matrix sessions */}
+            {isMatrix && session.extension_data?.matrix?.roomId && (
+              <div className="flex items-center text-text-muted text-xs mb-1">
+                <Hash className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="font-mono text-[10px] truncate opacity-70" title={session.extension_data.matrix.roomId}>
+                  {session.extension_data.matrix.roomId}
+                </span>
               </div>
             )}
             
