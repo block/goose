@@ -31,13 +31,7 @@ function checkForGooseCommands(message: string, currentGooseEnabled: boolean): {
 } {
   const trimmedMessage = message.trim().toLowerCase();
   
-  // Check for goose ON command
-  if (trimmedMessage === '@goose' || trimmedMessage === '@goose on') {
-    console.log('🦆 Goose turned ON');
-    return { skipAI: true, newGooseEnabled: true, isGooseCommand: true };
-  }
-  
-  // Check for goose OFF commands
+  // Check for goose OFF commands (must be exact matches)
   const gooseOffCommands = ['@goose off', '@goose stop', '@goose quiet', '@goose pause'];
   for (const command of gooseOffCommands) {
     if (trimmedMessage === command) {
@@ -46,7 +40,17 @@ function checkForGooseCommands(message: string, currentGooseEnabled: boolean): {
     }
   }
   
-  // If goose is disabled, skip all AI responses except for goose commands
+  // Check for @goose mention anywhere in the message (case-insensitive)
+  const gooseMentionPattern = /@goose\b/i;
+  const containsGooseMention = gooseMentionPattern.test(message);
+  
+  // If goose is disabled and message contains @goose, turn it back on
+  if (!currentGooseEnabled && containsGooseMention) {
+    console.log('🦆 Goose turned ON - detected @goose mention in message');
+    return { skipAI: false, newGooseEnabled: true, isGooseCommand: false };
+  }
+  
+  // If goose is disabled and no @goose mention, skip AI response
   if (!currentGooseEnabled) {
     console.log('🦆 Goose is OFF - skipping AI response');
     return { skipAI: true, newGooseEnabled: currentGooseEnabled, isGooseCommand: false };
@@ -118,6 +122,7 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  gooseEnabled: boolean;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -777,5 +782,6 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState,
+    gooseEnabled,
   };
 }

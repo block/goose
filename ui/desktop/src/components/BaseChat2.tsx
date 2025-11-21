@@ -107,6 +107,7 @@ function BaseChatContent({
     sessionLoadError,
     setRecipeUserParams,
     tokenState,
+    gooseEnabled,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -544,6 +545,7 @@ function BaseChatContent({
             toolCount={toolCount || 0}
             autoSubmit={false}
             append={append}
+            gooseEnabled={gooseEnabled}
             {...customChatInputProps}
           />
         </div>

@@ -915,7 +915,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         messages: [],
         messageHistoryIndex: 0,
         recipeConfig: null,
-        aiEnabled: false,
+        aiEnabled: true, // Enable AI for Matrix chats so Goose can respond
       },
       loadingChat: true // Show loading state
     };

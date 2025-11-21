@@ -103,6 +103,7 @@ interface ChatInputProps {
   autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
+  gooseEnabled?: boolean;
 }
 
 export default function ChatInput({
@@ -130,6 +131,7 @@ export default function ChatInput({
   autoSubmit = false,
   append,
   isExtensionsLoading = false,
+  gooseEnabled = true,
 }: ChatInputProps) {
   // Track the available width for responsive layout
   const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
@@ -478,14 +480,17 @@ export default function ChatInput({
     },
   });
 
-  // Listen for AI responses to sync to Matrix
+  // Track which messages have been sent to Matrix to prevent duplicates
+  const sentToMatrixRef = useRef<Set<string>>(new Set());
+
+  // Listen for AI responses to sync to Matrix or collaborative sessions
   // FIXED: Robust null checking to prevent "Cannot read properties of undefined (reading 'length')" error
   // Updated: Fixed all commandHistory.length accesses with safeCommandHistory
   // Final fix: All .length accesses now properly null-checked
+  // CRITICAL FIX: Only send to Matrix when streaming is complete (chatState is Idle)
+  // CRITICAL FIX 2: Track sent messages to prevent duplicate sends
   useEffect(() => {
-    // CRITICAL: Only sync AI responses for non-Matrix rooms
-    // Matrix rooms handle AI responses directly through Matrix, not through sync
-    if (!sessionSharing.isSessionActive || isMatrixRoom || !messages || !Array.isArray(messages) || messages.length === 0) return;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
     
@@ -498,7 +503,19 @@ export default function ChatInput({
         !lastMessage.sender && // Messages from Matrix have sender info, local AI responses don't
         !lastMessage.metadata?.isFromMatrix && // Additional check for Matrix-originated messages
         !lastMessage.metadata?.isFromCollaborator) { // Additional check for collaborator messages
-      console.log('🤖 Syncing AI response to collaborative session (non-Matrix):', lastMessage);
+      
+      // CRITICAL: Only send to Matrix when streaming is complete (chatState is Idle)
+      // This prevents sending partial messages during streaming
+      if (chatState !== ChatState.Idle) {
+        console.log('🚫 Skipping Matrix sync - streaming in progress (chatState:', chatState, ')');
+        return;
+      }
+      
+      // CRITICAL: Check if we've already sent this message to Matrix
+      if (sentToMatrixRef.current.has(lastMessage.id)) {
+        console.log('🚫 Skipping Matrix sync - message already sent:', lastMessage.id);
+        return;
+      }
       
       // Extract text content from the message - with robust null checking
       let textContent = '';
@@ -511,7 +528,35 @@ export default function ChatInput({
         textContent = lastMessage.content;
       }
       
-      if (textContent.trim()) {
+      if (!textContent.trim()) return;
+      
+      // Handle Matrix rooms: send AI response directly to Matrix with goose-session-message format
+      if (isMatrixRoom && actualMatrixRoomId && sendMessage) {
+        console.log('🤖 Sending COMPLETE AI response to Matrix room:', actualMatrixRoomId, '(chatState:', chatState, ', messageId:', lastMessage.id, ')');
+        
+        // Mark as sent BEFORE sending to prevent race conditions
+        sentToMatrixRef.current.add(lastMessage.id);
+        
+        // Format as goose-session-message so it can be properly parsed by other clients
+        const sessionMessage = {
+          sessionId: sessionId || actualMatrixRoomId,
+          role: 'assistant',
+          content: textContent,
+          timestamp: Date.now(),
+        };
+        const formattedMessage = `goose-session-message:${JSON.stringify(sessionMessage)}`;
+        
+        sendMessage(actualMatrixRoomId, formattedMessage).then(() => {
+          console.log('✅ Successfully sent COMPLETE AI response to Matrix room (messageId:', lastMessage.id, ')');
+        }).catch((error) => {
+          console.error('❌ Failed to send AI response to Matrix room:', error);
+          // Remove from sent set if it failed so we can retry
+          sentToMatrixRef.current.delete(lastMessage.id);
+        });
+      }
+      // Handle non-Matrix collaborative sessions: sync through sessionSharing
+      else if (sessionSharing.isSessionActive && !isMatrixRoom) {
+        console.log('🤖 Syncing COMPLETE AI response to collaborative session (non-Matrix):', lastMessage);
         sessionSharing.syncMessage({
           id: lastMessage.id || `ai-${Date.now()}`,
           role: 'assistant',
@@ -520,7 +565,7 @@ export default function ChatInput({
         });
       }
     }
-  }, [messages, sessionSharing, isMatrixRoom]);
+  }, [messages, sessionSharing, isMatrixRoom, actualMatrixRoomId, sendMessage, chatState]);
 
 
 
@@ -1870,6 +1915,18 @@ export default function ChatInput({
       <div id="mention-popover-zone" className="absolute -top-24 left-0 right-0 z-50 h-24 bg-transparent pointer-events-none">
         {/* This space is reserved for mention popovers to render above the chat input */}
       </div>
+
+      {/* Goose Off Indicator */}
+      {!gooseEnabled && (
+        <div className="max-w-4xl mx-auto w-full mb-2">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-2 flex items-center gap-2">
+            <div className="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            <span className="text-yellow-600 dark:text-yellow-400 text-sm font-medium">
+              Goose is OFF - Type <code className="px-1.5 py-0.5 bg-yellow-500/20 rounded text-xs">@goose</code> to reactivate
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Chat input container with max width - floating card */}
       <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
