@@ -949,45 +949,39 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     if app.messages.is_empty() {
         // Render Logo & Hints
         let logo_lines: Vec<&str> = GOOSE_LOGO.lines().collect();
-        let logo_height = logo_lines.len() as u16;
         let hints = vec![
             "Tips for getting started:",
             "1. Ask questions, edit files, or run commands.",
             "2. Be specific for the best results.",
             "3. Type /help for more information.",
         ];
-        let total_content_height = logo_height + 2 + hints.len() as u16; // logo + spacer + hints
-
-        // Center vertically
-        let start_y = area.height.saturating_sub(total_content_height) / 2;
+        let mut current_y = area.y; // Start at the top of the chat area
         
         // 1. Logo
-        for (i, line) in logo_lines.iter().enumerate() {
-            // Center horizontally
-            let width = line.chars().count() as u16;
-            let start_x = area.width.saturating_sub(width) / 2;
+        for line_str in logo_lines {
             let line_area = Rect::new(
-                area.x + start_x,
-                area.y + start_y + i as u16,
-                width,
+                area.x + 2, // Add 2 columns of padding
+                current_y,
+                area.width.saturating_sub(2),
                 1,
             );
-            // Using Paragraph instead of direct buffer writes for convenience
-            f.render_widget(Paragraph::new(Span::styled(*line, Style::default().fg(Color::Cyan))), line_area);
+            f.render_widget(Paragraph::new(Span::styled(line_str, Style::default().fg(Color::Cyan))), line_area);
+            current_y += 1;
         }
 
+        // Add a spacer after the logo
+        current_y += 2;
+
         // 2. Hints
-        let hint_start_y = start_y + logo_height + 2;
-        for (i, hint) in hints.iter().enumerate() {
-             let width = hint.chars().count() as u16;
-             let start_x = area.width.saturating_sub(width) / 2;
+        for hint in hints {
              let line_area = Rect::new(
-                 area.x + start_x,
-                 area.y + hint_start_y + i as u16,
-                 width,
+                 area.x + 2, // Add 2 columns of padding
+                 current_y,
+                 area.width.saturating_sub(2),
                  1,
              );
-             f.render_widget(Paragraph::new(Span::styled(*hint, Style::default().fg(Color::DarkGray))), line_area);
+             f.render_widget(Paragraph::new(Span::styled(hint, Style::default().fg(Color::DarkGray))), line_area);
+             current_y += 1;
         }
     }
 
@@ -1216,7 +1210,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         app.visual_line_to_message_index.push(msg_idx); // Spacer belongs to the message
     }
 
-    if app.has_user_input_pending {
+    if app.has_user_input_pending && !app.messages.is_empty() {
         let blink_char = if (app.animation_frame / 10) % 2 == 0 {
             "_"
         } else {
