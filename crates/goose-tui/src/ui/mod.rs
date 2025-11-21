@@ -716,12 +716,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     spans.push(Span::raw(" "));
 
     // 2. Session ID (no "Session:" prefix, same color as CWD)
-    let short_session = if app.session_id.len() > 8 {
-        &app.session_id[..8]
-    } else {
-        &app.session_id
-    };
-    spans.push(Span::styled(short_session, Style::default().fg(text_color)));
+    spans.push(Span::styled(&app.session_id, Style::default().fg(text_color)));
     spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
     // 3. Token usage (always show, same color as CWD, using model_context_limit for denominator)

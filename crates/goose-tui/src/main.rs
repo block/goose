@@ -25,7 +25,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Run the TUI (default)
-    Tui,
+    Tui {
+        /// Resume a specific session ID
+        #[arg(long)]
+        session: Option<String>,
+    },
     /// Run an MCP server (internal use)
     Mcp {
         /// Name of the MCP server type
@@ -58,8 +62,8 @@ fn setup_tui_logging() -> Result<WorkerGuard> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command.unwrap_or(Commands::Tui) {
-        Commands::Tui => {
+    match cli.command.unwrap_or(Commands::Tui { session: None }) {
+        Commands::Tui { session } => {
             // 1. Setup Logging (Critical: must not print to stdout)
             let _guard = setup_tui_logging()?;
             info!("Starting Goose TUI...");
@@ -88,7 +92,7 @@ async fn main() -> Result<()> {
 
             // 5. Start TUI
             // Pass the port so the App knows where to connect
-            let mut app = App::new(port, secret_key).await?;
+            let mut app = App::new(port, secret_key, session).await?;
             app.run().await?;
         }
         Commands::Mcp { name } => {

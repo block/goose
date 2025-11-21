@@ -98,7 +98,11 @@ fn to_rgb(color: Color) -> (u8, u8, u8) {
 }
 
 impl<'a> App<'a> {
-    pub async fn new(port: u16, secret_key: String) -> Result<Self> {
+    pub async fn new(
+        port: u16,
+        secret_key: String,
+        resume_session_id: Option<String>,
+    ) -> Result<Self> {
         let config = TuiConfig::load()?;
         let mut input = TextArea::default();
         input.set_cursor_line_style(ratatui::style::Style::default());
@@ -112,10 +116,30 @@ impl<'a> App<'a> {
 
         // Start agent via API to ensure provider/model are loaded from config
         let cwd = std::env::current_dir()?;
-        let session = client
-            .start_agent(cwd.to_string_lossy().to_string())
-            .await?;
+        let session = if let Some(id) = resume_session_id {
+            tracing::info!("Resuming agent session: {}", id);
+            client.resume_agent(&id).await?
+        } else {
+            client
+                .start_agent(cwd.to_string_lossy().to_string())
+                .await?
+        };
         let session_id = session.id;
+
+        let messages = if let Some(conversation) = session.conversation {
+            conversation.messages().clone()
+        } else {
+            vec![]
+        };
+
+        let token_state = TokenState {
+            total_tokens: session.total_tokens.unwrap_or(0),
+            input_tokens: session.input_tokens.unwrap_or(0),
+            output_tokens: session.output_tokens.unwrap_or(0),
+            accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+            accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+            accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+        };
 
         tracing::info!("Started agent session: {}", session_id);
 
@@ -155,7 +179,7 @@ impl<'a> App<'a> {
             should_quit: false,
             input_mode: InputMode::Editing,
             input,
-            messages: vec![],
+            messages,
             config,
             scroll_state: ListState::default(),
             client,
@@ -179,7 +203,7 @@ impl<'a> App<'a> {
             flash_message: None,
             flash_message_expiry: None,
             current_border_color: (128, 128, 128),
-            token_state: TokenState::default(),
+            token_state,
             model_context_limit,
 
             showing_command_builder: false,

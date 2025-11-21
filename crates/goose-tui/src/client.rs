@@ -44,6 +44,12 @@ struct AddExtensionRequestPayload {
     config: ExtensionConfig,
 }
 
+#[derive(Serialize)]
+struct ResumeAgentRequest {
+    session_id: String,
+    load_model_and_extensions: bool,
+}
+
 impl Client {
     pub fn new(port: u16, secret_key: String) -> Self {
         Self {
@@ -68,6 +74,30 @@ impl Client {
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
             anyhow::bail!("Failed to start agent: {}", error_text);
+        }
+
+        response
+            .json::<Session>()
+            .await
+            .context("Failed to parse session response")
+    }
+
+    pub async fn resume_agent(&self, session_id: &str) -> Result<Session> {
+        let response = self
+            .http_client
+            .post(format!("{}/agent/resume", self.base_url))
+            .header("X-Secret-Key", &self.secret_key)
+            .json(&ResumeAgentRequest {
+                session_id: session_id.to_string(),
+                load_model_and_extensions: true,
+            })
+            .send()
+            .await
+            .context("Failed to send resume request")?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to resume agent: {}", error_text);
         }
 
         response
