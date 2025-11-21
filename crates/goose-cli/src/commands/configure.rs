@@ -22,7 +22,6 @@ use goose::model::ModelConfig;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers};
 use goose::session::{SessionManager, SessionType};
-use serde_json::Value;
 use std::collections::HashMap;
 
 // useful for light themes where there is no dicernible colour contrast between
@@ -505,7 +504,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                     .interact()?
                 {
                     if key.secret {
-                        if let Err(_e) = store_secret_with_fallback(config, &key.name, &env_value) {
+                        if store_secret_with_fallback(config, &key.name, &env_value).is_err() {
                             return Ok(false);
                         }
                     } else {
@@ -547,8 +546,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 };
 
                                 if key.secret {
-                                    if let Err(_e) =
-                                        store_secret_with_fallback(config, &key.name, &value)
+                                    if store_secret_with_fallback(config, &key.name, &value)
+                                        .is_err()
                                     {
                                         return Ok(false);
                                     }
@@ -582,9 +581,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                if let Err(_e) =
-                                    store_secret_with_fallback(config, &key.name, &value)
-                                {
+                                if store_secret_with_fallback(config, &key.name, &value).is_err() {
                                     return Ok(false);
                                 }
                             } else {
