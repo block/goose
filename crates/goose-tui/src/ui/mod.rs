@@ -724,27 +724,25 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     spans.push(Span::styled(short_session, Style::default().fg(text_color)));
     spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
-    // 3. Token usage (same color as CWD, using model_context_limit for denominator)
-    if app.token_state.accumulated_total_tokens > 0 {
-        // Format tokens with K suffix if > 1000
-        let format_tokens = |tokens: i32| -> String {
-            if tokens >= 1000 {
-                format!("{}k", tokens / 1000)
-            } else {
-                tokens.to_string()
-            }
-        };
+    // 3. Token usage (always show, same color as CWD, using model_context_limit for denominator)
+    // Format tokens with K suffix if > 1000
+    let format_tokens = |tokens: i32| -> String {
+        if tokens >= 1000 {
+            format!("{}k", tokens / 1000)
+        } else {
+            tokens.to_string()
+        }
+    };
 
-        spans.push(Span::styled(
-            format!(
-                "{}/{}",
-                format_tokens(app.token_state.total_tokens),
-                format_tokens(app.model_context_limit as i32)
-            ),
-            Style::default().fg(text_color),
-        ));
-        spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
-    }
+    spans.push(Span::styled(
+        format!(
+            "{}/{}",
+            format_tokens(app.token_state.total_tokens),
+            format_tokens(app.model_context_limit as i32)
+        ),
+        Style::default().fg(text_color),
+    ));
+    spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
     // 4. Current Working Directory (less aggressive truncation)
     if let Ok(cwd) = std::env::current_dir() {
@@ -861,57 +859,26 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                 for content in &message.content {
                     match content {
                         MessageContent::Text(t) => {
-                            // Boxed User Message with rounded corners
-                            let box_color = Color::DarkGray; // Border color
-                            let text_color = Color::White;
-                            // Use a slightly different background if desired, or keep transparent (Reset)
-                            let bg_style = Style::default();
+                            // User message with left border line (cleaner, less boxy)
+                            let border_color = Color::DarkGray;
 
-                            // Header with rounded top corners
-                            let header_len = 7; // "╭ User "
-                            let padding = content_width.saturating_sub(header_len + 1); // +1 for "╮"
-                            let header = format!("╭ User {:─<width$}╮", "", width = padding);
-                            list_items.push(
-                                ListItem::new(Line::from(Span::styled(
-                                    header,
-                                    Style::default().fg(box_color),
-                                )))
-                                .style(bg_style),
-                            );
-                            app.visual_line_to_message_index.push(msg_idx);
-
-                            // Content
+                            // Wrap text, accounting for the "│ " prefix
                             let wrapped_lines =
-                                textwrap::wrap(&t.text, content_width.saturating_sub(4)); // -4 for "│  │" margins
+                                textwrap::wrap(&t.text, content_width.saturating_sub(2));
+
                             for line_str in wrapped_lines {
-                                let content_len = line_str.chars().count();
-                                let padding = content_width.saturating_sub(content_len + 4); // Border + space
-                                let line =
-                                    format!("│ {} {: <width$} │", line_str, "", width = padding);
-                                list_items.push(
-                                    ListItem::new(Line::from(Span::styled(
-                                        line,
-                                        Style::default().fg(text_color),
-                                    )))
-                                    .style(bg_style),
-                                );
+                                let line = Line::from(vec![
+                                    Span::styled("│ ", Style::default().fg(border_color)),
+                                    Span::styled(
+                                        line_str.to_string(),
+                                        Style::default()
+                                            .fg(app.config.theme.base.foreground)
+                                            .add_modifier(Modifier::ITALIC),
+                                    ),
+                                ]);
+                                list_items.push(ListItem::new(line));
                                 app.visual_line_to_message_index.push(msg_idx);
                             }
-
-                            // Footer with rounded bottom corners
-                            let footer = format!(
-                                "╰{:─<width$}╯",
-                                "",
-                                width = content_width.saturating_sub(2)
-                            );
-                            list_items.push(
-                                ListItem::new(Line::from(Span::styled(
-                                    footer,
-                                    Style::default().fg(box_color),
-                                )))
-                                .style(bg_style),
-                            );
-                            app.visual_line_to_message_index.push(msg_idx);
                         }
                         // Handle other content types if needed (e.g. ToolResponse if they appear here)
                         MessageContent::ToolResponse(resp) => {
