@@ -22,12 +22,13 @@ use super::formats::bedrock::{
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
-pub const BEDROCK_DEFAULT_MODEL: &str = "anthropic.claude-sonnet-4-20250514-v1:0";
+pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
-    "anthropic.claude-sonnet-4-20250514-v1:0",
-    "anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "anthropic.claude-opus-4-20250514-v1:0",
-    "anthropic.claude-opus-4-1-20250805-v1:0",
+    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
@@ -67,7 +68,6 @@ impl BedrockProvider {
         // Use load_defaults() which supports AWS SSO, profiles, and environment variables
         let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
 
-        // Check for AWS_PROFILE configuration
         if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
             if !profile_name.is_empty() {
                 loader = loader.profile_name(&profile_name);
@@ -204,7 +204,7 @@ impl Provider for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
-                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1")),
+                ConfigKey::new("AWS_REGION", true, false, None),
             ],
         )
     }
