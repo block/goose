@@ -631,6 +631,14 @@ fn draw_todo_line(f: &mut Frame, app: &App, area: Rect) {
                     .fg(Color::Gray)
                     .add_modifier(Modifier::ITALIC),
             ));
+        } else {
+            // Show waiting message after goose has worked
+            spans.push(Span::styled(
+                "Waiting for user input...",
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ));
         }
     }
 
@@ -1058,8 +1066,19 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
+    // Use thinking color for border when working, otherwise use normal border
+    let border_color = if app.waiting_for_response {
+        app.config.theme.status.thinking
+    } else {
+        app.config.theme.base.border
+    };
+
     let mut messages_list = List::new(list_items.clone())
-        .block(Block::default().borders(Borders::ALL))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(border_color)),
+        )
         .style(
             Style::default().fg(app.config.theme.base.foreground).bg(app
                 .config
