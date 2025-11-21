@@ -91,6 +91,146 @@ pub struct ResponseUsage {
     pub total_tokens: i32,
 }
 
+// ============================================================================
+// Responses API Streaming Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponsesStreamEvent {
+    #[serde(rename = "response.created")]
+    ResponseCreated {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.in_progress")]
+    ResponseInProgress {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.output_item.added")]
+    OutputItemAdded {
+        sequence_number: i32,
+        output_index: i32,
+        item: ResponseOutputItemInfo,
+    },
+    #[serde(rename = "response.content_part.added")]
+    ContentPartAdded {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        part: ContentPart,
+    },
+    #[serde(rename = "response.output_text.delta")]
+    OutputTextDelta {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        delta: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        logprobs: Option<Vec<Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        obfuscation: Option<String>,
+    },
+    #[serde(rename = "response.output_item.done")]
+    OutputItemDone {
+        sequence_number: i32,
+        output_index: i32,
+        item: ResponseOutputItemInfo,
+    },
+    #[serde(rename = "response.content_part.done")]
+    ContentPartDone {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        part: ContentPart,
+    },
+    #[serde(rename = "response.completed")]
+    ResponseCompleted {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
+    #[serde(rename = "response.function_call_arguments.delta")]
+    FunctionCallArgumentsDelta {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        delta: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        obfuscation: Option<String>,
+    },
+    #[serde(rename = "response.function_call_arguments.done")]
+    FunctionCallArgumentsDone {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        arguments: String,
+    },
+    #[serde(rename = "error")]
+    Error {
+        error: Value,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseMetadata {
+    pub id: String,
+    pub object: String,
+    pub created_at: i64,
+    pub status: String,
+    pub model: String,
+    pub output: Vec<ResponseOutputItemInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<ResponseUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ResponseReasoningInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseOutputItemInfo {
+    Reasoning {
+        id: String,
+        summary: Vec<String>,
+    },
+    Message {
+        id: String,
+        status: String,
+        role: String,
+        content: Vec<ContentPart>,
+    },
+    FunctionCall {
+        id: String,
+        status: String,
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum ContentPart {
+    OutputText {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        annotations: Option<Vec<Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        logprobs: Option<Vec<Value>>,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        arguments: String,
+    },
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
     name: Option<String>,
@@ -848,6 +988,183 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
             Some(u.total_tokens),
         )
     })
+}
+
+pub fn responses_api_to_streaming_message<S>(
+    mut stream: S,
+) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
+where
+    S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    try_stream! {
+        use futures::StreamExt;
+
+        let mut accumulated_text = String::new();
+        let mut response_id: Option<String> = None;
+        let mut model_name: Option<String> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
+        let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
+        let mut is_text_response = false;
+
+        'outer: while let Some(response) = stream.next().await {
+            let response_str = response?;
+
+            // Skip empty lines
+            if response_str.trim().is_empty() {
+                continue;
+            }
+
+            // Parse SSE format: "event: <type>\ndata: <json>"
+            // For now, we only care about the data line
+            let data_line = if response_str.starts_with("data: ") {
+                response_str.strip_prefix("data: ").unwrap()
+            } else if response_str.starts_with("event: ") {
+                // Skip event type lines
+                continue;
+            } else {
+                // Try to parse as-is in case there's no prefix
+                &response_str
+            };
+
+            // Skip [DONE] marker
+            if data_line == "[DONE]" {
+                break 'outer;
+            }
+
+            let event: ResponsesStreamEvent = serde_json::from_str(data_line)
+                .map_err(|e| anyhow!("Failed to parse Responses stream event: {}: {:?}", e, data_line))?;
+
+            match event {
+                ResponsesStreamEvent::ResponseCreated { response, .. } |
+                ResponsesStreamEvent::ResponseInProgress { response, .. } => {
+                    response_id = Some(response.id);
+                    model_name = Some(response.model);
+                }
+
+                ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
+                    is_text_response = true;
+                    accumulated_text.push_str(&delta);
+
+                    // Yield incremental text updates for true streaming
+                    let mut content = Vec::new();
+                    if !accumulated_text.is_empty() {
+                        content.push(MessageContent::text(&accumulated_text));
+                    }
+                    let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                    yield (Some(msg), None);
+                }
+
+                ResponsesStreamEvent::OutputItemDone { item, .. } => {
+                    output_items.push(item);
+                }
+
+                ResponsesStreamEvent::ResponseCompleted { response, .. } => {
+                    // Collect final usage data
+                    if let Some(usage) = response.usage {
+                        if let Some(model) = &model_name {
+                            final_usage = Some(ProviderUsage {
+                                usage: Usage::new(
+                                    Some(usage.input_tokens),
+                                    Some(usage.output_tokens),
+                                    Some(usage.total_tokens),
+                                ),
+                                model: model.clone(),
+                            });
+                        }
+                    }
+
+                    // For complete output, use the response output items
+                    if !response.output.is_empty() {
+                        output_items = response.output;
+                    }
+
+                    break 'outer;
+                }
+
+                ResponsesStreamEvent::FunctionCallArgumentsDelta { .. } => {
+                    // Function call arguments are being streamed, but we'll get the complete
+                    // arguments in the OutputItemDone event, so we can ignore deltas for now
+                }
+
+                ResponsesStreamEvent::FunctionCallArgumentsDone { .. } => {
+                    // Arguments are complete, will be in the OutputItemDone event
+                }
+
+                ResponsesStreamEvent::Error { error } => {
+                    Err(anyhow!("Responses API error: {:?}", error))?;
+                }
+
+                _ => {
+                    // Ignore other event types (OutputItemAdded, ContentPartAdded, ContentPartDone)
+                }
+            }
+        }
+
+        // Yield final message if we have tool calls or non-text output
+        if !is_text_response || !output_items.is_empty() {
+            let mut content = Vec::new();
+
+            // Process output items for tool calls
+            for item in output_items {
+                match item {
+                    ResponseOutputItemInfo::Reasoning { .. } => {
+                        // Skip reasoning items
+                    }
+                    ResponseOutputItemInfo::Message { content: parts, .. } => {
+                        for part in parts {
+                            match part {
+                                ContentPart::OutputText { text, .. } => {
+                                    if !text.is_empty() && !is_text_response {
+                                        content.push(MessageContent::text(&text));
+                                    }
+                                }
+                                ContentPart::ToolCall { id, name, arguments } => {
+                                    let parsed_args = if arguments.is_empty() {
+                                        json!({})
+                                    } else {
+                                        serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                                    };
+
+                                    content.push(MessageContent::tool_request(
+                                        id,
+                                        Ok(CallToolRequestParam {
+                                            name: name.into(),
+                                            arguments: Some(object(parsed_args)),
+                                        }),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
+                        let parsed_args = if arguments.is_empty() {
+                            json!({})
+                        } else {
+                            serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                        };
+
+                        content.push(MessageContent::tool_request(
+                            call_id,
+                            Ok(CallToolRequestParam {
+                                name: name.into(),
+                                arguments: Some(object(parsed_args)),
+                            }),
+                        ));
+                    }
+                }
+            }
+
+            if !content.is_empty() {
+                let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                if let Some(id) = response_id {
+                    message = message.with_id(id);
+                }
+                yield (Some(message), final_usage);
+            } else if let Some(usage) = final_usage {
+                yield (None, Some(usage));
+            }
+        }
+    }
 }
 
 pub fn create_request(
