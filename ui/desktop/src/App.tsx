@@ -178,6 +178,7 @@ const PairRouteWrapper = ({
 
   return (
     <Pair
+      key={sessionId}
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
