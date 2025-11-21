@@ -119,7 +119,8 @@ export class SessionMappingService {
   public async createMappingWithBackendSession(
     matrixRoomId: string, 
     participants: string[] = [], 
-    title?: string
+    title?: string,
+    matrixRecipientId?: string
   ): Promise<SessionMapping> {
     try {
       // Import startAgent dynamically to avoid circular dependencies
@@ -159,6 +160,52 @@ export class SessionMappingService {
         title,
         isDM
       });
+
+      // CRITICAL: Store Matrix metadata in backend session description
+      try {
+        // Import updateSessionDescription to store Matrix metadata
+        const { updateSessionDescription } = await import('../api');
+        
+        // Create Matrix metadata
+        const matrixMetadata = {
+          roomId: matrixRoomId,
+          recipientId: matrixRecipientId || participants[0] || null,
+          isMatrixSession: true,
+          roomName: title || `Matrix ${roomType}`,
+          isDM: isDM,
+          participants: participants,
+          createdAt: Date.now(),
+          sessionMappingVersion: '1.0'
+        };
+
+        // Store Matrix metadata in the session description
+        // Format: "Matrix DM: Room Name [MATRIX_METADATA:base64encodeddata]"
+        const baseDescription = `Matrix ${roomType}: ${title || matrixRoomId.substring(1, 8)}`;
+        const encodedMetadata = btoa(JSON.stringify(matrixMetadata));
+        const sessionDescription = `${baseDescription} [MATRIX_METADATA:${encodedMetadata}]`;
+        
+        await updateSessionDescription({
+          path: {
+            session_id: backendSession.id
+          },
+          body: {
+            description: sessionDescription
+          },
+          throwOnError: false
+        });
+
+        console.log('📋 SessionMappingService: Stored Matrix metadata in backend session description:', {
+          sessionId: backendSession.id,
+          matrixRoomId,
+          matrixRecipientId,
+          isDM,
+          descriptionLength: sessionDescription.length
+        });
+
+      } catch (metadataError) {
+        console.warn('📋 SessionMappingService: Failed to store Matrix metadata in backend session:', metadataError);
+        // Continue even if metadata storage fails - the mapping will still work
+      }
 
       const now = Date.now();
       const mapping: SessionMapping = {
@@ -581,6 +628,123 @@ export class SessionMappingService {
         participants: new Map(data.roomState.participants),
       },
     };
+  }
+
+  /**
+   * Extract Matrix metadata from a backend session description
+   * Returns null if the session is not a Matrix session
+   */
+  public static extractMatrixMetadataFromDescription(description: string): any | null {
+    try {
+      // Look for the Matrix metadata pattern: [MATRIX_METADATA:base64encodeddata]
+      const metadataMatch = description.match(/\[MATRIX_METADATA:([A-Za-z0-9+/=]+)\]/);
+      if (!metadataMatch) {
+        return null;
+      }
+
+      // Decode the base64 metadata
+      const encodedMetadata = metadataMatch[1];
+      const decodedMetadata = atob(encodedMetadata);
+      const matrixMetadata = JSON.parse(decodedMetadata);
+
+      console.log('📋 SessionMappingService: Extracted Matrix metadata from session description:', {
+        roomId: matrixMetadata.roomId,
+        recipientId: matrixMetadata.recipientId,
+        isDM: matrixMetadata.isDM,
+        roomName: matrixMetadata.roomName
+      });
+
+      return matrixMetadata;
+    } catch (error) {
+      console.error('📋 SessionMappingService: Failed to extract Matrix metadata from description:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if a backend session is a Matrix session based on its description
+   */
+  public static isBackendSessionMatrix(sessionDescription: string): boolean {
+    return sessionDescription.includes('[MATRIX_METADATA:');
+  }
+
+  /**
+   * Create or restore a Matrix session mapping from backend session data
+   * This is used when loading sessions from the backend that contain Matrix metadata
+   */
+  public createMappingFromBackendSession(sessionId: string, sessionDescription: string): SessionMapping | null {
+    const matrixMetadata = SessionMappingService.extractMatrixMetadataFromDescription(sessionDescription);
+    if (!matrixMetadata) {
+      return null;
+    }
+
+    const now = Date.now();
+    const mapping: SessionMapping = {
+      matrixRoomId: matrixMetadata.roomId,
+      gooseSessionId: sessionId,
+      createdAt: matrixMetadata.createdAt || now,
+      lastUsed: now,
+      participants: matrixMetadata.participants || [],
+      title: matrixMetadata.roomName,
+      isMatrixCollaborative: false, // Will be set to true when room state is updated
+    };
+
+    // Store the mapping
+    this.mappings.set(matrixMetadata.roomId, mapping);
+    this.saveMappingsToStorage();
+
+    console.log('📋 SessionMappingService: Created mapping from backend session:', {
+      matrixRoomId: matrixMetadata.roomId,
+      backendSessionId: sessionId,
+      title: matrixMetadata.roomName,
+      isDM: matrixMetadata.isDM
+    });
+
+    return mapping;
+  }
+
+  /**
+   * Get Matrix metadata for a backend session ID
+   * This checks both local mappings and can extract from session description if needed
+   */
+  public async getMatrixMetadataForBackendSession(sessionId: string): Promise<any | null> {
+    // First check if we have a local mapping
+    const matrixRoomId = this.getMatrixRoomId(sessionId);
+    if (matrixRoomId) {
+      const mapping = this.getMapping(matrixRoomId);
+      if (mapping) {
+        return {
+          roomId: matrixRoomId,
+          recipientId: mapping.participants[0] || null,
+          isMatrixSession: true,
+          roomName: mapping.title,
+          isDM: mapping.participants.length === 2,
+          participants: mapping.participants
+        };
+      }
+    }
+
+    // If no local mapping, try to get the session from backend and extract metadata
+    try {
+      const { getSession } = await import('../api');
+      const sessionResponse = await getSession({
+        path: { session_id: sessionId },
+        throwOnError: false
+      });
+
+      if (sessionResponse.data?.description) {
+        const matrixMetadata = SessionMappingService.extractMatrixMetadataFromDescription(sessionResponse.data.description);
+        if (matrixMetadata) {
+          // Create a local mapping for future use
+          this.createMappingFromBackendSession(sessionId, sessionResponse.data.description);
+          return matrixMetadata;
+        }
+      }
+    } catch (error) {
+      console.warn('📋 SessionMappingService: Failed to fetch session from backend:', error);
+    }
+
+    return null;
   }
 
   /**

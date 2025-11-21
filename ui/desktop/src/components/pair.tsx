@@ -133,7 +133,12 @@ export default function Pair({
         try {
           // ALWAYS create a NEW backend session for DMs to avoid shared session contamination
           console.log('🔄 Creating FRESH backend session for DM:', { matrixRoomId, roomName, isDM });
-          const mapping = await sessionMappingService.createMappingWithBackendSession(matrixRoomId, [], roomName);
+          const mapping = await sessionMappingService.createMappingWithBackendSession(
+            matrixRoomId, 
+            [], 
+            roomName, 
+            matrixRecipientId || undefined
+          );
           gooseSessionId = mapping.gooseSessionId;
           console.log('✅ Created NEW backend session mapping for DM:', { matrixRoomId, gooseSessionId });
         } catch (error) {

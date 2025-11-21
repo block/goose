@@ -3,6 +3,7 @@ import { Tab, TabSidecarState, TabSidecarView } from '../components/TabBar';
 import { ChatType } from '../types/chat';
 import { generateSessionId } from '../utils/sessionUtils';
 import { getSession, updateSessionDescription } from '../api';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 interface TabState {
   tab: Tab;
@@ -444,7 +445,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, [tabStates]);
 
   // Open an existing session in a new tab or switch to it if already open
-  const openExistingSession = useCallback((sessionId: string, title?: string) => {
+  const openExistingSession = useCallback(async (sessionId: string, title?: string) => {
     console.log('📂 Opening existing session:', { sessionId, title });
 
     // Check if session is already open in a tab
@@ -455,23 +456,70 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       return;
     }
 
-    // Create new tab with existing session ID
-    const newTab = createNewTab({
-      sessionId,
-      title: title || 'Loading...',
-      isActive: true
-    });
+    // CRITICAL: Check if this is a Matrix session by looking up Matrix metadata
+    let isMatrixSession = false;
+    let matrixMetadata: any = null;
+    
+    if (!sessionId.startsWith('new_')) {
+      try {
+        console.log('🔍 Checking if session is Matrix session:', sessionId);
+        matrixMetadata = await sessionMappingService.getMatrixMetadataForBackendSession(sessionId);
+        if (matrixMetadata) {
+          isMatrixSession = true;
+          console.log('✅ Session is Matrix session, metadata:', matrixMetadata);
+        } else {
+          console.log('ℹ️ Session is regular session, no Matrix metadata found');
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to check Matrix metadata for session:', error);
+      }
+    }
+
+    // Create new tab with appropriate properties based on session type
+    let newTab: Tab;
+    if (isMatrixSession && matrixMetadata) {
+      // Create Matrix tab with restored properties
+      const matrixSessionId = `matrix_${matrixMetadata.roomId}`;
+      const matrixTitle = matrixMetadata.roomName || title || `Matrix Chat ${matrixMetadata.roomId.substring(1, 8)}`;
+      
+      console.log('📱 Creating Matrix tab from backend session:', {
+        sessionId,
+        matrixSessionId,
+        matrixRoomId: matrixMetadata.roomId,
+        matrixRecipientId: matrixMetadata.recipientId,
+        title: matrixTitle
+      });
+      
+      newTab = createNewTab({
+        sessionId: matrixSessionId, // Use Matrix format for sessionId
+        title: matrixTitle,
+        type: 'matrix',
+        matrixRoomId: matrixMetadata.roomId,
+        matrixRecipientId: matrixMetadata.recipientId,
+        isActive: true
+      });
+    } else {
+      // Create regular chat tab
+      newTab = createNewTab({
+        sessionId,
+        title: title || 'Loading...',
+        isActive: true
+      });
+    }
     
     const newTabState: TabState = {
       tab: newTab,
-      chat: createNewChat(sessionId),
+      chat: createNewChat(newTab.sessionId),
       loadingChat: false
     };
     
     console.log('📂 Creating new tab for existing session:', {
       tabId: newTab.id,
-      sessionId,
-      title: newTab.title
+      sessionId: newTab.sessionId,
+      type: newTab.type,
+      matrixRoomId: newTab.matrixRoomId,
+      title: newTab.title,
+      isMatrixSession
     });
     
     setTabStates(prev => [...prev, newTabState]);
