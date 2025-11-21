@@ -566,7 +566,7 @@ fn draw_todo_line(f: &mut Frame, app: &App, area: Rect) {
         if app.waiting_for_response {
             // Animated spinner when working
             let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-            let spinner = spinner_frames[app.animation_frame % spinner_frames.len()];
+            let spinner = spinner_frames[(app.animation_frame / 4) % spinner_frames.len()];
 
             spans.push(Span::styled(
                 format!("{} ", spinner),
@@ -616,8 +616,8 @@ fn draw_todo_line(f: &mut Frame, app: &App, area: Rect) {
                     "Decoding the Matrix (it's all corn)...",
                     "System Status: HONK.",
                 ];
-                // Change pun every ~10 seconds (40 frames at 250ms tick)
-                let pun_idx = (app.animation_frame / 40) % puns.len();
+                // Change pun every ~10 seconds (10s / 30ms tick ~= 333 frames)
+                let pun_idx = (app.animation_frame / 333) % puns.len();
                 spans.push(Span::styled(
                     puns[pun_idx],
                     Style::default()
@@ -1134,10 +1134,8 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_input(f: &mut Frame, app: &mut App, area: Rect) {
-    let border_style = match app.input_mode {
-        InputMode::Normal => Style::default().fg(app.config.theme.base.border),
-        InputMode::Editing => Style::default().fg(app.config.theme.base.border_active),
-    };
+    let (r, g, b) = app.current_border_color;
+    let border_style = Style::default().fg(Color::Rgb(r, g, b));
 
     app.input.set_block(
         Block::default()

@@ -9,6 +9,7 @@ use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent};
 use goose_server::routes::reply::MessageEvent;
 use ratatui::widgets::ListState;
+use ratatui::style::Color;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -60,6 +61,7 @@ pub struct App<'a> {
     pub has_worked: bool, // Track if goose has started working at least once
     pub flash_message: Option<String>,
     pub flash_message_expiry: Option<Instant>,
+    pub current_border_color: (u8, u8, u8),
 
     // Command Builder State
     pub showing_command_builder: bool,
@@ -67,6 +69,29 @@ pub struct App<'a> {
     pub available_tools: Vec<ToolInfo>,
     pub builder_list_state: ListState,
     pub builder_input: TextArea<'a>, // Reusing a textarea for builder inputs
+}
+
+fn to_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::Red => (255, 0, 0),
+        Color::Green => (0, 255, 0),
+        Color::Yellow => (255, 255, 0),
+        Color::Blue => (0, 0, 255),
+        Color::Magenta => (255, 0, 255),
+        Color::Cyan => (0, 255, 255),
+        Color::Gray => (128, 128, 128),
+        Color::DarkGray => (64, 64, 64),
+        Color::LightRed => (255, 128, 128),
+        Color::LightGreen => (128, 255, 128),
+        Color::LightYellow => (255, 255, 128),
+        Color::LightBlue => (128, 128, 255),
+        Color::LightMagenta => (255, 128, 255),
+        Color::LightCyan => (128, 255, 255),
+        Color::White => (255, 255, 255),
+        _ => (128, 128, 128), // Fallback
+    }
 }
 
 impl<'a> App<'a> {
@@ -141,6 +166,7 @@ impl<'a> App<'a> {
             has_worked: false,
             flash_message: None,
             flash_message_expiry: None,
+            current_border_color: (128, 128, 128),
 
             showing_command_builder: false,
             builder_state: BuilderState::SelectTool,
@@ -150,9 +176,43 @@ impl<'a> App<'a> {
         })
     }
 
+    fn update_animation(&mut self) {
+        // Target Color Logic
+        let target_color_enum = if self.waiting_for_response {
+            self.config.theme.status.thinking
+        } else {
+            match self.input_mode {
+                InputMode::Editing => self.config.theme.base.border_active,
+                InputMode::Normal => self.config.theme.base.border,
+            }
+        };
+
+        let (mut tr, mut tg, mut tb) = to_rgb(target_color_enum);
+
+        // Apply breathing effect if working
+        if self.waiting_for_response {
+            // Sine wave breathing: oscillates between 0.7 and 1.0 brightness
+            let t = self.animation_frame as f32 * 0.1;
+            let factor = 0.85 + 0.15 * t.sin(); // Center at 0.85, amplitude 0.15 -> [0.7, 1.0]
+            tr = (tr as f32 * factor) as u8;
+            tg = (tg as f32 * factor) as u8;
+            tb = (tb as f32 * factor) as u8;
+        }
+
+        // Lerp towards target
+        let (cr, cg, cb) = self.current_border_color;
+        let speed = 0.1; // Adjust for speed (0.0 - 1.0)
+
+        let nr = (cr as f32 + (tr as f32 - cr as f32) * speed) as u8;
+        let ng = (cg as f32 + (tg as f32 - cg as f32) * speed) as u8;
+        let nb = (cb as f32 + (tb as f32 - cb as f32) * speed) as u8;
+
+        self.current_border_color = (nr, ng, nb);
+    }
+
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = tui::init()?;
-        let mut events = EventHandler::new(Duration::from_millis(250));
+        let mut events = EventHandler::new(Duration::from_millis(30));
 
         // Store the sender so we can use it in handle_input
         self.tx = Some(events.sender());
@@ -168,6 +228,7 @@ impl<'a> App<'a> {
                 Some(Event::Mouse(mouse)) => self.handle_mouse(mouse),
                 Some(Event::Tick) => {
                     self.animation_frame = self.animation_frame.wrapping_add(1);
+                    self.update_animation();
                 }
                 Some(Event::Resize(..)) => {} // Autohandled by Ratatui usually
                 Some(Event::Server(msg)) => {
