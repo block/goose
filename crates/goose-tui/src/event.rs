@@ -93,6 +93,10 @@ impl EventHandler {
         self.rx.recv().await
     }
 
+    pub fn try_next(&mut self) -> Option<Event> {
+        self.rx.try_recv().ok()
+    }
+
     pub fn sender(&self) -> mpsc::UnboundedSender<Event> {
         self.tx.clone()
     }

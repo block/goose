@@ -281,140 +281,17 @@ impl<'a> App<'a> {
                 ui::draw(f, self);
             })?;
 
-            match events.next().await {
-                Some(Event::Input(key)) => self.handle_input(key),
-                Some(Event::Paste(text)) => self.handle_paste(text),
-                Some(Event::Mouse(mouse)) => self.handle_mouse(mouse),
-                Some(Event::Tick) => {
-                    self.animation_frame = self.animation_frame.wrapping_add(1);
-                    self.update_animation();
-                }
-                Some(Event::Resize(..)) => {} // Autohandled by Ratatui usually
-                Some(Event::Server(msg)) => {
-                    match msg {
-                        MessageEvent::Message {
-                            message,
-                            token_state,
-                        } => {
-                            // Update token state
-                            self.token_state = token_state;
-                            // Parse Todos from ToolRequest (todo__todo_write arguments)
-                            for content in &message.content {
-                                if let MessageContent::ToolRequest(req) = content {
-                                    if let Ok(tool_call) = &req.tool_call {
-                                        if tool_call.name == "todo__todo_write" {
-                                            if let Some(args) = &tool_call.arguments {
-                                                if let Some(content_val) = args.get("content") {
-                                                    if let Some(content_str) = content_val.as_str()
-                                                    {
-                                                        let mut new_todos = Vec::new();
-                                                        let mut has_todos = false;
-                                                        for line in content_str.lines() {
-                                                            let trimmed = line.trim();
-                                                            if let Some(task) =
-                                                                trimmed.strip_prefix("- [ ] ")
-                                                            {
-                                                                new_todos.push((
-                                                                    task.to_string(),
-                                                                    false,
-                                                                ));
-                                                                has_todos = true;
-                                                            } else if let Some(task) =
-                                                                trimmed.strip_prefix("- [x] ")
-                                                            {
-                                                                new_todos
-                                                                    .push((task.to_string(), true));
-                                                                has_todos = true;
-                                                            }
-                                                        }
+            // Wait for at least one event (blocking)
+            let first_event = events.next().await;
+            if first_event.is_none() {
+                break;
+            }
+            self.handle_event(first_event.unwrap());
 
-                                                        if has_todos {
-                                                            self.todos = new_todos;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if let Some(last_msg) = self.messages.last_mut() {
-                                if last_msg.id == message.id {
-                                    // Merge content intelligently
-                                    for content in message.content {
-                                        if let MessageContent::Text(new_text) = &content {
-                                            if let Some(MessageContent::Text(last_text)) =
-                                                last_msg.content.last_mut()
-                                            {
-                                                last_text.text.push_str(&new_text.text);
-                                                continue;
-                                            }
-                                        }
-                                        last_msg.content.push(content);
-                                    }
-                                } else {
-                                    self.messages.push(message);
-                                }
-                            } else {
-                                self.messages.push(message);
-                            }
-
-                            if self.auto_scroll {
-                                self.scroll_to_bottom();
-                            }
-                        }
-                        MessageEvent::UpdateConversation { conversation } => {
-                            self.messages = conversation.messages().clone();
-                            if self.auto_scroll {
-                                self.scroll_to_bottom();
-                            }
-                        }
-                        MessageEvent::Error { error } => {
-                            tracing::error!("Server error: {}", error);
-                            self.waiting_for_response = false;
-                            self.has_user_input_pending = true;
-                            self.reply_task = None;
-                        }
-                        MessageEvent::Finish { token_state, .. } => {
-                            // Generation finished - update final token state
-                            self.token_state = token_state;
-                            self.waiting_for_response = false;
-                            self.has_user_input_pending = true;
-                            self.reply_task = None;
-                        }
-                        _ => {}
-                    }
-                }
-                Some(Event::SessionsList(sessions)) => {
-                    self.available_sessions = sessions;
-                    self.showing_session_popup = true;
-                    self.session_list_state.select(Some(0));
-                }
-                Some(Event::SessionResumed(session)) => {
-                    self.session_id = session.id;
-                    self.messages = session
-                        .conversation
-                        .map(|c| c.messages().clone())
-                        .unwrap_or_default();
-                    self.token_state = TokenState {
-                        total_tokens: session.total_tokens.unwrap_or(0),
-                        input_tokens: session.input_tokens.unwrap_or(0),
-                        output_tokens: session.output_tokens.unwrap_or(0),
-                        accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-                        accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
-                        accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
-                    };
-                    self.showing_session_popup = false;
-                    self.auto_scroll = true;
-                    // Clear todos if switching sessions? Maybe.
-                    self.todos.clear();
-                }
-                Some(Event::Error(e)) => {
-                    // For now just log errors
-                    tracing::error!("Error: {}", e);
-                }
-                None => break,
+            // Drain any other pending events without waiting (non-blocking)
+            // This prevents "lag" when the event queue (e.g. mouse scroll) fills up faster than we draw
+            while let Some(event) = events.try_next() {
+                self.handle_event(event);
             }
 
             if self.should_quit {
@@ -424,6 +301,142 @@ impl<'a> App<'a> {
 
         tui::restore()?;
         Ok(())
+    }
+
+    fn handle_event(&mut self, event: Event) {
+        match event {
+            Event::Input(key) => self.handle_input(key),
+            Event::Paste(text) => self.handle_paste(text),
+            Event::Mouse(mouse) => self.handle_mouse(mouse),
+            Event::Tick => {
+                self.animation_frame = self.animation_frame.wrapping_add(1);
+                self.update_animation();
+            }
+            Event::Resize(..) => {} // Autohandled by Ratatui usually
+            Event::Server(msg) => {
+                match msg {
+                    MessageEvent::Message {
+                        message,
+                        token_state,
+                    } => {
+                        // Update token state
+                        self.token_state = token_state;
+                        // Parse Todos from ToolRequest (todo__todo_write arguments)
+                        for content in &message.content {
+                            if let MessageContent::ToolRequest(req) = content {
+                                if let Ok(tool_call) = &req.tool_call {
+                                    if tool_call.name == "todo__todo_write" {
+                                        if let Some(args) = &tool_call.arguments {
+                                            if let Some(content_val) = args.get("content") {
+                                                if let Some(content_str) = content_val.as_str() {
+                                                    let mut new_todos = Vec::new();
+                                                    let mut has_todos = false;
+                                                    for line in content_str.lines() {
+                                                        let trimmed = line.trim();
+                                                        if let Some(task) =
+                                                            trimmed.strip_prefix("- [ ] ")
+                                                        {
+                                                            new_todos.push((
+                                                                task.to_string(),
+                                                                false,
+                                                            ));
+                                                            has_todos = true;
+                                                        } else if let Some(task) =
+                                                            trimmed.strip_prefix("- [x] ")
+                                                        {
+                                                            new_todos
+                                                                .push((task.to_string(), true));
+                                                            has_todos = true;
+                                                        }
+                                                    }
+
+                                                    if has_todos {
+                                                        self.todos = new_todos;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(last_msg) = self.messages.last_mut() {
+                            if last_msg.id == message.id {
+                                // Merge content intelligently
+                                for content in message.content {
+                                    if let MessageContent::Text(new_text) = &content {
+                                        if let Some(MessageContent::Text(last_text)) =
+                                            last_msg.content.last_mut()
+                                        {
+                                            last_text.text.push_str(&new_text.text);
+                                            continue;
+                                        }
+                                    }
+                                    last_msg.content.push(content);
+                                }
+                            } else {
+                                self.messages.push(message);
+                            }
+                        } else {
+                            self.messages.push(message);
+                        }
+
+                        if self.auto_scroll {
+                            self.scroll_to_bottom();
+                        }
+                    }
+                    MessageEvent::UpdateConversation { conversation } => {
+                        self.messages = conversation.messages().clone();
+                        if self.auto_scroll {
+                            self.scroll_to_bottom();
+                        }
+                    }
+                    MessageEvent::Error { error } => {
+                        tracing::error!("Server error: {}", error);
+                        self.waiting_for_response = false;
+                        self.has_user_input_pending = true;
+                        self.reply_task = None;
+                    }
+                    MessageEvent::Finish { token_state, .. } => {
+                        // Generation finished - update final token state
+                        self.token_state = token_state;
+                        self.waiting_for_response = false;
+                        self.has_user_input_pending = true;
+                        self.reply_task = None;
+                    }
+                    _ => {}
+                }
+            }
+            Event::SessionsList(sessions) => {
+                self.available_sessions = sessions;
+                self.showing_session_popup = true;
+                self.session_list_state.select(Some(0));
+            }
+            Event::SessionResumed(session) => {
+                self.session_id = session.id;
+                self.messages = session
+                    .conversation
+                    .map(|c| c.messages().clone())
+                    .unwrap_or_default();
+                self.token_state = TokenState {
+                    total_tokens: session.total_tokens.unwrap_or(0),
+                    input_tokens: session.input_tokens.unwrap_or(0),
+                    output_tokens: session.output_tokens.unwrap_or(0),
+                    accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+                    accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+                    accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+                };
+                self.showing_session_popup = false;
+                self.auto_scroll = true;
+                // Clear todos if switching sessions? Maybe.
+                self.todos.clear();
+            }
+            Event::Error(e) => {
+                // For now just log errors
+                tracing::error!("Error: {}", e);
+            }
+        }
     }
 
     fn scroll_to_bottom(&mut self) {
