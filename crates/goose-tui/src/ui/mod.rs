@@ -4,16 +4,18 @@ pub mod theme;
 use crate::app::{App, InputMode};
 use crate::ui::markdown::MarkdownParser;
 use goose::conversation::message::MessageContent;
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
+};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     Frame,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ratatui::text::Text;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Calculate input height based on content, with a minimum of 3 (1 line + borders) and max of 50% screen
@@ -439,7 +441,7 @@ fn draw_todo_popup_window(f: &mut Frame, app: &App) {
     f.render_widget(paragraph, area);
 }
 
-fn draw_message_popup(f: &mut Frame, app: &App, msg_idx: usize) {
+fn draw_message_popup(f: &mut Frame, app: &mut App, msg_idx: usize) {
     let area = centered_rect(80, 80, f.area());
     f.render_widget(Clear, area); // Clear background
 
@@ -565,6 +567,34 @@ fn draw_message_popup(f: &mut Frame, app: &App, msg_idx: usize) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .style(Style::default().bg(app.config.theme.base.background));
+
+    // Calculate wrapped lines manually to determine total height
+    // The area available for text is area.width - 2 (borders)
+    // And area.height - 2 (borders)
+    let text_width = area.width.saturating_sub(2) as usize;
+    let mut total_lines = 0;
+
+    // We need to iterate over text_lines and wrap them
+    for line in &text_lines {
+        // Ratatui doesn't easily expose wrapped height without rendering.
+        // But we can estimate/calculate using textwrap or similar logic.
+        // However, `text_lines` here are ratatui::text::Line which may contain multiple spans.
+        // A simple approximation is sufficient or re-using the logic used elsewhere.
+        // Paragraph wraps by words.
+
+        // Simple approach: Sum the length of content string and divide by width.
+        // This is imperfect for rich text but good enough for scroll limits.
+        let content: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        if content.is_empty() {
+            total_lines += 1;
+        } else {
+            let wrapped = textwrap::wrap(&content, text_width);
+            total_lines += wrapped.len();
+        }
+    }
+
+    app.popup_content_height = total_lines;
+    app.popup_area_height = area.height.saturating_sub(2) as usize;
 
     let paragraph = Paragraph::new(Text::from(text_lines))
         .block(block)
@@ -1174,6 +1204,24 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     f.render_stateful_widget(messages_list, area, &mut app.scroll_state);
+
+    // Render scrollbar
+    app.vertical_scroll_state = app
+        .vertical_scroll_state
+        .content_length(list_items.len())
+        .position(app.scroll_state.selected().unwrap_or(0));
+
+    if let Some(last) = app.last_scroll_time {
+        if last.elapsed() < Duration::from_secs(1) {
+            f.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .end_symbol(None),
+                area,
+                &mut app.vertical_scroll_state,
+            );
+        }
+    }
 }
 
 fn draw_input(f: &mut Frame, app: &mut App, area: Rect) {

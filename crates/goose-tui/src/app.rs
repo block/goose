@@ -11,7 +11,7 @@ use goose::model::ModelConfig;
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use ratatui::style::Color;
-use ratatui::widgets::ListState;
+use ratatui::widgets::{ListState, ScrollbarState};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -43,6 +43,8 @@ pub struct App<'a> {
     pub messages: Vec<Message>,
     pub config: TuiConfig,
     pub scroll_state: ListState,
+    pub vertical_scroll_state: ScrollbarState,
+    pub last_scroll_time: Option<Instant>,
     pub client: Client,
     pub session_id: String,
     pub tx: Option<mpsc::UnboundedSender<Event>>,
@@ -78,6 +80,10 @@ pub struct App<'a> {
     pub showing_session_popup: bool,
     pub available_sessions: Vec<Session>,
     pub session_list_state: ListState,
+
+    // Scrolling limits
+    pub popup_content_height: usize,
+    pub popup_area_height: usize,
 }
 
 fn to_rgb(color: Color) -> (u8, u8, u8) {
@@ -188,6 +194,8 @@ impl<'a> App<'a> {
             messages,
             config,
             scroll_state: ListState::default(),
+            vertical_scroll_state: ScrollbarState::default(),
+            last_scroll_time: None,
             client,
             session_id,
             tx: None,
@@ -221,6 +229,9 @@ impl<'a> App<'a> {
             showing_session_popup: false,
             available_sessions: vec![],
             session_list_state: ListState::default(),
+
+            popup_content_height: 0,
+            popup_area_height: 0,
         })
     }
 
@@ -514,10 +525,99 @@ impl<'a> App<'a> {
 
     fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
         match mouse.kind {
-            crossterm::event::MouseEventKind::ScrollDown => self.scroll_down(),
-            crossterm::event::MouseEventKind::ScrollUp => self.scroll_up(),
+            crossterm::event::MouseEventKind::ScrollDown => self.scroll_vertical(3),
+            crossterm::event::MouseEventKind::ScrollUp => self.scroll_vertical(-3),
             _ => {}
         }
+    }
+
+    fn scroll_vertical(&mut self, amount: isize) {
+        self.last_scroll_time = Some(Instant::now());
+
+        // 1. Todo Popup
+        if self.showing_todo_popup {
+            if amount < 0 {
+                self.todo_scroll = self.todo_scroll.saturating_sub(amount.abs() as usize);
+            } else {
+                self.todo_scroll = self.todo_scroll.saturating_add(amount as usize);
+            }
+            return;
+        }
+
+        // 2. Message Details Popup
+        if self.focused_message_index.is_some() {
+            let max_scroll = self
+                .popup_content_height
+                .saturating_sub(self.popup_area_height);
+
+            if amount < 0 {
+                self.popup_scroll = self.popup_scroll.saturating_sub(amount.abs() as usize);
+            } else {
+                self.popup_scroll = self.popup_scroll.saturating_add(amount as usize);
+            }
+            self.popup_scroll = self.popup_scroll.min(max_scroll);
+            return;
+        }
+
+        // 3. Session Popup
+        if self.showing_session_popup {
+            let current = self.session_list_state.selected().unwrap_or(0);
+            let len = self.available_sessions.len();
+            if len == 0 {
+                return;
+            }
+
+            let step = if amount.abs() >= 3 {
+                1
+            } else {
+                amount.abs() as usize
+            }; // For list selection, usually 1 step is better than jumping 3
+
+            let new_idx = if amount < 0 {
+                current.saturating_sub(step)
+            } else {
+                current.saturating_add(step)
+            };
+            // Clamp
+            let new_idx = new_idx.min(len.saturating_sub(1));
+            self.session_list_state.select(Some(new_idx));
+            return;
+        }
+
+        // 4. Command Builder Tool List
+        if self.showing_command_builder {
+            match self.builder_state {
+                BuilderState::SelectTool => {
+                    let current = self.builder_list_state.selected().unwrap_or(0);
+                    let len = self.available_tools.len();
+                    if len == 0 {
+                        return;
+                    }
+                    let step = 1;
+                    let new_idx = if amount < 0 {
+                        current.saturating_sub(step)
+                    } else {
+                        current.saturating_add(step)
+                    };
+                    let new_idx = new_idx.min(len.saturating_sub(1));
+                    self.builder_list_state.select(Some(new_idx));
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // 5. Main Chat
+        self.auto_scroll = false;
+        let current = self.scroll_state.selected().unwrap_or(0);
+
+        let new_index = if amount < 0 {
+            current.saturating_sub(amount.abs() as usize)
+        } else {
+            current.saturating_add(amount as usize)
+        };
+
+        self.scroll_state.select(Some(new_index));
     }
 
     fn handle_input(&mut self, key: KeyEvent) {
