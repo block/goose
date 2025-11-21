@@ -51,7 +51,6 @@ export default function Hub({
         handleSubmit={handleSubmit}
         chatState={ChatState.Idle}
         onStop={() => {}}
-        commandHistory={[]}
         initialValue=""
         setView={setView}
         totalTokens={0}

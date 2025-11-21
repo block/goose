@@ -64,10 +64,10 @@ interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
   onStop?: () => void;
-  commandHistory?: string[]; // Current chat's message history
+  commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
-  onFilesProcessed?: () => void; // Callback to clear dropped files after processing
+  onFilesProcessed?: () => void;
   setView: (view: View) => void;
   totalTokens?: number;
   accumulatedInputTokens?: number;

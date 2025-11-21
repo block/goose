@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
@@ -22,7 +30,7 @@ import { scanRecipe } from '../recipe';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
-import { getThinkingMessage } from '../types/message';
+import { getThinkingMessage, getTextContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
@@ -100,6 +108,21 @@ function BaseChatContent({
     sessionId,
     onStreamFinish,
   });
+
+  // Generate command history from user messages (most recent first)
+  const commandHistory = useMemo(() => {
+    return messages
+      .reduce<string[]>((history, message) => {
+        if (message.role === 'user') {
+          const text = getTextContent(message).trim();
+          if (text) {
+            history.push(text);
+          }
+        }
+        return history;
+      }, [])
+      .reverse();
+  }, [messages]);
 
   useEffect(() => {
     if (!session || hasAutoSubmittedRef.current) {
@@ -385,7 +408,7 @@ function BaseChatContent({
             handleSubmit={handleFormSubmit}
             chatState={chatState}
             onStop={stopStreaming}
-            //commandHistory={commandHistory}
+            commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
             totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
