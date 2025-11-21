@@ -443,6 +443,10 @@ impl<'a> App<'a> {
             InputMode::Normal => match key.code {
                 KeyCode::Char('e') | KeyCode::Char('i') => {
                     self.input_mode = InputMode::Editing;
+                    // Auto-scroll to follow AI response when returning to edit mode
+                    if self.waiting_for_response {
+                        self.auto_scroll = true;
+                    }
                 }
                 KeyCode::Enter => {
                     // Try to expand message
