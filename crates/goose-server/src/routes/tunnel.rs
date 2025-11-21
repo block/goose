@@ -18,7 +18,7 @@ pub struct ErrorResponse {
 /// Start the tunnel
 #[utoipa::path(
     post,
-    path = "/api/tunnel/start",
+    path = "/tunnel/start",
     responses(
         (status = 200, description = "Tunnel started successfully", body = TunnelInfo),
         (status = 400, description = "Bad request", body = ErrorResponse),
@@ -45,7 +45,7 @@ pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
 /// Stop the tunnel
 #[utoipa::path(
     post,
-    path = "/api/tunnel/stop",
+    path = "/tunnel/stop",
     responses(
         (status = 200, description = "Tunnel stopped successfully"),
         (status = 500, description = "Internal server error", body = ErrorResponse)
@@ -59,7 +59,7 @@ pub async fn stop_tunnel(State(state): State<Arc<AppState>>) -> Response {
 /// Get tunnel info
 #[utoipa::path(
     get,
-    path = "/api/tunnel/status",
+    path = "/tunnel/status",
     responses(
         (status = 200, description = "Tunnel info", body = TunnelInfo)
     )
@@ -71,8 +71,8 @@ pub async fn get_tunnel_status(State(state): State<Arc<AppState>>) -> Response {
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/api/tunnel/start", post(start_tunnel))
-        .route("/api/tunnel/stop", post(stop_tunnel))
-        .route("/api/tunnel/status", get(get_tunnel_status))
+        .route("/tunnel/start", post(start_tunnel))
+        .route("/tunnel/stop", post(stop_tunnel))
+        .route("/tunnel/status", get(get_tunnel_status))
         .with_state(state)
 }

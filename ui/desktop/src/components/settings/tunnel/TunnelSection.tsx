@@ -18,6 +18,9 @@ const STATUS_MESSAGES = {
 export default function TunnelSection() {
   const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
     state: 'idle',
+    url: '',
+    hostname: '',
+    secret: '',
   });
   const [showQRModal, setShowQRModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export default function TunnelSection() {
       } catch (err) {
         const errorMsg = errorMessage(err, 'Failed to load tunnel status');
         setError(errorMsg);
-        setTunnelInfo({ state: 'error' });
+        setTunnelInfo({ state: 'error', url: '', hostname: '', secret: '' });
       }
     };
 
@@ -46,7 +49,7 @@ export default function TunnelSection() {
     if (tunnelInfo.state === 'running') {
       try {
         await stopTunnel();
-        setTunnelInfo({ state: 'idle' });
+        setTunnelInfo({ state: 'idle', url: '', hostname: '', secret: '' });
         setShowQRModal(false);
       } catch (err) {
         setError(errorMessage(err, 'Failed to stop tunnel'));
@@ -61,7 +64,7 @@ export default function TunnelSection() {
       }
     } else {
       setError(null);
-      setTunnelInfo({ state: 'starting' });
+      setTunnelInfo({ state: 'starting', url: '', hostname: '', secret: '' });
 
       try {
         const { data } = await startTunnel();
@@ -72,7 +75,7 @@ export default function TunnelSection() {
       } catch (err) {
         const errorMsg = errorMessage(err, 'Failed to start tunnel');
         setError(errorMsg);
-        setTunnelInfo({ state: 'error' });
+        setTunnelInfo({ state: 'error', url: '', hostname: '', secret: '' });
       }
     }
   };

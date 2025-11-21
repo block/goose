@@ -76,18 +76,14 @@ struct TunnelResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "totalChunks")]
     total_chunks: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "isChunked")]
-    is_chunked: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    is_chunked: bool,
     #[serde(rename = "isStreaming")]
-    is_streaming: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    is_streaming: bool,
     #[serde(rename = "isFirstChunk")]
-    is_first_chunk: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    is_first_chunk: bool,
     #[serde(rename = "isLastChunk")]
-    is_last_chunk: Option<bool>,
+    is_last_chunk: bool,
 }
 
 fn validate_and_build_request(
@@ -170,10 +166,10 @@ async fn handle_streaming_response(
                     error: None,
                     chunk_index: Some(chunk_index),
                     total_chunks: None,
-                    is_chunked: None,
-                    is_streaming: Some(true),
-                    is_first_chunk: Some(is_first_chunk),
-                    is_last_chunk: Some(false),
+                    is_chunked: false,
+                    is_streaming: true,
+                    is_first_chunk: is_first_chunk,
+                    is_last_chunk: false,
                 };
                 send_response(ws_tx.clone(), tunnel_response).await?;
                 chunk_index += 1;
@@ -194,10 +190,10 @@ async fn handle_streaming_response(
         error: None,
         chunk_index: Some(chunk_index),
         total_chunks: None,
-        is_chunked: None,
-        is_streaming: Some(true),
-        is_first_chunk: Some(false),
-        is_last_chunk: Some(true),
+        is_chunked: false,
+        is_streaming: true,
+        is_first_chunk: false,
+        is_last_chunk: true,
     };
     send_response(ws_tx, tunnel_response).await?;
     info!(
@@ -239,10 +235,10 @@ async fn handle_chunked_response(
             error: None,
             chunk_index: Some(i),
             total_chunks: Some(total_chunks),
-            is_chunked: Some(true),
-            is_streaming: None,
-            is_first_chunk: None,
-            is_last_chunk: None,
+            is_chunked: true,
+            is_streaming: false,
+            is_first_chunk: false,
+            is_last_chunk: false,
         };
         send_response(ws_tx.clone(), tunnel_response).await?;
     }
@@ -274,10 +270,10 @@ async fn handle_request(
                     error: Some(e.to_string()),
                     chunk_index: None,
                     total_chunks: None,
-                    is_chunked: None,
-                    is_streaming: None,
-                    is_first_chunk: None,
-                    is_last_chunk: None,
+                    is_chunked: false,
+                    is_streaming: false,
+                    is_first_chunk: false,
+                    is_last_chunk: false,
                 };
                 send_response(ws_tx, error_response).await?;
                 return Ok(());
@@ -296,10 +292,10 @@ async fn handle_request(
                 error: Some(e.to_string()),
                 chunk_index: None,
                 total_chunks: None,
-                is_chunked: None,
-                is_streaming: None,
-                is_first_chunk: None,
-                is_last_chunk: None,
+                is_chunked: false,
+                is_streaming: false,
+                is_first_chunk: false,
+                is_last_chunk: false,
             };
             send_response(ws_tx, error_response).await?;
             return Ok(());
@@ -349,10 +345,10 @@ async fn handle_request(
                 error: None,
                 chunk_index: None,
                 total_chunks: None,
-                is_chunked: None,
-                is_streaming: None,
-                is_first_chunk: None,
-                is_last_chunk: None,
+                is_chunked: false,
+                is_streaming: false,
+                is_first_chunk: false,
+                is_last_chunk: false,
             };
             send_response(ws_tx, tunnel_response).await?;
         }
@@ -597,9 +593,9 @@ pub async fn start(
 
     Ok(TunnelInfo {
         state: super::TunnelState::Running,
-        url: Some(public_url),
-        hostname: Some(hostname),
-        secret: Some(tunnel_secret),
+        url: public_url,
+        hostname,
+        secret: tunnel_secret,
     })
 }
 

@@ -102,36 +102,6 @@ export const updateRouterToolSelector = <ThrowOnError extends boolean = false>(o
     });
 };
 
-/**
- * Start the tunnel
- */
-export const startTunnel = <ThrowOnError extends boolean = false>(options?: Options<StartTunnelData, ThrowOnError>) => {
-    return (options?.client ?? client).post<StartTunnelResponses, StartTunnelErrors, ThrowOnError>({
-        url: '/api/tunnel/start',
-        ...options
-    });
-};
-
-/**
- * Get tunnel info
- */
-export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: Options<GetTunnelStatusData, ThrowOnError>) => {
-    return (options?.client ?? client).get<GetTunnelStatusResponses, unknown, ThrowOnError>({
-        url: '/api/tunnel/status',
-        ...options
-    });
-};
-
-/**
- * Stop the tunnel
- */
-export const stopTunnel = <ThrowOnError extends boolean = false>(options?: Options<StopTunnelData, ThrowOnError>) => {
-    return (options?.client ?? client).post<StopTunnelResponses, StopTunnelErrors, ThrowOnError>({
-        url: '/api/tunnel/stop',
-        ...options
-    });
-};
-
 export const readAllConfig = <ThrowOnError extends boolean = false>(options?: Options<ReadAllConfigData, ThrowOnError>) => {
     return (options?.client ?? client).get<ReadAllConfigResponses, unknown, ThrowOnError>({
         url: '/config',
@@ -620,6 +590,36 @@ export const updateSessionUserRecipeValues = <ThrowOnError extends boolean = fal
 export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>) => {
     return (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({
         url: '/status',
+        ...options
+    });
+};
+
+/**
+ * Start the tunnel
+ */
+export const startTunnel = <ThrowOnError extends boolean = false>(options?: Options<StartTunnelData, ThrowOnError>) => {
+    return (options?.client ?? client).post<StartTunnelResponses, StartTunnelErrors, ThrowOnError>({
+        url: '/tunnel/start',
+        ...options
+    });
+};
+
+/**
+ * Get tunnel info
+ */
+export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: Options<GetTunnelStatusData, ThrowOnError>) => {
+    return (options?.client ?? client).get<GetTunnelStatusResponses, unknown, ThrowOnError>({
+        url: '/tunnel/status',
+        ...options
+    });
+};
+
+/**
+ * Stop the tunnel
+ */
+export const stopTunnel = <ThrowOnError extends boolean = false>(options?: Options<StopTunnelData, ThrowOnError>) => {
+    return (options?.client ?? client).post<StopTunnelResponses, StopTunnelErrors, ThrowOnError>({
+        url: '/tunnel/stop',
         ...options
     });
 };

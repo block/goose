@@ -28,28 +28,16 @@ pub enum TunnelState {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TunnelInfo {
     pub state: TunnelState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hostname: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret: Option<String>,
+    pub url: String,
+    pub hostname: String,
+    pub secret: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct TunnelConfig {
-    #[serde(default)]
-    pub auto_start: bool,
-    #[serde(default)]
-    pub secret: Option<String>,
-    #[serde(default)]
-    pub agent_id: Option<String>,
-}
+
 
 pub struct TunnelManager {
     state: Arc<RwLock<TunnelState>>,
     info: Arc<RwLock<Option<TunnelInfo>>>,
-    config: Arc<RwLock<TunnelConfig>>,
     lapstone_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
@@ -66,30 +54,28 @@ impl TunnelManager {
         TunnelManager {
             state: Arc::new(RwLock::new(TunnelState::Idle)),
             info: Arc::new(RwLock::new(None)),
-            config: Arc::new(RwLock::new(TunnelConfig::default())),
             lapstone_handle: Arc::new(RwLock::new(None)),
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
         }
     }
 
-    async fn load_config(&self) {
-        let cfg = Config::global();
-        let auto_start = cfg.get_param("tunnel_auto_start").unwrap_or(false);
-        let secret = cfg.get_secret("tunnel_secret").ok();
-        let agent_id = cfg.get_secret("tunnel_agent_id").ok();
+    fn get_auto_start() -> bool {
+        Config::global()
+            .get_param("tunnel_auto_start")
+            .unwrap_or(false)
+    }
 
-        *self.config.write().await = TunnelConfig {
-            auto_start,
-            secret,
-            agent_id,
-        };
+    fn get_secret() -> Option<String> {
+        Config::global().get_secret("tunnel_secret").ok()
+    }
+
+    fn get_agent_id() -> Option<String> {
+        Config::global().get_secret("tunnel_agent_id").ok()
     }
 
     pub async fn check_auto_start(&self) {
-        self.load_config().await;
-
-        let auto_start = self.config.read().await.auto_start;
+        let auto_start = Self::get_auto_start();
         let state = self.state.read().await.clone();
 
         if auto_start && state == TunnelState::Idle {
@@ -116,52 +102,40 @@ impl TunnelManager {
             }
             None => TunnelInfo {
                 state,
-                url: None,
-                hostname: None,
-                secret: None,
+                url: String::new(),
+                hostname: String::new(),
+                secret: String::new(),
             },
         }
     }
 
-    pub async fn update_config<F>(&self, f: F) -> anyhow::Result<()>
-    where
-        F: FnOnce(&mut TunnelConfig),
-    {
-        let mut cfg = self.config.write().await;
-        f(&mut cfg);
+    pub fn set_auto_start(auto_start: bool) -> anyhow::Result<()> {
+        Config::global()
+            .set_param("tunnel_auto_start", auto_start)
+            .map_err(|e| anyhow::anyhow!("Failed to save tunnel config: {}", e))
+    }
 
-        let global_cfg = Config::global();
-        global_cfg
-            .set_param("tunnel_auto_start", cfg.auto_start)
-            .map_err(|e| anyhow::anyhow!("Failed to save tunnel config: {}", e))?;
+    pub fn set_secret(secret: &str) -> anyhow::Result<()> {
+        Config::global()
+            .set_secret("tunnel_secret", &secret.to_string())
+            .map_err(|e| anyhow::anyhow!("Failed to save tunnel secret: {}", e))
+    }
 
-        if let Some(secret) = &cfg.secret {
-            global_cfg
-                .set_secret("tunnel_secret", secret)
-                .map_err(|e| anyhow::anyhow!("Failed to save tunnel secret: {}", e))?;
-        }
-        if let Some(agent_id) = &cfg.agent_id {
-            global_cfg
-                .set_secret("tunnel_agent_id", agent_id)
-                .map_err(|e| anyhow::anyhow!("Failed to save tunnel agent_id: {}", e))?;
-        }
-        Ok(())
+    pub fn set_agent_id(agent_id: &str) -> anyhow::Result<()> {
+        Config::global()
+            .set_secret("tunnel_agent_id", &agent_id.to_string())
+            .map_err(|e| anyhow::anyhow!("Failed to save tunnel agent_id: {}", e))
     }
 
     async fn start_tunnel_internal(&self) -> anyhow::Result<(TunnelInfo, mpsc::Receiver<()>)> {
-        let config = self.config.read().await.clone();
         let server_port = get_server_port()?;
-
-        let tunnel_secret = config.secret.clone().unwrap_or_else(generate_secret);
+        let tunnel_secret = Self::get_secret().unwrap_or_else(generate_secret);
         let server_secret =
             std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
-        let agent_id = config.agent_id.clone().unwrap_or_else(generate_agent_id);
+        let agent_id = Self::get_agent_id().unwrap_or_else(generate_agent_id);
 
-        self.update_config(|c| {
-            c.secret = Some(tunnel_secret.clone());
-            c.agent_id = Some(agent_id.clone());
-        })
-        .await?;
+        Self::set_secret(&tunnel_secret)?;
+        Self::set_agent_id(&agent_id)?;
 
         let (restart_tx, restart_rx) = mpsc::channel::<()>(1);
         *self.restart_tx.write().await = Some(restart_tx.clone());
@@ -201,17 +175,16 @@ impl TunnelManager {
             Ok((info, mut restart_rx)) => {
                 *self.state.write().await = TunnelState::Running;
                 *self.info.write().await = Some(info.clone());
-                let _ = self.update_config(|c| c.auto_start = true).await;
+                let _ = Self::set_auto_start(true);
 
                 let state = self.state.clone();
-                let config = self.config.clone();
                 let lapstone_handle = self.lapstone_handle.clone();
                 let watchdog_handle_arc = self.watchdog_handle.clone();
                 let manager = Arc::new(self.clone_for_watchdog());
 
                 let watchdog = tokio::spawn(async move {
                     while restart_rx.recv().await.is_some() {
-                        let auto_start = config.read().await.auto_start;
+                        let auto_start = Self::get_auto_start();
                         if !auto_start {
                             tracing::info!("Tunnel connection lost but auto_start is disabled");
                             break;
@@ -253,7 +226,6 @@ impl TunnelManager {
         TunnelManager {
             state: self.state.clone(),
             info: self.info.clone(),
-            config: self.config.clone(),
             lapstone_handle: self.lapstone_handle.clone(),
             restart_tx: self.restart_tx.clone(),
             watchdog_handle: self.watchdog_handle.clone(),
@@ -273,7 +245,7 @@ impl TunnelManager {
         *self.info.write().await = None;
 
         if clear_auto_start {
-            let _ = self.update_config(|c| c.auto_start = false).await;
+            let _ = Self::set_auto_start(false);
         }
     }
 }
