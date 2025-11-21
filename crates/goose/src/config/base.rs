@@ -545,47 +545,25 @@ impl Config {
     pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
-                // Try to access keyring, fallback to file if it fails
-                let entry_result = Entry::new(service, KEYRING_USERNAME);
-                let entry = match entry_result {
-                    Ok(entry) => entry,
-                    Err(e) => {
-                        if self.is_keyring_availability_error(&e.to_string()) {
-                            return self.fallback_to_file_storage();
-                        } else {
-                            return Err(ConfigError::KeyringError(e.to_string()));
-                        }
-                    }
-                };
+                let result =
+                    self.handle_keyring_operation(|entry| entry.get_password(), service, None);
 
-                match entry.get_password() {
+                match result {
                     Ok(content) => {
                         let values: HashMap<String, Value> = serde_json::from_str(&content)?;
                         Ok(values)
                     }
-                    Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-                    Err(e) => {
-                        if self.is_keyring_availability_error(&e.to_string()) {
-                            self.fallback_to_file_storage()
-                        } else {
-                            Err(ConfigError::KeyringError(e.to_string()))
-                        }
+                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage(),
+                    Err(ConfigError::KeyringError(msg))
+                        if msg.contains("No entry found")
+                            || msg.contains("No matching entry found") =>
+                    {
+                        Ok(HashMap::new())
                     }
+                    Err(e) => Err(e),
                 }
             }
-            SecretStorage::File { path } => {
-                if path.exists() {
-                    let file_content = std::fs::read_to_string(path)?;
-                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
-                    let json_value: Value = serde_json::to_value(yaml_value)?;
-                    match json_value {
-                        Value::Object(map) => Ok(map.into_iter().collect()),
-                        _ => Ok(HashMap::new()),
-                    }
-                } else {
-                    Ok(HashMap::new())
-                }
-            }
+            SecretStorage::File { path } => self.read_secrets_from_file(path),
         }
     }
 
@@ -774,31 +752,17 @@ impl Config {
 
         match &self.secrets {
             SecretStorage::Keyring { service } => {
-                // Try to access keyring, fallback to file if it fails
-                let entry_result = Entry::new(service, KEYRING_USERNAME);
-                let entry = match entry_result {
-                    Ok(entry) => entry,
-                    Err(e) => {
-                        // Check if this is a keyring availability error and fallback to file storage
-                        if self.is_keyring_availability_error(&e.to_string()) {
-                            // Automatically disable keyring for future operations
-                            std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-                            return self.write_secrets_to_file(&values);
-                        } else {
-                            return Err(ConfigError::KeyringError(e.to_string()));
-                        }
-                    }
-                };
-
                 let json_value = serde_json::to_string(&values)?;
-                if let Err(e) = entry.set_password(&json_value) {
-                    if self.is_keyring_availability_error(&e.to_string()) {
-                        std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-                        self.write_secrets_to_file(&values)?;
-                        return Err(ConfigError::FallbackToFileStorage);
-                    } else {
-                        return Err(ConfigError::KeyringError(e.to_string()));
-                    }
+                let result = self.handle_keyring_operation(
+                    |entry| entry.set_password(&json_value),
+                    service,
+                    Some(&values),
+                );
+
+                if let Err(ConfigError::FallbackToFileStorage) = result {
+                    return Err(ConfigError::FallbackToFileStorage);
+                } else if let Err(e) = result {
+                    return Err(e);
                 }
             }
             SecretStorage::File { path } => {
@@ -828,31 +792,17 @@ impl Config {
 
         match &self.secrets {
             SecretStorage::Keyring { service } => {
-                // Try to access keyring, fallback to file if it fails
-                let entry_result = Entry::new(service, KEYRING_USERNAME);
-                let entry = match entry_result {
-                    Ok(entry) => entry,
-                    Err(e) => {
-                        // Check if this is a keyring availability error and fallback to file storage
-                        if self.is_keyring_availability_error(&e.to_string()) {
-                            // Automatically disable keyring for future operations
-                            std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-                            return self.write_secrets_to_file(&values);
-                        } else {
-                            return Err(ConfigError::KeyringError(e.to_string()));
-                        }
-                    }
-                };
-
                 let json_value = serde_json::to_string(&values)?;
-                if let Err(e) = entry.set_password(&json_value) {
-                    if self.is_keyring_availability_error(&e.to_string()) {
-                        std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-                        self.write_secrets_to_file(&values)?;
-                        return Err(ConfigError::FallbackToFileStorage);
-                    } else {
-                        return Err(ConfigError::KeyringError(e.to_string()));
-                    }
+                let result = self.handle_keyring_operation(
+                    |entry| entry.set_password(&json_value),
+                    service,
+                    Some(&values),
+                );
+
+                if let Err(ConfigError::FallbackToFileStorage) = result {
+                    return Err(ConfigError::FallbackToFileStorage);
+                } else if let Err(e) = result {
+                    return Err(e);
                 }
             }
             SecretStorage::File { path } => {
@@ -863,16 +813,10 @@ impl Config {
         Ok(())
     }
 
-    /// Perform fallback to file storage when keyring is unavailable
-    fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        // Automatically disable keyring for future operations
-        std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-
-        // Fallback to file-based storage
-        let config_dir = Paths::config_dir();
-        let path = config_dir.join("secrets.yaml");
+    /// Read secrets from a YAML file
+    fn read_secrets_from_file(&self, path: &Path) -> Result<HashMap<String, Value>, ConfigError> {
         if path.exists() {
-            let file_content = std::fs::read_to_string(&path)?;
+            let file_content = std::fs::read_to_string(path)?;
             let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
             let json_value: Value = serde_json::to_value(yaml_value)?;
             match json_value {
@@ -882,6 +826,17 @@ impl Config {
         } else {
             Ok(HashMap::new())
         }
+    }
+
+    /// Perform fallback to file storage when keyring is unavailable
+    fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
+        // Automatically disable keyring for future operations
+        std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+
+        // Fallback to file-based storage
+        let config_dir = Paths::config_dir();
+        let path = config_dir.join("secrets.yaml");
+        self.read_secrets_from_file(&path)
     }
 
     /// Write secrets to file storage (used for fallback)
@@ -896,13 +851,50 @@ impl Config {
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
     fn is_keyring_availability_error(&self, error_str: &str) -> bool {
         error_str.contains("keyring")
-            || error_str.contains("Secret Service")
-            || error_str.contains("DBus")
-            || error_str.contains("dbus")
-            || error_str.contains("platform secure storage")
-            || error_str.contains("no result found")
+            || error_str.contains("DBus error")
             || error_str.contains("org.freedesktop.secrets")
             || error_str.contains("couldn't access platform secure storage")
+    }
+
+    /// Get a keyring entry with automatic fallback handling
+    fn get_keyring_entry_with_fallback(
+        &self,
+        service: &str,
+    ) -> Result<keyring::Entry, ConfigError> {
+        let entry_result = Entry::new(service, KEYRING_USERNAME);
+        entry_result.map_err(|e| {
+            if self.is_keyring_availability_error(&e.to_string()) {
+                std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+                ConfigError::FallbackToFileStorage
+            } else {
+                ConfigError::KeyringError(e.to_string())
+            }
+        })
+    }
+
+    /// Handle keyring operation errors with automatic fallback
+    fn handle_keyring_operation<T>(
+        &self,
+        operation: impl FnOnce(keyring::Entry) -> Result<T, keyring::Error>,
+        service: &str,
+        fallback_values: Option<&HashMap<String, Value>>,
+    ) -> Result<T, ConfigError> {
+        let entry = self.get_keyring_entry_with_fallback(service)?;
+        let result = operation(entry);
+
+        result.map_err(|e| {
+            if self.is_keyring_availability_error(&e.to_string()) {
+                std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+                if let Some(values) = fallback_values {
+                    let _ = self.write_secrets_to_file(values);
+                    ConfigError::FallbackToFileStorage
+                } else {
+                    ConfigError::FallbackToFileStorage
+                }
+            } else {
+                ConfigError::KeyringError(e.to_string())
+            }
+        })
     }
 }
 
@@ -961,23 +953,13 @@ mod tests {
     use tempfile::NamedTempFile;
 
     fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry_result = Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME);
+        let config = Config::default();
+        let entry_result = config.get_keyring_entry_with_fallback(TEST_KEYRING_SERVICE);
+
         let entry = match entry_result {
             Ok(entry) => entry,
-            Err(e) => {
-                // Check if this is a keyring availability error and just ignore it for cleanup
-                let error_str = e.to_string();
-                if error_str.contains("keyring")
-                    || error_str.contains("Secret Service")
-                    || error_str.contains("DBus")
-                    || error_str.contains("dbus")
-                    || error_str.contains("platform secure storage")
-                {
-                    return Ok(());
-                } else {
-                    return Err(ConfigError::KeyringError(e.to_string()));
-                }
-            }
+            Err(ConfigError::FallbackToFileStorage) => return Ok(()),
+            Err(e) => return Err(e),
         };
 
         match entry.delete_credential() {
