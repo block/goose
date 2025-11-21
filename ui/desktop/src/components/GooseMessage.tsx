@@ -259,7 +259,7 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
       {/* Goose Avatar on the left side with optional user badge */}
-      <div className="flex-shrink-0 mt-1 relative">
+      <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
         {/* Main Goose dot avatar */}
         <div className="w-8 h-8 flex items-center justify-center">
           <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
@@ -267,7 +267,7 @@ export default function GooseMessage({
         
         {/* Small user badge for collaborator messages */}
         {isFromCollaborator && senderInfo.avatarUrl && (
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden">
+          <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden bg-background-default">
             <AvatarImage
               avatarUrl={senderInfo.avatarUrl}
               displayName={senderInfo.displayName || 'User'}
@@ -276,7 +276,7 @@ export default function GooseMessage({
           </div>
         )}
         {isFromCollaborator && !senderInfo.avatarUrl && (
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center">
+          <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center">
             <span className="text-[8px] text-white font-bold">
               {(senderInfo.displayName || senderInfo.userId || 'U').charAt(0).toUpperCase()}
             </span>
