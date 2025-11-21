@@ -138,7 +138,20 @@ export const useSessionSharing = ({
 
     // CRITICAL FIX: Only set up Matrix listeners if this session actually has a Matrix room
     // This prevents Matrix messages from leaking into regular chats
-    if (!stateRef.current.roomId && !initialRoomId) {
+    // Check both current state and initialRoomId parameter
+    const currentRoomId = stateRef.current.roomId;
+    const hasMatrixRoom = !!(currentRoomId || initialRoomId);
+    
+    console.log('🔍 useSessionSharing: Matrix listener setup check:', {
+      sessionId,
+      currentRoomId,
+      initialRoomId,
+      hasMatrixRoom,
+      stateIsShared: stateRef.current.isShared,
+      willSetupListeners: hasMatrixRoom
+    });
+    
+    if (!hasMatrixRoom) {
       console.log('🚫 useSessionSharing: No Matrix room ID - skipping Matrix listener setup for regular chat session:', sessionId);
       return;
     }

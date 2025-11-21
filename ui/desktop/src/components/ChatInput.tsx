@@ -421,6 +421,15 @@ export default function ChatInput({
     }
   });
   
+  // CRITICAL DEBUG: Log what we're actually passing to useSessionSharing
+  console.log('🚨 ChatInput: About to call useSessionSharing with:', {
+    sessionId: sessionId,
+    initialRoomId: actualMatrixRoomId,
+    isMatrixRoom: isMatrixRoom,
+    shouldSetupMatrixListeners: !!actualMatrixRoomId,
+    timestamp: new Date().toISOString()
+  });
+  
   // Get Matrix context for current user information
   const { currentUser } = useMatrix();
   
