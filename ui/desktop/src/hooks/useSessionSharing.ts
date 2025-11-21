@@ -136,6 +136,13 @@ export const useSessionSharing = ({
       return;
     }
 
+    // CRITICAL FIX: Only set up Matrix listeners if this session actually has a Matrix room
+    // This prevents Matrix messages from leaking into regular chats
+    if (!stateRef.current.roomId && !initialRoomId) {
+      console.log('🚫 useSessionSharing: No Matrix room ID - skipping Matrix listener setup for regular chat session:', sessionId);
+      return;
+    }
+
     console.log('🔧 useSessionSharing: Setting up Matrix message listeners for session:', sessionId);
     console.log('🔧 useSessionSharing: Current state when setting up listeners:', {
       sessionId,
@@ -661,7 +668,7 @@ export const useSessionSharing = ({
       messageCleanup();
       gooseSessionCleanup();
     };
-  }, [isConnected, sessionId, currentUser?.userId || null]);
+  }, [isConnected, sessionId, currentUser?.userId || null, initialRoomId]);
   
   // Separate effect to log room ID changes without recreating listeners
   useEffect(() => {
