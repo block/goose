@@ -63,6 +63,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         });
 
         let mut output = Vec::new();
+        let mut text_content_blocks = Vec::new();
 
         for content in &message.content {
             match content {
@@ -72,16 +73,16 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         if let Some(image_path) = detect_image_path(&text.text) {
                             // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
+                                text_content_blocks
+                                    .push(json!({"type": "text", "text": text.text}));
+                                text_content_blocks.push(convert_image(&image, image_format));
                             } else {
                                 // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                text_content_blocks
+                                    .push(json!({"type": "text", "text": text.text}));
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            text_content_blocks.push(json!({"type": "text", "text": text.text}));
                         }
                     }
                 }
@@ -241,6 +242,18 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                 },
+            }
+        }
+
+        if !text_content_blocks.is_empty() {
+            if text_content_blocks.len() == 1
+                && text_content_blocks[0].get("type").and_then(|t| t.as_str()) == Some("text")
+            {
+                if let Some(text) = text_content_blocks[0].get("text").and_then(|t| t.as_str()) {
+                    converted["content"] = json!(text);
+                }
+            } else {
+                converted["content"] = json!(text_content_blocks);
             }
         }
 
@@ -817,6 +830,34 @@ mod tests {
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
         assert_eq!(spec[0]["content"], "Hello");
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_multiple_text_blocks() -> anyhow::Result<()> {
+        // Test the fix for ACP multi-content bug
+        let message = Message::user()
+            .with_text("--- Resource: file:///test.py ---\ncode here\n---\n")
+            .with_text(" what does this code do?");
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+
+        // Should be an array with two text blocks
+        let content = spec[0]["content"]
+            .as_array()
+            .expect("content should be an array");
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(
+            content[0]["text"],
+            "--- Resource: file:///test.py ---\ncode here\n---\n"
+        );
+        assert_eq!(content[1]["type"], "text");
+        assert_eq!(content[1]["text"], " what does this code do?");
+
         Ok(())
     }
 
