@@ -797,9 +797,9 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                             let bg_style = Style::default();
 
                             // Header
-                            let header_len = 7; // "╭ User "
-                            let padding = content_width.saturating_sub(header_len + 1); // +1 for "╮"
-                            let header = format!("╭ User {:─<width$}╮", "", width = padding);
+                            let header_len = 7; // "┌ User "
+                            let padding = content_width.saturating_sub(header_len + 1); // +1 for "┐"
+                            let header = format!("┌ User {:─<width$}┐", "", width = padding);
                             list_items.push(
                                 ListItem::new(Line::from(Span::styled(
                                     header,
@@ -829,7 +829,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
 
                             // Footer
                             let footer = format!(
-                                "╰{:─<width$}╯",
+                                "└{:─<width$}┘",
                                 "",
                                 width = content_width.saturating_sub(2)
                             );
@@ -866,15 +866,15 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                             let header_content = format!("{} {}", tool_name, display_args);
 
                             // Calculate padding for the right side to make it a full width box header
-                            // Width - 2 (borders) - 2 (prefix) - content_len - 1 (space) - 1 (╮) ??
-                            // Actually: "╭─ CONTENT ─...─╮"
-                            // We want: "╭─ " + content + " " + "─"*padding + "╮"
-                            let fixed_chars = 5; // "╭─ " + " " + "╮"
+                            // Width - 2 (borders) - 2 (prefix) - content_len - 1 (space) - 1 (┐) ??
+                            // Actually: "┌─ CONTENT ─...─┐"
+                            // We want: "┌─ " + content + " " + "─"*padding + "┐"
+                            let fixed_chars = 5; // "┌─ " + " " + "┐"
                             let padding_len =
                                 content_width.saturating_sub(header_content.len() + fixed_chars);
 
                             let header_spans = vec![
-                                Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
+                                Span::styled("┌─ ", Style::default().fg(Color::DarkGray)),
                                 Span::styled(
                                     tool_name,
                                     Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -884,7 +884,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                                     Style::default().fg(Color::Gray),
                                 ),
                                 Span::styled(
-                                    format!("{:─<width$}╮", "", width = padding_len),
+                                    format!("{:─<width$}┐", "", width = padding_len),
                                     Style::default().fg(Color::DarkGray),
                                 ),
                             ];
@@ -952,7 +952,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
 
                             // Footer
                             let footer = format!(
-                                "╰{:─<width$}╯",
+                                "└{:─<width$}┘",
                                 "",
                                 width = content_width.saturating_sub(2)
                             );
