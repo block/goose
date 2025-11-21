@@ -16,6 +16,10 @@ string_slice = "warn"
 
 [workspace.dependencies]
 rmcp = { version = "0.9.0", features = ["schemars", "auth"] }
+webbrowser = "1.0"
+which = "8.0.0"
+etcetera = "0.11.0"
+ignore = "0.4.25"
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]
