@@ -34,7 +34,6 @@ where
     let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
         .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
-    // Sanitize text content
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
             let original = &text_content.text;
