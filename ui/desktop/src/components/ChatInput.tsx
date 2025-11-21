@@ -41,6 +41,7 @@ import { CollaborativeButton } from './collaborative';
 import EnhancedMentionPopover from './EnhancedMentionPopover';
 import { useMatrix } from '../contexts/MatrixContext';
 import { sessionMappingService } from '../services/SessionMappingService';
+import { useTabContext } from '../contexts/TabContext';
 
 // Force rebuild timestamp: 2025-01-15T01:00:00Z - All .length errors fixed
 
@@ -358,12 +359,71 @@ export default function ChatInput({
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
+  // Enhanced Matrix room detection with TabContext integration
+  const tabContext = useTabContext();
+  
   // Check if this session is mapped from a Matrix room
   const matrixRoomId = sessionId ? sessionMappingService.getMatrixRoomId(sessionId) : null;
-  const isMatrixRoom = sessionId && (sessionId.startsWith('!') || matrixRoomId !== null);
   
-  // Get the actual Matrix room ID for useSessionSharing
-  const actualMatrixRoomId = sessionId && sessionId.startsWith('!') ? sessionId : matrixRoomId;
+  // NEW: Get Matrix room info from TabContext if available
+  let tabMatrixRoomId = null;
+  let tabMatrixRecipientId = null;
+  if (tabContext) {
+    try {
+      const activeTabState = tabContext.getActiveTabState();
+      if (activeTabState?.tab.type === 'matrix') {
+        tabMatrixRoomId = activeTabState.tab.matrixRoomId || null;
+        tabMatrixRecipientId = activeTabState.tab.matrixRecipientId || null;
+      }
+    } catch (error) {
+      console.debug('TabContext not available for Matrix detection');
+    }
+  }
+  
+  // Determine if this is a Matrix room using multiple sources
+  const isMatrixRoom = !!(
+    (sessionId && sessionId.startsWith('!')) ||
+    (sessionId && sessionId.startsWith('matrix_!')) ||
+    matrixRoomId ||
+    tabMatrixRoomId
+  );
+  
+  // Get the actual Matrix room ID for useSessionSharing - prioritize TabContext
+  let actualMatrixRoomId = null;
+  if (tabMatrixRoomId) {
+    // From active tab context (most reliable)
+    actualMatrixRoomId = tabMatrixRoomId;
+  } else if (sessionId && sessionId.startsWith('!')) {
+    // Direct Matrix room ID
+    actualMatrixRoomId = sessionId;
+  } else if (sessionId && sessionId.startsWith('matrix_!')) {
+    // Extract room ID from matrix_!roomId format
+    actualMatrixRoomId = sessionId.substring(7); // Remove 'matrix_' prefix
+  } else if (matrixRoomId) {
+    // From session mapping service
+    actualMatrixRoomId = matrixRoomId;
+  }
+  
+  console.log('🔍 ChatInput Matrix room detection:', {
+    sessionId,
+    matrixRoomId,
+    tabMatrixRoomId,
+    tabMatrixRecipientId,
+    isMatrixRoom,
+    actualMatrixRoomId,
+    sessionIdStartsWithExclamation: sessionId?.startsWith('!'),
+    sessionIdStartsWithMatrix: sessionId?.startsWith('matrix_!'),
+    detectionSource: actualMatrixRoomId === tabMatrixRoomId ? 'TabContext' : 
+                    actualMatrixRoomId === sessionId ? 'DirectSessionId' :
+                    actualMatrixRoomId === sessionId?.substring(7) ? 'MatrixSessionId' :
+                    actualMatrixRoomId === matrixRoomId ? 'SessionMapping' : 'None',
+    // Additional debugging for useSessionSharing
+    willPassToUseSessionSharing: {
+      sessionId: actualMatrixRoomId || sessionId,
+      initialRoomId: actualMatrixRoomId,
+      isMatrixMode: isMatrixRoom
+    }
+  });
   
   // Get Matrix context for current user information
   const { currentUser } = useMatrix();
@@ -384,6 +444,7 @@ export default function ChatInput({
         appendFunctionType: typeof append,
         sessionId: sessionId,
         isMatrixRoom: isMatrixRoom,
+        actualMatrixRoomId: actualMatrixRoomId,
         timestamp: new Date().toISOString()
       });
       
@@ -410,7 +471,7 @@ export default function ChatInput({
         console.warn('⚠️ ChatInput: *** APPEND FUNCTION IS NOT AVAILABLE! ***');
       }
     },
-    initialRoomId: isMatrixRoom ? actualMatrixRoomId : null, // Pass actual Matrix room ID if it's a Matrix room
+    initialRoomId: actualMatrixRoomId, // FIXED: Always pass Matrix room ID if available, regardless of isMatrixRoom flag
     onParticipantJoin: (participant) => {
       console.log('👥 Participant joined session:', participant);
     },

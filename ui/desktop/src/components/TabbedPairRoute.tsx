@@ -18,7 +18,7 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
   const routeState = location.state as ViewOptions | undefined;
   const initialMessage = routeState?.initialMessage;
   const { isNavExpanded } = useNavigation();
-  const { openExistingSession } = useTabContext();
+  const { openExistingSession, openMatrixChat } = useTabContext();
 
   // Handle resuming existing sessions from URL parameters
   useEffect(() => {
@@ -34,6 +34,22 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
       window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams, openExistingSession]);
+
+  // Handle Matrix tab creation from notifications
+  useEffect(() => {
+    const handleCreateMatrixTab = (event: CustomEvent) => {
+      const { roomId, senderId } = event.detail;
+      console.log('📱 TabbedPairRoute: Creating Matrix tab for room:', roomId, 'sender:', senderId);
+      
+      // Use the new openMatrixChat method - much simpler!
+      openMatrixChat(roomId, senderId);
+    };
+
+    window.addEventListener('create-matrix-tab', handleCreateMatrixTab as EventListener);
+    return () => {
+      window.removeEventListener('create-matrix-tab', handleCreateMatrixTab as EventListener);
+    };
+  }, [openMatrixChat]);
 
   const handleMessageSubmit = (message: string, tabId: string) => {
     console.log('Message submitted in tab:', tabId, message);

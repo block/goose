@@ -115,6 +115,8 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNewTab, handleTabClose, handleTabClick, activeTabId, tabStates]);
 
+
+
   // Handle session updates from BaseChat2 (when a new session gets a real backend ID)
   const handleSessionUpdate = useCallback((newSessionId: string, tabId: string) => {
     const tabState = tabStates.find(ts => ts.tab.id === tabId);
@@ -198,72 +200,86 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
 
       {/* Main Content Area - Chat and Sidecar */}
       <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
-        {activeTabState && (
-          <>
-            {hasSidecar ? (
-              /* Resizable Split Layout: Chat + Sidecar */
-              <ResizableSplitter
-                leftContent={
-                  <BaseChat2
-                    key={activeTabState.tab.id}
-                    sessionId={activeTabState.tab.sessionId}
-                    setChat={handleSetChat}
-                    setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                    onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
-                    onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
-                    suppressEmptyState={false}
-                    showPopularTopics={true}
-                    loadingChat={activeTabState.loadingChat}
-                    initialMessage={initialMessage}
-                    showParticipantsBar={activeTabState.tab.type === 'matrix'}
-                    matrixRoomId={activeTabState.tab.matrixRoomId}
-                    showPendingInvites={activeTabState.tab.type === 'matrix'}
-                    tabId={activeTabState.tab.id}
-                  />
-                }
-                rightContent={
-                  sidecarState && sidecarState.activeViews.length > 1 ? (
-                    <MultiPanelTabSidecar
-                      sidecarState={sidecarState}
-                      onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
-                      tabId={activeTabState.tab.id}
+        {/* Render all tabs but only show the active one - this prevents unmounting */}
+        {tabStates.map((tabState) => {
+          const isActive = tabState.tab.id === activeTabId;
+          const tabSidecarState = getSidecarState(tabState.tab.id);
+          const tabHasSidecar = tabSidecarState && tabSidecarState.activeViews.length > 0;
+          
+          return (
+            <div
+              key={tabState.tab.id}
+              className={`absolute inset-0 ${isActive ? 'block' : 'hidden'}`}
+              style={{ 
+                visibility: isActive ? 'visible' : 'hidden',
+                pointerEvents: isActive ? 'auto' : 'none'
+              }}
+            >
+              {tabHasSidecar ? (
+                /* Resizable Split Layout: Chat + Sidecar */
+                <ResizableSplitter
+                  leftContent={
+                    <BaseChat2
+                      sessionId={tabState.tab.sessionId}
+                      setChat={isActive ? handleSetChat : undefined} // Only active tab can update chat
+                      setIsGoosehintsModalOpen={isActive ? setIsGoosehintsModalOpen : undefined}
+                      onMessageSubmit={isActive ? (message) => handleMessageSubmitWrapper(message, tabState.tab.id) : undefined}
+                      onSessionIdChange={isActive ? (newSessionId) => updateSessionId(tabState.tab.id, newSessionId) : undefined}
+                      suppressEmptyState={false}
+                      showPopularTopics={true}
+                      loadingChat={tabState.loadingChat}
+                      initialMessage={isActive ? initialMessage : undefined} // Only pass to active tab
+                      showParticipantsBar={tabState.tab.type === 'matrix'}
+                      matrixRoomId={tabState.tab.matrixRoomId}
+                      showPendingInvites={tabState.tab.type === 'matrix'}
+                      tabId={tabState.tab.id}
+                      isTabActive={isActive} // New prop to indicate if tab is active
                     />
-                  ) : (
-                    <TabSidecar
-                      sidecarState={sidecarState}
-                      onHideView={(viewId) => hideSidecarView(activeTabState.tab.id, viewId)}
-                      tabId={activeTabState.tab.id}
-                    />
-                  )
-                }
-                initialLeftWidth={chatWidth}
-                minLeftWidth={30}
-                maxLeftWidth={80}
-                onResize={setChatWidth}
-                className="h-full"
-                floatingRight={true}
-              />
-            ) : (
-              /* Full Width Chat */
-              <BaseChat2
-                key={activeTabState.tab.id}
-                sessionId={activeTabState.tab.sessionId}
-                setChat={handleSetChat}
-                setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                onMessageSubmit={(message) => handleMessageSubmitWrapper(message, activeTabState.tab.id)}
-                onSessionIdChange={(newSessionId) => updateSessionId(activeTabState.tab.id, newSessionId)}
-                suppressEmptyState={false}
-                showPopularTopics={true}
-                loadingChat={activeTabState.loadingChat}
-                initialMessage={initialMessage}
-                showParticipantsBar={activeTabState.tab.type === 'matrix'}
-                matrixRoomId={activeTabState.tab.matrixRoomId}
-                showPendingInvites={activeTabState.tab.type === 'matrix'}
-                tabId={activeTabState.tab.id}
-              />
-            )}
-          </>
-        )}
+                  }
+                  rightContent={
+                    tabSidecarState && tabSidecarState.activeViews.length > 1 ? (
+                      <MultiPanelTabSidecar
+                        sidecarState={tabSidecarState}
+                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : undefined}
+                        tabId={tabState.tab.id}
+                      />
+                    ) : (
+                      <TabSidecar
+                        sidecarState={tabSidecarState}
+                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : undefined}
+                        tabId={tabState.tab.id}
+                      />
+                    )
+                  }
+                  initialLeftWidth={chatWidth}
+                  minLeftWidth={30}
+                  maxLeftWidth={80}
+                  onResize={isActive ? setChatWidth : undefined} // Only active tab can resize
+                  className="h-full"
+                  floatingRight={true}
+                />
+              ) : (
+                /* Full Width Chat */
+                <BaseChat2
+                  sessionId={tabState.tab.sessionId}
+                  setChat={isActive ? handleSetChat : undefined} // Only active tab can update chat
+                  setIsGoosehintsModalOpen={isActive ? setIsGoosehintsModalOpen : undefined}
+                  onMessageSubmit={isActive ? (message) => handleMessageSubmitWrapper(message, tabState.tab.id) : undefined}
+                  onSessionIdChange={isActive ? (newSessionId) => updateSessionId(tabState.tab.id, newSessionId) : undefined}
+                  suppressEmptyState={false}
+                  showPopularTopics={true}
+                  loadingChat={tabState.loadingChat}
+                  initialMessage={isActive ? initialMessage : undefined} // Only pass to active tab
+                  showParticipantsBar={tabState.tab.type === 'matrix'}
+                  matrixRoomId={tabState.tab.matrixRoomId}
+                  showPendingInvites={tabState.tab.type === 'matrix'}
+                  tabId={tabState.tab.id}
+                  isTabActive={isActive} // New prop to indicate if tab is active
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

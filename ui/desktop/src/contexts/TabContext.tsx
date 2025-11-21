@@ -26,6 +26,8 @@ interface TabContextType {
   updateTabTitleFromMessage: (tabId: string, message: string | any) => Promise<void>;
   openExistingSession: (sessionId: string, title?: string) => void;
   updateSessionId: (tabId: string, newSessionId: string) => void;
+  // Matrix-specific methods
+  openMatrixChat: (roomId: string, senderId: string) => void;
   // Sidecar management functions
   showSidecarView: (tabId: string, view: TabSidecarView) => void;
   hideSidecarView: (tabId: string, viewId: string) => void;
@@ -121,8 +123,15 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, [activeTabId]);
 
   const handleTabClick = useCallback((tabId: string) => {
+    console.log('🖱️ TabContext: handleTabClick called:', { 
+      clickedTabId: tabId, 
+      currentActiveTabId: activeTabId,
+      willChange: tabId !== activeTabId
+    });
+    console.log('🖱️ TabContext: About to call setActiveTabId with:', tabId);
     setActiveTabId(tabId);
-  }, []);
+    console.log('🖱️ TabContext: setActiveTabId called');
+  }, [activeTabId]);
 
   const handleTabClose = useCallback((tabId: string) => {
     setTabStates(prev => {
@@ -581,6 +590,122 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     showSidecarView(tabId, editorView);
   }, [showSidecarView]);
 
+  // Open a Matrix chat in a new tab or switch to it if already open
+  const openMatrixChat = useCallback((roomId: string, senderId: string) => {
+    console.log('📱 TabContext: Opening Matrix chat for room:', roomId, 'sender:', senderId);
+
+    // Check if we already have a tab for this Matrix room
+    const existingTab = tabStates.find(ts => 
+      ts.tab.type === 'matrix' && ts.tab.matrixRoomId === roomId
+    );
+    
+    if (existingTab) {
+      console.log('📱 Matrix room already open in tab, switching to it:', existingTab.tab.id);
+      console.log('📱 Existing tab details:', {
+        id: existingTab.tab.id,
+        sessionId: existingTab.tab.sessionId,
+        type: existingTab.tab.type,
+        matrixRoomId: existingTab.tab.matrixRoomId,
+        matrixRecipientId: existingTab.tab.matrixRecipientId,
+        title: existingTab.tab.title
+      });
+      
+      // CRITICAL FIX: Ensure the existing tab has the correct sessionId format
+      // This is essential for ChatInput to detect it as a Matrix room
+      const expectedSessionId = `matrix_${roomId}`;
+      if (existingTab.tab.sessionId !== expectedSessionId) {
+        console.log('📱 FIXING sessionId for existing Matrix tab:', {
+          currentSessionId: existingTab.tab.sessionId,
+          expectedSessionId: expectedSessionId,
+          willUpdate: true
+        });
+        
+        // Update the existing tab's sessionId to ensure consistency
+        setTabStates(prev => prev.map(ts => 
+          ts.tab.id === existingTab.tab.id 
+            ? {
+                ...ts,
+                tab: { ...ts.tab, sessionId: expectedSessionId },
+                chat: { ...ts.chat, sessionId: expectedSessionId }
+              }
+            : ts
+        ));
+      }
+      
+      setActiveTabId(existingTab.tab.id);
+      return;
+    }
+
+    // Create a new Matrix tab
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    const senderName = senderId.split(':')[0].substring(1);
+    const matrixSessionId = `matrix_${roomId}`;
+    const tabTitle = `Chat with ${senderName}`;
+
+    console.log('📱 About to create new Matrix tab with:', {
+      matrixSessionId,
+      tabTitle,
+      roomId,
+      senderId,
+      type: 'matrix'
+    });
+
+    const newTab = createNewTab({
+      sessionId: matrixSessionId,
+      title: tabTitle,
+      type: 'matrix',
+      matrixRoomId: roomId,
+      matrixRecipientId: senderId,
+      isActive: true
+    });
+    
+    console.log('📱 Created newTab object:', {
+      id: newTab.id,
+      sessionId: newTab.sessionId,
+      type: newTab.type,
+      matrixRoomId: newTab.matrixRoomId,
+      matrixRecipientId: newTab.matrixRecipientId,
+      title: newTab.title,
+      fullTab: newTab
+    });
+    
+    const newTabState: TabState = {
+      tab: newTab,
+      chat: {
+        sessionId: matrixSessionId,
+        title: tabTitle,
+        messages: [],
+        messageHistoryIndex: 0,
+        recipeConfig: null,
+        aiEnabled: false, // Matrix chats have AI disabled by default
+      },
+      loadingChat: false
+    };
+    
+    console.log('📱 Creating new Matrix tab state:', {
+      tabId: newTab.id,
+      sessionId: matrixSessionId,
+      title: tabTitle,
+      roomId,
+      senderId,
+      fullTabState: newTabState
+    });
+    
+    setTabStates(prev => {
+      const newStates = [...prev, newTabState];
+      console.log('📱 Updated tab states:', newStates.map(ts => ({
+        id: ts.tab.id,
+        sessionId: ts.tab.sessionId,
+        type: ts.tab.type,
+        matrixRoomId: ts.tab.matrixRoomId,
+        title: ts.tab.title
+      })));
+      return newStates;
+    });
+    setActiveTabId(newTab.id);
+  }, [tabStates]);
+
   const contextValue: TabContextType = {
     tabStates,
     activeTabId,
@@ -597,6 +722,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     updateTabTitleFromMessage,
     openExistingSession,
     updateSessionId,
+    // Matrix-specific methods
+    openMatrixChat,
     // Sidecar functions
     showSidecarView,
     hideSidecarView,

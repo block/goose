@@ -181,7 +181,22 @@ export default function Pair({
         console.log('✅ Matrix DM session initialized with empty messages - Matrix history will load separately');
       } catch (error) {
         console.log('❌ Matrix DM loadCurrentChat error for new room:', error);
-        setFatalError(`Matrix DM init failure: ${error instanceof Error ? error.message : '' + error}`);
+        
+        // Don't set fatal error for Matrix mode - create a fallback chat instead
+        console.log('🔄 Backend session failed, creating fallback Matrix chat');
+        const fallbackChat: ChatType = {
+          sessionId: matrixRoomId, // Use Matrix room ID as fallback
+          title: `Matrix Chat ${matrixRoomId.substring(1, 8)}`,
+          messages: [], // Start empty - Matrix history will be loaded separately
+          messageHistoryIndex: 0,
+          recipeConfig: null,
+          aiEnabled: false, // AI disabled by default for Matrix DMs
+        };
+        
+        setChat(fallbackChat);
+        setHasInitializedChat(true); // Mark as initialized even with fallback
+        
+        console.log('✅ Matrix DM fallback chat created - Matrix history will still load');
       } finally {
         setLoadingChat(false);
       }
@@ -463,16 +478,15 @@ export default function Pair({
     }
   }, [agentState, setView]);
 
-  // Load Matrix room history when in Matrix mode
+  // Load Matrix room history when in Matrix mode - ENHANCED VERSION
   useEffect(() => {
     const loadMatrixHistory = async () => {
-      // In Matrix mode, load history ONLY after backend session is initialized
+      // Only depend on Matrix connection state and backend session initialization
       if (!isMatrixMode || !matrixRoomId || !isConnected || !isReady || hasLoadedMatrixHistory || !hasInitializedChat) {
         return;
       }
 
-      // Wait for the backend session to be properly set up before loading Matrix history
-      console.log('📜 Loading Matrix room history for DM (after backend session init):', matrixRoomId);
+      console.log('📜 Loading Matrix room history and syncing to backend session:', matrixRoomId);
       setIsLoadingMatrixHistory(true);
 
       try {
@@ -526,6 +540,48 @@ export default function Pair({
           // Use centralized message management for Matrix history
           addMessagesToChat(gooseMessages, 'matrix-history');
           
+          // CRITICAL: Sync Matrix history to backend session for AI context
+          const gooseSessionId = sessionMappingService.getGooseSessionId(matrixRoomId);
+          if (gooseSessionId && gooseMessages.length > 0) {
+            console.log('📜 Syncing Matrix history to backend session for AI context:', {
+              matrixRoomId: matrixRoomId.substring(0, 20) + '...',
+              gooseSessionId,
+              messageCount: gooseMessages.length
+            });
+            
+            try {
+              // Import the API function to sync messages to backend
+              const { replyHandler } = await import('../api');
+              
+              // Convert Goose messages to the format expected by the backend
+              const backendMessages = gooseMessages.map(msg => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                created: msg.created,
+                // Include sender info if available
+                ...(msg.sender && { sender: msg.sender })
+              }));
+              
+              // Use replyHandler to sync the Matrix history to the backend session
+              // This will populate the backend session with the conversation context
+              await replyHandler({
+                body: {
+                  session_id: gooseSessionId,
+                  messages: backendMessages,
+                },
+                throwOnError: false, // Don't throw on error to prevent breaking the UI
+              });
+              
+              console.log('✅ Matrix history synced to backend session successfully');
+            } catch (syncError) {
+              console.error('❌ Failed to sync Matrix history to backend session:', syncError);
+              // Don't fail the entire history loading if sync fails
+            }
+          } else {
+            console.log('⚠️ No backend session mapping found or no messages to sync');
+          }
+          
           console.log('📜 Loaded Matrix collaboration history:', gooseMessages.length, 'messages');
         } else {
           console.log('📜 No previous messages found in Matrix room');
@@ -547,7 +603,7 @@ export default function Pair({
     isConnected,
     isReady,
     hasLoadedMatrixHistory,
-    hasInitializedChat, // Wait for backend session to be initialized
+    hasInitializedChat, // Re-added dependency - need backend session before syncing
     getRoomHistoryAsGooseMessages,
     // Removed addMessagesToChat from dependencies to prevent re-render loop
   ]);

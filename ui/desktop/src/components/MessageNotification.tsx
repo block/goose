@@ -51,7 +51,15 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
       if (sender === currentUser.userId) return;
       
       // Use the enhanced notification suppression logic
-      if (shouldSuppressNotification(roomId, sender)) {
+      const shouldSuppress = shouldSuppressNotification(roomId, sender);
+      console.log('🔍 MessageNotification suppression check:', {
+        roomId,
+        sender,
+        shouldSuppress,
+        currentPath: location.pathname
+      });
+      
+      if (shouldSuppress) {
         console.log('🔕 Suppressing message notification for active session:', roomId);
         return;
       }

@@ -30,7 +30,7 @@ import PendingInvitesInHistory from './PendingInvitesInHistory';
 import { useComments } from '../hooks/useComments';
 
 interface BaseChatProps {
-  setChat: (chat: ChatType) => void;
+  setChat?: (chat: ChatType) => void; // Made optional for inactive tabs
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
@@ -51,6 +51,8 @@ interface BaseChatProps {
   loadingChat?: boolean;
   // Tab-specific sidecar props
   tabId?: string;
+  // Tab persistence prop
+  isTabActive?: boolean; // Whether this tab is currently active/visible
 }
 
 function BaseChatContent({
@@ -284,8 +286,11 @@ function BaseChatContent({
   }), [messages, recipe, session?.id, sessionId, session?.name, session?.description]);
 
   // Update parent only when session ID or title changes (to avoid infinite loops)
+  // Only call setChat if it's provided (active tabs)
   useEffect(() => {
-    setChat(chat);
+    if (setChat) {
+      setChat(chat);
+    }
   }, [setChat, chat.sessionId, chat.title]);
 
   const initialPrompt = messages.length == 0 && recipe?.prompt ? recipe.prompt : '';

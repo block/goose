@@ -52,7 +52,7 @@ import {
   NoProviderOrModelError,
   useAgent,
 } from './hooks/useAgent';
-import { TabProvider } from './contexts/TabContext';
+import { TabProvider, useTabContext } from './contexts/TabContext';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -367,15 +367,21 @@ export function AppInner() {
   const handleOpenChat = useCallback((roomId: string, senderId: string) => {
     console.log('📱 Opening chat for room:', roomId, 'sender:', senderId);
     
-    // For Matrix rooms (starting with !), navigate directly to pair view with Matrix parameters
+    // For Matrix rooms (starting with !), navigate to pair view and let the tabbed system handle it
     if (roomId.startsWith('!')) {
       console.log('📱 Opening Matrix shared session for room:', roomId);
-      const searchParams = new URLSearchParams({
-        matrixMode: 'true',
-        matrixRoomId: roomId,
-        matrixRecipientId: senderId
-      });
-      navigate(`/pair?${searchParams.toString()}`);
+      
+      // Navigate to pair view first (this will ensure we're in the tabbed system)
+      navigate('/pair');
+      
+      // Dispatch a custom event to create a Matrix tab
+      // This will be handled by a component that has access to TabContext
+      setTimeout(() => {
+        const event = new CustomEvent('create-matrix-tab', {
+          detail: { roomId, senderId }
+        });
+        window.dispatchEvent(event);
+      }, 100); // Small delay to ensure navigation completes
     } else {
       // For non-Matrix rooms, navigate to peers view
       navigate('/peers', { 
