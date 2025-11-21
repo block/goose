@@ -85,20 +85,13 @@ function BaseChatContent({
 
   const onStreamFinish = useCallback(() => {}, []);
 
-  const [sessionLoaded, setSessionLoaded] = useState(false);
-  const [hasSubmittedInitialMessage, setHasSubmittedInitialMessage] = useState(false);
-  const [hasTriggeredAgentForFork, setHasTriggeredAgentForFork] = useState(false);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
+  const hasAutoSubmittedRef = useRef(false);
 
+  // Reset auto-submit flag when session changes
   useEffect(() => {
-    setSessionLoaded(false);
-    setHasSubmittedInitialMessage(false);
-    setHasTriggeredAgentForFork(false);
+    hasAutoSubmittedRef.current = false;
   }, [sessionId]);
-
-  const handleSessionLoaded = useCallback(() => {
-    setSessionLoaded(true);
-  }, []);
 
   const {
     session,
@@ -114,39 +107,25 @@ function BaseChatContent({
   } = useChatStream({
     sessionId,
     onStreamFinish,
-    onSessionLoaded: handleSessionLoaded,
   });
 
   useEffect(() => {
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
-    if (sessionLoaded && initialMessage && !hasSubmittedInitialMessage) {
-      setHasSubmittedInitialMessage(true);
-      handleSubmit(initialMessage);
+    if (!session || hasAutoSubmittedRef.current) {
       return;
     }
 
-    if (
-      sessionLoaded &&
-      shouldStartAgent &&
-      messages.length > 0 &&
-      !hasTriggeredAgentForFork &&
-      !initialMessage &&
-      chatState === ChatState.Idle
-    ) {
-      setHasTriggeredAgentForFork(true);
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+
+    if (initialMessage) {
+      // Submit the initial message (e.g., from fork)
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+    } else if (shouldStartAgent) {
+      // Trigger agent to continue with existing conversation
+      hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [
-    sessionLoaded,
-    initialMessage,
-    hasSubmittedInitialMessage,
-    searchParams,
-    messages.length,
-    hasTriggeredAgentForFork,
-    chatState,
-    handleSubmit,
-    messages,
-  ]);
+  }, [session, initialMessage, searchParams, handleSubmit]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -318,7 +297,7 @@ function BaseChatContent({
   }
 
   const initialPrompt =
-    (initialMessage && !hasSubmittedInitialMessage ? initialMessage : '') || recipePrompt;
+    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
 
   if (sessionLoadError) {
     return (
