@@ -51,11 +51,11 @@ impl Theme {
         Self {
             name: "Gemini".to_string(),
             base: BaseColors {
-                background: Color::Reset,             // User's terminal background
-                foreground: Color::Rgb(205, 214, 244), // #CDD6F4
-                cursor: Color::Rgb(137, 220, 235),     // #89DCEB (AccentCyan)
-                selection: Color::Rgb(49, 50, 68),     // #313244
-                border: Color::Rgb(108, 112, 134),     // #6C7086
+                background: Color::Reset,                 // User's terminal background
+                foreground: Color::Rgb(205, 214, 244),    // #CDD6F4
+                cursor: Color::Rgb(137, 220, 235),        // #89DCEB (AccentCyan)
+                selection: Color::Rgb(49, 50, 68),        // #313244
+                border: Color::Rgb(108, 112, 134),        // #6C7086
                 border_active: Color::Rgb(137, 180, 250), // #89B4FA
             },
             status: StatusColors {

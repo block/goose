@@ -20,18 +20,21 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let max_input_height = (f.area().height / 2).max(3);
     let input_height = (input_lines + 2).clamp(3, max_input_height);
 
+    // Always show the todo/status line
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(1),               // Chat
-            Constraint::Length(1),            // Status
+            Constraint::Length(1),            // Todo/Loading/Version indicator
             Constraint::Length(input_height), // Input
+            Constraint::Length(1),            // Status bar at bottom
         ])
         .split(f.area());
 
     draw_chat(f, app, chunks[0]);
-    draw_status(f, app, chunks[1]);
+    draw_todo_line(f, app, chunks[1]);
     draw_input(f, app, chunks[2]);
+    draw_status(f, app, chunks[3]);
 
     // Slash Command Popup
     if app.input_mode == InputMode::Editing {
@@ -366,7 +369,7 @@ fn draw_todo_popup_window(f: &mut Frame, app: &App) {
     let block = Block::default()
         .title("Todos (Ctrl+T/Esc to Close)")
         .borders(Borders::ALL)
-        .style(Style::default().bg(Color::Black));
+        .style(Style::default().bg(app.config.theme.base.background));
 
     let paragraph = Paragraph::new(Text::from(lines))
         .block(block)
@@ -529,6 +532,112 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
+fn draw_todo_line(f: &mut Frame, app: &App, area: Rect) {
+    let mut spans = Vec::new();
+
+    if app.waiting_for_response {
+        // Animated spinner when working
+        let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let spinner = spinner_frames[app.animation_frame % spinner_frames.len()];
+
+        spans.push(Span::styled(
+            format!("{} ", spinner),
+            Style::default()
+                .fg(app.config.theme.status.thinking)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+        if !app.todos.is_empty() {
+            // Show active todo while working
+            let active_task = app
+                .todos
+                .iter()
+                .find(|(_, done)| !*done)
+                .map(|(text, _)| text.as_str())
+                .unwrap_or("Done!");
+            let total = app.todos.len();
+            let completed = app.todos.iter().filter(|(_, done)| *done).count();
+
+            spans.push(Span::styled(
+                format!("{} ({}/{}) ", active_task, completed, total),
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ));
+        } else {
+            // Show goose puns when no todos
+            let puns = [
+                "Honking at the mainframe...",
+                "Chasing bugs (and breadcrumbs)...",
+                "Migrating data south...",
+                "Deploying the golden egg...",
+                "Flapping wings at warp speed...",
+                "Waddling through the code...",
+                "Goose is loose in the system...",
+                "Compiling feathers...",
+                "Synthesizing honks...",
+                "Calculating flight path...",
+                "Optimizing the gaggle...",
+                "Hacking the breadbox...",
+                "In a wild goose chase for answers...",
+                "Syncing with the flock...",
+                "Preening the pixels...",
+                "Navigating the digital pond...",
+                "Gathering intelligence (and seeds)...",
+                "Formatting the V-formation...",
+                "Decoding the Matrix (it's all corn)...",
+                "System Status: HONK.",
+            ];
+            // Change pun every ~10 seconds (40 frames at 250ms tick)
+            let pun_idx = (app.animation_frame / 40) % puns.len();
+            spans.push(Span::styled(
+                puns[pun_idx],
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ));
+        }
+    } else {
+        // Static loading icon when not working
+        spans.push(Span::styled(
+            "⠿ ",
+            Style::default()
+                .fg(app.config.theme.status.thinking)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+        if !app.todos.is_empty() {
+            // Show todos when not working
+            let total = app.todos.len();
+            let completed = app.todos.iter().filter(|(_, done)| *done).count();
+            let active_task = app
+                .todos
+                .iter()
+                .find(|(_, done)| !*done)
+                .map(|(text, _)| text.as_str())
+                .unwrap_or("All tasks completed!");
+
+            spans.push(Span::styled(
+                format!("{} ({}/{}) ", active_task, completed, total),
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ));
+        } else if !app.has_worked {
+            // Show version initially before goose has worked
+            spans.push(Span::styled(
+                "goose 1.14.0",
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ));
+        }
+    }
+
+    let block = Block::default().style(Style::default());
+    f.render_widget(Paragraph::new(Line::from(spans)).block(block), area);
+}
+
 fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     let mut spans = Vec::new();
 
@@ -540,11 +649,8 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     };
 
     if app.waiting_for_response {
-        let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        let spinner = spinner_frames[app.animation_frame % spinner_frames.len()];
-
         spans.push(Span::styled(
-            format!(" WORKING {} ", spinner),
+            " WORKING ",
             Style::default()
                 .bg(mode_bg_color)
                 .fg(Color::Black)
@@ -566,56 +672,22 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
 
     spans.push(Span::raw(" "));
 
-    // 2. Active Todo or Goose Pun
-    if !app.todos.is_empty() {
-        let total = app.todos.len();
-        let completed = app.todos.iter().filter(|(_, done)| *done).count();
-        let active_task = app
-            .todos
-            .iter()
-            .find(|(_, done)| !*done)
-            .map(|(text, _)| text.as_str())
-            .unwrap_or("Done!");
-
-        spans.push(Span::styled(
-            format!("{} ({}/{}) ", active_task, completed, total),
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::styled("| ", Style::default().fg(Color::DarkGray)));
-    } else if app.waiting_for_response {
-        let puns = [
-            "Honking at the mainframe...",
-            "Chasing bugs (and breadcrumbs)...",
-            "Migrating data south...",
-            "Deploying the golden egg...",
-            "Flapping wings at warp speed...",
-            "Waddling through the code...",
-            "Goose is loose in the system...",
-            "Compiling feathers...",
-            "Synthesizing honks...",
-            "Calculating flight path...",
-            "Optimizing the gaggle...",
-            "Hacking the breadbox...",
-            "In a wild goose chase for answers...",
-            "Syncing with the flock...",
-            "Preening the pixels...",
-            "Navigating the digital pond...",
-            "Gathering intelligence (and seeds)...",
-            "Formatting the V-formation...",
-            "Decoding the Matrix (it's all corn)...",
-            "System Status: HONK.",
-        ];
-        // Change pun every ~10 seconds (40 frames at 250ms tick)
-        let pun_idx = (app.animation_frame / 40) % puns.len();
-        spans.push(Span::styled(
-            format!("{} ", puns[pun_idx]),
-            Style::default()
-                .fg(Color::Gray)
-                .add_modifier(Modifier::ITALIC),
-        ));
-        spans.push(Span::styled("| ", Style::default().fg(Color::DarkGray)));
+    // 2. Current Working Directory
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Some(cwd_str) = cwd.to_str() {
+            // Truncate path if too long
+            let max_path_len = 40;
+            let display_path = if cwd_str.len() > max_path_len {
+                format!("...{}", &cwd_str[cwd_str.len() - max_path_len + 3..])
+            } else {
+                cwd_str.to_string()
+            };
+            spans.push(Span::styled(
+                format!("{} ", display_path),
+                Style::default().fg(app.config.theme.base.foreground),
+            ));
+            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        }
     }
 
     // 3. Dynamic Key Hints
@@ -987,7 +1059,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let mut messages_list = List::new(list_items.clone())
-        .block(Block::default().borders(Borders::ALL).title("Chat"))
+        .block(Block::default().borders(Borders::ALL))
         .style(
             Style::default().fg(app.config.theme.base.foreground).bg(app
                 .config

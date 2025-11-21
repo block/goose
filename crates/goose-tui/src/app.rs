@@ -59,6 +59,7 @@ pub struct App<'a> {
     pub slash_popup_scroll: usize,
     pub showing_help_popup: bool,
     pub showing_about_popup: bool,
+    pub has_worked: bool, // Track if goose has started working at least once
 
     // Command Builder State
     pub showing_command_builder: bool,
@@ -139,6 +140,7 @@ impl<'a> App<'a> {
             slash_popup_scroll: 0,
             showing_help_popup: false,
             showing_about_popup: false,
+            has_worked: false,
 
             showing_command_builder: false,
             builder_state: BuilderState::SelectTool,
@@ -519,6 +521,7 @@ impl<'a> App<'a> {
                                             self.auto_scroll = true;
                                             self.waiting_for_response = true;
                                             self.has_user_input_pending = false;
+                                            self.has_worked = true;
 
                                             if let Some(tx) = &self.tx {
                                                 let client = self.client.clone();
@@ -566,6 +569,7 @@ impl<'a> App<'a> {
                                     self.auto_scroll = true;
                                     self.waiting_for_response = true;
                                     self.has_user_input_pending = false;
+                                    self.has_worked = true;
 
                                     if let Some(tx) = &self.tx {
                                         let client = self.client.clone();
