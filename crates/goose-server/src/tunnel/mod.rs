@@ -33,8 +33,6 @@ pub struct TunnelInfo {
     pub secret: String,
 }
 
-
-
 pub struct TunnelManager {
     state: Arc<RwLock<TunnelState>>,
     info: Arc<RwLock<Option<TunnelInfo>>>,

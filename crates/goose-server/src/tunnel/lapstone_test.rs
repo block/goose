@@ -94,7 +94,7 @@ async fn test_tunnel_end_to_end() {
     .await
     .expect("Failed to start tunnel");
 
-    let public_url = tunnel_info.url.expect("No public URL returned");
+    let public_url = &tunnel_info.url;
     println!("Tunnel public URL: {}", public_url);
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -144,7 +144,7 @@ async fn test_tunnel_post_request() {
     .await
     .expect("Failed to start tunnel");
 
-    let public_url = tunnel_info.url.expect("No public URL returned");
+    let public_url = &tunnel_info.url;
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
