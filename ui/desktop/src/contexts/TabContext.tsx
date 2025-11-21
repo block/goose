@@ -839,13 +839,58 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     console.log('📱 TabContext: Opening Matrix chat for room:', roomId, 'sender:', senderId);
 
     // Check if we already have a tab for this Matrix room
-    const existingTab = tabStates.find(ts => 
+    const existingTabState = tabStates.find(ts => 
       ts.tab.type === 'matrix' && ts.tab.matrixRoomId === roomId
     );
     
-    if (existingTab) {
-      console.log('📱 Matrix room already open in tab, switching to it:', existingTab.tab.id);
-      setActiveTabId(existingTab.tab.id);
+    if (existingTabState) {
+      console.log('📱 Matrix room already open in tab, switching to it:', existingTabState.tab.id);
+      
+      // If the existing tab is still loading with a temp session, ensure it gets updated
+      if (existingTabState.loadingChat || existingTabState.tab.sessionId.startsWith('temp_')) {
+        console.log('📱 Existing tab is still loading, ensuring session is ready:', {
+          tabId: existingTabState.tab.id,
+          sessionId: existingTabState.tab.sessionId,
+          loadingChat: existingTabState.loadingChat
+        });
+        
+        // Get the backend session ID
+        let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
+        
+        if (!backendSessionId) {
+          console.log('📱 No backend session found, creating one for existing tab');
+          try {
+            const senderName = senderId.split(':')[0].substring(1);
+            const roomTitle = `DM with ${senderName}`;
+            
+            const mapping = await sessionMappingService.createMappingWithBackendSession(
+              roomId, 
+              [], 
+              roomTitle, 
+              senderId
+            );
+            backendSessionId = mapping.gooseSessionId;
+            console.log('✅ Created backend session for existing tab:', backendSessionId);
+          } catch (error) {
+            console.error('❌ Failed to create backend session:', error);
+            backendSessionId = existingTabState.tab.sessionId; // Keep temp ID
+          }
+        }
+        
+        // Update the existing tab with the real session ID and clear loading state
+        setTabStates(prev => prev.map(ts => 
+          ts.tab.id === existingTabState.tab.id
+            ? {
+                ...ts,
+                tab: { ...ts.tab, sessionId: backendSessionId },
+                chat: { ...ts.chat, sessionId: backendSessionId },
+                loadingChat: false
+              }
+            : ts
+        ));
+      }
+      
+      setActiveTabId(existingTabState.tab.id);
       return;
     }
 
