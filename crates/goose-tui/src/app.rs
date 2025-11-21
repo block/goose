@@ -8,6 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::model::ModelConfig;
+use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use ratatui::style::Color;
 use ratatui::widgets::ListState;
@@ -72,6 +73,11 @@ pub struct App<'a> {
     pub available_tools: Vec<ToolInfo>,
     pub builder_list_state: ListState,
     pub builder_input: TextArea<'a>, // Reusing a textarea for builder inputs
+
+    // Session Popup State
+    pub showing_session_popup: bool,
+    pub available_sessions: Vec<Session>,
+    pub session_list_state: ListState,
 }
 
 fn to_rgb(color: Color) -> (u8, u8, u8) {
@@ -211,6 +217,10 @@ impl<'a> App<'a> {
             available_tools,
             builder_list_state: ListState::default(),
             builder_input,
+
+            showing_session_popup: false,
+            available_sessions: vec![],
+            session_list_state: ListState::default(),
         })
     }
 
@@ -365,6 +375,30 @@ impl<'a> App<'a> {
                         _ => {}
                     }
                 }
+                Some(Event::SessionsList(sessions)) => {
+                    self.available_sessions = sessions;
+                    self.showing_session_popup = true;
+                    self.session_list_state.select(Some(0));
+                }
+                Some(Event::SessionResumed(session)) => {
+                    self.session_id = session.id;
+                    self.messages = session
+                        .conversation
+                        .map(|c| c.messages().clone())
+                        .unwrap_or_default();
+                    self.token_state = TokenState {
+                        total_tokens: session.total_tokens.unwrap_or(0),
+                        input_tokens: session.input_tokens.unwrap_or(0),
+                        output_tokens: session.output_tokens.unwrap_or(0),
+                        accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+                        accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+                        accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+                    };
+                    self.showing_session_popup = false;
+                    self.auto_scroll = true;
+                    // Clear todos if switching sessions? Maybe.
+                    self.todos.clear();
+                }
                 Some(Event::Error(e)) => {
                     // For now just log errors
                     tracing::error!("Error: {}", e);
@@ -516,6 +550,11 @@ impl<'a> App<'a> {
             return;
         }
 
+        if self.showing_session_popup {
+            self.handle_session_popup_input(key);
+            return;
+        }
+
         if self.showing_help_popup {
             if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
                 self.showing_help_popup = false;
@@ -657,6 +696,31 @@ impl<'a> App<'a> {
                                             self.showing_command_builder = true;
                                             self.builder_state = BuilderState::SelectTool;
                                             self.builder_list_state.select(Some(0));
+                                            self.input = TextArea::default();
+                                            self.input.set_cursor_line_style(
+                                                ratatui::style::Style::default(),
+                                            );
+                                            self.input.set_placeholder_text("Type a message...");
+                                            return;
+                                        }
+                                        CommandResult::OpenSessions => {
+                                            if let Some(tx) = &self.tx {
+                                                let client = self.client.clone();
+                                                let tx = tx.clone();
+                                                tokio::spawn(async move {
+                                                    match client.list_sessions().await {
+                                                        Ok(sessions) => {
+                                                            let _ = tx.send(Event::SessionsList(
+                                                                sessions,
+                                                            ));
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx
+                                                                .send(Event::Error(e.to_string()));
+                                                        }
+                                                    }
+                                                });
+                                            }
                                             self.input = TextArea::default();
                                             self.input.set_cursor_line_style(
                                                 ratatui::style::Style::default(),
@@ -841,6 +905,50 @@ impl<'a> App<'a> {
                     }
                 }
             }
+        }
+    }
+
+    fn handle_session_popup_input(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.showing_session_popup = false;
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                let current = self.session_list_state.selected().unwrap_or(0);
+                let next = (current + 1).min(self.available_sessions.len().saturating_sub(1));
+                self.session_list_state.select(Some(next));
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                let current = self.session_list_state.selected().unwrap_or(0);
+                let prev = current.saturating_sub(1);
+                self.session_list_state.select(Some(prev));
+            }
+            KeyCode::Enter => {
+                if let Some(idx) = self.session_list_state.selected() {
+                    if let Some(session) = self.available_sessions.get(idx) {
+                        // Trigger resume
+                        if let Some(tx) = &self.tx {
+                            let client = self.client.clone();
+                            let session_id = session.id.clone();
+                            let tx = tx.clone();
+                            tokio::spawn(async move {
+                                match client.resume_agent(&session_id).await {
+                                    Ok(session) => {
+                                        let _ = tx.send(Event::SessionResumed(session));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Event::Error(e.to_string()));
+                                    }
+                                }
+                            });
+                        }
+                        // Don't close popup yet, wait for success event?
+                        // Or show "loading..."?
+                        // For now, maybe just close it on success.
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }

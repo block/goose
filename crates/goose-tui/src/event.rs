@@ -1,5 +1,6 @@
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use futures::{FutureExt, StreamExt};
+use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -15,6 +16,8 @@ pub enum Event {
     Resize(u16, u16),
     Server(MessageEvent),
     Error(String),
+    SessionsList(Vec<Session>),
+    SessionResumed(Session),
 }
 
 pub struct EventHandler {

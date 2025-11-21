@@ -50,6 +50,11 @@ struct ResumeAgentRequest {
     load_model_and_extensions: bool,
 }
 
+#[derive(Deserialize)]
+struct SessionListResponse {
+    sessions: Vec<Session>,
+}
+
 impl Client {
     pub fn new(port: u16, secret_key: String) -> Self {
         Self {
@@ -57,6 +62,27 @@ impl Client {
             secret_key,
             http_client: ReqwestClient::new(),
         }
+    }
+
+    pub async fn list_sessions(&self) -> Result<Vec<Session>> {
+        let response = self
+            .http_client
+            .get(format!("{}/sessions", self.base_url))
+            .header("X-Secret-Key", &self.secret_key)
+            .send()
+            .await
+            .context("Failed to send list sessions request")?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to list sessions: {}", error_text);
+        }
+
+        let wrapper: SessionListResponse = response
+            .json()
+            .await
+            .context("Failed to parse sessions list")?;
+        Ok(wrapper.sessions)
     }
 
     pub async fn start_agent(&self, working_dir: String) -> Result<Session> {

@@ -6,6 +6,7 @@ pub enum CommandResult {
     Quit,
     Reply(String),
     OpenBuilder,
+    OpenSessions,
 }
 
 pub fn dispatch(app: &mut App, input: &str) -> CommandResult {
@@ -38,6 +39,7 @@ pub fn dispatch(app: &mut App, input: &str) -> CommandResult {
             CommandResult::Continue
         }
         "alias" | "create-command" => CommandResult::OpenBuilder,
+        "session" | "sessions" => CommandResult::OpenSessions,
         _ => {
             // Check custom commands
             if let Some(cmd) = app

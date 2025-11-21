@@ -65,6 +65,50 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.showing_command_builder {
         draw_command_builder_popup(f, app);
     }
+
+    if app.showing_session_popup {
+        draw_session_popup(f, app);
+    }
+}
+
+fn draw_session_popup(f: &mut Frame, app: &mut App) {
+    let area = centered_rect(60, 60, f.area());
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title("Sessions (Enter to Resume, Esc to Close)")
+        .style(Style::default().bg(app.config.theme.base.background));
+
+    let items: Vec<ListItem> = app
+        .available_sessions
+        .iter()
+        .map(|session| {
+            let id_part = Span::styled(
+                format!("{:<15}", session.id),
+                Style::default().fg(Color::Cyan),
+            );
+            let count_part = Span::styled(
+                format!("({} msgs)", session.message_count),
+                Style::default().fg(Color::DarkGray),
+            );
+            let name_part = Span::styled(
+                format!(" {}", session.name),
+                Style::default().fg(Color::White),
+            );
+
+            ListItem::new(Line::from(vec![id_part, count_part, name_part]))
+        })
+        .collect();
+
+    let list = List::new(items).block(block).highlight_style(
+        Style::default()
+            .bg(app.config.theme.base.selection)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    f.render_stateful_widget(list, area, &mut app.session_list_state);
 }
 
 fn draw_command_builder_popup(f: &mut Frame, app: &mut App) {
@@ -294,7 +338,7 @@ fn draw_about_popup(f: &mut Frame, app: &App) {
 
 fn draw_slash_commands_popup(f: &mut Frame, app: &App, input_area: Rect, query: &str) {
     let mut commands = vec![
-        "/exit", "/quit", "/help", "/about", "/theme", "/clear", "/alias",
+        "/exit", "/quit", "/help", "/about", "/theme", "/clear", "/alias", "/session",
     ];
 
     // Add custom commands
@@ -520,7 +564,7 @@ fn draw_message_popup(f: &mut Frame, app: &App, msg_idx: usize) {
         .title("Detailed View (Esc to Close, j/k to Scroll)")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .style(Style::default().bg(Color::Black));
+        .style(Style::default().bg(app.config.theme.base.background));
 
     let paragraph = Paragraph::new(Text::from(text_lines))
         .block(block)
@@ -716,7 +760,10 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     spans.push(Span::raw(" "));
 
     // 2. Session ID (no "Session:" prefix, same color as CWD)
-    spans.push(Span::styled(&app.session_id, Style::default().fg(text_color)));
+    spans.push(Span::styled(
+        &app.session_id,
+        Style::default().fg(text_color),
+    ));
     spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
     // 3. Token usage (always show, same color as CWD, using model_context_limit for denominator)
