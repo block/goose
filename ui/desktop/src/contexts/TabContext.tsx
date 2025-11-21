@@ -96,11 +96,11 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
           const sanitizedTabs = parsed.map((tabState: any) => {
             const tab = tabState.tab;
             
-            // Validate Matrix tab properties
+            // Validate Matrix tab properties (HYBRID APPROACH)
             if (tab.type === 'matrix') {
-              // Matrix tabs must have matrixRoomId and proper sessionId format
-              if (!tab.matrixRoomId || !tab.sessionId?.startsWith('matrix_')) {
-                console.warn('🚨 Invalid Matrix tab detected during restore, converting to regular chat:', tab);
+              // Matrix tabs must have matrixRoomId - sessionId can be any backend session ID
+              if (!tab.matrixRoomId) {
+                console.warn('🚨 Invalid Matrix tab detected during restore (missing matrixRoomId), converting to regular chat:', tab);
                 return {
                   ...tabState,
                   tab: {
@@ -108,13 +108,13 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
                     type: 'chat',
                     matrixRoomId: undefined,
                     matrixRecipientId: undefined,
-                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                    // Keep the sessionId as-is since it's a valid backend session ID
                   }
                 };
               }
             } else {
               // Regular chat tabs must NOT have Matrix properties
-              if (tab.matrixRoomId || tab.matrixRecipientId || tab.sessionId?.startsWith('matrix_')) {
+              if (tab.matrixRoomId || tab.matrixRecipientId) {
                 console.warn('🚨 Regular chat tab with Matrix properties detected during restore, sanitizing:', tab);
                 return {
                   ...tabState,
@@ -123,7 +123,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
                     type: 'chat',
                     matrixRoomId: undefined,
                     matrixRecipientId: undefined,
-                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                    // Keep the sessionId as-is - it might be a valid backend session ID
                   }
                 };
               }
@@ -276,11 +276,11 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
           const sanitizedTabs = parsed.map((tabState: any) => {
             const tab = tabState.tab;
             
-            // Validate Matrix tab properties
+            // Validate Matrix tab properties (HYBRID APPROACH)
             if (tab.type === 'matrix') {
-              // Matrix tabs must have matrixRoomId and proper sessionId format
-              if (!tab.matrixRoomId || !tab.sessionId?.startsWith('matrix_')) {
-                console.warn('🚨 Invalid Matrix tab detected during manual restore, converting to regular chat:', tab);
+              // Matrix tabs must have matrixRoomId - sessionId can be any backend session ID
+              if (!tab.matrixRoomId) {
+                console.warn('🚨 Invalid Matrix tab detected during manual restore (missing matrixRoomId), converting to regular chat:', tab);
                 return {
                   ...tabState,
                   tab: {
@@ -288,13 +288,13 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
                     type: 'chat',
                     matrixRoomId: undefined,
                     matrixRecipientId: undefined,
-                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                    // Keep the sessionId as-is since it's a valid backend session ID
                   }
                 };
               }
             } else {
               // Regular chat tabs must NOT have Matrix properties
-              if (tab.matrixRoomId || tab.matrixRecipientId || tab.sessionId?.startsWith('matrix_')) {
+              if (tab.matrixRoomId || tab.matrixRecipientId) {
                 console.warn('🚨 Regular chat tab with Matrix properties detected during manual restore, sanitizing:', tab);
                 return {
                   ...tabState,
@@ -303,7 +303,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
                     type: 'chat',
                     matrixRoomId: undefined,
                     matrixRecipientId: undefined,
-                    sessionId: tab.sessionId?.startsWith('matrix_') ? `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : tab.sessionId
+                    // Keep the sessionId as-is - it might be a valid backend session ID
                   }
                 };
               }
