@@ -191,12 +191,11 @@ function BaseChatContent({
           id: `web-viewer-${Date.now()}`,
           title: 'Web Viewer',
           icon: <div className="w-4 h-4 bg-cyan-500 rounded" />,
-          content: null, // Will be rendered by contentType
-          contentType: 'web-viewer',
-          contentProps: {
-            initialUrl: 'https://google.com',
-            allowAllSites: true
-          }
+          content: (
+            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
+              <p>Web viewer will go here</p>
+            </div>
+          ),
         });
         break;
       case 'app-installer':

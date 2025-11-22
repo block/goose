@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderKey, ScrollText, Plus, MoreHorizontal, Mic, ArrowUp, Zap, FileText, Code, Settings, Search, Play, Hash } from 'lucide-react';
+import { FolderKey, ScrollText, Plus, MoreHorizontal, Mic, ArrowUp, Zap, FileText, Code, Settings, Search, Play, Hash, Edit, Monitor, Terminal, Folder } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -1768,6 +1768,57 @@ export default function ChatInput({
     }
   };
 
+  // Sidecar action handlers
+  const handleNewDocument = () => {
+    if (tabContext && sessionId) {
+      tabContext.showDocumentEditor(sessionId, undefined, 'Start writing your document...', 'new-doc');
+    }
+  };
+
+  const handleEditFile = async () => {
+    if (tabContext && sessionId) {
+      const filePath = await window.electron.selectFileOrDirectory();
+      if (filePath) {
+        tabContext.showDocumentEditor(sessionId, filePath, undefined, 'edit-file');
+      }
+    }
+  };
+
+  const handleBrowseWeb = () => {
+    if (tabContext && sessionId) {
+      tabContext.showWebViewer(sessionId, 'https://google.com', 'Web Browser', 'web-viewer');
+    }
+  };
+
+  const handleViewLocalhost = () => {
+    if (tabContext && sessionId) {
+      tabContext.showLocalhostViewer(sessionId, 'http://localhost:3000', 'Localhost Viewer');
+    }
+  };
+
+  const handleBrowseFiles = async () => {
+    if (tabContext && sessionId) {
+      const filePath = await window.electron.selectFileOrDirectory();
+      if (filePath) {
+        tabContext.showFileViewer(sessionId, filePath);
+      }
+    }
+  };
+
+  const handleViewDiff = () => {
+    if (tabContext && sessionId) {
+      const sampleDiff = `--- a/example.js
++++ b/example.js
+@@ -1,3 +1,4 @@
+ function hello() {
++  console.log("Hello world!");
+   return "Hello";
+ }`;
+      tabContext.showDiffViewer(sessionId, sampleDiff, 'example.js', 'sample-diff');
+    }
+  };
+
+
   const handleMentionFileSelect = (filePath: string) => {
     console.log('📁 handleMentionFileSelect called with:', filePath);
     
@@ -2156,6 +2207,91 @@ export default function ChatInput({
                       </DropdownMenuItem>
                       
                       <DropdownMenuSeparator className="bg-white/50 dark:bg-white/10" />
+                      
+                      {/* Sidecar Actions */}
+                      {tabContext && (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleNewDocument();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                              <Edit className="w-3 h-3 text-white" />
+                            </div>
+                            <span>New document</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleEditFile();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                              <Code className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Edit file</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleBrowseWeb();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                              <Monitor className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Browse web</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleViewLocalhost();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                              <Terminal className="w-3 h-3 text-white" />
+                            </div>
+                            <span>View localhost</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleBrowseFiles();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                              <Folder className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Browse files</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleViewDiff();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                              <FileText className="w-3 h-3 text-white" />
+                            </div>
+                            <span>View code diff</span>
+                          </DropdownMenuItem>
+                          
+                          <DropdownMenuSeparator className="bg-white/50 dark:bg-white/10" />
+                        </>
+                      )}
                       
                       {allCommands.slice(0, 5).map((command) => (
                         <DropdownMenuItem
