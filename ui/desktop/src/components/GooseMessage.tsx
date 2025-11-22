@@ -26,6 +26,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { MessageComment, TextSelection } from '../types/comment';
 import { cn } from '../utils';
 import AvatarImage from './AvatarImage';
+import { Goose } from './icons/Goose';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -260,9 +261,9 @@ export default function GooseMessage({
     <div className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
       {/* Goose Avatar on the left side with optional user badge */}
       <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
-        {/* Main Goose dot avatar */}
-        <div className="w-8 h-8 flex items-center justify-center">
-          <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+        {/* Main Goose avatar */}
+        <div className="w-8 h-8 rounded-full bg-gray-900 dark:bg-white flex items-center justify-center">
+          <Goose className="w-5 h-5 text-white dark:text-gray-900" />
         </div>
         
         {/* Small user badge for collaborator messages - positioned to the left */}

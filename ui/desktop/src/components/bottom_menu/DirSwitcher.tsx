@@ -11,7 +11,22 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '', should
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
-    window.electron.directoryChooser(true);
+    try {
+      const result = await window.electron.directoryChooser(true);
+      const selectedPath = result?.filePaths?.[0];
+      const fallbackPath = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+      const resolvedPath = selectedPath || fallbackPath;
+
+      if (resolvedPath) {
+        window.dispatchEvent(
+          new CustomEvent('goose-working-dir-changed', {
+            detail: { path: resolvedPath },
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Failed to change working directory:', error);
+    }
   };
 
   const handleDirectoryClick = async (event: React.MouseEvent) => {

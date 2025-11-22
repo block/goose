@@ -802,3 +802,22 @@ p > code.bg-inline-code {
   mix-blend-mode: multiply; /* Blend with background for better visibility */
 }
 
+/* Chat composer with proper backdrop blur - Force rebuild */
+.chat-composer-container {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(60, 60, 67, 0.18);
+  box-shadow: 0px 30px 70px rgba(4, 5, 45, 0.18);
+  will-change: backdrop-filter;
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
+}
+
+.dark .chat-composer-container {
+  background-color: rgba(26, 27, 30, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0px 30px 70px rgba(0, 0, 0, 0.5);
+}
+

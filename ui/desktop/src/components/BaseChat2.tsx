@@ -4,8 +4,6 @@ import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import MessageComments from './MessageComments';
-import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
@@ -24,7 +22,6 @@ import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
-import { TabSidecarInvoker } from './TabSidecarInvoker';
 import ParticipantsBar from './ParticipantsBar';
 import PendingInvitesInHistory from './PendingInvitesInHistory';
 import { useComments } from '../hooks/useComments';
@@ -35,7 +32,6 @@ interface BaseChatProps {
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
-  customMainLayoutProps?: Record<string, unknown>;
   suppressEmptyState: boolean;
   sessionId: string;
   initialMessage?: string;
@@ -60,7 +56,6 @@ function BaseChatContent({
   setIsGoosehintsModalOpen,
   renderHeader,
   customChatInputProps = {},
-  customMainLayoutProps = {},
   sessionId,
   initialMessage,
   onSessionIdChange,
@@ -86,9 +81,6 @@ function BaseChatContent({
 
   // Use custom content class name if provided, otherwise default
   const contentClassName = customContentClassName || cn('pr-1 pb-10', isMobile && 'pt-11');
-
-  // Hover state for sidecar dock
-  const [isHoveringChatInput, setIsHoveringChatInput] = useState(false);
 
   // Comment state management
   const commentState = useComments(sessionId);
@@ -128,8 +120,10 @@ function BaseChatContent({
         sessionId: sessionId.substring(0, 8),
         id: message.id,
         role: message.role,
-        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
-        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+        content: Array.isArray(message.content) && message.content[0]?.type === 'text' 
+          ? message.content[0].text?.substring(0, 50) + '...' 
+          : 'N/A',
+        sender: (message as any).sender?.displayName || (message as any).sender?.userId || 'unknown'
       });
       
       // FIXED: Make Matrix message events SESSION-SPECIFIC to prevent cross-tab contamination
@@ -146,7 +140,7 @@ function BaseChatContent({
       console.log('📥 BaseChat2 dispatched SESSION-SPECIFIC matrix-message-received event:', {
         messageId: message.id,
         targetSessionId: sessionId.substring(0, 8),
-        sender: message.sender?.displayName || message.sender?.userId || 'unknown'
+        sender: (message as any).sender?.displayName || (message as any).sender?.userId || 'unknown'
       });
     }
   }, [streamHandleSubmit, sessionId]);
@@ -228,10 +222,8 @@ function BaseChatContent({
       if (scrollRef.current?.scrollToBottom) {
         scrollRef.current.scrollToBottom();
       }
-    } else if (scrollRef.current?.isFollowing) {
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
+    } else if (scrollRef.current?.scrollToBottom) {
+      scrollRef.current.scrollToBottom();
     }
   }, [messages.length]);
 
@@ -255,14 +247,14 @@ function BaseChatContent({
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>
       <ProgressiveMessageList
-        messages={messages}
+        messages={messages as any}
         chat={chat}
         // toolCallNotifications={toolCallNotifications}
         // appendMessage={(newMessage) => {
         //   const updatedMessages = [...messages, newMessage];
         //   setMessages(updatedMessages);
         // }}
-        isUserMessage={(m: Message) => m.role === 'user'}
+        isUserMessage={(m: any) => m.role === 'user'}
         isStreamingMessage={chatState !== ChatState.Idle}
         // onMessageUpdate={onMessageUpdate}
         onRenderingComplete={handleRenderingComplete}
@@ -283,19 +275,19 @@ function BaseChatContent({
     shouldShowPopularTopics,
     loadingChat,
     hasSession: !!session,
-    sessionName: session?.name,
+    sessionName: (session as any)?.name,
     sessionDescription: session?.description
   });
 
   // Memoize the chat object to prevent infinite re-renders
   const chat: ChatType = useMemo(() => ({
     messageHistoryIndex: 0,
-    messages,
+    messages: messages as any,
     recipe,
     sessionId: session?.id || sessionId, // Use actual session ID if available
-    name: session?.name || 'No Session',
+    name: (session as any)?.name || 'No Session',
     title: session?.description || (messages.length > 0 ? 'Chat' : 'New Chat'),
-  }), [messages, recipe, session?.id, sessionId, session?.name, session?.description]);
+  }), [messages, recipe, session?.id, sessionId, session?.description]);
 
   // Update parent only when session ID or title changes (to avoid infinite loops)
   // Only call setChat if it's provided (active tabs)
@@ -381,7 +373,7 @@ function BaseChatContent({
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
                     <ProgressiveMessageList
-                      messages={messages}
+                      messages={messages as any}
                       chat={chat}
                       toolCallNotifications={toolCallNotifications}
                       append={append}
@@ -389,7 +381,7 @@ function BaseChatContent({
                         // Note: useChatStream doesn't expose setMessages, so this is a placeholder
                         console.log('appendMessage called with:', newMessage);
                       }}
-                      isUserMessage={(m: Message) => m.role === 'user'}
+                      isUserMessage={(m: any) => m.role === 'user'}
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
@@ -412,7 +404,7 @@ function BaseChatContent({
                     // Render messages with SearchView wrapper when search is enabled
                     <SearchView>
                       <ProgressiveMessageList
-                        messages={messages}
+                        messages={messages as any}
                         chat={chat}
                         toolCallNotifications={toolCallNotifications}
                         append={append}
@@ -420,7 +412,7 @@ function BaseChatContent({
                           // Note: useChatStream doesn't expose setMessages, so this is a placeholder
                           console.log('appendMessage called with:', newMessage);
                         }}
-                        isUserMessage={(m: Message) => m.role === 'user'}
+                        isUserMessage={(m: any) => m.role === 'user'}
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
@@ -448,8 +440,8 @@ function BaseChatContent({
                       <LoadingGoose
                         chatState={chatState}
                         message={
-                          messages.length > 0
-                            ? getThinkingMessage(messages[messages.length - 1])
+                          messages.length > 0 && messages[messages.length - 1].id != null
+                            ? getThinkingMessage(messages[messages.length - 1] as any)
                             : undefined
                         }
                       />
@@ -457,7 +449,7 @@ function BaseChatContent({
                   )}
 
                   {/* Extra spacing at bottom to prevent overlap with floating input */}
-                  <div className="block h-32" />
+                  <div className="block h-56" />
                 </>
               ) : !recipe && shouldShowPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true */
@@ -501,54 +493,40 @@ function BaseChatContent({
 
       {/* Floating Chat Input - positioned absolutely at bottom */}
       <div
-        className={`absolute bottom-0 left-0 right-0 z-20 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+        className={`absolute left-0 right-0 z-20 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+        style={{ bottom: '0px' }}
       >
-        {/* Combined hover zone for both dock and chat input */}
-        <div
-          onMouseEnter={() => setIsHoveringChatInput(true)}
-          onMouseLeave={() => setIsHoveringChatInput(false)}
-        >
-          {/* Tab Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
-          <div className="relative max-w-4xl mx-auto w-full">
-            {tabId && (
-              <TabSidecarInvoker 
-                tabId={tabId}
-                isVisible={isHoveringChatInput}
-              />
-            )}
-          </div>
-
-          <ChatInput
-            sessionId={sessionId}
-            handleSubmit={handleFormSubmit}
+        <ChatInput
+          sessionId={sessionId}
+          handleSubmit={handleFormSubmit}
             chatState={chatState}
             onStop={stopStreaming}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
-            accumulatedInputTokens={
+            numTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            inputTokens={
               tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
             }
-            accumulatedOutputTokens={
+            outputTokens={
               tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
             }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
+            messages={messages as any}
+            setMessages={() => {}} // Placeholder - useChatStream doesn't expose setMessages
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipe={recipe}
+            recipeConfig={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
             autoSubmit={false}
-            append={append}
+            append={append as any}
             gooseEnabled={gooseEnabled}
             {...customChatInputProps}
           />
-        </div>
       </div>
 
       {recipe && (
@@ -565,7 +543,7 @@ function BaseChatContent({
         />
       )}
 
-      {recipe?.parameters && recipe.parameters.length > 0 && !session?.user_recipe_values && (
+      {recipe?.parameters && recipe.parameters.length > 0 && !(session as any)?.user_recipe_values && (
         <ParameterInputModal
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
