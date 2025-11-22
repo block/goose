@@ -1770,51 +1770,88 @@ export default function ChatInput({
 
   // Sidecar action handlers
   const handleNewDocument = () => {
-    if (tabContext && sessionId) {
-      tabContext.showDocumentEditor(sessionId, undefined, 'Start writing your document...', 'new-doc');
+    console.log('🔵 handleNewDocument called, tabContext:', !!tabContext);
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      console.log('🔵 Active tab ID:', tabId);
+      if (tabId) {
+        console.log('🔵 Calling showDocumentEditor...');
+        tabContext.showDocumentEditor(tabId, undefined, 'Start writing your document...', 'new-doc');
+      } else {
+        console.warn('🔵 No active tab found');
+      }
+    } else {
+      console.warn('🔵 Missing tabContext');
     }
   };
 
   const handleEditFile = async () => {
-    if (tabContext && sessionId) {
-      const filePath = await window.electron.selectFileOrDirectory();
-      if (filePath) {
-        tabContext.showDocumentEditor(sessionId, filePath, undefined, 'edit-file');
+    console.log('🟣 handleEditFile called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const filePath = await window.electron.selectFileOrDirectory();
+        console.log('🟣 Selected file:', filePath);
+        if (filePath) {
+          tabContext.showDocumentEditor(tabId, filePath, undefined, 'edit-file');
+        }
       }
     }
   };
 
   const handleBrowseWeb = () => {
-    if (tabContext && sessionId) {
-      tabContext.showWebViewer(sessionId, 'https://google.com', 'Web Browser', 'web-viewer');
+    console.log('🌐 handleBrowseWeb called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        tabContext.showWebViewer(tabId, 'https://google.com', 'Web Browser', 'web-viewer');
+      }
     }
   };
 
   const handleViewLocalhost = () => {
-    if (tabContext && sessionId) {
-      tabContext.showLocalhostViewer(sessionId, 'http://localhost:3000', 'Localhost Viewer');
+    console.log('⚫ handleViewLocalhost called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        tabContext.showLocalhostViewer(tabId, 'http://localhost:3000', 'Localhost Viewer');
+      }
     }
   };
 
   const handleBrowseFiles = async () => {
-    if (tabContext && sessionId) {
-      const filePath = await window.electron.selectFileOrDirectory();
-      if (filePath) {
-        tabContext.showFileViewer(sessionId, filePath);
+    console.log('📁 handleBrowseFiles called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const filePath = await window.electron.selectFileOrDirectory();
+        if (filePath) {
+          tabContext.showFileViewer(tabId, filePath);
+        }
       }
     }
   };
 
   const handleViewDiff = () => {
-    if (tabContext && sessionId) {
-      const sampleDiff = `--- a/example.js
+    console.log('📄 handleViewDiff called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const sampleDiff = `--- a/example.js
 +++ b/example.js
 @@ -1,3 +1,4 @@
  function hello() {
 +  console.log("Hello world!");
    return "Hello";
  }`;
-      tabContext.showDiffViewer(sessionId, sampleDiff, 'example.js', 'sample-diff');
+        tabContext.showDiffViewer(tabId, sampleDiff, 'example.js', 'sample-diff');
+      }
     }
   };
 
@@ -2292,22 +2329,6 @@ export default function ChatInput({
                           <DropdownMenuSeparator className="bg-white/50 dark:bg-white/10" />
                         </>
                       )}
-                      
-                      {allCommands.slice(0, 5).map((command) => (
-                        <DropdownMenuItem
-                          key={command.id}
-                          onSelect={(event) => {
-                            event.preventDefault();
-                            handleCommandSelect(command);
-                          }}
-                          className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
-                        >
-                          <span className="text-[#3C3C43]/70 dark:text-zinc-400">
-                            {getCustomCommandIcon(command.icon)}
-                          </span>
-                          {command.label}
-                        </DropdownMenuItem>
-                      ))}
                       
                       <DropdownMenuItem
                         onSelect={(event) => {
