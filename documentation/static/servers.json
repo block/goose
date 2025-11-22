@@ -196,6 +196,28 @@
     "environmentVariables": []
   },
   {
+    "id": "datahub-mcp",
+    "name": "DataHub",
+    "description": "Data discovery and metadata platform for exploring datasets, lineage, and queries",
+    "command": "uvx mcp-server-datahub@latest",
+    "link": "https://github.com/acryldata/mcp-server-datahub",
+    "installation_notes": "Install using uvx package manager. Requires Python 3.10+ and uv. Works with both DataHub Cloud and self-hosted DataHub instances.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "DATAHUB_GMS_URL",
+        "description": "DataHub GMS URL (e.g., https://your-instance.acryl.io or http://localhost:8080)",
+        "required": true
+      },
+      {
+        "name": "DATAHUB_GMS_TOKEN",
+        "description": "DataHub Personal Access Token for authentication",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "developer",
     "name": "Developer",
     "description": "Built-in developer tools for file editing and shell command execution",
@@ -370,13 +392,13 @@
         "required": true
       },
       {
-        "name": "MQTT_USERNAME", 
+        "name": "MQTT_USERNAME",
         "description": "MQTT username (empty string if no auth required)",
         "required": true
       },
       {
         "name": "MQTT_PASSWORD",
-        "description": "MQTT password (empty string if no auth required)", 
+        "description": "MQTT password (empty string if no auth required)",
         "required": true
       }
     ]
@@ -453,13 +475,13 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
-        {
-            "name": "AUTH_HEADER",
-            "description": "OpenMetadata Personal Access Token",
-            "required": true
-        }
+      {
+        "name": "AUTH_HEADER",
+        "description": "OpenMetadata Personal Access Token",
+        "required": true
+      }
     ]
-  },  
+  },
   {
     "id": "pdf_read",
     "name": "PDF Reader",
