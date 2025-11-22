@@ -291,6 +291,7 @@ fn draw_help_popup(f: &mut Frame, app: &App) {
         Line::from("  /about      About Goose TUI"),
         Line::from("  /theme      Change theme (e.g. /theme light)"),
         Line::from("  /clear      Clear chat history"),
+        Line::from("  /session    Open session picker"),
         Line::from("  /exit       Quit"),
         Line::from(""),
         Line::from("  Custom commands can be defined in config."),
