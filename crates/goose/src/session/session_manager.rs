@@ -870,7 +870,7 @@ impl SessionStorage {
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
-        let mut session = sqlx::query_as::<_, Session>(
+        let session_opt = sqlx::query_as::<_, Session>(
             r#"
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
@@ -883,8 +883,19 @@ impl SessionStorage {
         )
             .bind(id)
             .fetch_optional(&self.pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+            .await?;
+
+        let mut session = if let Some(s) = session_opt {
+            s
+        } else {
+            use crate::session::external_sessions;
+
+            if let Some(s) = external_sessions::get_external_session(id, include_messages) {
+                return Ok(s);
+            }
+
+            return Err(anyhow::anyhow!("Session not found"));
+        };
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
@@ -1108,7 +1119,7 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+        let mut sessions = sqlx::query_as::<_, Session>(
             r#"
         SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
                s.total_tokens, s.input_tokens, s.output_tokens,
@@ -1124,8 +1135,13 @@ impl SessionStorage {
     "#,
         )
             .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
+            .await?;
+
+        use crate::session::external_sessions;
+        sessions.extend(external_sessions::get_external_sessions_for_list());
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+        Ok(sessions)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
