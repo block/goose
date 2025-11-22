@@ -3,15 +3,20 @@
 ## How to Release
 
 Push the release tag to trigger the release:
-   ```bash
-   git fetch && git tag v{{VERSION}} origin/release/{{VERSION}}
-   git push origin v{{VERSION}}
-   ```
+
+```bash
+git fetch
+git checkout release/{{VERSION}}
+git cherry-pick DESIRED_COMMIT_SHA(s)
+git tag v{{VERSION}}
+git push origin v{{VERSION}}
+```
+
 This PR will auto-merge once the tag is pushed.
 
 ## Important Notes
 
-- All commits in this release should have corresponding cherry-picks in `main`
+- All commits cherrypicked into this release should be from `main`
 - This PR can be closed if the release is not needed.
 
 ## Changes in This Release
