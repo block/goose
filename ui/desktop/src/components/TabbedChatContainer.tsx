@@ -215,7 +215,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   }, []);
 
   return (
-    <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
+    <div className={`flex flex-col h-full ${className || ''}`}>
       {/* Tab Bar - Fixed at top */}
       <div className="flex-shrink-0 relative z-[60]">
         <TabBar
@@ -230,7 +230,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
       </div>
 
       {/* Main Content Area - Chat and Sidecar */}
-      <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
+      <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg">
         {/* Render all tabs but only show the active one - this prevents unmounting */}
         {tabStates.map((tabState) => {
           const isActive = tabState.tab.id === activeTabId;

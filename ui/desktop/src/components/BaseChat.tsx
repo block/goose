@@ -443,7 +443,7 @@ function BaseChatContent({
       <div className="absolute inset-0">
         <ScrollArea
           ref={scrollRef}
-          className={`h-full bg-background-default relative ${contentClassName}`}
+          className={`h-full relative ${contentClassName}`}
           autoScroll
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -455,7 +455,7 @@ function BaseChatContent({
             <div className="max-w-4xl mx-auto w-full">
             {/* Recipe agent header - sticky at top of chat container */}
             {recipeConfig?.title && (
-              <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
+              <div className="sticky top-0 z-10 px-0 -mx-6 mb-6 pt-6">
                 <AgentHeader
                   title={recipeConfig.title}
                   profileInfo={

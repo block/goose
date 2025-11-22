@@ -212,7 +212,7 @@ const ConfigureProvidersRoute = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="w-screen h-screen bg-background-default">
+    <div className="w-screen h-screen">
       <ProviderSettings
         onClose={() => navigate('/settings', { state: { section: 'models' } })}
         isOnboarding={false}
@@ -233,7 +233,7 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   }, [navigate, onSelectProvider]);
 
   return (
-    <div className="w-screen h-screen bg-background-default">
+    <div className="w-screen h-screen">
       <ProviderSettings onClose={onClose} isOnboarding={true} />
     </div>
   );
