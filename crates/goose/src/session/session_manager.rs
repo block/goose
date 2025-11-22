@@ -812,113 +812,96 @@ impl SessionStorage {
 
     async fn apply_migration(&self, version: i32) -> Result<()> {
         match version {
-            1 => {
-                sqlx::query(
-                    r#"
-                    CREATE TABLE IF NOT EXISTS schema_version (
-                        version INTEGER PRIMARY KEY,
-                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            2 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN user_recipe_values_json TEXT
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            3 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE messages ADD COLUMN metadata_json TEXT
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            4 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN name TEXT DEFAULT ''
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN user_set_name BOOLEAN DEFAULT FALSE
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            5 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'user'
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
-                    .execute(&self.pool)
-                    .await?;
-            }
-            6 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN provider_name TEXT
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query(
-                    r#"
-                    ALTER TABLE sessions ADD COLUMN model_config_json TEXT
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-            }
-            7 => {
-                sqlx::query(
-                    r#"
-                    CREATE TABLE shell_commands (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT NOT NULL REFERENCES sessions(id),
-                        command TEXT NOT NULL,
-                        working_dir TEXT NOT NULL,
-                        created_timestamp INTEGER NOT NULL
-                    )
-                "#,
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query(
-                    "CREATE INDEX idx_shell_commands_session ON shell_commands(session_id)",
-                )
-                .execute(&self.pool)
-                .await?;
-
-                sqlx::query("CREATE INDEX idx_shell_commands_timestamp ON shell_commands(session_id, created_timestamp)")
-                    .execute(&self.pool)
-                    .await?;
-            }
-            _ => {
-                anyhow::bail!("Unknown migration version: {}", version);
-            }
+            1 => self.migrate_v1_schema_version().await?,
+            2 => self.migrate_v2_recipe_values().await?,
+            3 => self.migrate_v3_message_metadata().await?,
+            4 => self.migrate_v4_session_name().await?,
+            5 => self.migrate_v5_session_type().await?,
+            6 => self.migrate_v6_provider_config().await?,
+            7 => self.migrate_v7_shell_commands().await?,
+            _ => anyhow::bail!("Unknown migration version: {}", version),
         }
+        Ok(())
+    }
 
+    async fn migrate_v1_schema_version(&self) -> Result<()> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn migrate_v2_recipe_values(&self) -> Result<()> {
+        sqlx::query("ALTER TABLE sessions ADD COLUMN user_recipe_values_json TEXT")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn migrate_v3_message_metadata(&self) -> Result<()> {
+        sqlx::query("ALTER TABLE messages ADD COLUMN metadata_json TEXT")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn migrate_v4_session_name(&self) -> Result<()> {
+        sqlx::query("ALTER TABLE sessions ADD COLUMN name TEXT DEFAULT ''")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE sessions ADD COLUMN user_set_name BOOLEAN DEFAULT FALSE")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn migrate_v5_session_type(&self) -> Result<()> {
+        sqlx::query("ALTER TABLE sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'user'")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn migrate_v6_provider_config(&self) -> Result<()> {
+        sqlx::query("ALTER TABLE sessions ADD COLUMN provider_name TEXT")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE sessions ADD COLUMN model_config_json TEXT")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn migrate_v7_shell_commands(&self) -> Result<()> {
+        sqlx::query(
+            r#"
+            CREATE TABLE shell_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL REFERENCES sessions(id),
+                command TEXT NOT NULL,
+                working_dir TEXT NOT NULL,
+                created_timestamp INTEGER NOT NULL
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query("CREATE INDEX idx_shell_commands_session ON shell_commands(session_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_shell_commands_timestamp ON shell_commands(session_id, created_timestamp)")
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
