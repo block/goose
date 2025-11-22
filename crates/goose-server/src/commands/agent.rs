@@ -29,11 +29,7 @@ async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
-/// Builds the Axum application and binds to the configured port.
-/// Returns the Router and the TcpListener.
 pub async fn build_app() -> Result<(Router, TcpListener)> {
-    // Note: Logging setup is handled by the caller (run or tui main)
-
     let settings = configuration::Settings::new()?;
 
     if let Err(e) = initialize_pricing_cache().await {
