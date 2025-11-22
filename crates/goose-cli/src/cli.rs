@@ -13,6 +13,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
+use crate::commands::term::{handle_term_init, handle_term_log, handle_term_run};
 
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -33,6 +34,14 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 use tracing::warn;
+
+fn non_empty_string(s: &str) -> Result<String, String> {
+    if s.trim().is_empty() {
+        Err("Prompt cannot be empty".to_string())
+    } else {
+        Ok(s.to_string())
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -829,6 +838,61 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Terminal-integrated session (one session per terminal)
+    #[command(
+        about = "Terminal-integrated goose session",
+        long_about = "Runs a goose session tied to your terminal window.\n\
+                      Each terminal maintains its own persistent session that resumes automatically.\n\n\
+                      Setup:\n  \
+                        eval \"$(goose term init zsh)\"  # Add to ~/.zshrc\n\n\
+                      Usage:\n  \
+                        goose term run \"list files in this directory\"\n  \
+                        gt \"create a python script\"  # using alias"
+    )]
+    Term {
+        #[command(subcommand)]
+        command: TermCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TermCommand {
+    /// Print shell initialization script
+    #[command(
+        about = "Print shell initialization script",
+        long_about = "Prints shell configuration to set up terminal-integrated sessions.\n\
+                      Each terminal gets a persistent goose session that automatically resumes.\n\n\
+                      Setup:\n  \
+                        echo 'eval \"$(goose term init zsh)\"' >> ~/.zshrc\n  \
+                        source ~/.zshrc"
+    )]
+    Init {
+        /// Shell type (bash, zsh, fish, powershell)
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+
+    /// Log a shell command (called by shell hook)
+    #[command(about = "Log a shell command to the session", hide = true)]
+    Log {
+        /// The command that was executed
+        command: String,
+    },
+
+    /// Run a prompt in the terminal session
+    #[command(
+        about = "Run a prompt in the terminal session",
+        long_about = "Run a prompt in the terminal-integrated session.\n\n\
+                      Examples:\n  \
+                        goose term run \"list files in this directory\"\n  \
+                        goose term run \"create a python script that prints hello world\""
+    )]
+    Run {
+        /// The prompt to send to goose
+        #[arg(value_parser = non_empty_string)]
+        prompt: String,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -836,6 +900,14 @@ enum CliProviderVariant {
     OpenAi,
     Databricks,
     Ollama,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum Shell {
+    Bash,
+    Zsh,
+    Fish,
+    Powershell,
 }
 
 #[derive(Debug)]
@@ -874,6 +946,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Term { .. }) => "term",
         None => "default_session",
     };
 
@@ -1385,6 +1458,26 @@ pub async fn cli() -> anyhow::Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Term { command }) => {
+            match command {
+                TermCommand::Init { shell } => {
+                    let shell_str = match shell {
+                        Shell::Bash => "bash",
+                        Shell::Zsh => "zsh",
+                        Shell::Fish => "fish",
+                        Shell::Powershell => "powershell",
+                    };
+                    handle_term_init(shell_str)?;
+                }
+                TermCommand::Log { command } => {
+                    handle_term_log(command).await?;
+                }
+                TermCommand::Run { prompt } => {
+                    handle_term_run(prompt).await?;
+                }
+            }
             return Ok(());
         }
         None => {

@@ -19,7 +19,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 6;
+const CURRENT_SCHEMA_VERSION: i32 = 7;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -261,6 +261,18 @@ impl SessionManager {
             .await
     }
 
+    pub async fn create_session_with_id(
+        id: String,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        Self::instance()
+            .await?
+            .create_session_with_id(id, working_dir, name, session_type)
+            .await
+    }
+
     pub async fn get_session(id: &str, include_messages: bool) -> Result<Session> {
         Self::instance()
             .await?
@@ -359,6 +371,24 @@ impl SessionManager {
         Self::instance()
             .await?
             .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
+            .await
+    }
+
+    pub async fn add_shell_command(
+        session_id: &str,
+        command: &str,
+        working_dir: &Path,
+    ) -> Result<()> {
+        Self::instance()
+            .await?
+            .add_shell_command(session_id, command, working_dir)
+            .await
+    }
+
+    pub async fn get_shell_commands_since_last_message(session_id: &str) -> Result<Vec<String>> {
+        Self::instance()
+            .await?
+            .get_shell_commands_since_last_message(session_id)
             .await
     }
 }
@@ -598,6 +628,29 @@ impl SessionStorage {
             .execute(&pool)
             .await?;
 
+        sqlx::query(
+            r#"
+            CREATE TABLE shell_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL REFERENCES sessions(id),
+                command TEXT NOT NULL,
+                working_dir TEXT NOT NULL,
+                created_timestamp INTEGER NOT NULL
+            )
+        "#,
+        )
+        .execute(&pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX idx_shell_commands_session ON shell_commands(session_id)")
+            .execute(&pool)
+            .await?;
+        sqlx::query(
+            "CREATE INDEX idx_shell_commands_timestamp ON shell_commands(session_id, created_timestamp)",
+        )
+        .execute(&pool)
+        .await?;
+
         Ok(Self { pool })
     }
 
@@ -836,6 +889,31 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            7 => {
+                sqlx::query(
+                    r#"
+                    CREATE TABLE shell_commands (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT NOT NULL REFERENCES sessions(id),
+                        command TEXT NOT NULL,
+                        working_dir TEXT NOT NULL,
+                        created_timestamp INTEGER NOT NULL
+                    )
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    "CREATE INDEX idx_shell_commands_session ON shell_commands(session_id)",
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_shell_commands_timestamp ON shell_commands(session_id, created_timestamp)")
+                    .execute(&self.pool)
+                    .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -878,6 +956,48 @@ impl SessionStorage {
             .bind(working_dir.to_string_lossy().as_ref())
             .fetch_one(&mut *tx)
             .await?;
+
+        tx.commit().await?;
+        Ok(session)
+    }
+
+    async fn create_session_with_id(
+        &self,
+        id: String,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        let mut tx = self.pool.begin().await?;
+
+        // Use INSERT OR IGNORE to handle race conditions where multiple processes
+        // might try to create the same session simultaneously
+        sqlx::query(
+            r#"
+                INSERT OR IGNORE INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
+                VALUES (?, ?, FALSE, ?, ?, '{}')
+                "#,
+        )
+        .bind(&id)
+        .bind(&name)
+        .bind(session_type.to_string())
+        .bind(working_dir.to_string_lossy().as_ref())
+        .execute(&mut *tx)
+        .await?;
+
+        let session = sqlx::query_as::<_, Session>(
+            r#"
+                SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
+                       total_tokens, input_tokens, output_tokens,
+                       accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+                       schedule_id, recipe_json, user_recipe_values_json,
+                       provider_name, model_config_json
+                FROM sessions WHERE id = ?
+                "#,
+        )
+        .bind(&id)
+        .fetch_one(&mut *tx)
+        .await?;
 
         tx.commit().await?;
         Ok(session)
@@ -1286,6 +1406,55 @@ impl SessionStorage {
         .execute()
         .await
     }
+
+    async fn add_shell_command(
+        &self,
+        session_id: &str,
+        command: &str,
+        working_dir: &Path,
+    ) -> Result<()> {
+        // Use seconds to match messages table timestamp format
+        let timestamp = chrono::Utc::now().timestamp();
+
+        sqlx::query(
+            r#"
+            INSERT INTO shell_commands (session_id, command, working_dir, created_timestamp)
+            VALUES (?, ?, ?, ?)
+        "#,
+        )
+        .bind(session_id)
+        .bind(command)
+        .bind(working_dir.to_string_lossy().as_ref())
+        .bind(timestamp)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_shell_commands_since_last_message(&self, session_id: &str) -> Result<Vec<String>> {
+        let last_message_timestamp = sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT MAX(created_timestamp) FROM messages WHERE session_id = ?",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await?
+        .unwrap_or(0);
+
+        let commands = sqlx::query_scalar::<_, String>(
+            r#"
+            SELECT command FROM shell_commands
+            WHERE session_id = ? AND created_timestamp > ?
+            ORDER BY created_timestamp ASC
+        "#,
+        )
+        .bind(session_id)
+        .bind(last_message_timestamp)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(commands)
+    }
 }
 
 #[cfg(test)]
@@ -1491,5 +1660,103 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_create_session_with_id_race_condition() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_race.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session_id = "test-race-session";
+        let mut handles = vec![];
+
+        // Spawn multiple tasks trying to create the same session simultaneously
+        for _ in 0..10 {
+            let storage = Arc::clone(&storage);
+            let id = session_id.to_string();
+            handles.push(tokio::spawn(async move {
+                storage
+                    .create_session_with_id(
+                        id.clone(),
+                        PathBuf::from("/tmp/test"),
+                        id,
+                        SessionType::User,
+                    )
+                    .await
+            }));
+        }
+
+        // All should succeed without UNIQUE constraint errors
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(
+                result.is_ok(),
+                "create_session_with_id failed: {:?}",
+                result
+            );
+        }
+
+        // Should only have one session with this ID
+        let session = storage.get_session(session_id, false).await.unwrap();
+        assert_eq!(session.id, session_id);
+    }
+
+    #[tokio::test]
+    async fn test_shell_commands_since_last_message() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_shell.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        // Add some shell commands
+        storage
+            .add_shell_command(&session.id, "ls -la", &PathBuf::from("/tmp"))
+            .await
+            .unwrap();
+        storage
+            .add_shell_command(&session.id, "cd foo", &PathBuf::from("/tmp"))
+            .await
+            .unwrap();
+
+        // Should get both commands (no messages yet)
+        let commands = storage
+            .get_shell_commands_since_last_message(&session.id)
+            .await
+            .unwrap();
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0], "ls -la");
+        assert_eq!(commands[1], "cd foo");
+
+        // Add a message with timestamp in the future to ensure it's after shell commands
+        let future_timestamp = chrono::Utc::now().timestamp() + 100;
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: future_timestamp,
+                    content: vec![MessageContent::text("test")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Commands before the message should not be returned
+        let commands = storage
+            .get_shell_commands_since_last_message(&session.id)
+            .await
+            .unwrap();
+        assert_eq!(commands.len(), 0);
     }
 }
