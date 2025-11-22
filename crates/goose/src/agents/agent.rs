@@ -923,6 +923,7 @@ impl Agent {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let mut consecutive_compactions = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -974,6 +975,9 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
+                            // Reset counter on successful response
+                            consecutive_compactions = 0;
+
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
@@ -1153,6 +1157,27 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                            consecutive_compactions += 1;
+
+                            // Stop after 1 compaction attempt (when counter > 1)
+                            if consecutive_compactions > 1 {
+                                error!("Context limit exceeded after compaction - prompt too large");
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        "Unable to continue: Even after compacting the conversation, the context still exceeds the model's limit.
+
+This indicates that your message or the system prompt is too large for the configured model.
+
+Please try:
+- Using a shorter message
+- Configuring a model with a larger context window
+- Starting a new session"
+                                    )
+                                );
+                                break;
+                            }
+
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1176,12 +1201,8 @@ impl Agent {
                                     continue;
                                 }
                                 Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        )
-                                    );
+                                    // Just log compaction failure - the doom loop check above will catch it on retry
+                                    error!("Compaction failed: {}", e);
                                     break;
                                 }
                             }
