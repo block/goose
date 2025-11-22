@@ -25,6 +25,12 @@ pub struct ChatComponent {
     last_input_mode: InputMode,
 }
 
+impl Default for ChatComponent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChatComponent {
     pub fn new() -> Self {
         Self {
@@ -84,12 +90,15 @@ impl ChatComponent {
 
                             let max_args = 50;
                             let display_args = if tool_args.chars().count() > max_args {
-                                format!("{}...", tool_args.chars().take(max_args).collect::<String>())
+                                format!(
+                                    "{}...",
+                                    tool_args.chars().take(max_args).collect::<String>()
+                                )
                             } else {
                                 tool_args
                             };
 
-                            let header = format!("{} {}", tool_name, display_args);
+                            let header = format!("{tool_name} {display_args}");
                             let fixed = 5;
                             let padding = width.saturating_sub(header.len() + fixed + 2); // +2 for borders roughly
 
@@ -100,7 +109,7 @@ impl ChatComponent {
                                     Style::default().fg(color).add_modifier(Modifier::BOLD),
                                 ),
                                 Span::styled(
-                                    format!(" {} ", display_args),
+                                    format!(" {display_args} "),
                                     Style::default().fg(Color::Gray),
                                 ),
                                 Span::styled(
@@ -197,7 +206,7 @@ impl ChatComponent {
                                         Style::default().fg(theme.status.warning),
                                     ),
                                     Span::styled(
-                                        format!("{} (args hidden)", name),
+                                        format!("{name} (args hidden)"),
                                         Style::default().fg(theme.base.foreground),
                                     ),
                                 ]);
@@ -246,37 +255,12 @@ impl Component for ChatComponent {
                     MouseEventKind::ScrollDown => {
                         let cur = self.list_state.selected().unwrap_or(0);
                         self.list_state.select(Some(cur + 3));
-                        // Check if at bottom? Hard to know without total length.
-                        // We will check in render.
                     }
                     MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                        // On click, select the item at the clicked row?
-                        // Ratatui List doesn't auto-select on click easily without calculating rows.
-                        // But if we just want to open the *currently selected* item, we can assume
-                        // the user selected it (maybe via scroll/hover if we implemented that, but we haven't).
-                        
-                        // Actually, standard TUI behavior for click is:
-                        // 1. Calculate index based on y-coord.
-                        // 2. Select it.
-                        // 3. Trigger action.
-                        
-                        // Calculating index is hard here because we don't know the exact layout area offset in handle_event.
-                        // However, if we just treat Click as "Open Selected" (if selection follows mouse?), 
-                        // or just "Open Selected" (Enter equivalent).
-                        
-                        // If the user clicks, they expect the thing under the cursor to open.
-                        // Implementing full mouse picking requires `area` which we don't have in `handle_event`.
-                        // But we can just map Click -> OpenMessageInfo of *selected* item if we assume selection is updated.
-                        // But selection isn't updated by mouse hover in this code.
-                        
-                        // Compromise: Treat Left Click as "Open Details of Selected Item".
-                        // The user can scroll to select (which updates selection) then click?
-                        // No, scrolling updates selection.
-                        
                         if let Some(idx) = self.list_state.selected() {
-                             if let Some(&msg_idx) = self.cached_mapping.get(idx) {
-                                 return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                             }
+                            if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                                return Ok(Some(Action::OpenMessageInfo(msg_idx)));
+                            }
                         }
                     }
                     _ => {}
@@ -290,19 +274,20 @@ impl Component for ChatComponent {
                             let cur = self.list_state.selected().unwrap_or(0);
                             self.list_state.select(Some(cur.saturating_sub(1)));
                         }
-                                                 KeyCode::Char('j') | KeyCode::Down => {
-                                                     let cur = self.list_state.selected().unwrap_or(0);
-                                                     self.list_state.select(Some(cur + 1));
-                                                 }
-                                                                          KeyCode::Enter => {
-                                                                              if let Some(idx) = self.list_state.selected() {
-                                                                                  if let Some(&msg_idx) = self.cached_mapping.get(idx) {
-                                                                                      return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                                                                                  }
-                                                                              }
-                                                                          }
-                                                                          KeyCode::Esc => return Ok(Some(Action::ToggleInputMode)),
-                                                                          _ => {}                    }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            let cur = self.list_state.selected().unwrap_or(0);
+                            self.list_state.select(Some(cur + 1));
+                        }
+                        KeyCode::Enter => {
+                            if let Some(idx) = self.list_state.selected() {
+                                if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                                    return Ok(Some(Action::OpenMessageInfo(msg_idx)));
+                                }
+                            }
+                        }
+                        KeyCode::Esc => return Ok(Some(Action::ToggleInputMode)),
+                        _ => {}
+                    }
                 }
             }
             _ => {}
@@ -374,11 +359,10 @@ impl Component for ChatComponent {
         }
 
         // Auto-scroll logic
-        if self.stick_to_bottom {
-            if !display_items.is_empty() {
+        if self.stick_to_bottom
+            && !display_items.is_empty() {
                 self.list_state.select(Some(display_items.len() - 1));
             }
-        }
 
         // Render Logo if empty
         if display_items.is_empty() {
@@ -391,7 +375,7 @@ impl Component for ChatComponent {
                 }
             };
             let (r, g, b) = Self::to_rgb(base_color);
-            
+
             let (dr, dg, db) = if state.is_working {
                 let t = self.frame_count as f32 * 0.1;
                 let factor = 0.85 + 0.15 * t.sin();
@@ -409,21 +393,10 @@ impl Component for ChatComponent {
                 .lines()
                 .map(|l| Line::from(Span::styled(l, Style::default().fg(logo_color))))
                 .collect();
-            let hints = vec![
-                "Tips for getting started:",
+            let hints = ["Tips for getting started:",
                 "1. Ask questions, edit files, or run commands.",
                 "2. Be specific for the best results.",
-                "3. Type /help for more information.",
-            ];
-
-            // Render to a separate area or as list items?
-            // If I render as list items, I can just add them to display_items.
-            // But they shouldn't be selectable or part of history.
-            // Better to render Paragraph inside the block.
-            // But I am rendering List.
-
-            // I'll render the List as empty block, and render Paragraph on top?
-            // Yes.
+                "3. Type /help for more information."];
 
             let block = Block::default()
                 .borders(Borders::ALL)
@@ -439,7 +412,7 @@ impl Component for ChatComponent {
             let inner_area = block.inner(area);
 
             // Render at top-left, with 2 units of padding from left and top
-            let logo_start_y = inner_area.y + 1; 
+            let logo_start_y = inner_area.y + 1;
             let logo_start_x = inner_area.x + 2;
 
             let logo_area = Rect::new(

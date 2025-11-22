@@ -9,7 +9,10 @@ use goose::conversation::message::MessageContent;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Wrap,
+};
 use ratatui::Frame;
 use std::time::Instant;
 
@@ -18,9 +21,15 @@ pub struct MessagePopup {
     last_scroll_time: Option<Instant>,
 }
 
+impl Default for MessagePopup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MessagePopup {
     pub fn new() -> Self {
-        Self { 
+        Self {
             scroll: 0,
             last_scroll_time: None,
         }
@@ -30,33 +39,29 @@ impl MessagePopup {
 impl Component for MessagePopup {
     fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
         match event {
-            Event::Input(key) => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.scroll = self.scroll.saturating_add(1);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.scroll = self.scroll.saturating_sub(1);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    _ => {}
+            Event::Input(key) => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.scroll = self.scroll.saturating_add(1);
+                    self.last_scroll_time = Some(Instant::now());
                 }
-            }
-            Event::Mouse(m) => {
-                match m.kind {
-                    MouseEventKind::ScrollDown => {
-                        self.scroll = self.scroll.saturating_add(3);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    MouseEventKind::ScrollUp => {
-                        self.scroll = self.scroll.saturating_sub(3);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    _ => {}
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.scroll = self.scroll.saturating_sub(1);
+                    self.last_scroll_time = Some(Instant::now());
                 }
-            }
+                _ => {}
+            },
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollDown => {
+                    self.scroll = self.scroll.saturating_add(3);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                MouseEventKind::ScrollUp => {
+                    self.scroll = self.scroll.saturating_sub(3);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                _ => {}
+            },
             _ => {}
         }
         Ok(None)
@@ -77,8 +82,7 @@ impl Component for MessagePopup {
         f.render_widget(Clear, area);
 
         let mut lines = Vec::new();
-        
-        // Render full content
+
         for content in &message.content {
             match content {
                 MessageContent::Text(t) => {
@@ -87,7 +91,12 @@ impl Component for MessagePopup {
                     }
                 }
                 MessageContent::ToolRequest(req) => {
-                    lines.push(Line::from(Span::styled("Tool Request:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))));
+                    lines.push(Line::from(Span::styled(
+                        "Tool Request:",
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )));
                     if let Ok(call) = &req.tool_call {
                         lines.push(Line::from(format!("Name: {}", call.name)));
                         if let Some(args) = &call.arguments {
@@ -99,14 +108,25 @@ impl Component for MessagePopup {
                     }
                 }
                 MessageContent::ToolResponse(resp) => {
-                    lines.push(Line::from(Span::styled("Tool Output:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))));
+                    lines.push(Line::from(Span::styled(
+                        "Tool Output:",
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )));
                     if let Ok(contents) = &resp.tool_result {
                         for content in contents {
-                            if let rmcp::model::Content { raw: rmcp::model::RawContent::Text(text_content), .. } = content {
-                                // Pretty print JSON if possible
+                            if let rmcp::model::Content {
+                                raw: rmcp::model::RawContent::Text(text_content),
+                                ..
+                            } = content
+                            {
                                 let text = &text_content.text;
-                                let display_string = if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
-                                    serde_json::to_string_pretty(&v).unwrap_or_else(|_| text.to_string())
+                                let display_string = if let Ok(v) =
+                                    serde_json::from_str::<serde_json::Value>(text)
+                                {
+                                    serde_json::to_string_pretty(&v)
+                                        .unwrap_or_else(|_| text.to_string())
                                 } else {
                                     text.to_string()
                                 };
@@ -141,7 +161,7 @@ impl Component for MessagePopup {
                 let mut scrollbar_state = ScrollbarState::default()
                     .content_length(content_height as usize)
                     .position(self.scroll as usize);
-                
+
                 f.render_stateful_widget(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
                         .begin_symbol(None)

@@ -11,7 +11,7 @@ pub enum Action {
     Resize,
 
     ServerMessage(Arc<MessageEvent>),
-    SessionResumed(Session),
+    SessionResumed(Box<Session>),
     SessionsListLoaded(Vec<Session>),
     ToolsLoaded(Vec<ToolInfo>),
     Error(String),
@@ -29,7 +29,7 @@ pub enum Action {
     ClosePopup,
     OpenMessageInfo(usize),
     SetInputEmpty(bool),
-    
+
     DeleteCustomCommand(String),
     StartCommandBuilder,
     SubmitCommandBuilder(CustomCommand),

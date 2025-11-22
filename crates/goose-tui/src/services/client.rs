@@ -1,15 +1,15 @@
+use crate::services::events::Event;
+use crate::state::state::ToolInfo;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use goose::agents::ExtensionConfig;
 use goose::conversation::message::Message;
 use goose::session::Session;
-use crate::state::state::ToolInfo;
 use goose_server::routes::reply::MessageEvent;
 use reqwest::Client as ReqwestClient;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use crate::services::events::Event;
 
 #[derive(Clone)]
 pub struct Client {
@@ -53,7 +53,7 @@ struct SessionListResponse {
 impl Client {
     pub fn new(port: u16, secret_key: String) -> Self {
         Self {
-            base_url: format!("http://127.0.0.1:{}", port),
+            base_url: format!("http://127.0.0.1:{port}"),
             secret_key,
             http_client: ReqwestClient::new(),
         }
@@ -214,7 +214,7 @@ impl Client {
             })
             .send()
             .await?
-            .error_for_status()? // Check for 4xx/5xx responses
+            .error_for_status()?
             .bytes_stream()
             .eventsource();
 

@@ -56,32 +56,29 @@ impl<'a> MarkdownRenderer<'a> {
                         // Syntax Highlighting for Code Blocks
                         let ss = Self::get_syntax_set();
                         let ts = Self::get_theme_set();
-                        let theme = &ts.themes["base16-ocean.dark"]; // Good default dark theme
-                        
+                        let theme = &ts.themes["base16-ocean.dark"];
+
                         let lang = code_block_lang.as_ref().unwrap();
-                        let syntax = ss.find_syntax_by_token(lang)
+                        let syntax = ss
+                            .find_syntax_by_token(lang)
                             .unwrap_or_else(|| ss.find_syntax_plain_text());
-                        
+
                         let mut h = HighlightLines::new(syntax, theme);
-                        
-                        // Split content by lines because syntect expects lines
-                        // Note: content might contain newlines.
+
                         for line in content.split_inclusive('\n') {
-                            let ranges: Vec<(syntect::highlighting::Style, &str)> = h.highlight_line(line, ss).unwrap_or_default();
-                            
-                            // If we have pending current_line (e.g. from previous events), push it?
-                            // Code blocks usually start on new line.
-                            // But if content is split, we might be continuing a line.
-                            
+                            let ranges: Vec<(syntect::highlighting::Style, &str)> =
+                                h.highlight_line(line, ss).unwrap_or_default();
+
                             for (style, text) in ranges {
                                 let fg = Self::syntect_to_ratatui(style.foreground);
-                                let span_style = Style::default().fg(fg); // Ignore background for now
-                                
-                                // Handle newlines in text
+                                let span_style = Style::default().fg(fg);
+
                                 if text.ends_with('\n') {
-                                    let trimmed = text.trim_end_matches('\n').trim_end_matches('\r');
+                                    let trimmed =
+                                        text.trim_end_matches('\n').trim_end_matches('\r');
                                     if !trimmed.is_empty() {
-                                        current_line.push(Span::styled(trimmed.to_string(), span_style));
+                                        current_line
+                                            .push(Span::styled(trimmed.to_string(), span_style));
                                     }
                                     lines.push(Line::from(current_line.clone()));
                                     current_line.clear();
@@ -95,7 +92,6 @@ impl<'a> MarkdownRenderer<'a> {
                         continue;
                     }
 
-                    // Standard Text Handling
                     let mut style = current_style;
                     if is_code_span {
                         style = style.fg(Color::Yellow);
@@ -138,43 +134,41 @@ impl<'a> MarkdownRenderer<'a> {
                         }
                     }
                 }
-                Event::Start(tag) => {
-                    match tag {
-                        Tag::Emphasis => {
-                            style_stack.push(current_style);
-                            current_style = current_style.add_modifier(Modifier::ITALIC);
-                        }
-                        Tag::Strong => {
-                            style_stack.push(current_style);
-                            current_style = current_style.add_modifier(Modifier::BOLD);
-                        }
-                        Tag::CodeBlock(kind) => {
-                            let lang = match kind {
-                                CodeBlockKind::Fenced(l) => l.to_string(),
-                                CodeBlockKind::Indented => "text".to_string(),
-                            };
-                            code_block_lang = Some(lang);
-                            
-                            if !current_line.is_empty() {
-                                lines.push(Line::from(current_line.clone()));
-                                current_line.clear();
-                                current_width = 0;
-                            }
-                        }
-                        Tag::List(_) | Tag::Item => {
-                            if !current_line.is_empty() {
-                                lines.push(Line::from(current_line.clone()));
-                                current_line.clear();
-                                current_width = 0;
-                            }
-                            if matches!(tag, Tag::Item) {
-                                current_line.push(Span::styled("• ", current_style));
-                                current_width += 2;
-                            }
-                        }
-                        _ => {}
+                Event::Start(tag) => match tag {
+                    Tag::Emphasis => {
+                        style_stack.push(current_style);
+                        current_style = current_style.add_modifier(Modifier::ITALIC);
                     }
-                }
+                    Tag::Strong => {
+                        style_stack.push(current_style);
+                        current_style = current_style.add_modifier(Modifier::BOLD);
+                    }
+                    Tag::CodeBlock(kind) => {
+                        let lang = match kind {
+                            CodeBlockKind::Fenced(l) => l.to_string(),
+                            CodeBlockKind::Indented => "text".to_string(),
+                        };
+                        code_block_lang = Some(lang);
+
+                        if !current_line.is_empty() {
+                            lines.push(Line::from(current_line.clone()));
+                            current_line.clear();
+                            current_width = 0;
+                        }
+                    }
+                    Tag::List(_) | Tag::Item => {
+                        if !current_line.is_empty() {
+                            lines.push(Line::from(current_line.clone()));
+                            current_line.clear();
+                            current_width = 0;
+                        }
+                        if matches!(tag, Tag::Item) {
+                            current_line.push(Span::styled("• ", current_style));
+                            current_width += 2;
+                        }
+                    }
+                    _ => {}
+                },
                 Event::End(tag) => match tag {
                     TagEnd::Emphasis | TagEnd::Strong => {
                         if let Some(s) = style_stack.pop() {

@@ -8,6 +8,12 @@ use ratatui::Frame;
 
 pub struct StatusComponent;
 
+impl Default for StatusComponent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusComponent {
     pub fn new() -> Self {
         Self
@@ -87,27 +93,52 @@ impl Component for StatusComponent {
             }
         }
 
-        // Hints
         let mut hints: Vec<Span> = Vec::new();
-        // Ctrl+C Hint
+
         if state.is_working {
-            hints.push(Span::styled("Ctrl+C Interrupt", Style::default().fg(theme.status.warning)));
+            hints.push(Span::styled(
+                "Ctrl+C Interrupt",
+                Style::default().fg(theme.status.warning),
+            ));
         } else if !state.input_text_is_empty {
-            hints.push(Span::styled("Ctrl+C Clear", Style::default().fg(Color::DarkGray)));
+            hints.push(Span::styled(
+                "Ctrl+C Clear",
+                Style::default().fg(Color::DarkGray),
+            ));
         } else {
-            hints.push(Span::styled("Ctrl+C Quit", Style::default().fg(Color::DarkGray)));
+            hints.push(Span::styled(
+                "Ctrl+C Quit",
+                Style::default().fg(Color::DarkGray),
+            ));
         }
 
-        // Mode-specific hints
         if state.input_mode == InputMode::Normal {
-            hints.push(Span::styled("i: Edit", Style::default().fg(Color::DarkGray)));
-            hints.push(Span::styled("Enter: View", Style::default().fg(Color::DarkGray)));
-            hints.push(Span::styled("j/k: Scroll", Style::default().fg(Color::DarkGray)));
+            hints.push(Span::styled(
+                "i: Edit",
+                Style::default().fg(Color::DarkGray),
+            ));
+            hints.push(Span::styled(
+                "Enter: View",
+                Style::default().fg(Color::DarkGray),
+            ));
+            hints.push(Span::styled(
+                "j/k: Scroll",
+                Style::default().fg(Color::DarkGray),
+            ));
         } else {
-            hints.push(Span::styled("Esc: Normal", Style::default().fg(Color::DarkGray)));
-            hints.push(Span::styled("Enter: Send", Style::default().fg(Color::DarkGray)));
+            hints.push(Span::styled(
+                "Esc: Normal",
+                Style::default().fg(Color::DarkGray),
+            ));
+            hints.push(Span::styled(
+                "Enter: Send",
+                Style::default().fg(Color::DarkGray),
+            ));
         }
-        hints.push(Span::styled("Ctrl+T: Todos", Style::default().fg(Color::DarkGray)));
+        hints.push(Span::styled(
+            "Ctrl+T: Todos",
+            Style::default().fg(Color::DarkGray),
+        ));
 
         for (i, hint_span) in hints.into_iter().enumerate() {
             if i > 0 {

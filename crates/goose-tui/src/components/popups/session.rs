@@ -19,6 +19,12 @@ pub struct SessionPopup {
     scroll_state: ScrollbarState,
 }
 
+impl Default for SessionPopup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionPopup {
     pub fn new() -> Self {
         Self {
@@ -64,7 +70,7 @@ impl Component for SessionPopup {
                     }
                     _ => {}
                 }
-                // Update scrollbar position
+
                 if let Some(idx) = self.list_state.selected() {
                     self.scroll_state = self.scroll_state.position(idx);
                 }
@@ -82,7 +88,7 @@ impl Component for SessionPopup {
                     }
                     _ => {}
                 }
-                // Update scrollbar position
+
                 if let Some(idx) = self.list_state.selected() {
                     self.scroll_state = self.scroll_state.position(idx);
                 }
@@ -100,7 +106,6 @@ impl Component for SessionPopup {
         let area = centered_rect(60, 60, area);
         f.render_widget(Clear, area);
 
-        // Update scroll content length
         self.scroll_state = self
             .scroll_state
             .content_length(state.available_sessions.len());
@@ -110,7 +115,7 @@ impl Component for SessionPopup {
             .iter()
             .map(|s| {
                 let id = Span::styled(
-                    &s.id, // Full ID
+                    &s.id,
                     Style::default().fg(Color::Cyan),
                 );
                 let count = Span::styled(

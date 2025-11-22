@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use tui_textarea::TextArea;
 
 enum Step {
-    Menu, // Shows "Remove existing alias" and Tools list combined
-    DeleteSelect, // Secondary page to select alias to remove
+    Menu,                // Shows "Remove existing alias" and Tools list combined
+    DeleteSelect,        // Secondary page to select alias to remove
     ConfigureArg(usize), // Index of argument in tool.parameters
     NameCommand,
 }
@@ -25,17 +25,21 @@ pub struct BuilderPopup<'a> {
     step: Step,
     list_state: ListState,
     input: TextArea<'a>,
-    
-    // Builder state
     selected_tool_idx: Option<usize>,
     arg_values: HashMap<String, String>,
+}
+
+impl<'a> Default for BuilderPopup<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> BuilderPopup<'a> {
     pub fn new() -> Self {
         let mut input = TextArea::default();
         input.set_block(Block::default().borders(Borders::ALL));
-        
+
         Self {
             step: Step::Menu,
             list_state: ListState::default(),
@@ -47,7 +51,7 @@ impl<'a> BuilderPopup<'a> {
 
     fn reset(&mut self) {
         self.step = Step::Menu;
-        self.list_state.select(Some(0)); // Highlight "Remove existing alias..." by default
+        self.list_state.select(Some(0));
         self.selected_tool_idx = None;
         self.arg_values.clear();
         self.input = TextArea::default();
@@ -69,12 +73,13 @@ impl<'a> Component for BuilderPopup<'a> {
                         KeyCode::Esc | KeyCode::Char('q') => {
                             self.reset();
                             return Ok(Some(Action::ClosePopup));
-                        },
+                        }
                         KeyCode::Char('j') | KeyCode::Down => {
                             let idx = self.list_state.selected().unwrap_or(0);
-                            let max = state.available_tools.len(); // Tools count
-                            let total_items = max + 1; // +1 for "Remove existing alias..." item
-                            self.list_state.select(Some((idx + 1).min(total_items.saturating_sub(1))));
+                            let max = state.available_tools.len();
+                            let total_items = max + 1;
+                            self.list_state
+                                .select(Some((idx + 1).min(total_items.saturating_sub(1))));
                         }
                         KeyCode::Char('k') | KeyCode::Up => {
                             let idx = self.list_state.selected().unwrap_or(0);
@@ -83,14 +88,12 @@ impl<'a> Component for BuilderPopup<'a> {
                         KeyCode::Enter => {
                             let idx = self.list_state.selected().unwrap_or(0);
                             if idx == 0 {
-                                // Remove existing alias
                                 self.step = Step::DeleteSelect;
                                 self.list_state.select(Some(0));
                                 self.selected_tool_idx = None;
                                 self.input = TextArea::default();
                                 self.input.set_block(Block::default().borders(Borders::ALL));
                             } else {
-                                // Tool selected (offset by 1)
                                 let tool_idx = idx - 1;
                                 if state.available_tools.get(tool_idx).is_some() {
                                     self.selected_tool_idx = Some(tool_idx);
@@ -129,7 +132,7 @@ impl<'a> Component for BuilderPopup<'a> {
                         KeyCode::Enter => {
                             if let Some(idx) = self.list_state.selected() {
                                 if let Some(cmd) = state.config.custom_commands.get(idx) {
-                                    self.reset(); // Reset for next time
+                                    self.reset();
                                     return Ok(Some(Action::DeleteCustomCommand(cmd.name.clone())));
                                 }
                             }
@@ -141,16 +144,15 @@ impl<'a> Component for BuilderPopup<'a> {
                 Step::ConfigureArg(arg_idx) => {
                     match key.code {
                         KeyCode::Esc => {
-                            // Back to menu
                             self.step = Step::Menu;
                         }
                         KeyCode::Enter => {
                             let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
                             let arg_name = &tool.parameters[arg_idx];
                             let value = self.input.lines().join("\n");
-                            
+
                             self.arg_values.insert(arg_name.clone(), value);
-                            
+
                             if arg_idx + 1 < tool.parameters.len() {
                                 self.step = Step::ConfigureArg(arg_idx + 1);
                                 self.input = TextArea::default();
@@ -169,27 +171,27 @@ impl<'a> Component for BuilderPopup<'a> {
                 Step::NameCommand => {
                     match key.code {
                         KeyCode::Esc => {
-                            // Back to menu
                             self.step = Step::Menu;
                         }
                         KeyCode::Enter => {
                             let name = self.input.lines().join("\n").trim().to_string();
                             if !name.is_empty() {
                                 let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
-                                
+
                                 let mut args_map = serde_json::Map::new();
                                 for (k, v) in &self.arg_values {
-                                    args_map.insert(k.clone(), serde_json::Value::String(v.clone()));
+                                    args_map
+                                        .insert(k.clone(), serde_json::Value::String(v.clone()));
                                 }
-                                
+
                                 let cmd = CustomCommand {
                                     name: name.replace("/", ""),
                                     description: format!("Alias for {}", tool.name),
                                     tool: tool.name.clone(),
                                     args: serde_json::Value::Object(args_map),
                                 };
-                                
-                                self.reset(); // Reset for next time
+
+                                self.reset();
                                 return Ok(Some(Action::SubmitCommandBuilder(cmd)));
                             }
                         }
@@ -211,38 +213,51 @@ impl<'a> Component for BuilderPopup<'a> {
         let area = centered_rect(70, 60, area);
         f.render_widget(Clear, area);
 
-        let block = Block::default() 
+        let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .style(Style::default().bg(state.config.theme.base.background));
 
         match self.step {
             Step::Menu => {
-                let mut items = vec![
-                    ListItem::new(Span::styled(
-                        "Remove existing alias...",
-                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                    )),
-                ];
-                
+                let mut items = vec![ListItem::new(Span::styled(
+                    "Remove existing alias...",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ))];
+
                 for tool in &state.available_tools {
                     items.push(ListItem::new(vec![
-                        Line::from(Span::styled(&tool.name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
-                        Line::from(Span::styled(&tool.description, Style::default().fg(Color::Gray))),
+                        Line::from(Span::styled(
+                            &tool.name,
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        )),
+                        Line::from(Span::styled(
+                            &tool.description,
+                            Style::default().fg(Color::Gray),
+                        )),
                     ]));
                 }
 
                 let list = List::new(items)
                     .block(block.title("Command Builder: Select Tool (Enter to Select)"))
-                    .highlight_style(Style::default().bg(state.config.theme.base.selection).add_modifier(Modifier::BOLD));
-                
+                    .highlight_style(
+                        Style::default()
+                            .bg(state.config.theme.base.selection)
+                            .add_modifier(Modifier::BOLD),
+                    );
+
                 f.render_stateful_widget(list, area, &mut self.list_state);
             }
             Step::DeleteSelect => {
-                let items: Vec<ListItem> = state.config.custom_commands.iter().map(|c| {
-                    ListItem::new(format!("/{} -> {}", c.name, c.tool))
-                }).collect();
-                
+                let items: Vec<ListItem> = state
+                    .config
+                    .custom_commands
+                    .iter()
+                    .map(|c| ListItem::new(format!("/{} -> {}", c.name, c.tool)))
+                    .collect();
+
                 if items.is_empty() {
                     let p = Paragraph::new("No aliases defined.")
                         .block(block.title("Remove Alias"))
@@ -251,26 +266,43 @@ impl<'a> Component for BuilderPopup<'a> {
                 } else {
                     let list = List::new(items)
                         .block(block.title("Select Alias to Remove (Enter to Delete)"))
-                        .highlight_style(Style::default().bg(state.config.theme.base.selection).add_modifier(Modifier::BOLD));
-                    
+                        .highlight_style(
+                            Style::default()
+                                .bg(state.config.theme.base.selection)
+                                .add_modifier(Modifier::BOLD),
+                        );
+
                     f.render_stateful_widget(list, area, &mut self.list_state);
                 }
             }
             Step::ConfigureArg(arg_idx) => {
                 let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
                 let arg_name = &tool.parameters[arg_idx];
-                
+
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([Constraint::Min(1), Constraint::Length(3)])
                     .margin(1)
                     .split(area);
-                    
-                f.render_widget(block.title(format!("Configure '{}' ({}/{})", tool.name, arg_idx + 1, tool.parameters.len())), area);
-                
+
+                f.render_widget(
+                    block.title(format!(
+                        "Configure '{}' ({}/{})",
+                        tool.name,
+                        arg_idx + 1,
+                        tool.parameters.len()
+                    )),
+                    area,
+                );
+
                 let mut lines = vec![Line::from("Enter value for argument:")];
-                lines.push(Line::from(Span::styled(arg_name, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))));
-                
+                lines.push(Line::from(Span::styled(
+                    arg_name,
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )));
+
                 f.render_widget(Paragraph::new(lines), chunks[0]);
                 f.render_widget(&self.input, chunks[1]);
             }
@@ -280,19 +312,23 @@ impl<'a> Component for BuilderPopup<'a> {
                     .constraints([Constraint::Min(1), Constraint::Length(3)])
                     .margin(1)
                     .split(area);
-                    
+
                 f.render_widget(block.title("Final Step: Name Command"), area);
-                
+
                 let mut summary = vec![Line::from("Command Summary:")];
                 let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
                 summary.push(Line::from(format!("Tool: {}", tool.name)));
                 for (k, v) in &self.arg_values {
-                    summary.push(Line::from(format!("  {}: {}", k, v)));
+                    summary.push(Line::from(format!("  {k}: {v}")));
                 }
-                
+
                 f.render_widget(Paragraph::new(summary), chunks[0]);
-                
-                self.input.set_block(Block::default().borders(Borders::ALL).title("Alias Name (e.g. mycmd)"));
+
+                self.input.set_block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Alias Name (e.g. mycmd)"),
+                );
                 f.render_widget(&self.input, chunks[1]);
             }
         }

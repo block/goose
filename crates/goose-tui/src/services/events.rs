@@ -16,7 +16,7 @@ pub enum Event {
     Resize,
     Server(Arc<MessageEvent>),
     SessionsList(Vec<Session>),
-    SessionResumed(Session),
+    SessionResumed(Box<Session>),
     ToolsLoaded(Vec<ToolInfo>),
     Error(String),
 }
@@ -24,6 +24,12 @@ pub enum Event {
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,
     tx: mpsc::UnboundedSender<Event>,
+}
+
+impl Default for EventHandler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EventHandler {

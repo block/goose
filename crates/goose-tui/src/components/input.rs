@@ -6,8 +6,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
 use ratatui::text::Span;
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
 use ratatui::Frame;
 use tui_textarea::TextArea;
 
@@ -15,6 +15,12 @@ pub struct InputComponent<'a> {
     textarea: TextArea<'a>,
     frame_count: usize,
     last_is_empty: bool,
+}
+
+impl<'a> Default for InputComponent<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> InputComponent<'a> {
@@ -105,7 +111,6 @@ impl<'a> Component for InputComponent<'a> {
                                 self.textarea.set_placeholder_text("Type a message...");
                                 self.textarea.set_cursor_line_style(Style::default()); // Disable underline
 
-                                // Slash Commands
                                 if trimmed.starts_with('/') {
                                     let parts: Vec<&str> = trimmed.split_whitespace().collect();
                                     let cmd = parts[0];
@@ -118,7 +123,9 @@ impl<'a> Component for InputComponent<'a> {
                                         "/clear" => return Ok(Some(Action::ClearChat)),
                                         "/theme" => {
                                             if let Some(theme_name) = parts.get(1) {
-                                                return Ok(Some(Action::ChangeTheme(theme_name.to_string())));
+                                                return Ok(Some(Action::ChangeTheme(
+                                                    theme_name.to_string(),
+                                                )));
                                             }
                                             return Ok(None);
                                         }
@@ -131,21 +138,21 @@ impl<'a> Component for InputComponent<'a> {
                                                 .iter()
                                                 .find(|c| c.name == cmd_name)
                                             {
-                                                // Send a text message describing the tool call.
-                                                // The agent will then decide to call the tool.
-                                                // This matches the user's expectation of "templated 'Please run this tool' message".
                                                 let message_text = format!(
                                                     "Please run the tool '{}' with these arguments: {}",
                                                     custom.tool, custom.args
                                                 );
-                                                let message = goose::conversation::message::Message::user().with_text(message_text);
+                                                let message =
+                                                    goose::conversation::message::Message::user()
+                                                        .with_text(message_text);
                                                 return Ok(Some(Action::SendMessage(message)));
                                             }
                                         }
                                     }
                                 }
 
-                                let message = goose::conversation::message::Message::user().with_text(&text);
+                                let message =
+                                    goose::conversation::message::Message::user().with_text(&text);
                                 self.last_is_empty = true;
                                 return Ok(Some(Action::SendMessage(message)));
                             }
@@ -206,50 +213,64 @@ impl<'a> Component for InputComponent<'a> {
                 .bg(theme.base.background),
         );
 
-        // Sync cursor style
         self.textarea
             .set_cursor_style(Style::default().bg(theme.base.cursor));
 
         f.render_widget(&self.textarea, area);
 
-        // Render Slash Commands Popup
         if state.input_mode == InputMode::Editing {
             if let Some(first_line) = self.textarea.lines().first() {
                 if first_line.starts_with('/') {
                     let mut commands = vec![
-                        "/exit", "/quit", "/help", "/todos", "/session", "/alias", "/clear", "/theme",
+                        "/exit", "/quit", "/help", "/todos", "/session", "/alias", "/clear",
+                        "/theme",
                     ];
-                    let custom: Vec<String> = state.config.custom_commands.iter().map(|c| format!("/{}", c.name)).collect();
+                    let custom: Vec<String> = state
+                        .config
+                        .custom_commands
+                        .iter()
+                        .map(|c| format!("/{}", c.name))
+                        .collect();
                     let custom_refs: Vec<&str> = custom.iter().map(|s| s.as_str()).collect();
                     commands.extend(custom_refs);
                     commands.sort();
 
-                    let filtered: Vec<&str> = commands.iter().filter(|c| c.starts_with(first_line)).cloned().collect();
+                    let filtered: Vec<&str> = commands
+                        .iter()
+                        .filter(|c| c.starts_with(first_line))
+                        .cloned()
+                        .collect();
 
                     if !filtered.is_empty() {
-                        // Taller popup: 50% of screen height
                         let max_height = f.area().height / 2;
                         let content_height = filtered.len() as u16 + 2;
-                        let height = content_height.min(max_height).max(3); 
-                        
+                        let height = content_height.min(max_height).max(3);
+
                         let width = 30;
-                        let popup_area = Rect::new(
-                            area.x,
-                            area.y.saturating_sub(height),
-                            width,
-                            height,
-                        );
+                        let popup_area =
+                            Rect::new(area.x, area.y.saturating_sub(height), width, height);
 
                         f.render_widget(Clear, popup_area);
 
-                        let items: Vec<ListItem> = filtered.iter().map(|c| {
-                            ListItem::new(Span::styled(*c, Style::default().fg(theme.base.foreground)))
-                        }).collect();
+                        let items: Vec<ListItem> = filtered
+                            .iter()
+                            .map(|c| {
+                                ListItem::new(Span::styled(
+                                    *c,
+                                    Style::default().fg(theme.base.foreground),
+                                ))
+                            })
+                            .collect();
 
                         let list = List::new(items)
-                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).title("Commands"))
+                            .block(
+                                Block::default()
+                                    .borders(Borders::ALL)
+                                    .border_type(BorderType::Rounded)
+                                    .title("Commands"),
+                            )
                             .style(Style::default().bg(theme.base.background));
-                        
+
                         f.render_widget(list, popup_area);
                     }
                 }

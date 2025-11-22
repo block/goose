@@ -14,6 +14,12 @@ pub struct InfoComponent {
     pun_index: usize,
 }
 
+impl Default for InfoComponent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InfoComponent {
     pub fn new() -> Self {
         Self {
@@ -72,85 +78,79 @@ impl Component for InfoComponent {
                     .fg(theme.status.warning)
                     .add_modifier(Modifier::BOLD),
             ));
-        } else {
-            if state.is_working {
-                // Animated spinner
-                let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-                let spinner = spinner_frames[(self.frame_count / 4) % spinner_frames.len()];
+        } else if state.is_working {
+            let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner = spinner_frames[(self.frame_count / 4) % spinner_frames.len()];
+
+            spans.push(Span::styled(
+                format!("{spinner} "),
+                Style::default()
+                    .fg(theme.status.thinking)
+                    .add_modifier(Modifier::BOLD | Modifier::ITALIC),
+            ));
+
+            if !state.todos.is_empty() {
+                let active_task = state
+                    .todos
+                    .iter()
+                    .find(|item| !item.done)
+                    .map(|item| item.text.as_str())
+                    .unwrap_or("Done!");
+                let total = state.todos.len();
+                let completed = state.todos.iter().filter(|item| item.done).count();
 
                 spans.push(Span::styled(
-                    format!("{} ", spinner),
+                    format!("{active_task} ({completed}/{total}) "),
                     Style::default()
-                        .fg(theme.status.thinking)
-                        .add_modifier(Modifier::BOLD | Modifier::ITALIC),
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
                 ));
-
-                if !state.todos.is_empty() {
-                    // Show active todo
-                    let active_task = state
-                        .todos
-                        .iter()
-                        .find(|item| !item.done)
-                        .map(|item| item.text.as_str())
-                        .unwrap_or("Done!");
-                    let total = state.todos.len();
-                    let completed = state.todos.iter().filter(|item| item.done).count();
-
-                    spans.push(Span::styled(
-                        format!("{} ({}/{}) ", active_task, completed, total),
-                        Style::default()
-                            .fg(Color::Gray)
-                            .add_modifier(Modifier::ITALIC),
-                    ));
-                } else {
-                    // Show pun
-                    spans.push(Span::styled(
-                        self.get_pun(),
-                        Style::default()
-                            .fg(Color::Gray)
-                            .add_modifier(Modifier::ITALIC),
-                    ));
-                }
             } else {
-                // Static loading icon when not working
                 spans.push(Span::styled(
-                    "⠿ ",
+                    self.get_pun(),
                     Style::default()
-                        .fg(theme.status.thinking)
-                        .add_modifier(Modifier::BOLD),
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
                 ));
+            }
+        } else {
+            spans.push(Span::styled(
+                "⠿ ",
+                Style::default()
+                    .fg(theme.status.thinking)
+                    .add_modifier(Modifier::BOLD),
+            ));
 
-                if !state.todos.is_empty() {
-                    let total = state.todos.len();
-                    let completed = state.todos.iter().filter(|item| item.done).count();
-                    let active_task = state
-                        .todos
-                        .iter()
-                        .find(|item| !item.done)
-                        .map(|item| item.text.as_str())
-                        .unwrap_or("All tasks completed!");
+            if !state.todos.is_empty() {
+                let total = state.todos.len();
+                let completed = state.todos.iter().filter(|item| item.done).count();
+                let active_task = state
+                    .todos
+                    .iter()
+                    .find(|item| !item.done)
+                    .map(|item| item.text.as_str())
+                    .unwrap_or("All tasks completed!");
 
-                    spans.push(Span::styled(
-                        format!("{} ({}/{}) ", active_task, completed, total),
-                        Style::default()
-                            .fg(Color::Gray)
-                            .add_modifier(Modifier::ITALIC),
-                    ));
-                } else if !state.has_worked {
-                    spans.push(Span::styled(
-                        "goose 1.14.0",
-                        Style::default()
-                            .fg(Color::Gray)
-                            .add_modifier(Modifier::ITALIC),
-                    ));
-                } else {
-                    spans.push(Span::styled(
-                        "Waiting for user input...",
-                        Style::default()
-                            .fg(Color::Gray)
-                            .add_modifier(Modifier::ITALIC),
-                    ));
-                }
+                spans.push(Span::styled(
+                    format!("{active_task} ({completed}/{total}) "),
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
+                ));
+            } else if !state.has_worked {
+                spans.push(Span::styled(
+                    "goose 1.14.0",
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    "Waiting for user input...",
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
+                ));
             }
         }
 

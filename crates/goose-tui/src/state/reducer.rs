@@ -44,7 +44,7 @@ pub fn update(state: &mut AppState, action: Action) {
         }
         Action::Error(e) => {
             state.flash_message = Some((
-                format!("Error: {}", e),
+                format!("Error: {e}"),
                 Instant::now() + std::time::Duration::from_secs(5),
             ));
             state.is_working = false;
@@ -53,7 +53,7 @@ pub fn update(state: &mut AppState, action: Action) {
             state.messages.push(message);
             state.is_working = true;
             state.has_worked = true;
-        },
+        }
         Action::Interrupt => {
             state.is_working = false;
             state.flash_message = Some((
@@ -92,16 +92,16 @@ pub fn update(state: &mut AppState, action: Action) {
             state.showing_message_info = None;
         }
         Action::DeleteCustomCommand(name) => {
-        state.config.custom_commands.retain(|c| c.name != name);
-        let _ = state.config.save();
-        state.showing_command_builder = false; // Close builder after delete
-    }
-    Action::StartCommandBuilder => state.showing_command_builder = true,
-    Action::SubmitCommandBuilder(cmd) => {
-        state.config.custom_commands.push(cmd);
-        let _ = state.config.save();
-        state.showing_command_builder = false;
-    }
+            state.config.custom_commands.retain(|c| c.name != name);
+            let _ = state.config.save();
+            state.showing_command_builder = false;
+        }
+        Action::StartCommandBuilder => state.showing_command_builder = true,
+        Action::SubmitCommandBuilder(cmd) => {
+            state.config.custom_commands.push(cmd);
+            let _ = state.config.save();
+            state.showing_command_builder = false;
+        }
     }
 }
 
@@ -176,7 +176,7 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
         }
         MessageEvent::Error { error } => {
             state.flash_message = Some((
-                format!("Server Error: {}", error),
+                format!("Server Error: {error}"),
                 Instant::now() + std::time::Duration::from_secs(5),
             ));
             state.is_working = false;

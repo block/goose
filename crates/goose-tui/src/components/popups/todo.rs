@@ -7,7 +7,9 @@ use crossterm::event::{KeyCode, MouseEventKind};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 use ratatui::Frame;
 use std::time::Instant;
 
@@ -16,9 +18,15 @@ pub struct TodoPopup {
     last_scroll_time: Option<Instant>,
 }
 
+impl Default for TodoPopup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TodoPopup {
     pub fn new() -> Self {
-        Self { 
+        Self {
             scroll: 0,
             last_scroll_time: None,
         }
@@ -48,34 +56,30 @@ impl TodoPopup {
 impl Component for TodoPopup {
     fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
         match event {
-            Event::Input(key) => {
-                match key.code {
-                    KeyCode::Esc => return Ok(Some(Action::ClosePopup)),
-                    KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.scroll = self.scroll.saturating_add(1);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.scroll = self.scroll.saturating_sub(1);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    _ => {}
+            Event::Input(key) => match key.code {
+                KeyCode::Esc => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.scroll = self.scroll.saturating_add(1);
+                    self.last_scroll_time = Some(Instant::now());
                 }
-            }
-            Event::Mouse(m) => {
-                match m.kind {
-                    MouseEventKind::ScrollDown => {
-                        self.scroll = self.scroll.saturating_add(3);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    MouseEventKind::ScrollUp => {
-                        self.scroll = self.scroll.saturating_sub(3);
-                        self.last_scroll_time = Some(Instant::now());
-                    }
-                    _ => {}
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.scroll = self.scroll.saturating_sub(1);
+                    self.last_scroll_time = Some(Instant::now());
                 }
-            }
+                _ => {}
+            },
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollDown => {
+                    self.scroll = self.scroll.saturating_add(3);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                MouseEventKind::ScrollUp => {
+                    self.scroll = self.scroll.saturating_sub(3);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                _ => {}
+            },
             _ => {}
         }
         Ok(None)
@@ -130,7 +134,7 @@ impl Component for TodoPopup {
                 let mut scrollbar_state = ScrollbarState::default()
                     .content_length(content_height as usize)
                     .position(self.scroll as usize);
-                
+
                 f.render_stateful_widget(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
                         .begin_symbol(None)

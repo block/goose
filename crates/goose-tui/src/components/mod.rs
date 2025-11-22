@@ -1,8 +1,8 @@
 pub mod chat;
-pub mod input;
-pub mod status;
 pub mod info;
+pub mod input;
 pub mod popups;
+pub mod status;
 
 use crate::services::events::Event;
 use crate::state::action::Action;

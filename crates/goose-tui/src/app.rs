@@ -1,11 +1,11 @@
 use crate::components::chat::ChatComponent;
-use crate::components::input::InputComponent;
 use crate::components::info::InfoComponent;
+use crate::components::input::InputComponent;
 use crate::components::popups::builder::BuilderPopup;
 use crate::components::popups::help::HelpPopup;
+use crate::components::popups::message::MessagePopup;
 use crate::components::popups::session::SessionPopup;
 use crate::components::popups::todo::TodoPopup;
-use crate::components::popups::message::MessagePopup;
 use crate::components::status::StatusComponent;
 use crate::components::Component;
 use crate::services::events::Event;
@@ -26,6 +26,12 @@ pub struct App<'a> {
     session_popup: SessionPopup,
     builder_popup: BuilderPopup<'a>,
     message_popup: MessagePopup,
+}
+
+impl<'a> Default for App<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> App<'a> {
@@ -53,7 +59,7 @@ impl<'a> Component for App<'a> {
                 return Ok(Some(Action::SessionsListLoaded(sessions.clone())))
             }
             Event::SessionResumed(session) => {
-                return Ok(Some(Action::SessionResumed(session.clone())))
+                return Ok(Some(Action::SessionResumed((*session).clone())))
             }
             Event::ToolsLoaded(tools) => return Ok(Some(Action::ToolsLoaded(tools.clone()))),
             Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
