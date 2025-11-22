@@ -15,9 +15,11 @@ interface UserMessageProps {
   isEditingConversation?: boolean;
   onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
   messages?: Message[];
+  onCheckboxChange?: (messageId: string, checked: boolean) => void;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
-export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false, onMetadataUpdate, messages = [] }: UserMessageProps) {
+export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false, onMetadataUpdate, messages = [], onCheckboxChange, messageCheckboxStates }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -25,18 +27,26 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Track checkbox state - start with the message's agentVisible value (default to true if not set)
-  const [isSelected, setIsSelected] = useState(message.metadata?.agentVisible !== false);
-
-  // Update local state if message metadata changes
-  useEffect(() => {
-    setIsSelected(message.metadata?.agentVisible !== false);
-  }, [message.metadata?.agentVisible]);
+  // Determine checkbox state - check checkbox states first (for real-time editing), then fall back to metadata
+  const isSelected = useMemo(() => {
+    if (messageCheckboxStates && message.id) {
+      const checkboxState = messageCheckboxStates.get(message.id);
+      if (checkboxState !== undefined) {
+        return checkboxState;
+      }
+    }
+    // Fall back to metadata if not in checkbox states
+    return message.metadata?.agentVisible !== false;
+  }, [messageCheckboxStates, message.id, message.metadata?.agentVisible]);
 
   // Handle checkbox change
   const handleCheckboxChange = useCallback((checked: boolean) => {
-    setIsSelected(checked);
+    if (onCheckboxChange && message.id) {
+      // Update checkbox states map (this will trigger re-render with updated styling)
+      onCheckboxChange(message.id, checked);
+    }
     
+    // Also update metadata for persistence (if callback provided)
     if (onMetadataUpdate && message.id) {
       // Update this message
       onMetadataUpdate(message.id, { agentVisible: checked });
@@ -59,9 +69,9 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
         }
       }
     }
-  }, [onMetadataUpdate, message.id, messages]);
+  }, [onCheckboxChange, onMetadataUpdate, message.id, messages]);
 
-  // Determine if message should be greyed out/struck through based on local state
+  // Determine if message should be greyed out/struck through
   const isDeselected = !isSelected;
 
   // Extract text content from the message
