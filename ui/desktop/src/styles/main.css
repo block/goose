@@ -112,7 +112,7 @@
   --text-on-accent: var(--color-black);
 
   /* semantic */
-  --background-app: var(--color-neutral-950);
+  --background-app: radial-gradient(ellipse 50% 50% at 50% 50%, #111116 0%, #070708 100%);
   --background-default: var(--color-neutral-950);
   --background-card: var(--color-neutral-950);
   --background-muted: var(--color-neutral-800);
@@ -505,7 +505,7 @@
 }
 
 body {
-  background-color: var(--background-app);
+  background: var(--background-app);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
