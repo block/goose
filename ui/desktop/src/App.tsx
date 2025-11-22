@@ -601,7 +601,7 @@ export function AppInner() {
         pauseOnHover
       />
       <ExtensionInstallModal addExtension={addExtension} />
-      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
           <Route
