@@ -75,7 +75,9 @@ import { ChatType } from '../types/chat';
 import { useToolCount } from './alerts/useToolCount';
 import { Message } from '../api';
 import { EditConversationBanner } from './EditConversationBanner';
+import { ContextUsageUpdateModal } from './ContextUsageUpdateModal';
 import { getApiUrl } from '../config';
+import { getTextContent } from '../types/message';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -129,6 +131,9 @@ function BaseChatContent({
   const [isEditingConversation, setIsEditingConversation] = useState(false);
   // Track checkbox states for messages during edit mode
   const [messageCheckboxStates, setMessageCheckboxStates] = useState<Map<string, boolean>>(new Map());
+  // Modal state for context usage update
+  const [isContextUsageModalOpen, setIsContextUsageModalOpen] = useState(false);
+  const [contextUsageData, setContextUsageData] = useState<{ before: number; after: number } | null>(null);
 
   // Use shared chat engine
   const {
@@ -345,6 +350,22 @@ function BaseChatContent({
     }
   }, [isEditingConversation, messages]);
 
+  // Calculate tokens for agent-visible messages
+  const calculateAgentVisibleTokens = useCallback((messagesToCount: Message[]): number => {
+    let totalTokens = 0;
+    messagesToCount.forEach((message) => {
+      // Only count messages that are visible to the agent
+      if (message.metadata?.agentVisible !== false) {
+        const textContent = getTextContent(message);
+        if (textContent) {
+          // Simple token estimation (roughly 4 characters per token)
+          totalTokens += Math.ceil(textContent.length / 4);
+        }
+      }
+    });
+    return totalTokens;
+  }, []);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Edit Conversation Banner - outside MainPanelLayout to avoid overlap */}
@@ -355,6 +376,9 @@ function BaseChatContent({
               try {
                 console.log('Save clicked, messages:', messages.length);
                 console.log('Checkbox states:', Array.from(messageCheckboxStates.entries()));
+                
+                // Calculate tokens before update
+                const beforeTokens = calculateAgentVisibleTokens(messages);
                 
                 // Update messages with agentVisible=false for unchecked messages
                 const updatedMessages = messages.map((msg) => {
@@ -384,6 +408,9 @@ function BaseChatContent({
                   };
                 });
                 
+                // Calculate tokens after update
+                const afterTokens = calculateAgentVisibleTokens(updatedMessages);
+                
                 console.log('Updated messages:', updatedMessages.length);
                 
                 // Persist to database via API endpoint (similar to compaction)
@@ -408,6 +435,10 @@ function BaseChatContent({
                 
                 // Update local state after successful save
                 setMessages(updatedMessages);
+                
+                // Show modal with token usage update
+                setContextUsageData({ before: beforeTokens, after: afterTokens });
+                setIsContextUsageModalOpen(true);
                 
                 // Clear checkbox states and exit edit mode
                 setMessageCheckboxStates(new Map());
@@ -606,6 +637,19 @@ function BaseChatContent({
           </div>
         )}
       </MainPanelLayout>
+
+      {/* Context Usage Update Modal */}
+      {contextUsageData && (
+        <ContextUsageUpdateModal
+          isOpen={isContextUsageModalOpen}
+          onClose={() => {
+            setIsContextUsageModalOpen(false);
+            setContextUsageData(null);
+          }}
+          beforeTokens={contextUsageData.before}
+          afterTokens={contextUsageData.after}
+        />
+      )}
 
       {/* Recipe Warning Modal */}
       <RecipeWarningModal
