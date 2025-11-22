@@ -190,3 +190,59 @@ pub async fn handle_term_run(prompt: String) -> Result<()> {
 
     Ok(())
 }
+
+/// Handle `goose term info` - print compact session info for prompt integration
+pub async fn handle_term_info() -> Result<()> {
+    use goose::config::Config;
+
+    let terminal_id = match std::env::var("GOOSE_TERMINAL_ID") {
+        Ok(id) => id,
+        Err(_) => return Ok(()), // Silent exit if no terminal ID
+    };
+
+    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
+
+    // Get tokens from session or 0 if none started yet in this terminal
+    let session = SessionManager::get_session(&session_name, false).await.ok();
+    let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
+
+    let model_name = Config::global()
+        .get_goose_model()
+        .ok()
+        .or_else(|| {
+            session
+                .as_ref()
+                .and_then(|s| s.model_config.as_ref().map(|mc| mc.model_name.clone()))
+        })
+        .map(|name| {
+            // Extract short name: after last / or after last - if it starts with "goose-"
+            let short = name.rsplit('/').next().unwrap_or(&name);
+            if let Some(stripped) = short.strip_prefix("goose-") {
+                stripped.to_string()
+            } else {
+                short.to_string()
+            }
+        })
+        .unwrap_or_else(|| "?".to_string());
+
+    // Get context limit for the model
+    let context_limit = session
+        .as_ref()
+        .and_then(|s| s.model_config.as_ref().map(|mc| mc.context_limit()))
+        .unwrap_or(128_000);
+
+    // Calculate percentage and create dot visualization
+    let percentage = if context_limit > 0 {
+        ((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize
+    } else {
+        0
+    };
+
+    let filled = (percentage / 20).min(5);
+    let empty = 5 - filled;
+    let dots = format!("{}{}", "●".repeat(filled), "○".repeat(empty));
+
+    println!("{} {}", dots, model_name);
+
+    Ok(())
+}

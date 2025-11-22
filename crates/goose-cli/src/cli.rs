@@ -13,7 +13,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-use crate::commands::term::{handle_term_init, handle_term_log, handle_term_run};
+use crate::commands::term::{handle_term_info, handle_term_init, handle_term_log, handle_term_run};
 
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -893,6 +893,14 @@ enum TermCommand {
         #[arg(value_parser = non_empty_string)]
         prompt: String,
     },
+
+    /// Print session info for prompt integration
+    #[command(
+        about = "Print session info for prompt integration",
+        long_about = "Prints compact session info (token usage, model) for shell prompt integration.\n\
+                      Example output: ●○○○○ sonnet"
+    )]
+    Info,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -1476,6 +1484,9 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
                 TermCommand::Run { prompt } => {
                     handle_term_run(prompt).await?;
+                }
+                TermCommand::Info => {
+                    handle_term_info().await?;
                 }
             }
             return Ok(());
