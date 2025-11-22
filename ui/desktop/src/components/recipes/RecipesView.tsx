@@ -10,6 +10,7 @@ import {
   Link,
   Clock,
   Terminal,
+  ExternalLink,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
@@ -92,41 +93,35 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe, recipeId: string) => {
-    if (process.env.ALPHA) {
-      try {
-        const newAgent = await startAgent({
-          body: {
-            working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-            recipe,
-          },
-          throwOnError: true,
-        });
-        const session = newAgent.data;
-        setView('pair', {
-          disableAnimation: true,
-          resumeSessionId: session.id,
-        });
-      } catch (error) {
-        console.error('Failed to load recipe:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load recipe');
-      }
-    } else {
-      try {
-        window.electron.createChatWindow(
-          undefined,
-          undefined,
-          undefined,
-          undefined,
+  const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
+    try {
+      const newAgent = await startAgent({
+        body: {
+          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
           recipe,
-          undefined,
-          recipeId
-        );
-      } catch (err) {
-        console.error('Failed to load recipe:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load recipe');
-      }
+        },
+        throwOnError: true,
+      });
+      const session = newAgent.data;
+      setView('pair', {
+        disableAnimation: true,
+        resumeSessionId: session.id,
+      });
+    } catch (error) {
+      console.error('Failed to load recipe:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load recipe');
     }
+  };
+
+  const handleStartRecipeChatInNewWindow = (recipeId: string) => {
+    window.electron.createChatWindow(
+      undefined,
+      window.appConfig.get('GOOSE_WORKING_DIR') as string,
+      undefined,
+      undefined,
+      'pair',
+      recipeId
+    );
   };
 
   const handleDeleteRecipe = async (recipeManifest: RecipeManifest) => {
@@ -367,6 +362,18 @@ export default function RecipesView() {
             title="Use recipe"
           >
             <Play className="w-4 h-4" />
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Open in new window"
+          >
+            <ExternalLink className="w-4 h-4" />
           </Button>
           <Button
             onClick={(e) => {

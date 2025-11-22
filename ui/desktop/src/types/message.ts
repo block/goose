@@ -1,7 +1,8 @@
-import { Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, MessageEvent, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
+export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
 const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
@@ -12,25 +13,6 @@ export function createUserMessage(text: string): Message {
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [{ type: 'text', text }],
-    metadata: { userVisible: true, agentVisible: true },
-  };
-}
-
-export function createToolErrorResponseMessage(id: string, error: string): Message {
-  return {
-    id: generateMessageId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'toolResponse',
-        id,
-        toolResult: {
-          status: 'error',
-          error,
-        },
-      },
-    ],
     metadata: { userVisible: true, agentVisible: true },
   };
 }
