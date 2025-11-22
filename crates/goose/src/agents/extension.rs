@@ -1,5 +1,6 @@
 use crate::agents::chatrecall_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::skills_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -73,6 +74,16 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            skills_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: skills_extension::EXTENSION_NAME,
+                description: "Load and use skills from .claude/skills or .goose/skills directories",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
             },
         );
 
