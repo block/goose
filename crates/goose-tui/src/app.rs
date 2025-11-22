@@ -46,6 +46,21 @@ impl<'a> App<'a> {
 
 impl<'a> Component for App<'a> {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        // 0. Priority System Events
+        match event {
+            Event::Server(msg) => return Ok(Some(Action::ServerMessage(msg.clone()))),
+            Event::SessionsList(sessions) => {
+                return Ok(Some(Action::SessionsListLoaded(sessions.clone())))
+            }
+            Event::SessionResumed(session) => {
+                return Ok(Some(Action::SessionResumed(session.clone())))
+            }
+            Event::ToolsLoaded(tools) => return Ok(Some(Action::ToolsLoaded(tools.clone()))),
+            Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
+            Event::Resize => return Ok(Some(Action::Resize)),
+            _ => {}
+        }
+
         // 1. Popups
         if state.showing_todo {
             if let Some(action) = self.todo_popup.handle_event(event, state)? {
@@ -109,22 +124,7 @@ impl<'a> Component for App<'a> {
         if let Event::Tick = event {
             self.status.handle_event(event, state)?;
             self.info.handle_event(event, state)?;
-        }
-
-        // 6. System Events
-        match event {
-            Event::Tick => return Ok(Some(Action::Tick)),
-            Event::Server(msg) => return Ok(Some(Action::ServerMessage(msg.clone()))),
-            Event::SessionsList(sessions) => {
-                return Ok(Some(Action::SessionsListLoaded(sessions.clone())))
-            }
-            Event::SessionResumed(session) => {
-                return Ok(Some(Action::SessionResumed(session.clone())))
-            }
-            Event::ToolsLoaded(tools) => return Ok(Some(Action::ToolsLoaded(tools.clone()))),
-            Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
-            Event::Resize => return Ok(Some(Action::Resize)),
-            _ => {}
+            return Ok(Some(Action::Tick));
         }
 
         Ok(None)

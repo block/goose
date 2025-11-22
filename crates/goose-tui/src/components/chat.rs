@@ -474,6 +474,8 @@ impl Component for ChatComponent {
                 theme.base.border
             }));
 
+        let items_len = display_items.len();
+
         let list = List::new(display_items)
             .block(block)
             .style(
@@ -488,5 +490,21 @@ impl Component for ChatComponent {
             );
 
         f.render_stateful_widget(list, area, &mut self.list_state);
+
+        // Render scrollbar
+        if !self.stick_to_bottom && items_len > 0 {
+            use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+            let mut scroll_state = ScrollbarState::default()
+                .content_length(items_len)
+                .position(self.list_state.selected().unwrap_or(0));
+
+            f.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .end_symbol(None),
+                area,
+                &mut scroll_state,
+            );
+        }
     }
 }

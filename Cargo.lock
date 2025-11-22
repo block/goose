@@ -2996,6 +2996,7 @@ version = "1.14.0"
 dependencies = [
  "anyhow",
  "axum 0.8.1",
+ "chrono",
  "clap",
  "crossterm",
  "directories",

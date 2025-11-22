@@ -4,21 +4,26 @@ use crate::state::action::Action;
 use crate::state::state::AppState;
 use crate::utils::layout::centered_rect;
 use anyhow::Result;
-use crossterm::event::KeyCode;
-use ratatui::layout::Rect;
+use crossterm::event::{KeyCode, MouseEventKind};
+use ratatui::layout::{Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
+    ScrollbarOrientation, ScrollbarState,
+};
 use ratatui::Frame;
 
 pub struct SessionPopup {
     list_state: ListState,
+    scroll_state: ScrollbarState,
 }
 
 impl SessionPopup {
     pub fn new() -> Self {
         Self {
             list_state: ListState::default(),
+            scroll_state: ScrollbarState::default(),
         }
     }
 }
@@ -26,51 +31,63 @@ impl SessionPopup {
 impl Component for SessionPopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
         if !state.showing_session_picker {
-            // Reset selection when not showing, so next open starts fresh
-            // But wait, handle_event is called even if not showing? 
-            // App logic calls only if state.showing_session_picker is true.
-            // So we can't reset here "when closed". 
-            // We rely on render to set initial selection if None.
-            // Or we need a Reset action?
-            // Let's just ensure render sets it if None.
-            // render logic handles it: if self.list_state.selected().is_none() && !state.available_sessions.is_empty() { select(0) }
-            // The issue is if it WAS selected before, it remembers.
-            // We should reset on ClosePopup or OpenSessionPicker action in reducer?
-            // Reducer can't touch Component state (list_state).
-            // So the Component must detect "Just Opened".
-            // But it's stateless mostly.
-            // Let's reset selection if we are at the end of the list and list shrank?
-            // Or just reset to 0 every time it's opened?
-            // We can check if state.showing_session_picker became true? No history here.
-            
-            // Workaround: in render, if state.available_sessions changed?
-            // Let's just use the existing render logic but maybe force 0 if `state.available_sessions` is populated and nothing selected.
-            // Actually, if the user says "picker doesn't show any sessions", it implies `available_sessions` is empty.
-            // This might be an async timing issue.
             return Ok(None);
         }
 
-        if let Event::Input(key) = event {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down => {
-                    let idx = self.list_state.selected().unwrap_or(0);
-                    let max = state.available_sessions.len().saturating_sub(1);
-                    self.list_state.select(Some((idx + 1).min(max)));
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    let idx = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some(idx.saturating_sub(1)));
-                }
-                KeyCode::Enter => {
-                    if let Some(idx) = self.list_state.selected() {
-                        if let Some(session) = state.available_sessions.get(idx) {
-                            return Ok(Some(Action::ResumeSession(session.id.clone())));
+        match event {
+            Event::Input(key) => {
+                let max_idx = state.available_sessions.len().saturating_sub(1);
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some((idx + 1).min(max_idx)));
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some(idx.saturating_sub(1)));
+                    }
+                    KeyCode::PageDown => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some((idx + 10).min(max_idx)));
+                    }
+                    KeyCode::PageUp => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some(idx.saturating_sub(10)));
+                    }
+                    KeyCode::Enter => {
+                        if let Some(idx) = self.list_state.selected() {
+                            if let Some(session) = state.available_sessions.get(idx) {
+                                return Ok(Some(Action::ResumeSession(session.id.clone())));
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
+                // Update scrollbar position
+                if let Some(idx) = self.list_state.selected() {
+                    self.scroll_state = self.scroll_state.position(idx);
+                }
             }
+            Event::Mouse(mouse) => {
+                let max_idx = state.available_sessions.len().saturating_sub(1);
+                match mouse.kind {
+                    MouseEventKind::ScrollDown => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some((idx + 1).min(max_idx)));
+                    }
+                    MouseEventKind::ScrollUp => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some(idx.saturating_sub(1)));
+                    }
+                    _ => {}
+                }
+                // Update scrollbar position
+                if let Some(idx) = self.list_state.selected() {
+                    self.scroll_state = self.scroll_state.position(idx);
+                }
+            }
+            _ => {}
         }
         Ok(None)
     }
@@ -83,16 +100,25 @@ impl Component for SessionPopup {
         let area = centered_rect(60, 60, area);
         f.render_widget(Clear, area);
 
+        // Update scroll content length
+        self.scroll_state = self
+            .scroll_state
+            .content_length(state.available_sessions.len());
+
         let items: Vec<ListItem> = state
             .available_sessions
             .iter()
             .map(|s| {
                 let id = Span::styled(
-                    format!("{:<10}", &s.id[..8]),
+                    &s.id, // Full ID
                     Style::default().fg(Color::Cyan),
                 );
+                let count = Span::styled(
+                    format!(" ({} msgs) ", s.message_count),
+                    Style::default().fg(Color::DarkGray),
+                );
                 let name = Span::styled(&s.name, Style::default().fg(Color::White));
-                ListItem::new(Line::from(vec![id, Span::raw(" "), name]))
+                ListItem::new(Line::from(vec![id, count, name]))
             })
             .collect();
 
@@ -118,8 +144,21 @@ impl Component for SessionPopup {
 
         if self.list_state.selected().is_none() && !state.available_sessions.is_empty() {
             self.list_state.select(Some(0));
+            self.scroll_state = self.scroll_state.position(0);
         }
 
         f.render_stateful_widget(list, area, &mut self.list_state);
+
+        f.render_stateful_widget(
+            Scrollbar::default()
+                .orientation(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓")),
+            area.inner(Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut self.scroll_state,
+        );
     }
 }

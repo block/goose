@@ -36,6 +36,7 @@ goose-mcp = { version = "1.14.0", path = "../goose-mcp" }
 pulldown-cmark = "0.12"
 ulid = "1.2.1"
 syntect = "5.2"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full"] }

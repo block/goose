@@ -73,12 +73,6 @@ async fn main() -> Result<()> {
             env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
             env::set_var("GOOSE_PORT", "0"); // Ephemeral port
 
-            // Set GOOSE_HOME for the embedded server to ensure sessions are found
-            if let Some(home) = dirs::home_dir() {
-                let goose_home = home.join(".goose");
-                env::set_var("GOOSE_HOME", goose_home);
-            }
-
             info!("Initializing embedded server...");
 
             let (server_app, listener) = goose_server::commands::agent::build_app().await?;

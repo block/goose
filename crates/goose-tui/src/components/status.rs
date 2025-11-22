@@ -16,7 +16,6 @@ impl StatusComponent {
 
 impl Component for StatusComponent {
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        let mut lines = Vec::new();
         let theme = &state.config.theme;
 
         let mode_bg = if state.is_working {
@@ -41,21 +40,21 @@ impl Component for StatusComponent {
             }
         };
 
-        let mut first_line_spans: Vec<Span> = Vec::new();
-        first_line_spans.push(Span::styled(
+        let mut spans: Vec<Span> = Vec::new();
+        spans.push(Span::styled(
             mode_text,
             Style::default()
                 .bg(mode_bg)
                 .fg(mode_fg)
                 .add_modifier(Modifier::BOLD),
         ));
-        first_line_spans.push(Span::raw(" "));
+        spans.push(Span::raw(" "));
 
-        first_line_spans.push(Span::styled(
+        spans.push(Span::styled(
             &state.session_id,
             Style::default().fg(theme.base.foreground),
         ));
-        first_line_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
         let limit = state.model_context_limit;
         let current = state.token_state.total_tokens;
@@ -72,30 +71,23 @@ impl Component for StatusComponent {
             limit.to_string()
         };
 
-        first_line_spans.push(Span::styled(
+        spans.push(Span::styled(
             format!("{}/{}", fmt_k(current), limit_k),
             Style::default().fg(theme.base.foreground),
         ));
-        first_line_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
         if let Ok(cwd) = std::env::current_dir() {
             if let Some(cwd_str) = cwd.to_str() {
-                let max_len = 40;
-                let display = if cwd_str.len() > max_len {
-                    format!("...{}", &cwd_str[cwd_str.len() - max_len + 3..])
-                } else {
-                    cwd_str.to_string()
-                };
-                first_line_spans.push(Span::styled(
-                    display,
+                spans.push(Span::styled(
+                    cwd_str.to_string(),
                     Style::default().fg(theme.base.foreground),
                 ));
-                first_line_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
         }
 
-        lines.push(Line::from(first_line_spans));
-
+        // Hints
         let mut hints: Vec<Span> = Vec::new();
         // Ctrl+C Hint
         if state.is_working {
@@ -117,19 +109,15 @@ impl Component for StatusComponent {
         }
         hints.push(Span::styled("Ctrl+T: Todos", Style::default().fg(Color::DarkGray)));
 
-        // Combine hints with separators
-        let mut final_hint_line_spans = Vec::new();
         for (i, hint_span) in hints.into_iter().enumerate() {
             if i > 0 {
-                final_hint_line_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
-            final_hint_line_spans.push(hint_span);
+            spans.push(hint_span);
         }
 
-        lines.push(Line::from(final_hint_line_spans));
-
         f.render_widget(
-            Paragraph::new(lines)
+            Paragraph::new(Line::from(spans))
                 .block(Block::default().style(Style::default().bg(theme.base.selection))),
             area,
         );
