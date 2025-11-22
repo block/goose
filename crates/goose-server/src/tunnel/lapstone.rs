@@ -34,6 +34,12 @@ const IDLE_TIMEOUT_SECS: u64 = 300;
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
 const MAX_WS_SIZE: usize = 900_000;
 
+fn get_worker_url() -> String {
+    std::env::var("GOOSE_TUNNEL_WORKER_URL")
+        .ok()
+        .unwrap_or_else(|| WORKER_URL.to_string())
+}
+
 type WebSocketSender = Arc<
     RwLock<
         Option<
@@ -471,8 +477,7 @@ async fn run_single_connection(
     server_secret: String,
     restart_tx: mpsc::Sender<()>,
 ) {
-    let worker_url =
-        std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
+    let worker_url = get_worker_url();
     let ws_url = worker_url
         .replace("https://", "wss://")
         .replace("http://", "ws://");
@@ -561,12 +566,7 @@ pub async fn start(
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: mpsc::Sender<()>,
 ) -> Result<TunnelInfo> {
-    let worker_url =
-        std::env::var("GOOSE_TUNNEL_WORKER_URL").unwrap_or_else(|_| WORKER_URL.to_string());
-
-    if worker_url.to_lowercase() == "none" {
-        anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL_WORKER_URL environment variable");
-    }
+    let worker_url = get_worker_url();
 
     let agent_id_clone = agent_id.clone();
     let tunnel_secret_clone = tunnel_secret.clone();

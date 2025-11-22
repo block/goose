@@ -23,6 +23,7 @@ pub enum TunnelState {
     Starting,
     Running,
     Error,
+    Disabled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -89,7 +90,25 @@ impl TunnelManager {
         }
     }
 
+    fn is_tunnel_disabled() -> bool {
+        if let Ok(val) = std::env::var("GOOSE_TUNNEL") {
+            let val = val.to_lowercase();
+            val == "no" || val == "none"
+        } else {
+            false
+        }
+    }
+
     pub async fn get_info(&self) -> TunnelInfo {
+        if Self::is_tunnel_disabled() {
+            return TunnelInfo {
+                state: TunnelState::Disabled,
+                url: String::new(),
+                hostname: String::new(),
+                secret: String::new(),
+            };
+        }
+
         let state = self.state.read().await.clone();
         let info = self.info.read().await.clone();
 
@@ -155,11 +174,8 @@ impl TunnelManager {
     }
 
     pub async fn start(&self) -> anyhow::Result<TunnelInfo> {
-        if let Ok(val) = std::env::var("GOOSE_TUNNEL") {
-            let val = val.to_lowercase();
-            if val == "no" || val == "none" {
-                anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL environment variable");
-            }
+        if Self::is_tunnel_disabled() {
+            anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL environment variable");
         }
 
         let mut state = self.state.write().await;

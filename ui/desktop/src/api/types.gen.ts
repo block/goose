@@ -928,7 +928,7 @@ export type TunnelInfo = {
     url: string;
 };
 
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error';
+export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
 export type UpdateCustomProviderRequest = {
     api_key: string;

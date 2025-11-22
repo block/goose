@@ -13,6 +13,7 @@ const STATUS_MESSAGES = {
   starting: 'Starting tunnel...',
   running: 'Tunnel is active',
   error: 'Tunnel encountered an error',
+  disabled: 'Tunnel is disabled',
 } as const;
 
 export default function TunnelSection() {
@@ -106,7 +107,7 @@ export default function TunnelSection() {
     return `goosechat://configure?data=${urlEncodedConfig}`;
   };
 
-  if (!process.env.GOOSE_TUNNEL) {
+  if (tunnelInfo.state === 'disabled') {
     return null;
   }
 
