@@ -1788,7 +1788,6 @@ async function appMain() {
     app.dock?.hide();
   }
 
-  // Parse command line arguments
   const { dirPath } = parseArgs();
 
   await createNewWindow(app, dirPath);
