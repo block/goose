@@ -4,8 +4,10 @@ import { Check, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { useConfig } from '../../ConfigContext';
 
 export default function SessionSharingSection() {
+  const { config, upsert } = useConfig();
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
   console.log('envBaseUrlShare', envBaseUrlShare);
 
@@ -150,6 +152,14 @@ export default function SessionSharingSection() {
     }
   };
 
+  const externalSessionsEnabled =
+    config['GOOSE_ENABLE_EXTERNAL_SESSIONS'] === true ||
+    config['GOOSE_ENABLE_EXTERNAL_SESSIONS'] === 'true';
+
+  const toggleExternalSessions = async () => {
+    await upsert('GOOSE_ENABLE_EXTERNAL_SESSIONS', !externalSessionsEnabled, false);
+  };
+
   return (
     <section id="session-sharing" className="space-y-4 pr-4 mt-1">
       <Card className="pb-2">
@@ -244,6 +254,26 @@ export default function SessionSharingSection() {
                 )}
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2">
+        <CardHeader className="pb-0">
+          <CardTitle>External Sessions</CardTitle>
+          <CardDescription>
+            Allow goose to access sessions from Claude Code and Codex editors. When enabled, goose
+            can read conversation history from these tools.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-4 py-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm cursor-pointer">Enable external session access</label>
+            <Switch
+              checked={externalSessionsEnabled}
+              onCheckedChange={toggleExternalSessions}
+              variant="mono"
+            />
           </div>
         </CardContent>
       </Card>
