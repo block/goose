@@ -114,10 +114,7 @@ impl Component for SessionPopup {
             .available_sessions
             .iter()
             .map(|s| {
-                let id = Span::styled(
-                    &s.id,
-                    Style::default().fg(Color::Cyan),
-                );
+                let id = Span::styled(&s.id, Style::default().fg(Color::Cyan));
                 let count = Span::styled(
                     format!(" ({} msgs) ", s.message_count),
                     Style::default().fg(Color::DarkGray),

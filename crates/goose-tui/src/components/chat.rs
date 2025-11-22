@@ -245,27 +245,25 @@ impl Component for ChatComponent {
             self.frame_count = self.frame_count.wrapping_add(1);
         }
         match event {
-            Event::Mouse(m) => {
-                match m.kind {
-                    MouseEventKind::ScrollUp => {
-                        self.stick_to_bottom = false;
-                        let cur = self.list_state.selected().unwrap_or(0);
-                        self.list_state.select(Some(cur.saturating_sub(3)));
-                    }
-                    MouseEventKind::ScrollDown => {
-                        let cur = self.list_state.selected().unwrap_or(0);
-                        self.list_state.select(Some(cur + 3));
-                    }
-                    MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                        if let Some(idx) = self.list_state.selected() {
-                            if let Some(&msg_idx) = self.cached_mapping.get(idx) {
-                                return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                            }
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollUp => {
+                    self.stick_to_bottom = false;
+                    let cur = self.list_state.selected().unwrap_or(0);
+                    self.list_state.select(Some(cur.saturating_sub(3)));
+                }
+                MouseEventKind::ScrollDown => {
+                    let cur = self.list_state.selected().unwrap_or(0);
+                    self.list_state.select(Some(cur + 3));
+                }
+                MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                    if let Some(idx) = self.list_state.selected() {
+                        if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                            return Ok(Some(Action::OpenMessageInfo(msg_idx)));
                         }
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             Event::Input(key) => {
                 if state.input_mode == crate::state::state::InputMode::Normal {
                     match key.code {
@@ -359,10 +357,9 @@ impl Component for ChatComponent {
         }
 
         // Auto-scroll logic
-        if self.stick_to_bottom
-            && !display_items.is_empty() {
-                self.list_state.select(Some(display_items.len() - 1));
-            }
+        if self.stick_to_bottom && !display_items.is_empty() {
+            self.list_state.select(Some(display_items.len() - 1));
+        }
 
         // Render Logo if empty
         if display_items.is_empty() {
@@ -393,10 +390,12 @@ impl Component for ChatComponent {
                 .lines()
                 .map(|l| Line::from(Span::styled(l, Style::default().fg(logo_color))))
                 .collect();
-            let hints = ["Tips for getting started:",
+            let hints = [
+                "Tips for getting started:",
                 "1. Ask questions, edit files, or run commands.",
                 "2. Be specific for the best results.",
-                "3. Type /help for more information."];
+                "3. Type /help for more information.",
+            ];
 
             let block = Block::default()
                 .borders(Borders::ALL)

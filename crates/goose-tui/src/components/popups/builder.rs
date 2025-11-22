@@ -68,138 +68,129 @@ impl<'a> Component for BuilderPopup<'a> {
 
         if let Event::Input(key) = event {
             match self.step {
-                Step::Menu => {
-                    match key.code {
-                        KeyCode::Esc | KeyCode::Char('q') => {
-                            self.reset();
-                            return Ok(Some(Action::ClosePopup));
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            let idx = self.list_state.selected().unwrap_or(0);
-                            let max = state.available_tools.len();
-                            let total_items = max + 1;
-                            self.list_state
-                                .select(Some((idx + 1).min(total_items.saturating_sub(1))));
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            let idx = self.list_state.selected().unwrap_or(0);
-                            self.list_state.select(Some(idx.saturating_sub(1)));
-                        }
-                        KeyCode::Enter => {
-                            let idx = self.list_state.selected().unwrap_or(0);
-                            if idx == 0 {
-                                self.step = Step::DeleteSelect;
-                                self.list_state.select(Some(0));
-                                self.selected_tool_idx = None;
-                                self.input = TextArea::default();
-                                self.input.set_block(Block::default().borders(Borders::ALL));
-                            } else {
-                                let tool_idx = idx - 1;
-                                if state.available_tools.get(tool_idx).is_some() {
-                                    self.selected_tool_idx = Some(tool_idx);
-                                    let tool = &state.available_tools[tool_idx];
-                                    if tool.parameters.is_empty() {
-                                        self.step = Step::NameCommand;
-                                    } else {
-                                        self.step = Step::ConfigureArg(0);
-                                    }
-                                    self.input = TextArea::default();
-                                    self.input.set_block(Block::default().borders(Borders::ALL));
-                                }
-                            }
-                        }
-                        _ => {}
+                Step::Menu => match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.reset();
+                        return Ok(Some(Action::ClosePopup));
                     }
-                }
-                Step::DeleteSelect => {
-                    match key.code {
-                        KeyCode::Esc => {
-                            self.step = Step::Menu;
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        let max = state.available_tools.len();
+                        let total_items = max + 1;
+                        self.list_state
+                            .select(Some((idx + 1).min(total_items.saturating_sub(1))));
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some(idx.saturating_sub(1)));
+                    }
+                    KeyCode::Enter => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        if idx == 0 {
+                            self.step = Step::DeleteSelect;
                             self.list_state.select(Some(0));
                             self.selected_tool_idx = None;
                             self.input = TextArea::default();
                             self.input.set_block(Block::default().borders(Borders::ALL));
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            let idx = self.list_state.selected().unwrap_or(0);
-                            let max = state.config.custom_commands.len().saturating_sub(1);
-                            self.list_state.select(Some((idx + 1).min(max)));
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            let idx = self.list_state.selected().unwrap_or(0);
-                            self.list_state.select(Some(idx.saturating_sub(1)));
-                        }
-                        KeyCode::Enter => {
-                            if let Some(idx) = self.list_state.selected() {
-                                if let Some(cmd) = state.config.custom_commands.get(idx) {
-                                    self.reset();
-                                    return Ok(Some(Action::DeleteCustomCommand(cmd.name.clone())));
+                        } else {
+                            let tool_idx = idx - 1;
+                            if state.available_tools.get(tool_idx).is_some() {
+                                self.selected_tool_idx = Some(tool_idx);
+                                let tool = &state.available_tools[tool_idx];
+                                if tool.parameters.is_empty() {
+                                    self.step = Step::NameCommand;
+                                } else {
+                                    self.step = Step::ConfigureArg(0);
                                 }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                Step::ConfigureArg(arg_idx) => {
-                    match key.code {
-                        KeyCode::Esc => {
-                            self.step = Step::Menu;
-                        }
-                        KeyCode::Enter => {
-                            let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
-                            let arg_name = &tool.parameters[arg_idx];
-                            let value = self.input.lines().join("\n");
-
-                            self.arg_values.insert(arg_name.clone(), value);
-
-                            if arg_idx + 1 < tool.parameters.len() {
-                                self.step = Step::ConfigureArg(arg_idx + 1);
-                                self.input = TextArea::default();
-                                self.input.set_block(Block::default().borders(Borders::ALL));
-                            } else {
-                                self.step = Step::NameCommand;
                                 self.input = TextArea::default();
                                 self.input.set_block(Block::default().borders(Borders::ALL));
                             }
                         }
-                        _ => {
-                            self.input.input(*key);
-                        }
                     }
-                }
-                Step::NameCommand => {
-                    match key.code {
-                        KeyCode::Esc => {
-                            self.step = Step::Menu;
-                        }
-                        KeyCode::Enter => {
-                            let name = self.input.lines().join("\n").trim().to_string();
-                            if !name.is_empty() {
-                                let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
-
-                                let mut args_map = serde_json::Map::new();
-                                for (k, v) in &self.arg_values {
-                                    args_map
-                                        .insert(k.clone(), serde_json::Value::String(v.clone()));
-                                }
-
-                                let cmd = CustomCommand {
-                                    name: name.replace("/", ""),
-                                    description: format!("Alias for {}", tool.name),
-                                    tool: tool.name.clone(),
-                                    args: serde_json::Value::Object(args_map),
-                                };
-
+                    _ => {}
+                },
+                Step::DeleteSelect => match key.code {
+                    KeyCode::Esc => {
+                        self.step = Step::Menu;
+                        self.list_state.select(Some(0));
+                        self.selected_tool_idx = None;
+                        self.input = TextArea::default();
+                        self.input.set_block(Block::default().borders(Borders::ALL));
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        let max = state.config.custom_commands.len().saturating_sub(1);
+                        self.list_state.select(Some((idx + 1).min(max)));
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        let idx = self.list_state.selected().unwrap_or(0);
+                        self.list_state.select(Some(idx.saturating_sub(1)));
+                    }
+                    KeyCode::Enter => {
+                        if let Some(idx) = self.list_state.selected() {
+                            if let Some(cmd) = state.config.custom_commands.get(idx) {
                                 self.reset();
-                                return Ok(Some(Action::SubmitCommandBuilder(cmd)));
+                                return Ok(Some(Action::DeleteCustomCommand(cmd.name.clone())));
                             }
                         }
-                        _ => {
-                            self.input.input(*key);
+                    }
+                    _ => {}
+                },
+
+                Step::ConfigureArg(arg_idx) => match key.code {
+                    KeyCode::Esc => {
+                        self.step = Step::Menu;
+                    }
+                    KeyCode::Enter => {
+                        let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
+                        let arg_name = &tool.parameters[arg_idx];
+                        let value = self.input.lines().join("\n");
+
+                        self.arg_values.insert(arg_name.clone(), value);
+
+                        if arg_idx + 1 < tool.parameters.len() {
+                            self.step = Step::ConfigureArg(arg_idx + 1);
+                            self.input = TextArea::default();
+                            self.input.set_block(Block::default().borders(Borders::ALL));
+                        } else {
+                            self.step = Step::NameCommand;
+                            self.input = TextArea::default();
+                            self.input.set_block(Block::default().borders(Borders::ALL));
                         }
                     }
-                }
+                    _ => {
+                        self.input.input(*key);
+                    }
+                },
+                Step::NameCommand => match key.code {
+                    KeyCode::Esc => {
+                        self.step = Step::Menu;
+                    }
+                    KeyCode::Enter => {
+                        let name = self.input.lines().join("\n").trim().to_string();
+                        if !name.is_empty() {
+                            let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
+
+                            let mut args_map = serde_json::Map::new();
+                            for (k, v) in &self.arg_values {
+                                args_map.insert(k.clone(), serde_json::Value::String(v.clone()));
+                            }
+
+                            let cmd = CustomCommand {
+                                name: name.replace("/", ""),
+                                description: format!("Alias for {}", tool.name),
+                                tool: tool.name.clone(),
+                                args: serde_json::Value::Object(args_map),
+                            };
+
+                            self.reset();
+                            return Ok(Some(Action::SubmitCommandBuilder(cmd)));
+                        }
+                    }
+                    _ => {
+                        self.input.input(*key);
+                    }
+                },
             }
         }
         Ok(None)
