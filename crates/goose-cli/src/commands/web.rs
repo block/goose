@@ -170,9 +170,32 @@ pub async fn handle_web(
     agent.update_provider(provider, &init_session.id).await?;
 
     let enabled_configs = goose::config::get_enabled_extensions();
-    for config in enabled_configs {
+
+    // Check if developer extension is already loaded
+    let has_developer = enabled_configs.iter().any(|c| c.name() == "developer");
+
+    for config in &enabled_configs {
         if let Err(e) = agent.add_extension(config.clone()).await {
             eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
+        }
+    }
+
+    // Ensure the developer extension is always available in web mode
+    if !has_developer {
+        // Create a default developer extension config
+        let developer_config = goose::agents::ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: "The developer extension gives you the capabilities to edit code files and run shell commands".to_string(),
+            display_name: Some("Developer".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        };
+
+        if let Err(e) = agent.add_extension(developer_config).await {
+            eprintln!("Warning: Failed to load default developer extension: {}", e);
+        } else {
+            println!("   Loaded default developer extension");
         }
     }
 
