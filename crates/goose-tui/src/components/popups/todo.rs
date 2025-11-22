@@ -1,7 +1,7 @@
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::state::AppState;
+use crate::state::AppState;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
 use ratatui::layout::Rect;

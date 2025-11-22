@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use goose_tui::services::config::TuiConfig;
-    use goose_tui::state::state::AppState;
+    use goose_tui::state::AppState;
 
     #[test]
     fn test_app_state_creation() {

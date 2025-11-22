@@ -17,6 +17,7 @@ pub struct BaseColors {
     pub selection: Color,
     pub border: Color,
     pub border_active: Color,
+    pub user_message_foreground: Color,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +58,7 @@ impl Theme {
                 selection: Color::Rgb(49, 50, 68),
                 border: Color::Rgb(108, 112, 134),
                 border_active: Color::Rgb(137, 180, 250),
+                user_message_foreground: Color::Rgb(165, 173, 192),
             },
             status: StatusColors {
                 info: Color::Rgb(137, 180, 250),
@@ -78,6 +80,7 @@ impl Theme {
                 selection: Color::Rgb(60, 56, 54),
                 border: Color::Rgb(80, 70, 60),
                 border_active: Color::Rgb(212, 163, 115),
+                user_message_foreground: Color::Rgb(180, 175, 170),
             },
             status: StatusColors {
                 info: Color::Blue,
@@ -99,6 +102,7 @@ impl Theme {
                 selection: Color::Rgb(219, 234, 254),
                 border: Color::DarkGray,
                 border_active: Color::Blue,
+                user_message_foreground: Color::Rgb(15, 20, 27),
             },
             status: StatusColors {
                 info: Color::Blue,
@@ -120,6 +124,7 @@ impl Theme {
                 selection: Color::Rgb(38, 79, 120),
                 border: Color::Gray,
                 border_active: Color::Blue,
+                user_message_foreground: Color::Rgb(170, 170, 170),
             },
             status: StatusColors {
                 info: Color::Blue,
@@ -141,6 +146,7 @@ impl Theme {
                 selection: Color::Rgb(49, 50, 68),
                 border: Color::Rgb(108, 112, 134),
                 border_active: Color::Rgb(137, 180, 250),
+                user_message_foreground: Color::Rgb(165, 173, 192),
             },
             status: StatusColors {
                 info: Color::Rgb(137, 180, 250),
@@ -162,6 +168,7 @@ impl Theme {
                 selection: Color::DarkGray,
                 border: Color::DarkGray,
                 border_active: Color::Green,
+                user_message_foreground: Color::Rgb(0, 100, 0),
             },
             status: StatusColors {
                 info: Color::Green,

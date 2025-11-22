@@ -1,5 +1,5 @@
 use super::Component;
-use crate::state::state::{AppState, InputMode};
+use crate::state::{AppState, InputMode};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -23,7 +23,31 @@ impl StatusComponent {
 impl Component for StatusComponent {
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
+        let mut spans = self.get_mode_spans(state, theme);
+        spans.extend(self.get_info_spans(state, theme));
 
+        let hints = self.get_hints(state, theme);
+        for (i, hint) in hints.into_iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            }
+            spans.push(hint);
+        }
+
+        f.render_widget(
+            Paragraph::new(Line::from(spans))
+                .block(Block::default().style(Style::default().bg(theme.base.selection))),
+            area,
+        );
+    }
+}
+
+impl StatusComponent {
+    fn get_mode_spans(
+        &self,
+        state: &AppState,
+        theme: &crate::utils::styles::Theme,
+    ) -> Vec<Span<'static>> {
         let mode_bg = if state.is_working {
             theme.status.thinking
         } else {
@@ -46,18 +70,26 @@ impl Component for StatusComponent {
             }
         };
 
-        let mut spans: Vec<Span> = Vec::new();
-        spans.push(Span::styled(
-            mode_text,
-            Style::default()
-                .bg(mode_bg)
-                .fg(mode_fg)
-                .add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::raw(" "));
+        vec![
+            Span::styled(
+                mode_text,
+                Style::default()
+                    .bg(mode_bg)
+                    .fg(mode_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+        ]
+    }
 
+    fn get_info_spans(
+        &self,
+        state: &AppState,
+        theme: &crate::utils::styles::Theme,
+    ) -> Vec<Span<'static>> {
+        let mut spans = Vec::new();
         spans.push(Span::styled(
-            &state.session_id,
+            state.session_id.clone(),
             Style::default().fg(theme.base.foreground),
         ));
         spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
@@ -92,8 +124,15 @@ impl Component for StatusComponent {
                 spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
         }
+        spans
+    }
 
-        let mut hints: Vec<Span> = Vec::new();
+    fn get_hints(
+        &self,
+        state: &AppState,
+        theme: &crate::utils::styles::Theme,
+    ) -> Vec<Span<'static>> {
+        let mut hints = Vec::new();
 
         if state.is_working {
             hints.push(Span::styled(
@@ -139,18 +178,6 @@ impl Component for StatusComponent {
             "Ctrl+T: Todos",
             Style::default().fg(Color::DarkGray),
         ));
-
-        for (i, hint_span) in hints.into_iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
-            }
-            spans.push(hint_span);
-        }
-
-        f.render_widget(
-            Paragraph::new(Line::from(spans))
-                .block(Block::default().style(Style::default().bg(theme.base.selection))),
-            area,
-        );
+        hints
     }
 }

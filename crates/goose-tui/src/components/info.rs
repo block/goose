@@ -1,7 +1,7 @@
 use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::state::AppState;
+use crate::state::AppState;
 use anyhow::Result;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};

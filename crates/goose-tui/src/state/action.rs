@@ -1,5 +1,5 @@
 use crate::services::config::CustomCommand;
-use crate::state::state::ToolInfo;
+use crate::state::ToolInfo;
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;

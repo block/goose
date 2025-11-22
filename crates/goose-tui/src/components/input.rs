@@ -1,7 +1,7 @@
 use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::state::{AppState, InputMode};
+use crate::state::{AppState, InputMode};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;

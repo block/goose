@@ -1,4 +1,4 @@
-use crate::state::state::ToolInfo;
+use crate::state::ToolInfo;
 use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
 use futures::{FutureExt, StreamExt};
 use goose::session::Session;

@@ -1,5 +1,5 @@
 use super::action::Action;
-use super::state::{AppState, InputMode, TodoItem};
+use crate::state::{AppState, InputMode, TodoItem};
 use goose::conversation::message::MessageContent;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;

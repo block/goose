@@ -1,5 +1,5 @@
 use crate::services::events::Event;
-use crate::state::state::ToolInfo;
+use crate::state::ToolInfo;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use goose::agents::ExtensionConfig;

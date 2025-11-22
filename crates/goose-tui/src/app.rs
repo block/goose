@@ -10,7 +10,7 @@ use crate::components::status::StatusComponent;
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::state::AppState;
+use crate::state::AppState;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};

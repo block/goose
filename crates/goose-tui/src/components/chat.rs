@@ -1,7 +1,7 @@
 use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::state::{AppState, InputMode};
+use crate::state::{AppState, InputMode};
 use crate::utils::ascii_art::GOOSE_LOGO;
 use crate::utils::markdown::MarkdownRenderer;
 use crate::utils::styles::Theme;
@@ -59,384 +59,323 @@ impl ChatComponent {
         theme: &Theme,
         last_tool_context: &mut Option<(String, String)>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+        match message.role {
+            rmcp::model::Role::User => {
+                Self::render_user_message(msg_idx, message, width, theme, last_tool_context)
+            }
+            rmcp::model::Role::Assistant => {
+                Self::render_assistant_message(msg_idx, message, width, theme, last_tool_context)
+            }
+        }
+    }
+
+    fn render_user_message(
+        msg_idx: usize,
+        message: &goose::conversation::message::Message,
+        width: usize,
+        theme: &Theme,
+        last_tool_context: &mut Option<(String, String)>,
+    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
 
-        match message.role {
-            rmcp::model::Role::User => {
-                for content in &message.content {
-                    match content {
-                        MessageContent::Text(t) => {
-                            let renderer =
-                                MarkdownRenderer::new(&t.text, width.saturating_sub(4), theme);
-                            for line in renderer.render_lines() {
-                                let mut spans =
-                                    vec![Span::styled("│ ", Style::default().fg(Color::DarkGray))];
-                                spans.extend(line.spans);
-                                items.push(ListItem::new(Line::from(spans)));
-                                map.push(msg_idx);
-                            }
-                        }
-                        MessageContent::ToolResponse(resp) => {
-                            let (tool_name, tool_args) = last_tool_context
-                                .clone()
-                                .unwrap_or(("Unknown".to_string(), "".to_string()));
-                            let is_success = resp.tool_result.is_ok();
-                            let color = if is_success {
-                                theme.status.success
-                            } else {
-                                theme.status.error
-                            };
-
-                            let max_args = 50;
-                            let display_args = if tool_args.chars().count() > max_args {
-                                format!(
-                                    "{}...",
-                                    tool_args.chars().take(max_args).collect::<String>()
-                                )
-                            } else {
-                                tool_args
-                            };
-
-                            let header = format!("{tool_name} {display_args}");
-                            let fixed = 5;
-                            let padding = width.saturating_sub(header.len() + fixed + 2); // +2 for borders roughly
-
-                            let header_line = Line::from(vec![
-                                Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
-                                Span::styled(
-                                    tool_name,
-                                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                                ),
-                                Span::styled(
-                                    format!(" {display_args} "),
-                                    Style::default().fg(Color::Gray),
-                                ),
-                                Span::styled(
-                                    format!("{:─<width$}╮", "", width = padding),
-                                    Style::default().fg(Color::DarkGray),
-                                ),
-                            ]);
-                            items.push(ListItem::new(header_line));
-                            map.push(msg_idx);
-
-                            if let Ok(contents) = &resp.tool_result {
-                                let mut line_count = 0;
-                                let max_lines = 10;
-                                for content in contents {
-                                    if let rmcp::model::Content {
-                                        raw: rmcp::model::RawContent::Text(text_content),
-                                        ..
-                                    } = content
-                                    {
-                                        for line in text_content.text.lines() {
-                                            if line_count >= max_lines {
-                                                break;
-                                            }
-                                            let inner_width = width.saturating_sub(4);
-                                            let truncated = if line.len() > inner_width {
-                                                &line[..inner_width]
-                                            } else {
-                                                line
-                                            };
-                                            let pad = inner_width
-                                                .saturating_sub(truncated.chars().count());
-                                            let box_line = format!(
-                                                "│ {}{: <width$}│",
-                                                truncated,
-                                                "",
-                                                width = pad
-                                            );
-                                            items.push(ListItem::new(Line::from(Span::styled(
-                                                box_line,
-                                                Style::default().fg(Color::Gray),
-                                            ))));
-                                            map.push(msg_idx);
-                                            line_count += 1;
-                                        }
-                                    }
-                                }
-                                if line_count >= max_lines {
-                                    let content = "... (truncated)";
-                                    let pad = width.saturating_sub(content.len() + 4);
-                                    let box_line =
-                                        format!("│ {}{: <width$}│", content, "", width = pad);
-                                    items.push(ListItem::new(Line::from(Span::styled(
-                                        box_line,
-                                        Style::default().fg(Color::DarkGray),
-                                    ))));
-                                    map.push(msg_idx);
-                                }
-                            }
-                            let footer =
-                                format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));
-                            items.push(ListItem::new(Line::from(Span::styled(
-                                footer,
-                                Style::default().fg(Color::DarkGray),
-                            ))));
-                            map.push(msg_idx);
-                        }
-                        _ => {}
-                    }
+        for content in &message.content {
+            match content {
+                MessageContent::Text(t) => {
+                    Self::render_user_text(t, msg_idx, width, theme, &mut items, &mut map)
                 }
-            }
-            rmcp::model::Role::Assistant => {
-                for content in &message.content {
-                    match content {
-                        MessageContent::Text(t) => {
-                            let renderer = MarkdownRenderer::new(&t.text, width, theme);
-                            for line in renderer.render_lines() {
-                                items.push(ListItem::new(line));
-                                map.push(msg_idx);
-                            }
-                        }
-                        MessageContent::ToolRequest(req) => {
-                            if let Ok(call) = &req.tool_call {
-                                let name = call.name.clone();
-                                let args = if let Some(a) = &call.arguments {
-                                    serde_json::to_string(a).unwrap_or_default()
-                                } else {
-                                    "".to_string()
-                                };
-                                *last_tool_context = Some((name.to_string(), args));
-
-                                let line = Line::from(vec![
-                                    Span::styled(
-                                        "▶ Tool: ",
-                                        Style::default().fg(theme.status.warning),
-                                    ),
-                                    Span::styled(
-                                        format!("{name} (args hidden)"),
-                                        Style::default().fg(theme.base.foreground),
-                                    ),
-                                ]);
-                                items.push(ListItem::new(line));
-                                map.push(msg_idx);
-                            }
-                        }
-                        MessageContent::Thinking(t) => {
-                            items.push(ListItem::new(Line::from(vec![
-                                Span::styled("🤔 ", Style::default()),
-                                Span::styled(
-                                    t.thinking.clone(),
-                                    Style::default()
-                                        .fg(Color::DarkGray)
-                                        .add_modifier(Modifier::ITALIC),
-                                ),
-                            ])));
-                            map.push(msg_idx);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        items.push(ListItem::new(Line::from("")));
-        map.push(msg_idx);
-
-        (items, map)
-    }
-}
-
-impl Component for ChatComponent {
-    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if let Event::Tick = event {
-            self.frame_count = self.frame_count.wrapping_add(1);
-        }
-        match event {
-            Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollUp => {
-                    self.stick_to_bottom = false;
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some(cur.saturating_sub(3)));
-                }
-                MouseEventKind::ScrollDown => {
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some(cur + 3));
-                }
-                MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                    if let Some(idx) = self.list_state.selected() {
-                        if let Some(&msg_idx) = self.cached_mapping.get(idx) {
-                            return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                        }
-                    }
-                }
-                _ => {}
-            },
-            Event::Input(key) => {
-                if state.input_mode == crate::state::state::InputMode::Normal {
-                    match key.code {
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            self.stick_to_bottom = false;
-                            let cur = self.list_state.selected().unwrap_or(0);
-                            self.list_state.select(Some(cur.saturating_sub(1)));
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            let cur = self.list_state.selected().unwrap_or(0);
-                            self.list_state.select(Some(cur + 1));
-                        }
-                        KeyCode::Enter => {
-                            if let Some(idx) = self.list_state.selected() {
-                                if let Some(&msg_idx) = self.cached_mapping.get(idx) {
-                                    return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                                }
-                            }
-                        }
-                        KeyCode::Esc => return Ok(Some(Action::ToggleInputMode)),
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-        Ok(None)
-    }
-
-    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        // Check for mode transition: Normal -> Editing implies stick to bottom
-        if self.last_input_mode == InputMode::Normal && state.input_mode == InputMode::Editing {
-            self.stick_to_bottom = true;
-        }
-        self.last_input_mode = state.input_mode;
-
-        let theme = &state.config.theme;
-        let width = area.width.saturating_sub(2) as usize;
-
-        // 1. Reconcile Cache
-        // If state cleared (new session), clear cache
-        if state.messages.len() < self.sealed_count {
-            self.cached_items.clear();
-            self.cached_mapping.clear();
-            self.sealed_count = 0;
-            self.last_tool_context = None;
-        }
-
-        // Determine how many messages are "sealed"
-        let current_len = state.messages.len();
-        let new_sealed_count = if state.is_working {
-            current_len.saturating_sub(1)
-        } else {
-            current_len
-        };
-
-        // Update Cache
-        if new_sealed_count > self.sealed_count {
-            for i in self.sealed_count..new_sealed_count {
-                let (items, map) = Self::render_message(
-                    i,
-                    &state.messages[i],
+                MessageContent::ToolResponse(resp) => Self::render_tool_response(
+                    resp,
+                    msg_idx,
                     width,
                     theme,
-                    &mut self.last_tool_context,
-                );
-                self.cached_items.extend(items);
-                self.cached_mapping.extend(map);
+                    last_tool_context,
+                    &mut items,
+                    &mut map,
+                ),
+                _ => {}
             }
-            self.sealed_count = new_sealed_count;
+        }
+        items.push(ListItem::new(Line::from("")));
+        map.push(msg_idx);
+        (items, map)
+    }
+
+    fn render_user_text(
+        t: &rmcp::model::TextContent,
+        msg_idx: usize,
+        width: usize,
+        theme: &Theme,
+        items: &mut Vec<ListItem<'static>>,
+        map: &mut Vec<usize>,
+    ) {
+        let user_text_style = Style::default().fg(theme.base.user_message_foreground);
+        let mut renderer = MarkdownRenderer::new(
+            &t.text,
+            width.saturating_sub(4),
+            theme,
+            Some(user_text_style),
+        );
+        let mut rendered_lines = renderer.render_lines();
+
+        if !t.text.ends_with("\n\n")
+            && rendered_lines
+                .last()
+                .is_some_and(|line| line.spans.is_empty())
+        {
+            rendered_lines.pop();
         }
 
-        // Prepare Display List (Cache + Dynamic)
-        let mut display_items = self.cached_items.clone();
-        let mut display_map = self.cached_mapping.clone();
-
-        // Render Dynamic (Last message if working)
-        if state.is_working && !state.messages.is_empty() {
-            let last_idx = state.messages.len() - 1;
-            // Context clone for dynamic render
-            let mut ctx = self.last_tool_context.clone();
-            let (items, map) =
-                Self::render_message(last_idx, &state.messages[last_idx], width, theme, &mut ctx);
-            display_items.extend(items);
-            display_map.extend(map);
+        for line in rendered_lines {
+            let mut spans = vec![Span::styled("│ ", Style::default().fg(Color::DarkGray))];
+            spans.extend(line.spans);
+            items.push(ListItem::new(Line::from(spans)));
+            map.push(msg_idx);
         }
+    }
 
-        // Blinking Cursor
-        if !state.is_working && !state.messages.is_empty() {
-            // Render a prompt line?
+    fn render_tool_response(
+        resp: &goose::conversation::message::ToolResponse,
+        msg_idx: usize,
+        width: usize,
+        theme: &Theme,
+        last_tool_context: &mut Option<(String, String)>,
+        items: &mut Vec<ListItem<'static>>,
+        map: &mut Vec<usize>,
+    ) {
+        let (tool_name, tool_args) = last_tool_context
+            .clone()
+            .unwrap_or(("Unknown".to_string(), "".to_string()));
+        let is_success = resp.tool_result.is_ok();
+        let color = if is_success {
+            theme.status.success
+        } else {
+            theme.status.error
+        };
+
+        let max_args = 50;
+        let display_args = if tool_args.chars().count() > max_args {
+            format!(
+                "{}...",
+                tool_args.chars().take(max_args).collect::<String>()
+            )
+        } else {
+            tool_args
+        };
+
+        let header = format!("{tool_name} {display_args}");
+        let fixed = 5;
+        let padding = width.saturating_sub(header.len() + fixed + 2);
+
+        let header_line = Line::from(vec![
+            Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                tool_name,
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" {display_args} "),
+                Style::default().fg(Color::Gray),
+            ),
+            Span::styled(
+                format!("{:─<width$}╮", "", width = padding),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]);
+        items.push(ListItem::new(header_line));
+        map.push(msg_idx);
+
+        if let Ok(contents) = &resp.tool_result {
+            let mut line_count = 0;
+            let max_lines = 10;
+            for content in contents {
+                if let rmcp::model::Content {
+                    raw: rmcp::model::RawContent::Text(text_content),
+                    ..
+                } = content
+                {
+                    for line in text_content.text.lines() {
+                        if line_count >= max_lines {
+                            break;
+                        }
+                        let inner_width = width.saturating_sub(4);
+                        let truncated = if line.len() > inner_width {
+                            &line[..inner_width]
+                        } else {
+                            line
+                        };
+                        let pad = inner_width.saturating_sub(truncated.chars().count());
+                        let box_line = format!("│ {}{: <width$}│", truncated, "", width = pad);
+                        items.push(ListItem::new(Line::from(Span::styled(
+                            box_line,
+                            Style::default().fg(Color::Gray),
+                        ))));
+                        map.push(msg_idx);
+                        line_count += 1;
+                    }
+                }
+            }
+            if line_count >= max_lines {
+                let content = "... (truncated)";
+                let pad = width.saturating_sub(content.len() + 4);
+                let box_line = format!("│ {}{: <width$}│", content, "", width = pad);
+                items.push(ListItem::new(Line::from(Span::styled(
+                    box_line,
+                    Style::default().fg(Color::DarkGray),
+                ))));
+                map.push(msg_idx);
+            }
         }
+        let footer = format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));
+        items.push(ListItem::new(Line::from(Span::styled(
+            footer,
+            Style::default().fg(Color::DarkGray),
+        ))));
+        map.push(msg_idx);
+    }
 
-        // Auto-scroll logic
-        if self.stick_to_bottom && !display_items.is_empty() {
-            self.list_state.select(Some(display_items.len() - 1));
+    fn render_assistant_message(
+        msg_idx: usize,
+        message: &goose::conversation::message::Message,
+        width: usize,
+        theme: &Theme,
+        last_tool_context: &mut Option<(String, String)>,
+    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+        let mut items = Vec::new();
+        let mut map = Vec::new();
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(t) => {
+                    let mut renderer = MarkdownRenderer::new(&t.text, width, theme, None);
+                    for line in renderer.render_lines() {
+                        items.push(ListItem::new(line));
+                        map.push(msg_idx);
+                    }
+                }
+                MessageContent::ToolRequest(req) => {
+                    if let Ok(call) = &req.tool_call {
+                        let name = call.name.clone();
+                        let args = if let Some(a) = &call.arguments {
+                            serde_json::to_string(a).unwrap_or_default()
+                        } else {
+                            "".to_string()
+                        };
+                        *last_tool_context = Some((name.to_string(), args));
+
+                        let line = Line::from(vec![
+                            Span::styled("▶ Tool: ", Style::default().fg(theme.status.warning)),
+                            Span::styled(
+                                format!("{name} (args hidden)"),
+                                Style::default().fg(theme.base.foreground),
+                            ),
+                        ]);
+                        items.push(ListItem::new(line));
+                        map.push(msg_idx);
+                    }
+                }
+                MessageContent::Thinking(t) => {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("🤔 ", Style::default()),
+                        Span::styled(
+                            t.thinking.clone(),
+                            Style::default()
+                                .fg(Color::DarkGray)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ])));
+                    map.push(msg_idx);
+                }
+                _ => {}
+            }
         }
+        items.push(ListItem::new(Line::from("")));
+        map.push(msg_idx);
+        (items, map)
+    }
 
-        // Render Logo if empty
-        if display_items.is_empty() {
-            let base_color = if state.is_working {
+    fn render_empty_state(&self, f: &mut Frame, area: Rect, state: &AppState) {
+        let theme = &state.config.theme;
+        let base_color = if state.is_working {
+            theme.status.thinking
+        } else {
+            match state.input_mode {
+                InputMode::Editing => theme.base.border_active,
+                InputMode::Normal => theme.base.border,
+            }
+        };
+        let (r, g, b) = Self::to_rgb(base_color);
+
+        let (dr, dg, db) = if state.is_working {
+            let t = self.frame_count as f32 * 0.1;
+            let factor = 0.85 + 0.15 * t.sin();
+            (
+                (r as f32 * factor) as u8,
+                (g as f32 * factor) as u8,
+                (b as f32 * factor) as u8,
+            )
+        } else {
+            (r, g, b)
+        };
+        let logo_color = Color::Rgb(dr, dg, db);
+
+        let logo_lines: Vec<Line> = GOOSE_LOGO
+            .lines()
+            .map(|l| Line::from(Span::styled(l, Style::default().fg(logo_color))))
+            .collect();
+        let hints = [
+            "Tips for getting started:",
+            "1. Ask questions, edit files, or run commands.",
+            "2. Be specific for the best results.",
+            "3. Type /help for more information.",
+        ];
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(if state.is_working {
                 theme.status.thinking
             } else {
-                match state.input_mode {
-                    InputMode::Editing => theme.base.border_active,
-                    InputMode::Normal => theme.base.border,
-                }
-            };
-            let (r, g, b) = Self::to_rgb(base_color);
+                theme.base.border
+            }));
 
-            let (dr, dg, db) = if state.is_working {
-                let t = self.frame_count as f32 * 0.1;
-                let factor = 0.85 + 0.15 * t.sin();
-                (
-                    (r as f32 * factor) as u8,
-                    (g as f32 * factor) as u8,
-                    (b as f32 * factor) as u8,
-                )
-            } else {
-                (r, g, b)
-            };
-            let logo_color = Color::Rgb(dr, dg, db);
+        f.render_widget(block.clone(), area);
 
-            let logo_lines: Vec<Line> = GOOSE_LOGO
-                .lines()
-                .map(|l| Line::from(Span::styled(l, Style::default().fg(logo_color))))
-                .collect();
-            let hints = [
-                "Tips for getting started:",
-                "1. Ask questions, edit files, or run commands.",
-                "2. Be specific for the best results.",
-                "3. Type /help for more information.",
-            ];
+        let inner_area = block.inner(area);
 
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(if state.is_working {
-                    theme.status.thinking
-                } else {
-                    theme.base.border
-                }));
+        // Render at top-left, with 2 units of padding from left and top
+        let logo_start_y = inner_area.y + 1;
+        let logo_start_x = inner_area.x + 2;
 
-            f.render_widget(block.clone(), area);
+        let logo_area = Rect::new(
+            logo_start_x,
+            logo_start_y,
+            inner_area.width.saturating_sub(2),
+            logo_lines.len() as u16,
+        );
+        f.render_widget(Paragraph::new(logo_lines), logo_area);
 
-            let inner_area = block.inner(area);
+        let hints_area = Rect::new(
+            logo_start_x,
+            logo_area.bottom() + 2,
+            inner_area.width.saturating_sub(2),
+            hints.len() as u16,
+        );
+        let hint_lines: Vec<Line> = hints
+            .iter()
+            .map(|h| Line::from(Span::styled(*h, Style::default().fg(Color::DarkGray))))
+            .collect();
+        f.render_widget(Paragraph::new(hint_lines), hints_area);
+    }
 
-            // Render at top-left, with 2 units of padding from left and top
-            let logo_start_y = inner_area.y + 1;
-            let logo_start_x = inner_area.x + 2;
-
-            let logo_area = Rect::new(
-                logo_start_x,
-                logo_start_y,
-                inner_area.width.saturating_sub(2),
-                logo_lines.len() as u16,
-            );
-            f.render_widget(Paragraph::new(logo_lines), logo_area);
-
-            let hints_area = Rect::new(
-                logo_start_x,
-                logo_area.bottom() + 2,
-                inner_area.width.saturating_sub(2),
-                hints.len() as u16,
-            );
-            let hint_lines: Vec<Line> = hints
-                .iter()
-                .map(|h| Line::from(Span::styled(*h, Style::default().fg(Color::DarkGray))))
-                .collect();
-            f.render_widget(Paragraph::new(hint_lines), hints_area);
-
-            return;
-        }
-
+    fn render_chat_list(
+        &mut self,
+        f: &mut Frame,
+        area: Rect,
+        state: &AppState,
+        display_items: Vec<ListItem<'static>>,
+    ) {
+        let theme = &state.config.theme;
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -477,6 +416,133 @@ impl Component for ChatComponent {
                 area,
                 &mut scroll_state,
             );
+        }
+    }
+}
+
+impl Component for ChatComponent {
+    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        if let Event::Tick = event {
+            self.frame_count = self.frame_count.wrapping_add(1);
+        }
+        match event {
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollUp => {
+                    self.stick_to_bottom = false;
+                    let cur = self.list_state.selected().unwrap_or(0);
+                    self.list_state.select(Some(cur.saturating_sub(3)));
+                }
+                MouseEventKind::ScrollDown => {
+                    let cur = self.list_state.selected().unwrap_or(0);
+                    self.list_state.select(Some(cur + 3));
+                }
+                MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                    if let Some(idx) = self.list_state.selected() {
+                        if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                            return Ok(Some(Action::OpenMessageInfo(msg_idx)));
+                        }
+                    }
+                }
+                _ => {}
+            },
+            Event::Input(key) => {
+                if state.input_mode == InputMode::Normal {
+                    match key.code {
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            self.stick_to_bottom = false;
+                            let cur = self.list_state.selected().unwrap_or(0);
+                            self.list_state.select(Some(cur.saturating_sub(1)));
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            let cur = self.list_state.selected().unwrap_or(0);
+                            self.list_state.select(Some(cur + 1));
+                        }
+                        KeyCode::Enter => {
+                            if let Some(idx) = self.list_state.selected() {
+                                if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                                    return Ok(Some(Action::OpenMessageInfo(msg_idx)));
+                                }
+                            }
+                        }
+                        KeyCode::Esc => return Ok(Some(Action::ToggleInputMode)),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+
+    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+        // Check for mode transition: Normal -> Editing implies stick to bottom
+        if self.last_input_mode == InputMode::Normal && state.input_mode == InputMode::Editing {
+            self.stick_to_bottom = true;
+        }
+        self.last_input_mode = state.input_mode;
+
+        // 1. Reconcile Cache
+        // If state cleared (new session), clear cache
+        if state.messages.len() < self.sealed_count {
+            self.cached_items.clear();
+            self.cached_mapping.clear();
+            self.sealed_count = 0;
+            self.last_tool_context = None;
+        }
+
+        // Determine how many messages are "sealed"
+        let current_len = state.messages.len();
+        let new_sealed_count = if state.is_working {
+            current_len.saturating_sub(1)
+        } else {
+            current_len
+        };
+
+        // Update Cache
+        if new_sealed_count > self.sealed_count {
+            let theme = &state.config.theme;
+            let width = area.width.saturating_sub(2) as usize;
+            for i in self.sealed_count..new_sealed_count {
+                let (items, map) = Self::render_message(
+                    i,
+                    &state.messages[i],
+                    width,
+                    theme,
+                    &mut self.last_tool_context,
+                );
+                self.cached_items.extend(items);
+                self.cached_mapping.extend(map);
+            }
+            self.sealed_count = new_sealed_count;
+        }
+
+        // Prepare Display List (Cache + Dynamic)
+        let mut display_items = self.cached_items.clone();
+        let mut display_map = self.cached_mapping.clone();
+
+        // Render Dynamic (Last message if working)
+        if state.is_working && !state.messages.is_empty() {
+            let theme = &state.config.theme;
+            let width = area.width.saturating_sub(2) as usize;
+            let last_idx = state.messages.len() - 1;
+            // Context clone for dynamic render
+            let mut ctx = self.last_tool_context.clone();
+            let (items, map) =
+                Self::render_message(last_idx, &state.messages[last_idx], width, theme, &mut ctx);
+            display_items.extend(items);
+            display_map.extend(map);
+        }
+
+        // Auto-scroll logic
+        if self.stick_to_bottom && !display_items.is_empty() {
+            self.list_state.select(Some(display_items.len() - 1));
+        }
+
+        // Render Logo if empty
+        if display_items.is_empty() {
+            self.render_empty_state(f, area, state);
+        } else {
+            self.render_chat_list(f, area, state, display_items);
         }
     }
 }
