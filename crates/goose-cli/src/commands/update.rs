@@ -1,11 +1,15 @@
-use std::process::Command;
-
 use anyhow::Result;
+use std::process::Command;
 
 const DOWNLOAD_SCRIPT_URL: &str =
     "https://github.com/block/goose/releases/download/stable/download_cli.sh";
 
 pub fn update(canary: bool, reconfigure: bool) -> Result<()> {
+    // do not update if this feature is enabled
+    if cfg!(feature = "disable-update") {
+        anyhow::bail!("This command is disabled");
+    };
+
     // Get the download script from github
     let curl_output = Command::new("curl")
         .arg("-fsSL")
