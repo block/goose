@@ -1,3 +1,5 @@
+use crate::services::events::Event;
+use crate::state::state::ToolInfo;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use goose::agents::ExtensionConfig;
@@ -14,13 +16,6 @@ pub struct Client {
     base_url: String,
     secret_key: String,
     http_client: ReqwestClient,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolInfo {
-    pub name: String,
-    pub description: String,
-    pub parameters: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -51,6 +46,7 @@ struct ResumeAgentRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionListResponse {
     sessions: Vec<Session>,
 }
@@ -205,7 +201,7 @@ impl Client {
         &self,
         messages: Vec<Message>,
         session_id: String,
-        tx: mpsc::UnboundedSender<super::event::Event>,
+        tx: mpsc::UnboundedSender<Event>,
     ) -> Result<()> {
         let mut stream = self
             .http_client
@@ -219,6 +215,7 @@ impl Client {
             })
             .send()
             .await?
+            .error_for_status()?
             .bytes_stream()
             .eventsource();
 
@@ -230,7 +227,7 @@ impl Client {
                     }
                     match serde_json::from_str::<MessageEvent>(&event.data) {
                         Ok(msg) => {
-                            let _ = tx.send(super::event::Event::Server(msg));
+                            let _ = tx.send(Event::Server(std::sync::Arc::new(msg)));
                         }
                         Err(e) => {
                             tracing::error!("Failed to parse SSE event: {}", e);
@@ -239,7 +236,7 @@ impl Client {
                 }
                 Err(e) => {
                     tracing::error!("SSE stream error: {}", e);
-                    let _ = tx.send(super::event::Event::Error(e.to_string()));
+                    let _ = tx.send(Event::Error(e.to_string()));
                 }
             }
         }

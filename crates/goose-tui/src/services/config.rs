@@ -1,4 +1,4 @@
-use crate::ui::theme::Theme;
+use crate::utils::styles::Theme;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -12,6 +12,7 @@ pub struct CustomCommand {
     pub args: serde_json::Value,
 }
 
+#[derive(Clone)]
 pub struct TuiConfig {
     pub theme: Theme,
     pub custom_commands: Vec<CustomCommand>,
@@ -19,10 +20,7 @@ pub struct TuiConfig {
 
 impl TuiConfig {
     pub fn load() -> Result<Self> {
-        // Temporarily hardcoding theme until integration is fully verified
-        let theme_name = "midnight";
-
-        // Load custom commands from file
+        let theme_name = "gemini";
         let config_path = Self::get_config_path();
         let custom_commands = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;

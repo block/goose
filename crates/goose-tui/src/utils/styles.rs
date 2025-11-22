@@ -51,19 +51,19 @@ impl Theme {
         Self {
             name: "Gemini".to_string(),
             base: BaseColors {
-                background: Color::Reset,                 // User's terminal background
-                foreground: Color::Rgb(205, 214, 244),    // #CDD6F4
-                cursor: Color::Rgb(137, 220, 235),        // #89DCEB (AccentCyan)
-                selection: Color::Rgb(49, 50, 68),        // #313244
-                border: Color::Rgb(108, 112, 134),        // #6C7086
-                border_active: Color::Rgb(137, 180, 250), // #89B4FA
+                background: Color::Reset,
+                foreground: Color::Rgb(205, 214, 244),
+                cursor: Color::Rgb(137, 220, 235),
+                selection: Color::Rgb(49, 50, 68),
+                border: Color::Rgb(108, 112, 134),
+                border_active: Color::Rgb(137, 180, 250),
             },
             status: StatusColors {
-                info: Color::Rgb(137, 180, 250),     // #89B4FA
-                success: Color::Rgb(166, 227, 161),  // #A6E3A1
-                warning: Color::Rgb(249, 226, 175),  // #F9E2AF
-                error: Color::Rgb(243, 139, 168),    // #F38BA8
-                thinking: Color::Rgb(203, 166, 247), // #CBA6F7
+                info: Color::Rgb(137, 180, 250),
+                success: Color::Rgb(166, 227, 161),
+                warning: Color::Rgb(249, 226, 175),
+                error: Color::Rgb(243, 139, 168),
+                thinking: Color::Rgb(203, 166, 247),
             },
         }
     }
@@ -72,12 +72,12 @@ impl Theme {
         Self {
             name: "Goose".to_string(),
             base: BaseColors {
-                background: Color::Rgb(31, 28, 26),    // #1F1C1A
-                foreground: Color::Rgb(230, 225, 220), // #E6E1DC
-                cursor: Color::Rgb(212, 163, 115),     // #D4A373
+                background: Color::Rgb(31, 28, 26),
+                foreground: Color::Rgb(230, 225, 220),
+                cursor: Color::Rgb(212, 163, 115),
                 selection: Color::Rgb(60, 56, 54),
                 border: Color::Rgb(80, 70, 60),
-                border_active: Color::Rgb(212, 163, 115), // #D4A373
+                border_active: Color::Rgb(212, 163, 115),
             },
             status: StatusColors {
                 info: Color::Blue,
@@ -93,10 +93,10 @@ impl Theme {
         Self {
             name: "Light".to_string(),
             base: BaseColors {
-                background: Color::White,           // #FFFFFF
-                foreground: Color::Rgb(31, 41, 55), // #1F2937
+                background: Color::White,
+                foreground: Color::Rgb(31, 41, 55),
                 cursor: Color::Black,
-                selection: Color::Rgb(219, 234, 254), // Light Blue
+                selection: Color::Rgb(219, 234, 254),
                 border: Color::DarkGray,
                 border_active: Color::Blue,
             },
@@ -114,8 +114,8 @@ impl Theme {
         Self {
             name: "Dark".to_string(),
             base: BaseColors {
-                background: Color::Rgb(30, 30, 30),    // #1E1E1E
-                foreground: Color::Rgb(212, 212, 212), // #D4D4D4
+                background: Color::Rgb(30, 30, 30),
+                foreground: Color::Rgb(212, 212, 212),
                 cursor: Color::White,
                 selection: Color::Rgb(38, 79, 120),
                 border: Color::Gray,
@@ -135,19 +135,19 @@ impl Theme {
         Self {
             name: "Midnight".to_string(),
             base: BaseColors {
-                background: Color::Rgb(30, 30, 46),       // #1E1E2E
-                foreground: Color::Rgb(205, 214, 244),    // #CDD6F4
-                cursor: Color::Rgb(245, 224, 220),        // #F5E0DC (Rosewater)
-                selection: Color::Rgb(49, 50, 68),        // #313244
-                border: Color::Rgb(108, 112, 134),        // #6C7086
-                border_active: Color::Rgb(137, 180, 250), // #89B4FA
+                background: Color::Rgb(30, 30, 46),
+                foreground: Color::Rgb(205, 214, 244),
+                cursor: Color::Rgb(245, 224, 220),
+                selection: Color::Rgb(49, 50, 68),
+                border: Color::Rgb(108, 112, 134),
+                border_active: Color::Rgb(137, 180, 250),
             },
             status: StatusColors {
-                info: Color::Rgb(137, 180, 250),     // #89B4FA
-                success: Color::Rgb(166, 227, 161),  // #A6E3A1
-                warning: Color::Rgb(249, 226, 175),  // #F9E2AF
-                error: Color::Rgb(243, 139, 168),    // #F38BA8
-                thinking: Color::Rgb(203, 166, 247), // #CBA6F7
+                info: Color::Rgb(137, 180, 250),
+                success: Color::Rgb(166, 227, 161),
+                warning: Color::Rgb(249, 226, 175),
+                error: Color::Rgb(243, 139, 168),
+                thinking: Color::Rgb(203, 166, 247),
             },
         }
     }

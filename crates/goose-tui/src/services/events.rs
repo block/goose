@@ -1,0 +1,79 @@
+use crate::state::state::ToolInfo;
+use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
+use futures::{FutureExt, StreamExt};
+use goose::session::Session;
+use goose_server::routes::reply::MessageEvent;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+
+#[derive(Debug, Clone)]
+pub enum Event {
+    Input(KeyEvent),
+    Mouse(MouseEvent),
+    Paste(String),
+    Tick,
+    Resize,
+    Server(Arc<MessageEvent>),
+    SessionsList(Vec<Session>),
+    SessionResumed(Session),
+    ToolsLoaded(Vec<ToolInfo>),
+    Error(String),
+}
+#[allow(dead_code)]
+pub struct EventHandler {
+    rx: mpsc::UnboundedReceiver<Event>,
+    tx: mpsc::UnboundedSender<Event>,
+}
+
+impl EventHandler {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let _tx = tx.clone();
+
+        tokio::spawn(async move {
+            let mut reader = crossterm::event::EventStream::new();
+            let mut tick = tokio::time::interval(Duration::from_millis(30));
+
+            loop {
+                let tick_delay = tick.tick();
+                let crossterm_event = reader.next().fuse();
+
+                tokio::select! {
+                    _ = tick_delay => {
+                        let _ = _tx.send(Event::Tick);
+                    }
+                    Some(Ok(evt)) = crossterm_event => {
+                        match evt {
+                            CrosstermEvent::Key(key) => {
+                                if key.kind == KeyEventKind::Press {
+                                    let _ = _tx.send(Event::Input(key));
+                                }
+                            }
+                            CrosstermEvent::Mouse(mouse) => {
+                                let _ = _tx.send(Event::Mouse(mouse));
+                            }
+                            CrosstermEvent::Resize(_w, _h) => {
+                                let _ = _tx.send(Event::Resize);
+                            }
+                            CrosstermEvent::Paste(s) => {
+                                let _ = _tx.send(Event::Paste(s));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        });
+
+        Self { rx, tx }
+    }
+
+    pub async fn next(&mut self) -> Option<Event> {
+        self.rx.recv().await
+    }
+
+    pub fn sender(&self) -> mpsc::UnboundedSender<Event> {
+        self.tx.clone()
+    }
+}

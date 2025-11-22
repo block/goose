@@ -1,1076 +1,160 @@
-use crate::client::{Client, ToolInfo};
-use crate::config::{CustomCommand, TuiConfig};
-use crate::event::{Event, EventHandler};
-use crate::tui;
-use crate::ui;
+use crate::components::chat::ChatComponent;
+use crate::components::input::InputComponent;
+use crate::components::info::InfoComponent;
+use crate::components::popups::builder::BuilderPopup;
+use crate::components::popups::help::HelpPopup;
+use crate::components::popups::session::SessionPopup;
+use crate::components::popups::todo::TodoPopup;
+use crate::components::popups::message::MessagePopup;
+use crate::components::status::StatusComponent;
+use crate::components::Component;
+use crate::services::events::Event;
+use crate::state::action::Action;
+use crate::state::state::AppState;
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use goose::config::Config;
-use goose::conversation::message::{Message, MessageContent, TokenState};
-use goose::model::ModelConfig;
-use goose::session::Session;
-use goose_server::routes::reply::MessageEvent;
-use ratatui::style::Color;
-use ratatui::widgets::{ListState, ScrollbarState};
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
-use tui_textarea::TextArea;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InputMode {
-    Normal,
-    Editing,
-}
-
-pub enum BuilderState {
-    SelectTool,
-    ConfigureArgs {
-        tool_idx: usize,
-        field_values: HashMap<String, String>, // field_name -> value
-        current_field_idx: usize,
-    },
-    NameCommand {
-        tool_idx: usize,
-        field_values: HashMap<String, String>,
-    },
-}
+use crossterm::event::{KeyCode, KeyModifiers};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Frame;
 
 pub struct App<'a> {
-    pub should_quit: bool,
-    pub input_mode: InputMode,
-    pub input: TextArea<'a>,
-    pub messages: Vec<Message>,
-    pub config: TuiConfig,
-    pub scroll_state: ListState,
-    pub vertical_scroll_state: ScrollbarState,
-    pub last_scroll_time: Option<Instant>,
-    pub client: Client,
-    pub session_id: String,
-    pub tx: Option<mpsc::UnboundedSender<Event>>,
-    pub auto_scroll: bool,
-    pub waiting_for_response: bool,
-    pub todos: Vec<(String, bool)>, // (Text, Completed)
-    pub animation_frame: usize,
-    pub has_user_input_pending: bool,
-    pub reply_task: Option<tokio::task::JoinHandle<()>>,
-    pub focused_message_index: Option<usize>,
-    pub popup_scroll: usize,
-    pub visual_line_to_message_index: Vec<usize>,
-    pub selectable_indices: Vec<usize>, // Indices of visual lines that are selectable
-    pub showing_todo_popup: bool,
-    pub todo_scroll: usize,
-    pub showing_help_popup: bool,
-    pub showing_about_popup: bool,
-    pub has_worked: bool, // Track if goose has started working at least once
-    pub flash_message: Option<String>,
-    pub flash_message_expiry: Option<Instant>,
-    pub current_border_color: (u8, u8, u8),
-    pub token_state: TokenState,    // Track token usage
-    pub model_context_limit: usize, // Model's context window size
-
-    // Command Builder State
-    pub showing_command_builder: bool,
-    pub builder_state: BuilderState,
-    pub available_tools: Vec<ToolInfo>,
-    pub builder_list_state: ListState,
-    pub builder_input: TextArea<'a>, // Reusing a textarea for builder inputs
-
-    // Session Popup State
-    pub showing_session_popup: bool,
-    pub available_sessions: Vec<Session>,
-    pub session_list_state: ListState,
-
-    // Scrolling limits
-    pub popup_content_height: usize,
-    pub popup_area_height: usize,
-    pub todo_popup_content_height: usize,
-    pub todo_popup_area_height: usize,
-}
-
-fn to_rgb(color: Color) -> (u8, u8, u8) {
-    match color {
-        Color::Rgb(r, g, b) => (r, g, b),
-        Color::Black => (0, 0, 0),
-        Color::Red => (255, 0, 0),
-        Color::Green => (0, 255, 0),
-        Color::Yellow => (255, 255, 0),
-        Color::Blue => (0, 0, 255),
-        Color::Magenta => (255, 0, 255),
-        Color::Cyan => (0, 255, 255),
-        Color::Gray => (128, 128, 128),
-        Color::DarkGray => (64, 64, 64),
-        Color::LightRed => (255, 128, 128),
-        Color::LightGreen => (128, 255, 128),
-        Color::LightYellow => (255, 255, 128),
-        Color::LightBlue => (128, 128, 255),
-        Color::LightMagenta => (255, 128, 255),
-        Color::LightCyan => (128, 255, 255),
-        Color::White => (255, 255, 255),
-        _ => (128, 128, 128), // Fallback
-    }
+    chat: ChatComponent,
+    input: InputComponent<'a>,
+    info: InfoComponent,
+    status: StatusComponent,
+    todo_popup: TodoPopup,
+    help_popup: HelpPopup,
+    session_popup: SessionPopup,
+    builder_popup: BuilderPopup<'a>,
+    message_popup: MessagePopup,
 }
 
 impl<'a> App<'a> {
-    pub async fn new(
-        port: u16,
-        secret_key: String,
-        resume_session_id: Option<String>,
-    ) -> Result<Self> {
-        let config = TuiConfig::load()?;
-        let mut input = TextArea::default();
-        input.set_cursor_line_style(ratatui::style::Style::default());
-        input.set_placeholder_text("Type a message...");
-
-        let mut builder_input = TextArea::default();
-        builder_input.set_cursor_line_style(ratatui::style::Style::default());
-
-        // Initialize Client
-        let client = Client::new(port, secret_key);
-
-        // Start agent via API to ensure provider/model are loaded from config
-        let cwd = std::env::current_dir()?;
-        let session = if let Some(id) = resume_session_id {
-            tracing::info!("Resuming agent session: {}", id);
-            client.resume_agent(&id).await?
-        } else {
-            client
-                .start_agent(cwd.to_string_lossy().to_string())
-                .await?
-        };
-        let session_id = session.id;
-
-        let messages = if let Some(conversation) = session.conversation {
-            conversation.messages().clone()
-        } else {
-            vec![]
-        };
-
-        let token_state = TokenState {
-            total_tokens: session.total_tokens.unwrap_or(0),
-            input_tokens: session.input_tokens.unwrap_or(0),
-            output_tokens: session.output_tokens.unwrap_or(0),
-            accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-            accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
-            accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
-        };
-
-        tracing::info!("Started agent session: {}", session_id);
-
-        // Configure Provider
-        let global_config = Config::global();
-        let provider = global_config
-            .get_goose_provider()
-            .unwrap_or_else(|_| "openai".to_string());
-        let model = global_config.get_goose_model().ok();
-
-        // Calculate model context limit
-        let model_context_limit = if let Some(ref model_name) = model {
-            ModelConfig::new(model_name)
-                .map(|config| config.context_limit())
-                .unwrap_or(128_000)
-        } else {
-            128_000 // Default fallback
-        };
-
-        if let Err(e) = client.update_provider(&session_id, provider, model).await {
-            tracing::error!("Failed to update provider: {}", e);
-            // We don't error out here, but the agent might fail to reply
+    pub fn new() -> Self {
+        Self {
+            chat: ChatComponent::new(),
+            input: InputComponent::new(),
+            info: InfoComponent::new(),
+            status: StatusComponent::new(),
+            todo_popup: TodoPopup::new(),
+            help_popup: HelpPopup,
+            session_popup: SessionPopup::new(),
+            builder_popup: BuilderPopup::new(),
+            message_popup: MessagePopup::new(),
         }
-
-        // Load Enabled Extensions
-        let extensions = goose::config::get_enabled_extensions();
-        for ext in extensions {
-            if let Err(e) = client.add_extension(&session_id, ext.clone()).await {
-                tracing::error!("Failed to add extension {}: {}", ext.name(), e);
-            }
-        }
-
-        // Fetch initial tools (best effort, might fail if server not ready, but it should be)
-        let available_tools = client.get_tools(&session_id).await.unwrap_or_default();
-
-        Ok(Self {
-            should_quit: false,
-            input_mode: InputMode::Editing,
-            input,
-            messages,
-            config,
-            scroll_state: ListState::default(),
-            vertical_scroll_state: ScrollbarState::default(),
-            last_scroll_time: None,
-            client,
-            session_id,
-            tx: None,
-            auto_scroll: true,
-            waiting_for_response: false,
-            todos: vec![],
-            animation_frame: 0,
-            has_user_input_pending: true,
-            reply_task: None,
-            focused_message_index: None,
-            popup_scroll: 0,
-            visual_line_to_message_index: vec![],
-            selectable_indices: vec![],
-            showing_todo_popup: false,
-            todo_scroll: 0,
-            showing_help_popup: false,
-            showing_about_popup: false,
-            has_worked: false,
-            flash_message: None,
-            flash_message_expiry: None,
-            current_border_color: (128, 128, 128),
-            token_state,
-            model_context_limit,
-
-            showing_command_builder: false,
-            builder_state: BuilderState::SelectTool,
-            available_tools,
-            builder_list_state: ListState::default(),
-            builder_input,
-
-            showing_session_popup: false,
-            available_sessions: vec![],
-            session_list_state: ListState::default(),
-
-            popup_content_height: 0,
-            popup_area_height: 0,
-            todo_popup_content_height: 0,
-            todo_popup_area_height: 0,
-        })
     }
+}
 
-    fn update_animation(&mut self) {
-        // Target Color Logic
-        let target_color_enum = if self.waiting_for_response {
-            self.config.theme.status.thinking
-        } else {
-            match self.input_mode {
-                InputMode::Editing => self.config.theme.base.border_active,
-                InputMode::Normal => self.config.theme.base.border,
+impl<'a> Component for App<'a> {
+    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        // 1. Popups
+        if state.showing_todo {
+            if let Some(action) = self.todo_popup.handle_event(event, state)? {
+                return Ok(Some(action));
             }
-        };
-
-        let (mut tr, mut tg, mut tb) = to_rgb(target_color_enum);
-
-        // Apply breathing effect if working
-        if self.waiting_for_response {
-            // Sine wave breathing: oscillates between 0.7 and 1.0 brightness
-            let t = self.animation_frame as f32 * 0.1;
-            let factor = 0.85 + 0.15 * t.sin(); // Center at 0.85, amplitude 0.15 -> [0.7, 1.0]
-            tr = (tr as f32 * factor) as u8;
-            tg = (tg as f32 * factor) as u8;
-            tb = (tb as f32 * factor) as u8;
+            return Ok(None);
+        }
+        if state.showing_help {
+            if let Some(action) = self.help_popup.handle_event(event, state)? {
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_session_picker {
+            if let Some(action) = self.session_popup.handle_event(event, state)? {
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_command_builder {
+            if let Some(action) = self.builder_popup.handle_event(event, state)? {
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_message_info.is_some() {
+            if let Some(action) = self.message_popup.handle_event(event, state)? {
+                return Ok(Some(action));
+            }
+            return Ok(None);
         }
 
-        // Lerp towards target
-        let (cr, cg, cb) = self.current_border_color;
-        let speed = 0.1; // Adjust for speed (0.0 - 1.0)
-
-        let nr = (cr as f32 + (tr as f32 - cr as f32) * speed) as u8;
-        let ng = (cg as f32 + (tg as f32 - cg as f32) * speed) as u8;
-        let nb = (cb as f32 + (tb as f32 - cb as f32) * speed) as u8;
-
-        self.current_border_color = (nr, ng, nb);
-    }
-
-    pub async fn run(&mut self) -> Result<()> {
-        let mut tui = tui::init()?;
-        let mut events = EventHandler::new(Duration::from_millis(30));
-
-        // Store the sender so we can use it in handle_input
-        self.tx = Some(events.sender());
-
-        loop {
-            tui.draw(|f| {
-                ui::draw(f, self);
-            })?;
-
-            // Wait for at least one event (blocking)
-            let first_event = events.next().await;
-            if first_event.is_none() {
-                break;
-            }
-            self.handle_event(first_event.unwrap());
-
-            // Drain any other pending events without waiting (non-blocking)
-            // This prevents "lag" when the event queue (e.g. mouse scroll) fills up faster than we draw
-            while let Some(event) = events.try_next() {
-                self.handle_event(event);
-            }
-
-            if self.should_quit {
-                break;
-            }
-        }
-
-        tui::restore()?;
-        Ok(())
-    }
-
-    fn handle_event(&mut self, event: Event) {
-        match event {
-            Event::Input(key) => self.handle_input(key),
-            Event::Paste(text) => self.handle_paste(text),
-            Event::Mouse(mouse) => self.handle_mouse(mouse),
-            Event::Tick => {
-                self.animation_frame = self.animation_frame.wrapping_add(1);
-                self.update_animation();
-            }
-            Event::Resize(..) => {} // Autohandled by Ratatui usually
-            Event::Server(msg) => {
-                match msg {
-                    MessageEvent::Message {
-                        message,
-                        token_state,
-                    } => {
-                        // Update token state
-                        self.token_state = token_state;
-                        // Parse Todos from ToolRequest (todo__todo_write arguments)
-                        for content in &message.content {
-                            if let MessageContent::ToolRequest(req) = content {
-                                if let Ok(tool_call) = &req.tool_call {
-                                    if tool_call.name == "todo__todo_write" {
-                                        if let Some(args) = &tool_call.arguments {
-                                            if let Some(content_val) = args.get("content") {
-                                                if let Some(content_str) = content_val.as_str() {
-                                                    let mut new_todos = Vec::new();
-                                                    let mut has_todos = false;
-                                                    for line in content_str.lines() {
-                                                        let trimmed = line.trim();
-                                                        if let Some(task) =
-                                                            trimmed.strip_prefix("- [ ] ")
-                                                        {
-                                                            new_todos.push((
-                                                                task.to_string(),
-                                                                false,
-                                                            ));
-                                                            has_todos = true;
-                                                        } else if let Some(task) =
-                                                            trimmed.strip_prefix("- [x] ")
-                                                        {
-                                                            new_todos
-                                                                .push((task.to_string(), true));
-                                                            has_todos = true;
-                                                        }
-                                                    }
-
-                                                    if has_todos {
-                                                        self.todos = new_todos;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(last_msg) = self.messages.last_mut() {
-                            if last_msg.id == message.id {
-                                // Merge content intelligently
-                                for content in message.content {
-                                    if let MessageContent::Text(new_text) = &content {
-                                        if let Some(MessageContent::Text(last_text)) =
-                                            last_msg.content.last_mut()
-                                        {
-                                            last_text.text.push_str(&new_text.text);
-                                            continue;
-                                        }
-                                    }
-                                    last_msg.content.push(content);
-                                }
-                            } else {
-                                self.messages.push(message);
-                            }
-                        } else {
-                            self.messages.push(message);
-                        }
-
-                        if self.auto_scroll {
-                            self.scroll_to_bottom();
-                        }
-                    }
-                    MessageEvent::UpdateConversation { conversation } => {
-                        self.messages = conversation.messages().clone();
-                        if self.auto_scroll {
-                            self.scroll_to_bottom();
-                        }
-                    }
-                    MessageEvent::Error { error } => {
-                        tracing::error!("Server error: {}", error);
-                        self.waiting_for_response = false;
-                        self.has_user_input_pending = true;
-                        self.reply_task = None;
-                    }
-                    MessageEvent::Finish { token_state, .. } => {
-                        // Generation finished - update final token state
-                        self.token_state = token_state;
-                        self.waiting_for_response = false;
-                        self.has_user_input_pending = true;
-                        self.reply_task = None;
-                    }
-                    _ => {}
+        // 2. Global Shortcuts
+        if let Event::Input(key) = event {
+            if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                if state.is_working {
+                    return Ok(Some(Action::Interrupt));
+                } else if self.input.is_empty() {
+                    return Ok(Some(Action::Quit));
+                } else {
+                    self.input.clear();
+                    return Ok(None);
                 }
             }
+            if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                return Ok(Some(Action::ToggleTodo));
+            }
+        }
+
+        // 3. Input
+        if let Some(action) = self.input.handle_event(event, state)? {
+            return Ok(Some(action));
+        }
+
+        // 4. Chat (Navigation/Scroll)
+        if let Some(action) = self.chat.handle_event(event, state)? {
+            return Ok(Some(action));
+        }
+
+        // 5. Status & Info (Ticks)
+        if let Event::Tick = event {
+            self.status.handle_event(event, state)?;
+            self.info.handle_event(event, state)?;
+        }
+
+        // 6. System Events
+        match event {
+            Event::Tick => return Ok(Some(Action::Tick)),
+            Event::Server(msg) => return Ok(Some(Action::ServerMessage(msg.clone()))),
             Event::SessionsList(sessions) => {
-                self.available_sessions = sessions;
-                self.showing_session_popup = true;
-                self.session_list_state.select(Some(0));
+                return Ok(Some(Action::SessionsListLoaded(sessions.clone())))
             }
             Event::SessionResumed(session) => {
-                self.session_id = session.id;
-                self.messages = session
-                    .conversation
-                    .map(|c| c.messages().clone())
-                    .unwrap_or_default();
-                self.token_state = TokenState {
-                    total_tokens: session.total_tokens.unwrap_or(0),
-                    input_tokens: session.input_tokens.unwrap_or(0),
-                    output_tokens: session.output_tokens.unwrap_or(0),
-                    accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-                    accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
-                    accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
-                };
-                self.showing_session_popup = false;
-                self.auto_scroll = true;
-                // Clear todos if switching sessions? Maybe.
-                self.todos.clear();
+                return Ok(Some(Action::SessionResumed(session.clone())))
             }
-            Event::Error(e) => {
-                // For now just log errors
-                tracing::error!("Error: {}", e);
-            }
-        }
-    }
-
-    fn scroll_to_bottom(&mut self) {
-        // We don't know the exact number of *lines* here because that depends on rendering.
-        // However, we can just select a very large index and Ratatui clamps it?
-        // Actually, ListState index corresponds to the item index in the List.
-        // But our ListItems are not 1-to-1 with Messages because we split Markdown into lines.
-        // This makes `scroll_state` hard to use correctly from `App` without knowing the render logic.
-
-        // Alternative: The `ui::draw_chat` function calculates the list items.
-        // We might need to move the list generation logic to `App` or a helper,
-        // OR just set a flag "scroll_to_end" and let the UI handle it?
-        // For now, let's assume we want to scroll to the last *Message*.
-        // BUT `draw_chat` flattens messages into multiple lines.
-
-        // FIX: We need to track the visual line count.
-        // Since we can't easily know it here, we will use a hack:
-        // Select index usize::MAX. Ratatui's List handles out-of-bounds by showing the end?
-        // No, it doesn't auto-clamp to last item if index > len.
-
-        // Better approach for MVP:
-        // Just unselect to let it stick to bottom? No, List doesn't auto-scroll.
-
-        // We will simply set `auto_scroll` flag and handle the actual state update in `ui::draw`.
-        // But `ui::draw` takes `&mut Frame` and `&mut App` but we want to separate logic.
-
-        // Let's assume we unselect (None) means "auto scroll".
-        self.scroll_state.select(None);
-    }
-
-    fn scroll_up(&mut self) {
-        if self.showing_todo_popup {
-            self.todo_scroll = self.todo_scroll.saturating_sub(1);
-        } else if self.focused_message_index.is_some() {
-            self.popup_scroll = self.popup_scroll.saturating_sub(1);
-        } else {
-            self.auto_scroll = false;
-            let current = self.scroll_state.selected().unwrap_or(0);
-
-            if self.input_mode == InputMode::Normal && !self.selectable_indices.is_empty() {
-                // Jump to previous selectable item
-                if let Some(&prev) = self.selectable_indices.iter().rev().find(|&&i| i < current) {
-                    self.scroll_state.select(Some(prev));
-                } else if let Some(&first) = self.selectable_indices.first() {
-                    // If we are before the first selectable (or at it), maybe stay or go to first?
-                    // If current > first, but no prev < current found? Impossible if sorted.
-                    // If current <= first, we stay.
-                    if current > first {
-                        self.scroll_state.select(Some(first));
-                    }
-                }
-            } else {
-                self.scroll_state.select(Some(current.saturating_sub(1)));
-            }
-        }
-    }
-
-    fn scroll_down(&mut self) {
-        if self.showing_todo_popup {
-            self.todo_scroll += 1;
-        } else if self.focused_message_index.is_some() {
-            self.popup_scroll += 1;
-        } else {
-            let current = self.scroll_state.selected().unwrap_or(0);
-
-            if self.input_mode == InputMode::Normal && !self.selectable_indices.is_empty() {
-                // Jump to next selectable item
-                if let Some(&next) = self.selectable_indices.iter().find(|&&i| i > current) {
-                    self.scroll_state.select(Some(next));
-                }
-            } else {
-                self.scroll_state.select(Some(current + 1));
-            }
-        }
-    }
-
-    fn handle_paste(&mut self, text: String) {
-        // Normalize newlines
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
-
-        if self.showing_command_builder {
-            self.builder_input.insert_str(&text);
-            return;
-        }
-
-        if self.showing_todo_popup
-            || self.showing_help_popup
-            || self.showing_about_popup
-            || self.focused_message_index.is_some()
-        {
-            return;
-        }
-
-        if self.input_mode == InputMode::Normal {
-            self.input_mode = InputMode::Editing;
-        }
-        self.input.insert_str(&text);
-    }
-
-    fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
-        match mouse.kind {
-            crossterm::event::MouseEventKind::ScrollDown => self.scroll_vertical(3),
-            crossterm::event::MouseEventKind::ScrollUp => self.scroll_vertical(-3),
+            Event::ToolsLoaded(tools) => return Ok(Some(Action::ToolsLoaded(tools.clone()))),
+            Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
+            Event::Resize => return Ok(Some(Action::Resize)),
             _ => {}
         }
+
+        Ok(None)
     }
 
-    fn scroll_vertical(&mut self, amount: isize) {
-        self.last_scroll_time = Some(Instant::now());
+    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+        let max_input_height = (f.area().height / 2).max(3);
+        let input_height = self.input.height(max_input_height);
 
-        // 1. Todo Popup
-        if self.showing_todo_popup {
-            let max_scroll = self
-                .todo_popup_content_height
-                .saturating_sub(self.todo_popup_area_height);
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),               // Chat
+                Constraint::Length(1),            // Info Line (Puns/Todos)
+                Constraint::Length(input_height), // Input
+                Constraint::Length(1),            // Status Bar
+            ])
+            .split(area);
 
-            if amount < 0 {
-                self.todo_scroll = self.todo_scroll.saturating_sub(amount.abs() as usize);
-            } else {
-                self.todo_scroll = self.todo_scroll.saturating_add(amount as usize);
-            }
-            self.todo_scroll = self.todo_scroll.min(max_scroll);
-            return;
-        }
+        self.chat.render(f, chunks[0], state);
+        self.info.render(f, chunks[1], state);
+        self.input.render(f, chunks[2], state);
+        self.status.render(f, chunks[3], state);
 
-        // 2. Message Details Popup
-        if self.focused_message_index.is_some() {
-            let max_scroll = self
-                .popup_content_height
-                .saturating_sub(self.popup_area_height);
-
-            if amount < 0 {
-                self.popup_scroll = self.popup_scroll.saturating_sub(amount.abs() as usize);
-            } else {
-                self.popup_scroll = self.popup_scroll.saturating_add(amount as usize);
-            }
-            self.popup_scroll = self.popup_scroll.min(max_scroll);
-            return;
-        }
-
-        // 3. Session Popup
-        if self.showing_session_popup {
-            let current = self.session_list_state.selected().unwrap_or(0);
-            let len = self.available_sessions.len();
-            if len == 0 {
-                return;
-            }
-
-            let step = if amount.abs() >= 3 {
-                1
-            } else {
-                amount.abs() as usize
-            }; // For list selection, usually 1 step is better than jumping 3
-
-            let new_idx = if amount < 0 {
-                current.saturating_sub(step)
-            } else {
-                current.saturating_add(step)
-            };
-            // Clamp
-            let new_idx = new_idx.min(len.saturating_sub(1));
-            self.session_list_state.select(Some(new_idx));
-            return;
-        }
-
-        // 4. Command Builder Tool List
-        if self.showing_command_builder {
-            match self.builder_state {
-                BuilderState::SelectTool => {
-                    let current = self.builder_list_state.selected().unwrap_or(0);
-                    let len = self.available_tools.len();
-                    if len == 0 {
-                        return;
-                    }
-                    let step = 1;
-                    let new_idx = if amount < 0 {
-                        current.saturating_sub(step)
-                    } else {
-                        current.saturating_add(step)
-                    };
-                    let new_idx = new_idx.min(len.saturating_sub(1));
-                    self.builder_list_state.select(Some(new_idx));
-                    return;
-                }
-                _ => {}
-            }
-        }
-
-        // 5. Main Chat
-        self.auto_scroll = false;
-        let current = self.scroll_state.selected().unwrap_or(0);
-
-        let new_index = if amount < 0 {
-            current.saturating_sub(amount.abs() as usize)
-        } else {
-            current.saturating_add(amount as usize)
-        };
-
-        self.scroll_state.select(Some(new_index));
-    }
-
-    fn handle_input(&mut self, key: KeyEvent) {
-        // Global: Toggle Todo Popup (Ctrl+T)
-        if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            self.showing_todo_popup = !self.showing_todo_popup;
-            self.todo_scroll = 0;
-            return;
-        }
-
-        // Handle Todo Popup inputs
-        if self.showing_todo_popup {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.showing_todo_popup = false;
-                }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll_down();
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll_up();
-                }
-                _ => {}
-            }
-            return;
-        }
-
-        if self.showing_command_builder {
-            self.handle_builder_input(key);
-            return;
-        }
-
-        if self.showing_session_popup {
-            self.handle_session_popup_input(key);
-            return;
-        }
-
-        if self.showing_help_popup {
-            if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
-                self.showing_help_popup = false;
-            }
-            return;
-        }
-
-        if self.showing_about_popup {
-            if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
-                self.showing_about_popup = false;
-            }
-            return;
-        }
-
-        // Handle Message Focus Popup inputs
-        if self.focused_message_index.is_some() {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.focused_message_index = None;
-                }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll_down();
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll_up();
-                }
-                _ => {}
-            }
-            return;
-        }
-
-        // Global shortcuts (Ctrl+C)
-        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            if self.waiting_for_response {
-                // 1. Interrupt Goose if working
-                if let Some(task) = self.reply_task.take() {
-                    task.abort();
-                }
-                self.waiting_for_response = false;
-                self.has_user_input_pending = true;
-                tracing::info!("User interrupted response");
-            } else if !self.input.is_empty() {
-                // 2. Clear input if not working but has text
-                self.input = TextArea::default();
-                self.input
-                    .set_cursor_line_style(ratatui::style::Style::default());
-                self.input.set_placeholder_text("Type a message...");
-            } else {
-                // 3. Exit if idle and no input
-                self.should_quit = true;
-            }
-            return;
-        }
-
-        match self.input_mode {
-            InputMode::Normal => match key.code {
-                KeyCode::Char('e') | KeyCode::Char('i') | KeyCode::Esc => {
-                    self.input_mode = InputMode::Editing;
-                    // Auto-scroll to follow AI response when returning to edit mode
-                    if self.waiting_for_response {
-                        self.auto_scroll = true;
-                    }
-                }
-                KeyCode::Enter => {
-                    // Try to expand message
-                    let selected = self.scroll_state.selected().unwrap_or(0);
-                    if let Some(msg_idx) = self.visual_line_to_message_index.get(selected) {
-                        self.focused_message_index = Some(*msg_idx);
-                        self.popup_scroll = 0;
-                    } else {
-                        // Fallback if no message selected (shouldn't happen often)
-                        self.input_mode = InputMode::Editing;
-                    }
-                }
-                KeyCode::Char('q') => {
-                    self.should_quit = true;
-                }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll_vertical(1);
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll_vertical(-1);
-                }
-                _ => {},
-            },
-            InputMode::Editing => {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.input_mode = InputMode::Normal;
-                    }
-                    KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        // Ctrl+j = Newline
-                        self.input.insert_newline();
-                    }
-                    KeyCode::Enter => {
-                        if key.modifiers.contains(KeyModifiers::SHIFT) {
-                            // Shift+Enter = Newline
-                            self.input.insert_newline();
-                        } else {
-                            if self.waiting_for_response {
-                                self.flash_message = Some(
-                                    "Cannot send a new message while goose is working, hit Ctrl+C to interrupt...".to_string(),
-                                );
-                                self.flash_message_expiry =
-                                    Some(Instant::now() + Duration::from_secs(5));
-                                return;
-                            }
-
-                            use crate::commands::{self, CommandResult};
-
-                            // ... (inside handle_input, Enter case)
-
-                            // Enter = Send message
-                            let text = self.input.lines().join("\n");
-                            if !text.trim().is_empty() {
-                                let mut message_text = Some(text.clone());
-
-                                // Check for slash command
-                                if text.starts_with('/') {
-                                    match commands::dispatch(self, &text) {
-                                        CommandResult::Quit => {
-                                            self.should_quit = true;
-                                            return;
-                                        }
-                                        CommandResult::Continue => {
-                                            // Command handled internally, clear input
-                                            self.input = TextArea::default();
-                                            self.input.set_cursor_line_style(
-                                                ratatui::style::Style::default(),
-                                            );
-                                            self.input.set_placeholder_text("Type a message...");
-                                            return;
-                                        }
-                                        CommandResult::Reply(msg) => {
-                                            // Command generated a reply message (e.g. custom command alias)
-                                            message_text = Some(msg);
-                                        }
-                                        CommandResult::OpenBuilder => {
-                                            self.showing_command_builder = true;
-                                            self.builder_state = BuilderState::SelectTool;
-                                            self.builder_list_state.select(Some(0));
-                                            self.input = TextArea::default();
-                                            self.input.set_cursor_line_style(
-                                                ratatui::style::Style::default(),
-                                            );
-                                            self.input.set_placeholder_text("Type a message...");
-                                            return;
-                                        }
-                                        CommandResult::OpenSessions => {
-                                            if let Some(tx) = &self.tx {
-                                                let client = self.client.clone();
-                                                let tx = tx.clone();
-                                                tokio::spawn(async move {
-                                                    match client.list_sessions().await {
-                                                        Ok(sessions) => {
-                                                            let _ = tx.send(Event::SessionsList(
-                                                                sessions,
-                                                            ));
-                                                        }
-                                                        Err(e) => {
-                                                            let _ = tx
-                                                                .send(Event::Error(e.to_string()));
-                                                        }
-                                                    }
-                                                });
-                                            }
-                                            self.input = TextArea::default();
-                                            self.input.set_cursor_line_style(
-                                                ratatui::style::Style::default(),
-                                            );
-                                            self.input.set_placeholder_text("Type a message...");
-                                            return;
-                                        }
-                                    }
-                                }
-
-                                if let Some(final_text) = message_text {
-                                    let message = Message::user().with_text(&final_text);
-                                    self.messages.push(message.clone());
-                                    self.auto_scroll = true;
-                                    self.waiting_for_response = true;
-                                    self.has_user_input_pending = false;
-                                    self.has_worked = true;
-
-                                    if let Some(tx) = &self.tx {
-                                        let client = self.client.clone();
-                                        let messages = self.messages.clone();
-                                        let session_id = self.session_id.clone();
-                                        let tx = tx.clone();
-
-                                        let task = tokio::spawn(async move {
-                                            if let Err(e) =
-                                                client.reply(messages, session_id, tx).await
-                                            {
-                                                tracing::error!("Failed to send message: {}", e);
-                                            }
-                                        });
-                                        self.reply_task = Some(task);
-                                    }
-
-                                    self.input = TextArea::default();
-                                    self.input
-                                        .set_cursor_line_style(ratatui::style::Style::default());
-                                    self.input.set_placeholder_text("Type a message...");
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        self.input.input(key);
-                    }
-                }
-            }
-        }
-    }
-
-    fn handle_builder_input(&mut self, key: KeyEvent) {
-        match &self.builder_state {
-            BuilderState::SelectTool => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
-                        self.showing_command_builder = false;
-                    }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        let current = self.builder_list_state.selected().unwrap_or(0);
-                        let next = (current + 1).min(self.available_tools.len().saturating_sub(1));
-                        self.builder_list_state.select(Some(next));
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        let current = self.builder_list_state.selected().unwrap_or(0);
-                        let prev = current.saturating_sub(1);
-                        self.builder_list_state.select(Some(prev));
-                    }
-                    KeyCode::Enter => {
-                        if let Some(idx) = self.builder_list_state.selected() {
-                            // Initialize ConfigureArgs
-                            self.builder_state = BuilderState::ConfigureArgs {
-                                tool_idx: idx,
-                                field_values: HashMap::new(),
-                                current_field_idx: 0,
-                            };
-                            self.builder_input = TextArea::default();
-                            // Placeholder for first arg
-                            if let Some(tool) = self.available_tools.get(idx) {
-                                if let Some(first_arg) = tool.parameters.first() {
-                                    self.builder_input.set_placeholder_text(format!(
-                                        "Value for '{}'...",
-                                        first_arg
-                                    ));
-                                } else {
-                                    // No args needed? Skip to Name
-                                    self.builder_state = BuilderState::NameCommand {
-                                        tool_idx: idx,
-                                        field_values: HashMap::new(),
-                                    };
-                                    self.builder_input
-                                        .set_placeholder_text("Slash command name (e.g. myls)...");
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            BuilderState::ConfigureArgs {
-                tool_idx,
-                field_values,
-                current_field_idx,
-            } => {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.showing_command_builder = false;
-                    }
-                    KeyCode::Enter => {
-                        let tool = &self.available_tools[*tool_idx];
-                        let arg_name = &tool.parameters[*current_field_idx];
-                        let value = self.builder_input.lines().join("\n");
-
-                        let mut new_values = field_values.clone();
-                        new_values.insert(arg_name.clone(), value);
-
-                        let next_idx = current_field_idx + 1;
-                        if next_idx < tool.parameters.len() {
-                            // Next arg
-                            self.builder_state = BuilderState::ConfigureArgs {
-                                tool_idx: *tool_idx,
-                                field_values: new_values,
-                                current_field_idx: next_idx,
-                            };
-                            self.builder_input = TextArea::default();
-                            self.builder_input.set_placeholder_text(format!(
-                                "Value for '{}'...",
-                                tool.parameters[next_idx]
-                            ));
-                        } else {
-                            // Done with args, go to Name
-                            self.builder_state = BuilderState::NameCommand {
-                                tool_idx: *tool_idx,
-                                field_values: new_values,
-                            };
-                            self.builder_input = TextArea::default();
-                            self.builder_input
-                                .set_placeholder_text("Slash command name (e.g. myls)...");
-                        }
-                    }
-                    _ => {
-                        self.builder_input.input(key);
-                    }
-                }
-            }
-            BuilderState::NameCommand {
-                tool_idx,
-                field_values,
-            } => {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.showing_command_builder = false;
-                    }
-                    KeyCode::Enter => {
-                        let name = self.builder_input.lines().join("\n").trim().to_string();
-                        if !name.is_empty() {
-                            // Save Command
-                            let tool = &self.available_tools[*tool_idx];
-
-                            // Convert field_values (Map) to JSON Value
-                            let mut args_map = serde_json::Map::new();
-                            for (k, v) in field_values {
-                                args_map.insert(k.clone(), serde_json::Value::String(v.clone()));
-                            }
-
-                            let command = CustomCommand {
-                                name: name.replace("/", ""), // Strip leading slash if user added it
-                                description: format!("Alias for {}", tool.name),
-                                tool: tool.name.clone(),
-                                args: serde_json::Value::Object(args_map),
-                            };
-
-                            self.config.custom_commands.push(command);
-                            if let Err(e) = self.config.save() {
-                                tracing::error!("Failed to save config: {}", e);
-                            }
-
-                            self.showing_command_builder = false;
-                        }
-                    }
-                    _ => {
-                        self.builder_input.input(key);
-                    }
-                }
-            }
-        }
-    }
-
-    fn handle_session_popup_input(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.showing_session_popup = false;
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                let current = self.session_list_state.selected().unwrap_or(0);
-                let next = (current + 1).min(self.available_sessions.len().saturating_sub(1));
-                self.session_list_state.select(Some(next));
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                let current = self.session_list_state.selected().unwrap_or(0);
-                let prev = current.saturating_sub(1);
-                self.session_list_state.select(Some(prev));
-            }
-            KeyCode::Enter => {
-                if let Some(idx) = self.session_list_state.selected() {
-                    if let Some(session) = self.available_sessions.get(idx) {
-                        // Trigger resume
-                        if let Some(tx) = &self.tx {
-                            let client = self.client.clone();
-                            let session_id = session.id.clone();
-                            let tx = tx.clone();
-                            tokio::spawn(async move {
-                                match client.resume_agent(&session_id).await {
-                                    Ok(session) => {
-                                        let _ = tx.send(Event::SessionResumed(session));
-                                    }
-                                    Err(e) => {
-                                        let _ = tx.send(Event::Error(e.to_string()));
-                                    }
-                                }
-                            });
-                        }
-                        // Don't close popup yet, wait for success event?
-                        // Or show "loading..."?
-                        // For now, maybe just close it on success.
-                    }
-                }
-            }
-            _ => {}
+        self.todo_popup.render(f, f.area(), state);
+        self.help_popup.render(f, f.area(), state);
+        self.session_popup.render(f, f.area(), state);
+        self.builder_popup.render(f, f.area(), state);
+        if state.showing_message_info.is_some() {
+            self.message_popup.render(f, f.area(), state);
         }
     }
 }

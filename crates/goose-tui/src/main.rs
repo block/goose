@@ -1,14 +1,19 @@
 mod app;
-mod client;
-mod commands;
-mod config;
-mod event;
+mod components;
+mod services;
+mod state;
 mod tui;
-mod ui;
+mod utils;
 
 use anyhow::Result;
 use app::App;
 use clap::{Parser, Subcommand};
+use components::Component;
+use services::client::Client;
+use services::config::TuiConfig;
+use services::events::{Event, EventHandler};
+use state::action::Action;
+use state::state::AppState;
 use std::env;
 use std::fs;
 use tracing::info;
@@ -24,15 +29,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run the TUI (default)
     Tui {
-        /// Resume a specific session ID
         #[arg(long)]
         session: Option<String>,
     },
-    /// Run an MCP server (internal use)
     Mcp {
-        /// Name of the MCP server type
         name: String,
     },
 }
@@ -52,7 +53,7 @@ fn setup_tui_logging() -> Result<WorkerGuard> {
     tracing_subscriber::fmt()
         .with_writer(non_blocking)
         .with_env_filter(env_filter)
-        .with_ansi(false) // TUI doesn't want ANSI codes in log file usually
+        .with_ansi(false)
         .init();
 
     Ok(guard)
@@ -64,36 +65,183 @@ async fn main() -> Result<()> {
 
     match cli.command.unwrap_or(Commands::Tui { session: None }) {
         Commands::Tui { session } => {
-            // 1. Setup Logging (Critical: must not print to stdout)
             let _guard = setup_tui_logging()?;
             info!("Starting Goose TUI...");
 
-            // 2. Configure Server Environment
             // Generate a secure random token for this session
             let secret_key = Uuid::new_v4().to_string();
             env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
             env::set_var("GOOSE_PORT", "0"); // Ephemeral port
 
+            // Set GOOSE_HOME for the embedded server to ensure sessions are found
+            if let Some(home) = dirs::home_dir() {
+                let goose_home = home.join(".goose");
+                env::set_var("GOOSE_HOME", goose_home);
+            }
+
             info!("Initializing embedded server...");
 
-            // 3. Build Embedded Server
-            // We use the library function we exposed in goose-server
             let (server_app, listener) = goose_server::commands::agent::build_app().await?;
-
             let port = listener.local_addr()?.port();
             info!("Embedded server bound to port: {}", port);
 
-            // 4. Spawn Server in Background
             tokio::spawn(async move {
                 if let Err(e) = axum::serve(listener, server_app).await {
                     tracing::error!("Server error: {}", e);
                 }
             });
 
-            // 5. Start TUI
-            // Pass the port so the App knows where to connect
-            let mut app = App::new(port, secret_key, session).await?;
-            app.run().await?;
+            let client = Client::new(port, secret_key.clone());
+            let cwd = std::env::current_dir()?;
+
+            let initial_session = if let Some(id) = session {
+                info!("Resuming agent session: {}", id);
+                client.resume_agent(&id).await?
+            } else {
+                client
+                    .start_agent(cwd.to_string_lossy().to_string())
+                    .await?
+            };
+
+            // Configure Provider & Model
+            let global_config = goose::config::Config::global();
+            let provider = global_config
+                .get_goose_provider()
+                .unwrap_or_else(|_| "openai".to_string());
+            let model = global_config.get_goose_model().ok();
+
+            if let Err(e) = client
+                .update_provider(&initial_session.id, provider, model.clone())
+                .await
+            {
+                tracing::error!("Failed to update provider: {}", e);
+            }
+
+            // Load Extensions
+            for ext in goose::config::get_enabled_extensions() {
+                if let Err(e) = client.add_extension(&initial_session.id, ext.clone()).await {
+                    tracing::error!("Failed to add extension {}: {}", ext.name(), e);
+                }
+            }
+
+            let config = TuiConfig::load()?;
+            let mut state = AppState::new(initial_session.id.clone(), config);
+
+            // Calculate model context limit
+            if let Some(ref model_name) = model {
+                state.model_context_limit = goose::model::ModelConfig::new(model_name)
+                    .map(|config| config.context_limit())
+                    .unwrap_or(128_000);
+            } else {
+                state.model_context_limit = 128_000;
+            }
+
+            // Hydrate initial state
+            state.messages = initial_session
+                .conversation
+                .map(|c| c.messages().clone())
+                .unwrap_or_default();
+            // ... (reducer handles full hydration from SessionResumed, but here we do it manually or synthesize action)
+            // Let's manually hydrate for simplicity or dispatch SessionResumed immediately?
+            // Actually, we can just use the state initialized with `new`.
+            // AppState::new only sets ID.
+            // Let's manually set properties from initial_session.
+            state.token_state.total_tokens = initial_session.total_tokens.unwrap_or(0);
+            state.token_state.input_tokens = initial_session.input_tokens.unwrap_or(0);
+            state.token_state.output_tokens = initial_session.output_tokens.unwrap_or(0);
+
+            // Load Tools
+            // We should spawn a task to load tools
+            let c_tools = client.clone();
+            let s_id = state.session_id.clone();
+            // We need a channel to send tools back.
+            // We can use the main event loop channel.
+
+            let mut terminal = tui::init()?;
+            let mut app = App::new();
+            let mut event_handler = EventHandler::new();
+            let tx = event_handler.sender();
+
+            // Initial Tools Load
+            let tx_tools = tx.clone();
+            tokio::spawn(async move {
+                if let Ok(tools) = c_tools.get_tools(&s_id).await {
+                    let _ = tx_tools.send(Event::ToolsLoaded(tools));
+                }
+            });
+
+            let mut reply_task: Option<tokio::task::JoinHandle<()>> = None;
+
+            loop {
+                terminal.draw(|f| {
+                    app.render(f, f.area(), &state);
+                })?;
+
+                let event = event_handler.next().await.unwrap();
+
+                // Root component handles event -> Action
+                if let Some(action) = app.handle_event(&event, &state)? {
+                    // Side Effects
+                    match &action {
+                         Action::SendMessage(message_to_send) => {
+                             let client = client.clone();
+                             let tx = tx.clone();
+                             let mut messages_snapshot = state.messages.clone();
+                             messages_snapshot.push(message_to_send.clone());
+                             let session_id = state.session_id.clone();
+                             
+                             let task = tokio::spawn(async move {
+                                 if let Err(e) = client.reply(messages_snapshot, session_id, tx.clone()).await {
+                                     let _ = tx.send(Event::Error(e.to_string()));
+                                 }
+                             });
+                             reply_task = Some(task);
+                         }
+                        Action::ResumeSession(id) => {
+                            let client = client.clone();
+                            let tx = tx.clone();
+                            let id = id.clone();
+                            tokio::spawn(async move {
+                                match client.resume_agent(&id).await {
+                                    Ok(s) => {
+                                        let _ = tx.send(Event::SessionResumed(s));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Event::Error(e.to_string()));
+                                    }
+                                }
+                            });
+                        }
+                        Action::OpenSessionPicker => {
+                            let client = client.clone();
+                            let tx = tx.clone();
+                            tokio::spawn(async move {
+                                match client.list_sessions().await {
+                                    Ok(sessions) => {
+                                        let _ = tx.send(Event::SessionsList(sessions));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Event::Error(e.to_string()));
+                                    }
+                                }
+                            });
+                        }
+                        Action::Quit => {
+                            state::reducer::update(&mut state, action);
+                            break;
+                        }
+                        Action::Interrupt => {
+                            if let Some(task) = reply_task.take() {
+                                task.abort();
+                            }
+                        }
+                        _ => {}
+                    }
+                    state::reducer::update(&mut state, action);
+                }
+            }
+
+            tui::restore()?;
         }
         Commands::Mcp { name } => {
             goose_server::logging::setup_logging(Some(&format!("mcp-{name}")))?;

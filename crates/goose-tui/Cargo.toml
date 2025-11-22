@@ -33,6 +33,9 @@ tokio-stream = "0.1.17"
 eventsource-stream = "0.2.3"
 clap = { version = "4.5.52", features = ["derive"] }
 goose-mcp = { version = "1.14.0", path = "../goose-mcp" }
+pulldown-cmark = "0.12"
+ulid = "1.2.1"
+syntect = "5.2"
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full"] }
