@@ -49,6 +49,9 @@ export function ContextUsageUpdateModal({
                 -{reduction.toLocaleString()} tokens ({reductionPercent}%)
               </span>
             </div>
+            <p className="text-xs text-text-muted mt-2">
+              Note: ignores system prompt and only includes messages, responses, and tool calls visible in this chat window
+            </p>
           </div>
         </div>
         <div className="flex justify-end">
