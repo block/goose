@@ -30,7 +30,7 @@ anyhow = "1.0"
 bytes = "1.5"
 http = "1.0"
 base64 = "0.21"
-config = { version = "0.14.1", features = ["toml"] }
+config = { version = "0.15.13", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 serde_yaml = "0.9.34"
