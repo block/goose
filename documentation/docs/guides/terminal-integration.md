@@ -1,3 +1,6 @@
+---
+unlisted: true
+---
 # Terminal Integration
 
 The `goose term` commands let you talk to goose directly from your shell prompt. Instead of switching to a separate REPL session, you stay in your terminal and call goose when you need it.
