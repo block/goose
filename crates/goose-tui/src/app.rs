@@ -15,6 +15,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
+use std::time::Instant;
 
 pub struct App<'a> {
     chat: ChatComponent,
@@ -26,6 +27,8 @@ pub struct App<'a> {
     session_popup: SessionPopup,
     builder_popup: BuilderPopup<'a>,
     message_popup: MessagePopup,
+
+    pub last_popup_close_time: Option<Instant>,
 }
 
 impl<'a> Default for App<'a> {
@@ -46,7 +49,85 @@ impl<'a> App<'a> {
             session_popup: SessionPopup::new(),
             builder_popup: BuilderPopup::new(),
             message_popup: MessagePopup::new(),
+
+            last_popup_close_time: None,
         }
+    }
+
+    fn handle_popups(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        if state.showing_todo {
+            if let Some(action) = self.todo_popup.handle_event(event, state)? {
+                if matches!(action, Action::ClosePopup) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_help {
+            if let Some(action) = self.help_popup.handle_event(event, state)? {
+                if matches!(action, Action::ClosePopup) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_session_picker {
+            if let Some(action) = self.session_popup.handle_event(event, state)? {
+                if matches!(
+                    action,
+                    Action::ClosePopup | Action::ResumeSession(_) | Action::CreateNewSession
+                ) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_command_builder {
+            if let Some(action) = self.builder_popup.handle_event(event, state)? {
+                if matches!(
+                    action,
+                    Action::ClosePopup
+                        | Action::DeleteCustomCommand(_)
+                        | Action::SubmitCommandBuilder(_)
+                ) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_message_info.is_some() {
+            if let Some(action) = self.message_popup.handle_event(event, state)? {
+                if matches!(action, Action::ClosePopup) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        Ok(None)
+    }
+
+    fn handle_global_shortcuts(&mut self, event: &Event, state: &AppState) -> Option<Action> {
+        if let Event::Input(key) = event {
+            if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                if state.is_working {
+                    return Some(Action::Interrupt);
+                } else if self.input.is_empty() {
+                    return Some(Action::Quit);
+                } else {
+                    self.input.clear();
+                    return None;
+                }
+            }
+            if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                return Some(Action::ToggleTodo);
+            }
+        }
+        None
     }
 }
 
@@ -68,52 +149,28 @@ impl<'a> Component for App<'a> {
         }
 
         // 1. Popups
-        if state.showing_todo {
-            if let Some(action) = self.todo_popup.handle_event(event, state)? {
-                return Ok(Some(action));
-            }
-            return Ok(None);
+        if let Some(action) = self.handle_popups(event, state)? {
+            return Ok(Some(action));
         }
-        if state.showing_help {
-            if let Some(action) = self.help_popup.handle_event(event, state)? {
-                return Ok(Some(action));
+
+        // Check scroll debounce
+        if let Event::Mouse(m) = event {
+            if matches!(
+                m.kind,
+                crossterm::event::MouseEventKind::ScrollDown
+                    | crossterm::event::MouseEventKind::ScrollUp
+            ) {
+                if let Some(last) = self.last_popup_close_time {
+                    if last.elapsed() < std::time::Duration::from_millis(300) {
+                        return Ok(None);
+                    }
+                }
             }
-            return Ok(None);
-        }
-        if state.showing_session_picker {
-            if let Some(action) = self.session_popup.handle_event(event, state)? {
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_command_builder {
-            if let Some(action) = self.builder_popup.handle_event(event, state)? {
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_message_info.is_some() {
-            if let Some(action) = self.message_popup.handle_event(event, state)? {
-                return Ok(Some(action));
-            }
-            return Ok(None);
         }
 
         // 2. Global Shortcuts
-        if let Event::Input(key) = event {
-            if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                if state.is_working {
-                    return Ok(Some(Action::Interrupt));
-                } else if self.input.is_empty() {
-                    return Ok(Some(Action::Quit));
-                } else {
-                    self.input.clear();
-                    return Ok(None);
-                }
-            }
-            if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                return Ok(Some(Action::ToggleTodo));
-            }
+        if let Some(action) = self.handle_global_shortcuts(event, state) {
+            return Ok(Some(action));
         }
 
         // 3. Input

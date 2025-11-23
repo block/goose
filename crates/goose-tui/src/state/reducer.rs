@@ -70,7 +70,7 @@ pub fn update(state: &mut AppState, action: Action) {
         Action::ToggleTodo => state.showing_todo = !state.showing_todo,
         Action::ToggleHelp => state.showing_help = !state.showing_help,
         Action::OpenSessionPicker => state.showing_session_picker = true,
-        Action::ResumeSession(_) => {
+        Action::CreateNewSession | Action::ResumeSession(_) => {
             state.is_working = true;
         }
         Action::ChangeTheme(name) => {

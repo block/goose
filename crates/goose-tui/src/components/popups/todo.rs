@@ -138,7 +138,7 @@ impl Component for TodoPopup {
 
         self.content_height = lines.len() as u16;
         self.viewport_height = area.height.saturating_sub(2);
-        
+
         if self.scroll > self.max_scroll() {
             self.scroll = self.max_scroll();
         }

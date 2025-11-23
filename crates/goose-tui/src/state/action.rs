@@ -24,6 +24,7 @@ pub enum Action {
     ToggleHelp,
     OpenSessionPicker,
     ResumeSession(String),
+    CreateNewSession,
     ChangeTheme(String),
     ClearChat,
     ClosePopup,

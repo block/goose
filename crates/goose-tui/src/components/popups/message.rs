@@ -46,60 +46,18 @@ impl MessagePopup {
             self.content_height.saturating_sub(1)
         }
     }
-}
 
-impl Component for MessagePopup {
-    fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
-        match event {
-            Event::Input(key) => match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll = self.scroll.saturating_sub(1);
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                _ => {}
-            },
-            Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => {
-                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                MouseEventKind::ScrollUp => {
-                    self.scroll = self.scroll.saturating_sub(3);
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                _ => {}
-            },
-            _ => {}
-        }
-        Ok(None)
-    }
-
-    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        let msg_idx = match state.showing_message_info {
-            Some(idx) => idx,
-            None => return,
-        };
-
-        let message = match state.messages.get(msg_idx) {
-            Some(m) => m,
-            None => return,
-        };
-
-        let area = centered_rect(80, 80, area);
-        f.render_widget(Clear, area);
-
+    fn render_content(
+        &self,
+        message: &goose::conversation::message::Message,
+    ) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
         for content in &message.content {
             match content {
                 MessageContent::Text(t) => {
                     for line in t.text.lines() {
-                        lines.push(Line::from(line));
+                        lines.push(Line::from(line.to_string()));
                     }
                 }
                 MessageContent::ToolRequest(req) => {
@@ -153,6 +111,56 @@ impl Component for MessagePopup {
             }
             lines.push(Line::from(""));
         }
+        lines
+    }
+}
+
+impl Component for MessagePopup {
+    fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
+        match event {
+            Event::Input(key) => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.scroll = self.scroll.saturating_sub(1);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                _ => {}
+            },
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollDown => {
+                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                MouseEventKind::ScrollUp => {
+                    self.scroll = self.scroll.saturating_sub(3);
+                    self.last_scroll_time = Some(Instant::now());
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        Ok(None)
+    }
+
+    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+        let msg_idx = match state.showing_message_info {
+            Some(idx) => idx,
+            None => return,
+        };
+
+        let message = match state.messages.get(msg_idx) {
+            Some(m) => m,
+            None => return,
+        };
+
+        let area = centered_rect(80, 80, area);
+        f.render_widget(Clear, area);
+
+        let lines = self.render_content(message);
 
         let block = Block::default()
             .title("Message Details (Esc to Close)")
@@ -168,7 +176,7 @@ impl Component for MessagePopup {
             if width == 0 {
                 wrapped_height += 1;
             } else {
-                wrapped_height += (width + inner_width - 1) / inner_width;
+                wrapped_height += width.div_ceil(inner_width);
             }
         }
 

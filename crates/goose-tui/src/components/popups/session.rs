@@ -42,7 +42,7 @@ impl Component for SessionPopup {
 
         match event {
             Event::Input(key) => {
-                let max_idx = state.available_sessions.len().saturating_sub(1);
+                let max_idx = state.available_sessions.len(); // +1 for new session, -1 for index = len
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
                     KeyCode::Char('j') | KeyCode::Down => {
@@ -63,7 +63,9 @@ impl Component for SessionPopup {
                     }
                     KeyCode::Enter => {
                         if let Some(idx) = self.list_state.selected() {
-                            if let Some(session) = state.available_sessions.get(idx) {
+                            if idx == 0 {
+                                return Ok(Some(Action::CreateNewSession));
+                            } else if let Some(session) = state.available_sessions.get(idx - 1) {
                                 return Ok(Some(Action::ResumeSession(session.id.clone())));
                             }
                         }
@@ -76,7 +78,7 @@ impl Component for SessionPopup {
                 }
             }
             Event::Mouse(mouse) => {
-                let max_idx = state.available_sessions.len().saturating_sub(1);
+                let max_idx = state.available_sessions.len();
                 match mouse.kind {
                     MouseEventKind::ScrollDown => {
                         let idx = self.list_state.selected().unwrap_or(0);
@@ -108,21 +110,24 @@ impl Component for SessionPopup {
 
         self.scroll_state = self
             .scroll_state
-            .content_length(state.available_sessions.len());
+            .content_length(state.available_sessions.len() + 1);
 
-        let items: Vec<ListItem> = state
-            .available_sessions
-            .iter()
-            .map(|s| {
-                let id = Span::styled(&s.id, Style::default().fg(Color::Cyan));
-                let count = Span::styled(
-                    format!(" ({} msgs) ", s.message_count),
-                    Style::default().fg(Color::DarkGray),
-                );
-                let name = Span::styled(&s.name, Style::default().fg(Color::White));
-                ListItem::new(Line::from(vec![id, count, name]))
-            })
-            .collect();
+        let mut items = vec![ListItem::new(Span::styled(
+            "New session",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ))];
+
+        items.extend(state.available_sessions.iter().map(|s| {
+            let id = Span::styled(&s.id, Style::default().fg(Color::Cyan));
+            let count = Span::styled(
+                format!(" ({} msgs) ", s.message_count),
+                Style::default().fg(Color::DarkGray),
+            );
+            let name = Span::styled(&s.name, Style::default().fg(Color::White));
+            ListItem::new(Line::from(vec![id, count, name]))
+        }));
 
         let block = Block::default()
             .title("Sessions (Enter to Resume)")

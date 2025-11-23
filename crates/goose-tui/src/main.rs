@@ -240,6 +240,21 @@ fn process_event(
                     }
                 });
             }
+            Action::CreateNewSession => {
+                let client = client.clone();
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    match client.start_agent(cwd.to_string_lossy().to_string()).await {
+                        Ok(s) => {
+                            let _ = tx.send(Event::SessionResumed(Box::new(s)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
             Action::OpenSessionPicker => {
                 let client = client.clone();
                 let tx = tx.clone();
