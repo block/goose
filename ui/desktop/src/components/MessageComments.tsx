@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { MessageComment, TextSelection } from '../types/comment';
 import CommentCard from './CommentCard';
 import CommentInput from './CommentInput';
 import CommentBadge from './CommentBadge';
-import CommentModal from './CommentModal';
+import CommentPanel from './CommentPanel';
+import { useCommentPanelOptional } from '../contexts/CommentPanelContext';
 import { cn } from '../utils';
 
 export type CommentDisplayMode = 'full' | 'condensed';
@@ -39,7 +40,13 @@ export default function MessageComments({
   displayMode = 'full',
   className,
 }: MessageCommentsProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocalPanelOpen, setIsLocalPanelOpen] = useState(false);
+  const panelContext = useCommentPanelOptional();
+  
+  // Use context if available, otherwise use local state
+  const isPanelOpen = panelContext ? panelContext.isPanelOpen : isLocalPanelOpen;
+  const openPanel = panelContext ? panelContext.openPanel : () => setIsLocalPanelOpen(true);
+  const closePanel = panelContext ? panelContext.closePanel : () => setIsLocalPanelOpen(false);
   
   // Filter out reply comments (they're shown nested within their parents)
   const topLevelComments = comments.filter(comment => !comment.parentId);
@@ -61,22 +68,22 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show badge + modal
+  // Condensed mode: show badge + slide-in panel
   if (displayMode === 'condensed') {
     return (
       <>
         <CommentBadge
           comments={comments}
           position={badgePosition}
-          onClick={() => setIsModalOpen(true)}
+          onClick={openPanel}
           className={className}
         />
-        <CommentModal
+        <CommentPanel
           messageId={messageId}
           comments={comments}
           selectedText={activeSelection?.selectedText}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          isOpen={isPanelOpen}
+          onClose={closePanel}
           activeSelection={activeSelection}
           isCreatingComment={isCreatingComment}
           onCreateComment={onCreateComment}

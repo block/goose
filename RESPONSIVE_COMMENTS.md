@@ -52,16 +52,27 @@ Compact indicator shown in condensed mode:
 - Color-coded (blue = active, green = all resolved)
 - Click to open modal
 
-#### 3. `CommentModal` Component
-**Location**: `ui/desktop/src/components/CommentModal.tsx`
+#### 3. `CommentPanel` Component
+**Location**: `ui/desktop/src/components/CommentPanel.tsx`
 
-Full-featured modal for condensed mode:
-- Backdrop with blur effect
+Slide-in panel for condensed mode (like a mini-sidecar):
+- Slides in from right side
+- Fixed width (384px / w-96)
+- Pushes chat content to the left
 - Scrollable comment list
 - Comment creation/editing/replying
 - Keyboard shortcuts (Esc to close)
 - Focus management
-- Click-outside to close
+- Smooth transitions
+
+#### 4. `CommentPanelContext` & `CommentPanelLayout`
+**Location**: `ui/desktop/src/contexts/CommentPanelContext.tsx` & `ui/desktop/src/components/CommentPanelLayout.tsx`
+
+Global state management for panel:
+- Context tracks panel open/close state
+- Layout wrapper shifts content when panel opens
+- Similar behavior to sidecar system
+- Smooth transitions (300ms ease-in-out)
 
 #### 4. Updated `MessageComments` Component
 **Location**: `ui/desktop/src/components/MessageComments.tsx`
@@ -102,9 +113,11 @@ Integrates display mode detection:
 1. User selects text in a message
 2. "💬 Comment" button appears inline
 3. Click shows comment badge with count
-4. Click badge to open modal with all comments
-5. Modal provides full functionality
-6. Close modal to return to reading
+4. Click badge to slide in comment panel from right
+5. Chat content shifts left to make room
+6. Panel provides full functionality
+7. Close panel (Esc or X button) to return to reading
+8. Smooth 300ms transition
 
 ## Breakpoint Logic
 
@@ -132,16 +145,21 @@ When any sidecar is active, comments automatically condense to preserve reading 
 
 ## Styling
 
-### Badge Colors
-- **Blue**: Active comments (not all resolved)
-- **Green**: All comments resolved
+### Badge Styling
+- Uses app design tokens (`background-default`, `text-prominent`, `border-subtle`)
+- Consistent with app's design language
+- Hover state with scale effect
+- Shows resolved count with checkmark
+- Hover preview tooltip
 
-### Modal
-- Centered overlay with backdrop blur
-- Max width: 90vw (up to 768px)
-- Max height: 80vh
-- Smooth animations
-- Dark mode support
+### Panel Styling
+- Fixed width: 384px (w-96)
+- Slides in from right with smooth transition
+- Uses app design tokens for consistency
+- Full height with scrollable content
+- Header with close button
+- Footer with keyboard hints
+- Dark mode support via design tokens
 
 ## Future Enhancements
 
@@ -270,7 +288,9 @@ const { displayMode } = useCommentDisplayMode({
 
 - `ui/desktop/src/hooks/useCommentDisplayMode.ts` - Display mode detection
 - `ui/desktop/src/components/CommentBadge.tsx` - Condensed badge UI
-- `ui/desktop/src/components/CommentModal.tsx` - Modal overlay
+- `ui/desktop/src/components/CommentPanel.tsx` - Slide-in panel
+- `ui/desktop/src/components/CommentPanelLayout.tsx` - Layout wrapper for content shift
+- `ui/desktop/src/contexts/CommentPanelContext.tsx` - Panel state management
 - `ui/desktop/src/components/MessageComments.tsx` - Mode switching logic
 - `ui/desktop/src/components/GooseMessage.tsx` - Integration point
 - `ui/desktop/src/contexts/UnifiedSidecarContext.tsx` - Sidecar state
