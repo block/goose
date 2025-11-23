@@ -550,9 +550,15 @@ pre:has(> code.bg-inline-code) {
 
 li > code.bg-inline-code,
 p > code.bg-inline-code {
-  color: var(--color-white);
+  color: var(--color-neutral-900);
   font-weight: 600;
   padding: 2px 4px;
+}
+
+.dark li > code.bg-inline-code,
+.dark p > code.bg-inline-code {
+  color: var(--color-white);
+  font-weight: 600;
 }
 
 .bg-inline-code:after {
