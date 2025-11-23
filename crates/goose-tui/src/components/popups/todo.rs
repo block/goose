@@ -16,6 +16,8 @@ use std::time::Instant;
 pub struct TodoPopup {
     scroll: u16,
     last_scroll_time: Option<Instant>,
+    content_height: u16,
+    viewport_height: u16,
 }
 
 impl Default for TodoPopup {
@@ -29,6 +31,8 @@ impl TodoPopup {
         Self {
             scroll: 0,
             last_scroll_time: None,
+            content_height: 0,
+            viewport_height: 0,
         }
     }
 
@@ -51,6 +55,14 @@ impl TodoPopup {
             ])
             .split(popup_layout[1])[1]
     }
+
+    fn max_scroll(&self) -> u16 {
+        if self.content_height <= self.viewport_height {
+            0
+        } else {
+            self.content_height.saturating_sub(1)
+        }
+    }
 }
 
 impl Component for TodoPopup {
@@ -60,7 +72,7 @@ impl Component for TodoPopup {
                 KeyCode::Esc => return Ok(Some(Action::ClosePopup)),
                 KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
                 KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll = self.scroll.saturating_add(1);
+                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
@@ -71,7 +83,7 @@ impl Component for TodoPopup {
             },
             Event::Mouse(m) => match m.kind {
                 MouseEventKind::ScrollDown => {
-                    self.scroll = self.scroll.saturating_add(3);
+                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
                 }
                 MouseEventKind::ScrollUp => {
@@ -124,7 +136,13 @@ impl Component for TodoPopup {
             .border_type(BorderType::Rounded)
             .style(Style::default().bg(state.config.theme.base.background));
 
-        let content_height = lines.len() as u16;
+        self.content_height = lines.len() as u16;
+        self.viewport_height = area.height.saturating_sub(2);
+        
+        if self.scroll > self.max_scroll() {
+            self.scroll = self.max_scroll();
+        }
+
         let p = Paragraph::new(lines).block(block).scroll((self.scroll, 0));
 
         f.render_widget(p, area);
@@ -132,7 +150,8 @@ impl Component for TodoPopup {
         if let Some(last) = self.last_scroll_time {
             if last.elapsed() < std::time::Duration::from_secs(1) {
                 let mut scrollbar_state = ScrollbarState::default()
-                    .content_length(content_height as usize)
+                    .content_length(self.content_height as usize)
+                    .viewport_content_length(self.viewport_height as usize)
                     .position(self.scroll as usize);
 
                 f.render_stateful_widget(

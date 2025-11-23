@@ -16,6 +16,7 @@ use state::action::Action;
 use state::AppState;
 use std::env;
 use std::fs;
+use tokio::sync::mpsc;
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
@@ -177,70 +178,94 @@ async fn run_event_loop(
         })?;
 
         let event = event_handler.next().await.unwrap();
+        if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
+            break;
+        }
 
-        if let Some(action) = app.handle_event(&event, &state)? {
-            match &action {
-                Action::SendMessage(message_to_send) => {
-                    let client = client.clone();
-                    let tx = tx.clone();
-                    let mut messages_snapshot = state.messages.clone();
-                    messages_snapshot.push(message_to_send.clone());
-                    let session_id = state.session_id.clone();
-
-                    let task = tokio::spawn(async move {
-                        if let Err(e) = client
-                            .reply(messages_snapshot, session_id, tx.clone())
-                            .await
-                        {
-                            let _ = tx.send(Event::Error(e.to_string()));
-                        }
-                    });
-                    reply_task = Some(task);
-                }
-                Action::ResumeSession(id) => {
-                    let client = client.clone();
-                    let tx = tx.clone();
-                    let id = id.clone();
-                    tokio::spawn(async move {
-                        match client.resume_agent(&id).await {
-                            Ok(s) => {
-                                let _ = tx.send(Event::SessionResumed(Box::new(s)));
-                            }
-                            Err(e) => {
-                                let _ = tx.send(Event::Error(e.to_string()));
-                            }
-                        }
-                    });
-                }
-                Action::OpenSessionPicker => {
-                    let client = client.clone();
-                    let tx = tx.clone();
-                    tokio::spawn(async move {
-                        match client.list_sessions().await {
-                            Ok(sessions) => {
-                                let _ = tx.send(Event::SessionsList(sessions));
-                            }
-                            Err(e) => {
-                                let _ = tx.send(Event::Error(e.to_string()));
-                            }
-                        }
-                    });
-                }
-                Action::Quit => {
-                    state::reducer::update(&mut state, action);
-                    break;
-                }
-                Action::Interrupt => {
-                    if let Some(task) = reply_task.take() {
-                        task.abort();
-                    }
-                }
-                _ => {}
+        let mut quit = false;
+        while let Some(event) = event_handler.try_next() {
+            if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
+                quit = true;
+                break;
             }
-            state::reducer::update(&mut state, action);
+        }
+        if quit {
+            break;
         }
     }
 
     tui::restore()?;
     Ok(())
+}
+
+fn process_event(
+    event: Event,
+    app: &mut App,
+    state: &mut AppState,
+    client: &Client,
+    tx: &mpsc::UnboundedSender<Event>,
+    reply_task: &mut Option<tokio::task::JoinHandle<()>>,
+) -> bool {
+    if let Ok(Some(action)) = app.handle_event(&event, state) {
+        match &action {
+            Action::SendMessage(message_to_send) => {
+                let client = client.clone();
+                let tx = tx.clone();
+                let mut messages_snapshot = state.messages.clone();
+                messages_snapshot.push(message_to_send.clone());
+                let session_id = state.session_id.clone();
+
+                let task = tokio::spawn(async move {
+                    if let Err(e) = client
+                        .reply(messages_snapshot, session_id, tx.clone())
+                        .await
+                    {
+                        let _ = tx.send(Event::Error(e.to_string()));
+                    }
+                });
+                *reply_task = Some(task);
+            }
+            Action::ResumeSession(id) => {
+                let client = client.clone();
+                let tx = tx.clone();
+                let id = id.clone();
+                tokio::spawn(async move {
+                    match client.resume_agent(&id).await {
+                        Ok(s) => {
+                            let _ = tx.send(Event::SessionResumed(Box::new(s)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+            Action::OpenSessionPicker => {
+                let client = client.clone();
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    match client.list_sessions().await {
+                        Ok(sessions) => {
+                            let _ = tx.send(Event::SessionsList(sessions));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+            Action::Quit => {
+                state::reducer::update(state, action);
+                return true;
+            }
+            Action::Interrupt => {
+                if let Some(task) = reply_task.take() {
+                    task.abort();
+                }
+            }
+            _ => {}
+        }
+        state::reducer::update(state, action);
+    }
+    false
 }

@@ -3,7 +3,7 @@ use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, InputMode};
 use crate::utils::ascii_art::GOOSE_LOGO;
-use crate::utils::markdown::MarkdownRenderer;
+use crate::utils::termimad_renderer::TermimadRenderer2;
 use crate::utils::styles::Theme;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
@@ -110,18 +110,14 @@ impl ChatComponent {
         map: &mut Vec<usize>,
     ) {
         let user_text_style = Style::default().fg(theme.base.user_message_foreground);
-        let mut renderer = MarkdownRenderer::new(
-            &t.text,
-            width.saturating_sub(4),
-            theme,
-            Some(user_text_style),
-        );
-        let mut rendered_lines = renderer.render_lines();
+        let renderer = TermimadRenderer2::new(theme, Some(user_text_style));
+        let mut rendered_lines = renderer.render_lines(&t.text, width.saturating_sub(4));
 
+        // Remove trailing empty line if text doesn't end with double newline
         if !t.text.ends_with("\n\n")
             && rendered_lines
                 .last()
-                .is_some_and(|line| line.spans.is_empty())
+                .is_some_and(|line| line.spans.is_empty() || line.width() == 0)
         {
             rendered_lines.pop();
         }
@@ -247,8 +243,9 @@ impl ChatComponent {
         for content in &message.content {
             match content {
                 MessageContent::Text(t) => {
-                    let mut renderer = MarkdownRenderer::new(&t.text, width, theme, None);
-                    for line in renderer.render_lines() {
+                    let renderer = TermimadRenderer2::new(theme, None);
+                    let rendered_lines = renderer.render_lines(&t.text, width);
+                    for line in rendered_lines {
                         items.push(ListItem::new(line));
                         map.push(msg_idx);
                     }

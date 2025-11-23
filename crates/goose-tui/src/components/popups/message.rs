@@ -19,6 +19,8 @@ use std::time::Instant;
 pub struct MessagePopup {
     scroll: u16,
     last_scroll_time: Option<Instant>,
+    content_height: u16,
+    viewport_height: u16,
 }
 
 impl Default for MessagePopup {
@@ -32,6 +34,16 @@ impl MessagePopup {
         Self {
             scroll: 0,
             last_scroll_time: None,
+            content_height: 0,
+            viewport_height: 0,
+        }
+    }
+
+    fn max_scroll(&self) -> u16 {
+        if self.content_height <= self.viewport_height {
+            0
+        } else {
+            self.content_height.saturating_sub(1)
         }
     }
 }
@@ -42,7 +54,7 @@ impl Component for MessagePopup {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
                 KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll = self.scroll.saturating_add(1);
+                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
@@ -53,7 +65,7 @@ impl Component for MessagePopup {
             },
             Event::Mouse(m) => match m.kind {
                 MouseEventKind::ScrollDown => {
-                    self.scroll = self.scroll.saturating_add(3);
+                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
                 }
                 MouseEventKind::ScrollUp => {
@@ -148,7 +160,25 @@ impl Component for MessagePopup {
             .border_type(BorderType::Rounded)
             .style(Style::default().bg(state.config.theme.base.background));
 
-        let content_height = lines.len() as u16;
+        // Calculate height with wrapping estimation
+        let inner_width = area.width.saturating_sub(2).max(1);
+        let mut wrapped_height = 0;
+        for line in &lines {
+            let width = line.width() as u16;
+            if width == 0 {
+                wrapped_height += 1;
+            } else {
+                wrapped_height += (width + inner_width - 1) / inner_width;
+            }
+        }
+
+        self.content_height = wrapped_height;
+        self.viewport_height = area.height.saturating_sub(2);
+
+        if self.scroll > self.max_scroll() {
+            self.scroll = self.max_scroll();
+        }
+
         let p = Paragraph::new(Text::from(lines))
             .block(block)
             .wrap(Wrap { trim: false })
@@ -159,7 +189,8 @@ impl Component for MessagePopup {
         if let Some(last) = self.last_scroll_time {
             if last.elapsed() < std::time::Duration::from_secs(1) {
                 let mut scrollbar_state = ScrollbarState::default()
-                    .content_length(content_height as usize)
+                    .content_length(self.content_height as usize)
+                    .viewport_content_length(self.viewport_height as usize)
                     .position(self.scroll as usize);
 
                 f.render_stateful_widget(
