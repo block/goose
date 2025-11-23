@@ -625,7 +625,7 @@ export function AppInner() {
                text-text-on-accent bg-background-inverse
               `
         }
-        style={{ width: '380px' }}
+        style={{ width: '450px' }}
         className="mt-6"
         position="top-right"
         autoClose={3000}
