@@ -25,7 +25,7 @@ alias gt='{goose_bin} term run'
 # Log commands to goose (runs silently in background)
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^gt\  ]] && return
+    [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
     ("{goose_bin}" term log "$1" &) 2>/dev/null
 }}
 
@@ -44,7 +44,7 @@ alias gt='{goose_bin} term run'
 # Log commands to goose (runs silently in background)
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^gt\  ]] && return
+    [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
     ("{goose_bin}" term log "$1" &) 2>/dev/null
 }}
 
@@ -56,27 +56,27 @@ add-zsh-hook preexec goose_preexec"#
         "fish" => {
             format!(
                 r#"set -gx GOOSE_TERMINAL_ID "{terminal_id}"
-alias gt='{goose_bin} term run'
+function gt; {goose_bin} term run $argv; end
 
 # Log commands to goose
 function goose_preexec --on-event fish_preexec
     string match -q -r '^goose term' -- $argv[1]; and return
-    string match -q -r '^gt ' -- $argv[1]; and return
-    {goose_bin} term log $argv[1] 2>/dev/null &
+    string match -q -r '^gt($|\s)' -- $argv[1]; and return
+    {goose_bin} term log "$argv[1]" 2>/dev/null &
 end"#
             )
         }
         "powershell" | "pwsh" => {
             format!(
                 r#"$env:GOOSE_TERMINAL_ID = "{terminal_id}"
-Set-Alias -Name gt -Value {{ {goose_bin} term run $args }}
+function gt {{ & '{goose_bin}' term run @args }}
 
 # Log commands to goose
 Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
     $line = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$null)
-    if ($line -notmatch '^goose term' -and $line -notmatch '^gt ') {{
-        Start-Job -ScriptBlock {{ {goose_bin} term log $using:line }} | Out-Null
+    if ($line -notmatch '^goose term' -and $line -notmatch '^gt($|\s)') {{
+        Start-Job -ScriptBlock {{ & '{goose_bin}' term log $using:line }} | Out-Null
     }}
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
 }}"#
