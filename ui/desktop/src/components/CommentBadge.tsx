@@ -51,10 +51,10 @@ export default function CommentBadge({
         )}
         title={totalComments > 0 ? `${totalComments} comment${totalComments !== 1 ? 's' : ''}` : 'Add comment'}
       >
-        <MessageCircle className="w-3.5 h-3.5 text-text-prominent flex-shrink-0" />
+        <MessageCircle className="w-3.5 h-3.5 text-text-subtle flex-shrink-0" />
         {totalComments > 0 ? (
           <>
-            <span className="text-xs font-semibold text-text-prominent">
+            <span className="text-xs font-semibold text-text-subtle">
               {totalComments}
             </span>
             {resolvedCount > 0 && resolvedCount < totalComments && (
@@ -69,7 +69,7 @@ export default function CommentBadge({
             )}
           </>
         ) : (
-          <span className="text-xs font-medium text-text-prominent">
+          <span className="text-xs font-medium text-text-subtle">
             Add comment
           </span>
         )}
