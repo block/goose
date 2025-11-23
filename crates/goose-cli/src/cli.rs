@@ -4,7 +4,8 @@ use clap::{Args, Parser, Subcommand};
 use goose::config::{Config, ExtensionConfig};
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, ShellServer,
+    TutorialServer,
 };
 
 use crate::commands::acp::run_acp_agent;
@@ -895,6 +896,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 McpCommand::Memory => serve(MemoryServer::new()).await?,
                 McpCommand::Tutorial => serve(TutorialServer::new()).await?,
                 McpCommand::Developer => serve(DeveloperServer::new()).await?,
+                McpCommand::Shell => serve(ShellServer::new()).await?,
             }
         }
         Some(Command::Acp {}) => {
