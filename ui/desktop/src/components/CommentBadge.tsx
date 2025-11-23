@@ -48,20 +48,28 @@ export default function CommentBadge({
           'bg-background-default border border-border-subtle',
           'hover:shadow-lg hover:scale-105 hover:bg-background-medium'
         )}
-        title={`${totalComments} comment${totalComments !== 1 ? 's' : ''}`}
+        title={totalComments > 0 ? `${totalComments} comment${totalComments !== 1 ? 's' : ''}` : 'Add comment'}
       >
         <MessageCircle className="w-3.5 h-3.5 text-text-prominent" />
-        <span className="text-xs font-semibold text-text-prominent">
-          {totalComments}
-        </span>
-        {resolvedCount > 0 && resolvedCount < totalComments && (
-          <span className="text-[10px] text-text-muted">
-            ({resolvedCount} ✓)
-          </span>
-        )}
-        {resolvedCount === totalComments && (
-          <span className="text-[10px] text-text-muted">
-            ✓
+        {totalComments > 0 ? (
+          <>
+            <span className="text-xs font-semibold text-text-prominent">
+              {totalComments}
+            </span>
+            {resolvedCount > 0 && resolvedCount < totalComments && (
+              <span className="text-[10px] text-text-muted">
+                ({resolvedCount} ✓)
+              </span>
+            )}
+            {resolvedCount === totalComments && (
+              <span className="text-[10px] text-text-muted">
+                ✓
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-xs font-medium text-text-prominent">
+            Add comment
           </span>
         )}
       </button>
