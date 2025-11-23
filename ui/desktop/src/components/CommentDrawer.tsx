@@ -59,8 +59,8 @@ export default function CommentDrawer({
     <div
       data-comment-ui
       className={cn(
-        'border border-border-subtle rounded-lg overflow-hidden transition-all duration-200',
-        'bg-background-default',
+        'border border-border-subtle rounded-lg overflow-hidden',
+        'bg-background-default shadow-xl',
         className
       )}
     >
