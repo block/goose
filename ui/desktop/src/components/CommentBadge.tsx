@@ -33,13 +33,9 @@ export default function CommentBadge({
   return (
     <div
       className={cn(
-        'absolute z-10 transition-all',
+        'relative z-10 transition-all',
         className
       )}
-      style={{
-        left: position.x,
-        top: position.y,
-      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

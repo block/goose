@@ -61,38 +61,37 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show badge + expandable drawer
+  // Condensed mode: show badge on right, drawer expands below it
   if (displayMode === 'condensed') {
     return (
-      <div className={cn('mt-3', className)}>
-        {/* Badge that expands into drawer */}
-        <div className="flex items-start gap-2">
-          <CommentBadge
-            comments={comments}
-            position={badgePosition}
-            onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
-            className="flex-shrink-0"
-          />
+      <div className={cn('mt-3 flex justify-end', className)}>
+        <div className="w-96 max-w-full">
+          {/* Badge on the right */}
+          <div className="flex justify-end mb-2">
+            <CommentBadge
+              comments={comments}
+              position={badgePosition}
+              onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+            />
+          </div>
           
-          {/* Expandable drawer */}
+          {/* Expandable drawer below badge */}
           {isDrawerExpanded && (
-            <div className="flex-1 min-w-0">
-              <CommentDrawer
-                messageId={messageId}
-                comments={comments}
-                selectedText={activeSelection?.selectedText}
-                isExpanded={isDrawerExpanded}
-                onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
-                activeSelection={activeSelection}
-                isCreatingComment={isCreatingComment}
-                onCreateComment={onCreateComment}
-                onUpdateComment={onUpdateComment}
-                onDeleteComment={onDeleteComment}
-                onReplyToComment={onReplyToComment}
-                onResolveComment={onResolveComment}
-                onCancelComment={onCancelComment}
-              />
-            </div>
+            <CommentDrawer
+              messageId={messageId}
+              comments={comments}
+              selectedText={activeSelection?.selectedText}
+              isExpanded={isDrawerExpanded}
+              onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+              activeSelection={activeSelection}
+              isCreatingComment={isCreatingComment}
+              onCreateComment={onCreateComment}
+              onUpdateComment={onUpdateComment}
+              onDeleteComment={onDeleteComment}
+              onReplyToComment={onReplyToComment}
+              onResolveComment={onResolveComment}
+              onCancelComment={onCancelComment}
+            />
           )}
         </div>
       </div>
