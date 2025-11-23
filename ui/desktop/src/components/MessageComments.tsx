@@ -2,7 +2,11 @@ import React, { useState, useCallback } from 'react';
 import { MessageComment, TextSelection } from '../types/comment';
 import CommentCard from './CommentCard';
 import CommentInput from './CommentInput';
+import CommentBadge from './CommentBadge';
+import CommentModal from './CommentModal';
 import { cn } from '../utils';
+
+export type CommentDisplayMode = 'full' | 'condensed';
 
 interface MessageCommentsProps {
   messageId: string;
@@ -16,6 +20,7 @@ interface MessageCommentsProps {
   onReplyToComment: (parentId: string, content: string) => void;
   onResolveComment: (commentId: string, resolved: boolean) => void;
   onCancelComment: () => void;
+  displayMode?: CommentDisplayMode;
   className?: string;
 }
 
@@ -31,8 +36,11 @@ export default function MessageComments({
   onReplyToComment,
   onResolveComment,
   onCancelComment,
+  displayMode = 'full',
   className,
 }: MessageCommentsProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   // Filter out reply comments (they're shown nested within their parents)
   const topLevelComments = comments.filter(comment => !comment.parentId);
 
@@ -45,11 +53,44 @@ export default function MessageComments({
     }
   }, [messageId, activeSelection, onCreateComment]);
 
+  // Calculate badge position - use first comment position or active selection position
+  const badgePosition = activePosition || (sortedComments[0] ? { x: 0, y: sortedComments[0].position * 0.1 } : { x: 0, y: 0 });
+
   // If no comments and not creating, don't render anything
   if (sortedComments.length === 0 && !isCreatingComment) {
     return null;
   }
 
+  // Condensed mode: show badge + modal
+  if (displayMode === 'condensed') {
+    return (
+      <>
+        <CommentBadge
+          comments={comments}
+          position={badgePosition}
+          onClick={() => setIsModalOpen(true)}
+          className={className}
+        />
+        <CommentModal
+          messageId={messageId}
+          comments={comments}
+          selectedText={activeSelection?.selectedText}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          activeSelection={activeSelection}
+          isCreatingComment={isCreatingComment}
+          onCreateComment={onCreateComment}
+          onUpdateComment={onUpdateComment}
+          onDeleteComment={onDeleteComment}
+          onReplyToComment={onReplyToComment}
+          onResolveComment={onResolveComment}
+          onCancelComment={onCancelComment}
+        />
+      </>
+    );
+  }
+
+  // Full mode: show inline comments
   return (
     <div className={cn('relative', className)} data-comment-ui>
       {/* Existing comments - positioned absolutely based on their position */}
