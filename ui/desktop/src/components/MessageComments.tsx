@@ -40,6 +40,7 @@ export default function MessageComments({
   className,
 }: MessageCommentsProps) {
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
+  const [expandedBadgeType, setExpandedBadgeType] = useState<'existing' | 'new' | null>(null);
   
   // Filter out reply comments (they're shown nested within their parents)
   const topLevelComments = comments.filter(comment => !comment.parentId);
@@ -77,18 +78,24 @@ export default function MessageComments({
               <CommentBadge
                 comments={comments}
                 position={{ x: 0, y: 0 }}
-                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                onClick={() => {
+                  setExpandedBadgeType('existing');
+                  setIsDrawerExpanded(!isDrawerExpanded);
+                }}
               />
               
-              {/* Expandable drawer overlays below badge */}
-              {isDrawerExpanded && (
+              {/* Expandable drawer overlays below badge - shows all comments */}
+              {isDrawerExpanded && expandedBadgeType === 'existing' && (
                 <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
                   <CommentDrawer
                     messageId={messageId}
                     comments={comments}
                     selectedText={activeSelection?.selectedText}
                     isExpanded={isDrawerExpanded}
-                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                    onToggle={() => {
+                      setIsDrawerExpanded(!isDrawerExpanded);
+                      setExpandedBadgeType(null);
+                    }}
                     activeSelection={activeSelection}
                     isCreatingComment={isCreatingComment}
                     onCreateComment={onCreateComment}
@@ -104,8 +111,8 @@ export default function MessageComments({
           </div>
         )}
 
-        {/* Separate "Add comment" badge for new selection - only if not already expanded */}
-        {isCreatingComment && activeSelection && !isDrawerExpanded && (
+        {/* Separate "Add comment" badge for new selection */}
+        {isCreatingComment && activeSelection && (
           <div
             className="absolute"
             style={{
@@ -116,8 +123,34 @@ export default function MessageComments({
               <CommentBadge
                 comments={[]}
                 position={{ x: 0, y: 0 }}
-                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                onClick={() => {
+                  setExpandedBadgeType('new');
+                  setIsDrawerExpanded(!isDrawerExpanded);
+                }}
               />
+              
+              {/* Show only comment input for new comment - no existing comments */}
+              {isDrawerExpanded && expandedBadgeType === 'new' && (
+                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+                  <div
+                    data-comment-ui
+                    className="border border-border-subtle rounded-lg overflow-hidden bg-background-default shadow-xl"
+                  >
+                    <div className="px-3 py-3">
+                      <CommentInput
+                        selection={activeSelection}
+                        onSubmit={handleCreateComment}
+                        onCancel={() => {
+                          onCancelComment();
+                          setIsDrawerExpanded(false);
+                          setExpandedBadgeType(null);
+                        }}
+                        placeholder="Add your comment..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
