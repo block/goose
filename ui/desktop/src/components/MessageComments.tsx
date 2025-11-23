@@ -61,40 +61,88 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show badge on right, drawer overlays below it
+  // Condensed mode: show badge positioned by highlight, drawer overlays below it
   if (displayMode === 'condensed') {
     return (
-      <div className={cn('mt-3 flex justify-end relative', className)}>
-        <div className="relative">
-          {/* Badge on the right */}
-          <CommentBadge
-            comments={comments}
-            position={badgePosition}
-            onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
-          />
-          
-          {/* Expandable drawer overlays below badge - doesn't affect layout */}
-          {isDrawerExpanded && (
-            <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
-              <CommentDrawer
-                messageId={messageId}
-                comments={comments}
-                selectedText={activeSelection?.selectedText}
-                isExpanded={isDrawerExpanded}
-                onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
-                activeSelection={activeSelection}
-                isCreatingComment={isCreatingComment}
-                onCreateComment={onCreateComment}
-                onUpdateComment={onUpdateComment}
-                onDeleteComment={onDeleteComment}
-                onReplyToComment={onReplyToComment}
-                onResolveComment={onResolveComment}
-                onCancelComment={onCancelComment}
+      <>
+        {/* Position each comment badge by its highlight */}
+        {sortedComments.map((comment) => (
+          <div
+            key={comment.id}
+            className="absolute"
+            style={{
+              top: `${comment.position * 0.1}px`,
+            }}
+          >
+            <div className="relative">
+              <CommentBadge
+                comments={[comment, ...comment.replies]}
+                position={{ x: 0, y: 0 }}
+                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
               />
+              
+              {/* Expandable drawer overlays below badge */}
+              {isDrawerExpanded && (
+                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+                  <CommentDrawer
+                    messageId={messageId}
+                    comments={comments}
+                    selectedText={activeSelection?.selectedText}
+                    isExpanded={isDrawerExpanded}
+                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                    activeSelection={activeSelection}
+                    isCreatingComment={isCreatingComment}
+                    onCreateComment={onCreateComment}
+                    onUpdateComment={onUpdateComment}
+                    onDeleteComment={onDeleteComment}
+                    onReplyToComment={onReplyToComment}
+                    onResolveComment={onResolveComment}
+                    onCancelComment={onCancelComment}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        ))}
+        
+        {/* New comment badge if creating */}
+        {isCreatingComment && activeSelection && (
+          <div
+            className="absolute"
+            style={{
+              top: activePosition ? `${activePosition.y}px` : `${activeSelection.startOffset * 0.1}px`,
+            }}
+          >
+            <div className="relative">
+              <CommentBadge
+                comments={[]}
+                position={{ x: 0, y: 0 }}
+                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+              />
+              
+              {isDrawerExpanded && (
+                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+                  <CommentDrawer
+                    messageId={messageId}
+                    comments={comments}
+                    selectedText={activeSelection?.selectedText}
+                    isExpanded={isDrawerExpanded}
+                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                    activeSelection={activeSelection}
+                    isCreatingComment={isCreatingComment}
+                    onCreateComment={onCreateComment}
+                    onUpdateComment={onUpdateComment}
+                    onDeleteComment={onDeleteComment}
+                    onReplyToComment={onReplyToComment}
+                    onResolveComment={onResolveComment}
+                    onCancelComment={onCancelComment}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 

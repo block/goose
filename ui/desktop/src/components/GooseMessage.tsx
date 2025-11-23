@@ -397,30 +397,15 @@ export default function GooseMessage({
           />
         )}
 
-        {/* Condensed mode comments - inline within message */}
-        {displayMode === 'condensed' && ((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
-          <MessageComments
-            messageId={uniqueMessageId}
-            comments={comments || []}
-            activeSelection={activeSelection}
-            activePosition={activePosition}
-            isCreatingComment={isCreatingComment && activeMessageId === uniqueMessageId}
-            onCreateComment={onCreateComment || (() => {})}
-            onUpdateComment={onUpdateComment || (() => {})}
-            onDeleteComment={onDeleteComment || (() => {})}
-            onReplyToComment={onReplyToComment || (() => {})}
-            onResolveComment={onResolveComment || (() => {})}
-            onCancelComment={onCancelComment || (() => {})}
-            displayMode={displayMode}
-          />
-        )}
-
       </div>
 
-      {/* Comments - positioned absolutely to the right in full mode, inline in condensed mode */}
-      {/* Only show if this message has existing comments OR if this is the active message for commenting */}
-      {displayMode === 'full' && ((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
-        <div className="absolute left-full ml-4 top-0 w-80 z-10">
+      {/* Comments - positioned absolutely to the right for both modes */}
+      {/* Badge appears in right gutter near highlighted text, drawer overlays when expanded */}
+      {((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
+        <div className={cn(
+          'absolute top-0 z-10',
+          displayMode === 'full' ? 'left-full ml-4 w-80' : 'right-0 -mr-12'
+        )}>
           <MessageComments
             messageId={uniqueMessageId}
             comments={comments || []}
