@@ -20,7 +20,7 @@ async fn ensure_terminal_session(
             session_name.clone(),
             working_dir,
             session_name.clone(),
-            SessionType::User,
+            SessionType::Hidden,
         )
         .await?;
 
@@ -75,7 +75,13 @@ goose_preexec() {{
 
 # Install preexec hook for zsh
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec goose_preexec"#
+add-zsh-hook preexec goose_preexec
+
+# Add goose indicator to prompt
+if [[ -z "$GOOSE_PROMPT_INSTALLED" ]]; then
+    export GOOSE_PROMPT_INSTALLED=1
+    PROMPT='%F{{cyan}}🪿%f '$PROMPT
+fi"#
             )
         }
         "fish" => {
