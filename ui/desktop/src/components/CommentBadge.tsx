@@ -44,9 +44,10 @@ export default function CommentBadge({
         onClick={onClick}
         data-comment-ui
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-full shadow-md transition-all',
+          'flex items-center gap-1.5 px-2 py-1 rounded-full shadow-md transition-all duration-200',
           'bg-background-default border border-border-subtle',
           'hover:shadow-lg hover:scale-105 hover:bg-background-medium',
+          'active:scale-95',
           'whitespace-nowrap'
         )}
         title={totalComments > 0 ? `${totalComments} comment${totalComments !== 1 ? 's' : ''}` : 'Add comment'}

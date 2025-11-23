@@ -61,6 +61,7 @@ export default function CommentDrawer({
       className={cn(
         'border border-border-subtle rounded-lg overflow-hidden',
         'bg-background-default shadow-xl',
+        'animate-in fade-in slide-in-from-top-2 duration-200',
         className
       )}
     >

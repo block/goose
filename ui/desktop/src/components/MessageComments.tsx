@@ -114,7 +114,7 @@ export default function MessageComments({
         {/* Separate "Add comment" badge for new selection */}
         {isCreatingComment && activeSelection && (
           <div
-            className="absolute"
+            className="absolute animate-in fade-in zoom-in-95 duration-200"
             style={{
               top: activePosition ? `${activePosition.y}px` : '0px',
             }}
@@ -131,7 +131,7 @@ export default function MessageComments({
               
               {/* Show only comment input for new comment - no existing comments */}
               {isDrawerExpanded && expandedBadgeType === 'new' && (
-                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div
                     data-comment-ui
                     className="border border-border-subtle rounded-lg overflow-hidden bg-background-default shadow-xl"
