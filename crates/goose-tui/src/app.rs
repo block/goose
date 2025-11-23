@@ -148,12 +148,29 @@ impl<'a> Component for App<'a> {
             _ => {}
         }
 
-        // 1. Popups
-        if let Some(action) = self.handle_popups(event, state)? {
+        // 1. Global Shortcuts (Priority over popups for shortcuts like ToggleTodo)
+        if let Some(action) = self.handle_global_shortcuts(event, state) {
             return Ok(Some(action));
         }
 
-        // Check scroll debounce
+        // 2. Popups
+        // Check if any popup is active. If so, handle it and STOP propagation.
+        let popup_active = state.showing_todo
+            || state.showing_help
+            || state.showing_session_picker
+            || state.showing_command_builder
+            || state.showing_message_info.is_some();
+
+        if popup_active {
+            if let Some(action) = self.handle_popups(event, state)? {
+                return Ok(Some(action));
+            }
+            // If popup is active but returned no action, we still consume the event
+            // to prevent it from leaking to underlying layers (input/chat).
+            return Ok(None);
+        }
+
+        // Check scroll debounce (only relevant if no popup is active)
         if let Event::Mouse(m) = event {
             if matches!(
                 m.kind,
@@ -161,16 +178,11 @@ impl<'a> Component for App<'a> {
                     | crossterm::event::MouseEventKind::ScrollUp
             ) {
                 if let Some(last) = self.last_popup_close_time {
-                    if last.elapsed() < std::time::Duration::from_millis(300) {
+                    if last.elapsed() < std::time::Duration::from_millis(500) {
                         return Ok(None);
                     }
                 }
             }
-        }
-
-        // 2. Global Shortcuts
-        if let Some(action) = self.handle_global_shortcuts(event, state) {
-            return Ok(Some(action));
         }
 
         // 3. Input
