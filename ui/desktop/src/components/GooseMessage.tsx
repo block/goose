@@ -267,7 +267,14 @@ export default function GooseMessage({
   const isFromCollaborator = message.sender && (message as any).metadata?.isFromCollaborator;
 
   return (
-    <div ref={messageContainerRef} className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
+    <div 
+      ref={messageContainerRef} 
+      className={cn(
+        "goose-message flex w-full justify-start min-w-0 gap-3 relative",
+        // Add right padding in condensed mode to make room for comment gutter
+        displayMode === 'condensed' && 'pr-16'
+      )}
+    >
       {/* Goose Avatar on the left side with optional user badge */}
       <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
         {/* Main Goose dot avatar */}
@@ -404,7 +411,7 @@ export default function GooseMessage({
       {((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
         <div className={cn(
           'absolute top-0 z-10',
-          displayMode === 'full' ? 'left-full ml-4 w-80' : 'right-0 -mr-12'
+          displayMode === 'full' ? 'left-full ml-4 w-80' : 'right-2'
         )}>
           <MessageComments
             messageId={uniqueMessageId}
