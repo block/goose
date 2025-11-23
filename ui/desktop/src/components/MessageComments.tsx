@@ -61,52 +61,67 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show single badge with total count, positioned by first comment
+  // Condensed mode: show badge(s) - one for existing comments, one for new selection
   if (displayMode === 'condensed') {
-    // Use first comment position or active selection position
-    const topPosition = activePosition 
-      ? `${activePosition.y}px` 
-      : sortedComments.length > 0 
-        ? `${sortedComments[0].position * 0.1}px`
-        : '0px';
-
     return (
-      <div
-        className="absolute"
-        style={{
-          top: topPosition,
-        }}
-      >
-        <div className="relative">
-          {/* Single badge showing total count */}
-          <CommentBadge
-            comments={comments}
-            position={{ x: 0, y: 0 }}
-            onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
-          />
-          
-          {/* Expandable drawer overlays below badge */}
-          {isDrawerExpanded && (
-            <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
-              <CommentDrawer
-                messageId={messageId}
+      <>
+        {/* Badge for existing comments - positioned at first comment */}
+        {sortedComments.length > 0 && (
+          <div
+            className="absolute"
+            style={{
+              top: `${sortedComments[0].position * 0.1}px`,
+            }}
+          >
+            <div className="relative">
+              <CommentBadge
                 comments={comments}
-                selectedText={activeSelection?.selectedText}
-                isExpanded={isDrawerExpanded}
-                onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
-                activeSelection={activeSelection}
-                isCreatingComment={isCreatingComment}
-                onCreateComment={onCreateComment}
-                onUpdateComment={onUpdateComment}
-                onDeleteComment={onDeleteComment}
-                onReplyToComment={onReplyToComment}
-                onResolveComment={onResolveComment}
-                onCancelComment={onCancelComment}
+                position={{ x: 0, y: 0 }}
+                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+              />
+              
+              {/* Expandable drawer overlays below badge */}
+              {isDrawerExpanded && (
+                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+                  <CommentDrawer
+                    messageId={messageId}
+                    comments={comments}
+                    selectedText={activeSelection?.selectedText}
+                    isExpanded={isDrawerExpanded}
+                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                    activeSelection={activeSelection}
+                    isCreatingComment={isCreatingComment}
+                    onCreateComment={onCreateComment}
+                    onUpdateComment={onUpdateComment}
+                    onDeleteComment={onDeleteComment}
+                    onReplyToComment={onReplyToComment}
+                    onResolveComment={onResolveComment}
+                    onCancelComment={onCancelComment}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Separate "Add comment" badge for new selection - only if not already expanded */}
+        {isCreatingComment && activeSelection && !isDrawerExpanded && (
+          <div
+            className="absolute"
+            style={{
+              top: activePosition ? `${activePosition.y}px` : '0px',
+            }}
+          >
+            <div className="relative">
+              <CommentBadge
+                comments={[]}
+                position={{ x: 0, y: 0 }}
+                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
               />
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </>
     );
   }
 
