@@ -52,27 +52,17 @@ Compact indicator shown in condensed mode:
 - Color-coded (blue = active, green = all resolved)
 - Click to open modal
 
-#### 3. `CommentPanel` Component
-**Location**: `ui/desktop/src/components/CommentPanel.tsx`
+#### 3. `CommentDrawer` Component
+**Location**: `ui/desktop/src/components/CommentDrawer.tsx`
 
-Slide-in panel for condensed mode (like a mini-sidecar):
-- Slides in from right side
-- Fixed width (384px / w-96)
-- Pushes chat content to the left
-- Scrollable comment list
+Expandable drawer for condensed mode (like an accordion):
+- Expands inline from the badge
+- Smooth height transition (200ms)
+- Max height: 600px with scrollable content
+- Collapsible header with chevron icon
 - Comment creation/editing/replying
-- Keyboard shortcuts (Esc to close)
-- Focus management
-- Smooth transitions
-
-#### 4. `CommentPanelContext` & `CommentPanelLayout`
-**Location**: `ui/desktop/src/contexts/CommentPanelContext.tsx` & `ui/desktop/src/components/CommentPanelLayout.tsx`
-
-Global state management for panel:
-- Context tracks panel open/close state
-- Layout wrapper shifts content when panel opens
-- Similar behavior to sidecar system
-- Smooth transitions (300ms ease-in-out)
+- Uses app design tokens
+- Stays within message flow
 
 #### 4. Updated `MessageComments` Component
 **Location**: `ui/desktop/src/components/MessageComments.tsx`
@@ -112,12 +102,12 @@ Integrates display mode detection:
 ### Condensed Mode
 1. User selects text in a message
 2. "💬 Comment" button appears inline
-3. Click shows comment badge with count
-4. Click badge to slide in comment panel from right
-5. Chat content shifts left to make room
-6. Panel provides full functionality
-7. Close panel (Esc or X button) to return to reading
-8. Smooth 300ms transition
+3. Comment badge appears below message with count
+4. Click badge to expand drawer inline (accordion style)
+5. Drawer expands smoothly with all comments
+6. Click header or chevron to collapse
+7. Stays within message flow - no layout shift
+8. Smooth 200ms transition
 
 ## Breakpoint Logic
 
@@ -152,14 +142,14 @@ When any sidecar is active, comments automatically condense to preserve reading 
 - Shows resolved count with checkmark
 - Hover preview tooltip
 
-### Panel Styling
-- Fixed width: 384px (w-96)
-- Slides in from right with smooth transition
+### Drawer Styling
+- Expands inline with smooth height transition
+- Max height: 600px with scrollable content
 - Uses app design tokens for consistency
-- Full height with scrollable content
-- Header with close button
-- Footer with keyboard hints
+- Collapsible header with chevron indicator
+- Rounded corners and subtle border
 - Dark mode support via design tokens
+- No layout shift - stays in message flow
 
 ## Future Enhancements
 
@@ -288,9 +278,7 @@ const { displayMode } = useCommentDisplayMode({
 
 - `ui/desktop/src/hooks/useCommentDisplayMode.ts` - Display mode detection
 - `ui/desktop/src/components/CommentBadge.tsx` - Condensed badge UI
-- `ui/desktop/src/components/CommentPanel.tsx` - Slide-in panel
-- `ui/desktop/src/components/CommentPanelLayout.tsx` - Layout wrapper for content shift
-- `ui/desktop/src/contexts/CommentPanelContext.tsx` - Panel state management
+- `ui/desktop/src/components/CommentDrawer.tsx` - Expandable inline drawer
 - `ui/desktop/src/components/MessageComments.tsx` - Mode switching logic
 - `ui/desktop/src/components/GooseMessage.tsx` - Integration point
 - `ui/desktop/src/contexts/UnifiedSidecarContext.tsx` - Sidecar state

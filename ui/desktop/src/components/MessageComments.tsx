@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { MessageComment, TextSelection } from '../types/comment';
 import CommentCard from './CommentCard';
 import CommentInput from './CommentInput';
 import CommentBadge from './CommentBadge';
-import CommentPanel from './CommentPanel';
-import { useCommentPanelOptional } from '../contexts/CommentPanelContext';
+import CommentDrawer from './CommentDrawer';
 import { cn } from '../utils';
 
 export type CommentDisplayMode = 'full' | 'condensed';
@@ -40,13 +39,7 @@ export default function MessageComments({
   displayMode = 'full',
   className,
 }: MessageCommentsProps) {
-  const [isLocalPanelOpen, setIsLocalPanelOpen] = useState(false);
-  const panelContext = useCommentPanelOptional();
-  
-  // Use context if available, otherwise use local state
-  const isPanelOpen = panelContext ? panelContext.isPanelOpen : isLocalPanelOpen;
-  const openPanel = panelContext ? panelContext.openPanel : () => setIsLocalPanelOpen(true);
-  const closePanel = panelContext ? panelContext.closePanel : () => setIsLocalPanelOpen(false);
+  const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
   
   // Filter out reply comments (they're shown nested within their parents)
   const topLevelComments = comments.filter(comment => !comment.parentId);
@@ -68,32 +61,41 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show badge + slide-in panel
+  // Condensed mode: show badge + expandable drawer
   if (displayMode === 'condensed') {
     return (
-      <>
-        <CommentBadge
-          comments={comments}
-          position={badgePosition}
-          onClick={openPanel}
-          className={className}
-        />
-        <CommentPanel
-          messageId={messageId}
-          comments={comments}
-          selectedText={activeSelection?.selectedText}
-          isOpen={isPanelOpen}
-          onClose={closePanel}
-          activeSelection={activeSelection}
-          isCreatingComment={isCreatingComment}
-          onCreateComment={onCreateComment}
-          onUpdateComment={onUpdateComment}
-          onDeleteComment={onDeleteComment}
-          onReplyToComment={onReplyToComment}
-          onResolveComment={onResolveComment}
-          onCancelComment={onCancelComment}
-        />
-      </>
+      <div className={cn('mt-3', className)}>
+        {/* Badge that expands into drawer */}
+        <div className="flex items-start gap-2">
+          <CommentBadge
+            comments={comments}
+            position={badgePosition}
+            onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+            className="flex-shrink-0"
+          />
+          
+          {/* Expandable drawer */}
+          {isDrawerExpanded && (
+            <div className="flex-1 min-w-0">
+              <CommentDrawer
+                messageId={messageId}
+                comments={comments}
+                selectedText={activeSelection?.selectedText}
+                isExpanded={isDrawerExpanded}
+                onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                activeSelection={activeSelection}
+                isCreatingComment={isCreatingComment}
+                onCreateComment={onCreateComment}
+                onUpdateComment={onUpdateComment}
+                onDeleteComment={onDeleteComment}
+                onReplyToComment={onReplyToComment}
+                onResolveComment={onResolveComment}
+                onCancelComment={onCancelComment}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
