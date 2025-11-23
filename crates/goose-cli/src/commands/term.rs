@@ -33,13 +33,41 @@ async fn ensure_terminal_session(
 }
 
 /// Handle `goose term init <shell>` - print shell initialization script
-pub fn handle_term_init(shell: &str) -> Result<()> {
+pub fn handle_term_init(shell: &str, with_command_not_found: bool) -> Result<()> {
     let terminal_id = Uuid::new_v4().to_string();
 
     // Get the path to the current goose binary
     let goose_bin = std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "goose".to_string());
+
+    let command_not_found_handler = if with_command_not_found {
+        match shell.to_lowercase().as_str() {
+            "bash" => format!(
+                r#"
+
+# Command not found handler - sends unknown commands to goose
+command_not_found_handle() {{
+    echo "🪿 Command '$1' not found. Asking goose..."
+    '{goose_bin}' term run "$@"
+    return 0
+}}"#
+            ),
+            "zsh" => format!(
+                r#"
+
+# Command not found handler - sends unknown commands to goose
+command_not_found_handler() {{
+    echo "🪿 Command '$1' not found. Asking goose..."
+    '{goose_bin}' term run "$@"
+    return 0
+}}"#
+            ),
+            _ => String::new(),
+        }
+    } else {
+        String::new()
+    };
 
     let script = match shell.to_lowercase().as_str() {
         "bash" => {
@@ -58,7 +86,7 @@ goose_preexec() {{
 if [[ -z "$goose_preexec_installed" ]]; then
     goose_preexec_installed=1
     trap 'goose_preexec "$BASH_COMMAND"' DEBUG
-fi"#
+fi{command_not_found_handler}"#
             )
         }
         "zsh" => {
@@ -81,7 +109,7 @@ add-zsh-hook preexec goose_preexec
 if [[ -z "$GOOSE_PROMPT_INSTALLED" ]]; then
     export GOOSE_PROMPT_INSTALLED=1
     PROMPT='%F{{cyan}}🪿%f '$PROMPT
-fi"#
+fi{command_not_found_handler}"#
             )
         }
         "fish" => {
@@ -140,7 +168,8 @@ pub async fn handle_term_log(command: String) -> Result<()> {
 }
 
 /// Handle `goose term run <prompt>` - run a prompt in the terminal session
-pub async fn handle_term_run(prompt: String) -> Result<()> {
+pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
+    let prompt = prompt.join(" ");
     let terminal_id = std::env::var("GOOSE_TERMINAL_ID").map_err(|_| {
         anyhow!(
             "GOOSE_TERMINAL_ID not set.\n\n\

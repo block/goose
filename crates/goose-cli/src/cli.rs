@@ -35,14 +35,6 @@ use std::io::Read;
 use std::path::PathBuf;
 use tracing::warn;
 
-fn non_empty_string(s: &str) -> Result<String, String> {
-    if s.trim().is_empty() {
-        Err("Prompt cannot be empty".to_string())
-    } else {
-        Ok(s.to_string())
-    }
-}
-
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
@@ -871,6 +863,14 @@ enum TermCommand {
         /// Shell type (bash, zsh, fish, powershell)
         #[arg(value_enum)]
         shell: Shell,
+
+        /// Enable command_not_found_handler (sends unknown commands to goose)
+        #[arg(
+            long = "with-command-not-found",
+            help = "Enable command_not_found_handler for automatic goose invocation",
+            long_help = "When enabled, any command not found will be automatically sent to goose for interpretation. Only supported for zsh and bash."
+        )]
+        with_command_not_found: bool,
     },
 
     /// Log a shell command (called by shell hook)
@@ -885,13 +885,14 @@ enum TermCommand {
         about = "Run a prompt in the terminal session",
         long_about = "Run a prompt in the terminal-integrated session.\n\n\
                       Examples:\n  \
-                        goose term run \"list files in this directory\"\n  \
-                        goose term run \"create a python script that prints hello world\""
+                        goose term run list files in this directory\n  \
+                        goose term run create a python script that prints hello world\n  \
+                        gt list files  # using alias"
     )]
     Run {
-        /// The prompt to send to goose
-        #[arg(value_parser = non_empty_string)]
-        prompt: String,
+        /// The prompt to send to goose (multiple words allowed without quotes)
+        #[arg(required = true, num_args = 1..)]
+        prompt: Vec<String>,
     },
 
     /// Print session info for prompt integration
@@ -1470,14 +1471,17 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Term { command }) => {
             match command {
-                TermCommand::Init { shell } => {
+                TermCommand::Init {
+                    shell,
+                    with_command_not_found,
+                } => {
                     let shell_str = match shell {
                         Shell::Bash => "bash",
                         Shell::Zsh => "zsh",
                         Shell::Fish => "fish",
                         Shell::Powershell => "powershell",
                     };
-                    handle_term_init(shell_str)?;
+                    handle_term_init(shell_str, with_command_not_found)?;
                 }
                 TermCommand::Log { command } => {
                     handle_term_log(command).await?;
