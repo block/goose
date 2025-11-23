@@ -7,6 +7,31 @@ use crate::session::{build_session, SessionBuilderConfig};
 
 const TERMINAL_SESSION_PREFIX: &str = "term:";
 
+/// Ensure a terminal session exists, creating it if necessary
+async fn ensure_terminal_session(
+    session_name: String,
+    working_dir: std::path::PathBuf,
+) -> Result<()> {
+    if SessionManager::get_session(&session_name, false)
+        .await
+        .is_err()
+    {
+        let session = SessionManager::create_session_with_id(
+            session_name.clone(),
+            working_dir,
+            session_name.clone(),
+            SessionType::User,
+        )
+        .await?;
+
+        SessionManager::update_session(&session.id)
+            .user_provided_name(session_name)
+            .apply()
+            .await?;
+    }
+    Ok(())
+}
+
 /// Handle `goose term init <shell>` - print shell initialization script
 pub fn handle_term_init(shell: &str) -> Result<()> {
     let terminal_id = Uuid::new_v4().to_string();
@@ -26,7 +51,7 @@ alias gt='{goose_bin} term run'
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
-    ("{goose_bin}" term log "$1" &) 2>/dev/null
+    ('{goose_bin}' term log "$1" &) 2>/dev/null
 }}
 
 # Install preexec hook for bash
@@ -45,7 +70,7 @@ alias gt='{goose_bin} term run'
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
-    ("{goose_bin}" term log "$1" &) 2>/dev/null
+    ('{goose_bin}' term log "$1" &) 2>/dev/null
 }}
 
 # Install preexec hook for zsh
@@ -102,25 +127,7 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
     let working_dir = std::env::current_dir()?;
 
-    // Create session if it doesn't exist (so we can log commands before first run)
-    if SessionManager::get_session(&session_name, false)
-        .await
-        .is_err()
-    {
-        let session = SessionManager::create_session_with_id(
-            session_name.clone(),
-            working_dir.clone(),
-            session_name.clone(),
-            SessionType::User,
-        )
-        .await?;
-
-        SessionManager::update_session(&session.id)
-            .user_provided_name(session_name.clone())
-            .apply()
-            .await?;
-    }
-
+    ensure_terminal_session(session_name.clone(), working_dir.clone()).await?;
     SessionManager::add_shell_command(&session_name, &command, &working_dir).await?;
 
     Ok(())
@@ -138,31 +145,19 @@ pub async fn handle_term_run(prompt: String) -> Result<()> {
     })?;
 
     let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
+    let working_dir = std::env::current_dir()?;
 
     let session_id = match SessionManager::get_session(&session_name, false).await {
         Ok(_) => {
             SessionManager::update_session(&session_name)
-                .working_dir(std::env::current_dir()?)
+                .working_dir(working_dir)
                 .apply()
                 .await?;
             session_name.clone()
         }
         Err(_) => {
-            let session = SessionManager::create_session_with_id(
-                session_name.clone(),
-                std::env::current_dir()?,
-                session_name.clone(),
-                SessionType::User,
-            )
-            .await?;
-
-            // Mark with user-provided name so session persists across restarts
-            SessionManager::update_session(&session.id)
-                .user_provided_name(session_name)
-                .apply()
-                .await?;
-
-            session.id
+            ensure_terminal_session(session_name.clone(), working_dir).await?;
+            session_name.clone()
         }
     };
 
