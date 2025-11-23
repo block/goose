@@ -61,88 +61,52 @@ export default function MessageComments({
     return null;
   }
 
-  // Condensed mode: show badge positioned by highlight, drawer overlays below it
+  // Condensed mode: show single badge with total count, positioned by first comment
   if (displayMode === 'condensed') {
+    // Use first comment position or active selection position
+    const topPosition = activePosition 
+      ? `${activePosition.y}px` 
+      : sortedComments.length > 0 
+        ? `${sortedComments[0].position * 0.1}px`
+        : '0px';
+
     return (
-      <>
-        {/* Position each comment badge by its highlight */}
-        {sortedComments.map((comment) => (
-          <div
-            key={comment.id}
-            className="absolute"
-            style={{
-              top: `${comment.position * 0.1}px`,
-            }}
-          >
-            <div className="relative">
-              <CommentBadge
-                comments={[comment, ...comment.replies]}
-                position={{ x: 0, y: 0 }}
-                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+      <div
+        className="absolute"
+        style={{
+          top: topPosition,
+        }}
+      >
+        <div className="relative">
+          {/* Single badge showing total count */}
+          <CommentBadge
+            comments={comments}
+            position={{ x: 0, y: 0 }}
+            onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
+          />
+          
+          {/* Expandable drawer overlays below badge */}
+          {isDrawerExpanded && (
+            <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
+              <CommentDrawer
+                messageId={messageId}
+                comments={comments}
+                selectedText={activeSelection?.selectedText}
+                isExpanded={isDrawerExpanded}
+                onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
+                activeSelection={activeSelection}
+                isCreatingComment={isCreatingComment}
+                onCreateComment={onCreateComment}
+                onUpdateComment={onUpdateComment}
+                onDeleteComment={onDeleteComment}
+                onReplyToComment={onReplyToComment}
+                onResolveComment={onResolveComment}
+                onCancelComment={onCancelComment}
               />
-              
-              {/* Expandable drawer overlays below badge */}
-              {isDrawerExpanded && (
-                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
-                  <CommentDrawer
-                    messageId={messageId}
-                    comments={comments}
-                    selectedText={activeSelection?.selectedText}
-                    isExpanded={isDrawerExpanded}
-                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
-                    activeSelection={activeSelection}
-                    isCreatingComment={isCreatingComment}
-                    onCreateComment={onCreateComment}
-                    onUpdateComment={onUpdateComment}
-                    onDeleteComment={onDeleteComment}
-                    onReplyToComment={onReplyToComment}
-                    onResolveComment={onResolveComment}
-                    onCancelComment={onCancelComment}
-                  />
-                </div>
-              )}
             </div>
-          </div>
-        ))}
-        
-        {/* New comment badge if creating */}
-        {isCreatingComment && activeSelection && (
-          <div
-            className="absolute"
-            style={{
-              top: activePosition ? `${activePosition.y}px` : `${activeSelection.startOffset * 0.1}px`,
-            }}
-          >
-            <div className="relative">
-              <CommentBadge
-                comments={[]}
-                position={{ x: 0, y: 0 }}
-                onClick={() => setIsDrawerExpanded(!isDrawerExpanded)}
-              />
-              
-              {isDrawerExpanded && (
-                <div className="absolute top-full right-0 mt-2 w-96 max-w-[90vw] z-50">
-                  <CommentDrawer
-                    messageId={messageId}
-                    comments={comments}
-                    selectedText={activeSelection?.selectedText}
-                    isExpanded={isDrawerExpanded}
-                    onToggle={() => setIsDrawerExpanded(!isDrawerExpanded)}
-                    activeSelection={activeSelection}
-                    isCreatingComment={isCreatingComment}
-                    onCreateComment={onCreateComment}
-                    onUpdateComment={onUpdateComment}
-                    onDeleteComment={onDeleteComment}
-                    onReplyToComment={onReplyToComment}
-                    onResolveComment={onResolveComment}
-                    onCancelComment={onCancelComment}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </>
+          )}
+        </div>
+      </div>
     );
   }
 
