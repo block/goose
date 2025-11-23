@@ -219,8 +219,8 @@ export default function CommentableMarkdown({
         <MarkdownContent content={content} />
       </div>
 
-      {/* Comment button */}
-      {showCommentButton && currentSelection && (
+      {/* Comment button - hidden, selection triggers badge instead */}
+      {/* {showCommentButton && currentSelection && (
         <button
           data-comment-ui
           onClick={handleCreateComment}
@@ -232,7 +232,7 @@ export default function CommentableMarkdown({
         >
           💬 Comment
         </button>
-      )}
+      )} */}
     </div>
   );
 }
