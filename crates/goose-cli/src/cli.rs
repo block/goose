@@ -1481,7 +1481,7 @@ pub async fn cli() -> anyhow::Result<()> {
                         Shell::Fish => "fish",
                         Shell::Powershell => "powershell",
                     };
-                    handle_term_init(shell_str, with_command_not_found)?;
+                    handle_term_init(shell_str, with_command_not_found).await?;
                 }
                 TermCommand::Log { command } => {
                     handle_term_log(command).await?;

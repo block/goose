@@ -1,42 +1,89 @@
 use anyhow::{anyhow, Result};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
 use crate::session::{build_session, SessionBuilderConfig};
 
 const TERMINAL_SESSION_PREFIX: &str = "term:";
 
-/// Ensure a terminal session exists, creating it if necessary
-async fn ensure_terminal_session(
-    session_name: String,
-    working_dir: std::path::PathBuf,
-) -> Result<()> {
-    if SessionManager::get_session(&session_name, false)
-        .await
-        .is_err()
-    {
-        let session = SessionManager::create_session_with_id(
-            session_name.clone(),
-            working_dir,
-            session_name.clone(),
-            SessionType::Hidden,
-        )
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct TerminalConfig {
+    /// Map from working directory path to session ID
+    terminal_sessions: HashMap<String, String>,
+}
+
+impl TerminalConfig {
+    fn config_path() -> Result<PathBuf> {
+        let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
+        let config_dir = home.join(".config").join("goose");
+        fs::create_dir_all(&config_dir)?;
+        Ok(config_dir.join("term-sessions.json"))
+    }
+
+    fn load() -> Result<Self> {
+        let path = Self::config_path()?;
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        let content = fs::read_to_string(&path)?;
+        Ok(serde_json::from_str(&content)?)
+    }
+
+    fn save(&self) -> Result<()> {
+        let path = Self::config_path()?;
+        let content = serde_json::to_string_pretty(self)?;
+        fs::write(&path, content)?;
+        Ok(())
+    }
+
+    fn get_session_id(&self, working_dir: &str) -> Option<&str> {
+        self.terminal_sessions.get(working_dir).map(|s| s.as_str())
+    }
+
+    fn set_session_id(&mut self, working_dir: String, session_id: String) {
+        self.terminal_sessions.insert(working_dir, session_id);
+    }
+}
+
+async fn get_or_create_terminal_session(working_dir: PathBuf) -> Result<String> {
+    let working_dir_str = working_dir.to_string_lossy().to_string();
+    let mut config = TerminalConfig::load()?;
+
+    if let Some(session_id) = config.get_session_id(&working_dir_str) {
+        if SessionManager::get_session(session_id, false).await.is_ok() {
+            return Ok(session_id.to_string());
+        }
+    }
+
+    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, working_dir_str);
+    let session = SessionManager::create_session(
+        working_dir.clone(),
+        session_name.clone(),
+        SessionType::Hidden,
+    )
+    .await?;
+
+    SessionManager::update_session(&session.id)
+        .user_provided_name(session_name)
+        .apply()
         .await?;
 
-        SessionManager::update_session(&session.id)
-            .user_provided_name(session_name)
-            .apply()
-            .await?;
-    }
-    Ok(())
+    config.set_session_id(working_dir_str, session.id.clone());
+    config.save()?;
+
+    Ok(session.id)
 }
 
 /// Handle `goose term init <shell>` - print shell initialization script
-pub fn handle_term_init(shell: &str, with_command_not_found: bool) -> Result<()> {
-    let terminal_id = Uuid::new_v4().to_string();
+pub async fn handle_term_init(shell: &str, with_command_not_found: bool) -> Result<()> {
+    let working_dir = std::env::current_dir()?;
+    let session_id = get_or_create_terminal_session(working_dir).await?;
 
-    // Get the path to the current goose binary
     let goose_bin = std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "goose".to_string());
@@ -72,7 +119,7 @@ command_not_found_handler() {{
     let script = match shell.to_lowercase().as_str() {
         "bash" => {
             format!(
-                r#"export GOOSE_TERMINAL_ID="{terminal_id}"
+                r#"export GOOSE_SESSION_ID="{session_id}"
 alias gt='{goose_bin} term run'
 
 # Log commands to goose (runs silently in background)
@@ -91,7 +138,7 @@ fi{command_not_found_handler}"#
         }
         "zsh" => {
             format!(
-                r#"export GOOSE_TERMINAL_ID="{terminal_id}"
+                r#"export GOOSE_SESSION_ID="{session_id}"
 alias gt='{goose_bin} term run'
 
 # Log commands to goose (runs silently in background)
@@ -114,7 +161,7 @@ fi{command_not_found_handler}"#
         }
         "fish" => {
             format!(
-                r#"set -gx GOOSE_TERMINAL_ID "{terminal_id}"
+                r#"set -gx GOOSE_SESSION_ID "{session_id}"
 function gt; {goose_bin} term run $argv; end
 
 # Log commands to goose
@@ -127,7 +174,7 @@ end"#
         }
         "powershell" | "pwsh" => {
             format!(
-                r#"$env:GOOSE_TERMINAL_ID = "{terminal_id}"
+                r#"$env:GOOSE_SESSION_ID = "{session_id}"
 function gt {{ & '{goose_bin}' term run @args }}
 
 # Log commands to goose
@@ -153,50 +200,71 @@ Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
     Ok(())
 }
 
-/// Handle `goose term log <command>` - log a shell command to the database
+fn shell_history_path(session_id: &str) -> Result<PathBuf> {
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
+    let history_dir = home.join(".config").join("goose").join("shell-history");
+    fs::create_dir_all(&history_dir)?;
+    Ok(history_dir.join(format!("{}.txt", session_id)))
+}
+
+fn append_shell_command(session_id: &str, command: &str) -> Result<()> {
+    let path = shell_history_path(session_id)?;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    writeln!(file, "{}", command)?;
+    Ok(())
+}
+
+fn read_and_clear_shell_history(session_id: &str) -> Result<Vec<String>> {
+    let path = shell_history_path(session_id)?;
+
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(&path)?;
+    let commands: Vec<String> = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    fs::write(&path, "")?;
+
+    Ok(commands)
+}
+
 pub async fn handle_term_log(command: String) -> Result<()> {
-    let terminal_id = std::env::var("GOOSE_TERMINAL_ID")
-        .map_err(|_| anyhow!("GOOSE_TERMINAL_ID not set. Run 'goose term init <shell>' first."))?;
+    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
+        anyhow!("GOOSE_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
+    })?;
 
-    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
-    let working_dir = std::env::current_dir()?;
-
-    ensure_terminal_session(session_name.clone(), working_dir.clone()).await?;
-    SessionManager::add_shell_command(&session_name, &command, &working_dir).await?;
+    append_shell_command(&session_id, &command)?;
 
     Ok(())
 }
 
-/// Handle `goose term run <prompt>` - run a prompt in the terminal session
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
-    let terminal_id = std::env::var("GOOSE_TERMINAL_ID").map_err(|_| {
+    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
         anyhow!(
-            "GOOSE_TERMINAL_ID not set.\n\n\
+            "GOOSE_SESSION_ID not set.\n\n\
              Add to your shell config (~/.zshrc or ~/.bashrc):\n    \
              eval \"$(goose term init zsh)\"\n\n\
              Then restart your terminal or run: source ~/.zshrc"
         )
     })?;
 
-    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
     let working_dir = std::env::current_dir()?;
 
-    let session_id = match SessionManager::get_session(&session_name, false).await {
-        Ok(_) => {
-            SessionManager::update_session(&session_name)
-                .working_dir(working_dir)
-                .apply()
-                .await?;
-            session_name.clone()
-        }
-        Err(_) => {
-            ensure_terminal_session(session_name.clone(), working_dir).await?;
-            session_name.clone()
-        }
-    };
+    SessionManager::update_session(&session_id)
+        .working_dir(working_dir)
+        .apply()
+        .await?;
 
-    let commands = SessionManager::get_shell_commands_since_last_message(&session_id).await?;
+    let commands = read_and_clear_shell_history(&session_id)?;
     let prompt_with_context = if commands.is_empty() {
         prompt
     } else {
@@ -223,29 +291,18 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
 
 /// Handle `goose term info` - print compact session info for prompt integration
 pub async fn handle_term_info() -> Result<()> {
-    use goose::config::Config;
-
-    let terminal_id = match std::env::var("GOOSE_TERMINAL_ID") {
+    let session_id = match std::env::var("GOOSE_SESSION_ID") {
         Ok(id) => id,
-        Err(_) => return Ok(()), // Silent exit if no terminal ID
+        Err(_) => return Ok(()),
     };
 
-    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, terminal_id);
-
-    // Get tokens from session or 0 if none started yet in this terminal
-    let session = SessionManager::get_session(&session_name, false).await.ok();
+    let session = SessionManager::get_session(&session_id, false).await.ok();
     let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
 
-    let model_name = Config::global()
-        .get_goose_model()
-        .ok()
-        .or_else(|| {
-            session
-                .as_ref()
-                .and_then(|s| s.model_config.as_ref().map(|mc| mc.model_name.clone()))
-        })
+    let model_name = session
+        .as_ref()
+        .and_then(|s| s.model_config.as_ref().map(|mc| mc.model_name.clone()))
         .map(|name| {
-            // Extract short name: after last / or after last - if it starts with "goose-"
             let short = name.rsplit('/').next().unwrap_or(&name);
             if let Some(stripped) = short.strip_prefix("goose-") {
                 stripped.to_string()
@@ -255,13 +312,11 @@ pub async fn handle_term_info() -> Result<()> {
         })
         .unwrap_or_else(|| "?".to_string());
 
-    // Get context limit for the model
     let context_limit = session
         .as_ref()
         .and_then(|s| s.model_config.as_ref().map(|mc| mc.context_limit()))
         .unwrap_or(128_000);
 
-    // Calculate percentage and create dot visualization
     let percentage = if context_limit > 0 {
         ((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize
     } else {
