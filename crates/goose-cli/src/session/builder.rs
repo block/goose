@@ -70,6 +70,8 @@ pub struct SessionBuilderConfig {
     pub retry_config: Option<RetryConfig>,
     /// Output format (text, json)
     pub output_format: String,
+    /// Skip the working directory check when resuming (used for terminal mode)
+    pub skip_working_dir_check: bool,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -99,6 +101,7 @@ impl Default for SessionBuilderConfig {
             final_output_response: None,
             retry_config: None,
             output_format: "text".to_string(),
+            skip_working_dir_check: false,
         }
     }
 }
@@ -395,7 +398,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         })
         .await;
 
-    if session_config.resume {
+    if session_config.resume && !session_config.skip_working_dir_check {
         let session = SessionManager::get_session(&session_id, false)
             .await
             .unwrap_or_else(|e| {
@@ -711,6 +714,7 @@ mod tests {
             final_output_response: None,
             retry_config: None,
             output_format: "text".to_string(),
+            skip_working_dir_check: false,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -723,6 +727,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
         assert!(!config.quiet);
+        assert!(!config.skip_working_dir_check);
     }
 
     #[test]
@@ -745,6 +750,7 @@ mod tests {
         assert!(!config.interactive);
         assert!(!config.quiet);
         assert!(config.final_output_response.is_none());
+        assert!(!config.skip_working_dir_check);
     }
 
     #[tokio::test]

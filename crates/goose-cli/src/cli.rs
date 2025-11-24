@@ -37,6 +37,22 @@ use tracing::warn;
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
+    /// Message to send to goose in terminal mode
+    #[arg(
+        value_name = "MESSAGE",
+        help = "Message to send to goose in terminal mode"
+    )]
+    message: Option<String>,
+
+    /// Start a new terminal session instead of continuing the existing one
+    #[arg(
+        short = 'n',
+        long = "new",
+        help = "Start a new terminal session",
+        requires = "message"
+    )]
+    new_session: bool,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -829,6 +845,18 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Terminal mode - persistent session with shell history integration
+    #[command(about = "Start or continue a persistent terminal session with shell history")]
+    Terminal {
+        /// Optional message to send to the session
+        #[arg(help = "Message to send to goose")]
+        message: Option<String>,
+
+        /// Start a new terminal session instead of continuing the existing one
+        #[arg(short = 'n', long = "new", help = "Start a new terminal session")]
+        new_session: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -874,7 +902,14 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
-        None => "default_session",
+        Some(Command::Terminal { .. }) => "terminal",
+        None => {
+            if cli.message.is_some() {
+                "terminal"
+            } else {
+                "default_session"
+            }
+        }
     };
 
     tracing::info!(
@@ -1019,6 +1054,7 @@ pub async fn cli() -> anyhow::Result<()> {
                         final_output_response: None,
                         retry_config: None,
                         output_format: "text".to_string(),
+                        skip_working_dir_check: false,
                     })
                     .await;
 
@@ -1234,6 +1270,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     .and_then(|r| r.final_output_response.clone()),
                 retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
                 output_format,
+                skip_working_dir_check: false,
             })
             .await;
 
@@ -1387,9 +1424,20 @@ pub async fn cli() -> anyhow::Result<()> {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
             return Ok(());
         }
+        Some(Command::Terminal {
+            message,
+            new_session,
+        }) => {
+            crate::commands::terminal::handle_terminal(message, new_session).await?;
+            return Ok(());
+        }
         None => {
             return if !Config::global().exists() {
                 handle_configure().await?;
+                Ok(())
+            } else if let Some(message) = cli.message {
+                // Terminal mode: single string argument provided
+                crate::commands::terminal::handle_terminal(Some(message), cli.new_session).await?;
                 Ok(())
             } else {
                 // Run session command by default
@@ -1418,6 +1466,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     final_output_response: None,
                     retry_config: None,
                     output_format: "text".to_string(),
+                    skip_working_dir_check: false,
                 })
                 .await;
                 session.interactive(None).await?;

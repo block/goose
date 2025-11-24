@@ -56,6 +56,7 @@ pub async fn agent_generator(
         final_output_response: None,
         retry_config: None,
         output_format: "text".to_string(),
+        skip_working_dir_check: false,
     })
     .await;
 
