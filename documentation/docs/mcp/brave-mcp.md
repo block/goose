@@ -1,6 +1,6 @@
 ---
 title: Brave Search Extension
-description: Add Brave Search API as a Goose Extension
+description: Add Brave Search API as a goose Extension
 unlisted: true
 ---
 
@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server moved
 
-This tutorial will get you started with the [Brave Search MCP Server](https://www.pulsemcp.com/servers/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
+This tutorial will get you started with the [Brave Search MCP Server](https://www.pulsemcp.com/servers/brave-search) as a goose extension to enable interactive searches for both web and local searches.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -112,7 +112,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
    ```sh
     ┌   goose-configure 
     │
@@ -218,13 +218,13 @@ The Brave Search MCP server gives you access to the Brave Search API, providing 
 - **Smart Fallbacks**: Local search automatically falls back to web when no results are found
 
 
-#### Goose Prompt
+#### goose Prompt
 
 ```
 ( O)> Organize a Italian dinner party with Ian, Rizel, Ace, and Ebony. Find 3 or 4 YouTube cooking channels (with URLs) that focus on Italian cuisine for beginners, and then find one recipe (with URL) for each person to make: one salad, two entrees, and one dessert.
 ```
 
-#### Goose Output
+#### goose Output
 
 ```
 

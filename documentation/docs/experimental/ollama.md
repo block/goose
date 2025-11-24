@@ -37,7 +37,7 @@ The Ollama tool shim is an experimental feature that enables tool calling capabi
    GOOSE_TOOLSHIM=1 
    ```
 
-Start a new Goose session with your tool shim preferences:
+Start a new goose session with your tool shim preferences:
 
   ```bash
   GOOSE_TOOLSHIM=1 GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2 cargo run --bin goose session
