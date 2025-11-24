@@ -13,7 +13,7 @@ import { PanelLeft } from 'lucide-react';
 Tool Selection Strategy is an experimental feature and currently only tested with Claude models. Behavior and configuration may change in future releases.
 :::
 
-When you enable an [extension](/docs/getting-started/using-extensions), you gain access to all of its tools. For example, the Google Drive extension provides tools for reading documents, updating permissions, managing comments, and more. By default, Goose loads all tools into context when interacting with the LLM.
+When you enable an [extension](/docs/getting-started/using-extensions), you gain access to all of its tools. For example, the Google Drive extension provides tools for reading documents, updating permissions, managing comments, and more. By default, goose loads all tools into context when interacting with the LLM.
 
 Enabling multiple extensions gives you access to a wider range of tools, but loading a lot of tools into context can be inefficient and confusing for the LLM. It's like having every tool in your workshop spread out on your bench when you only need one or two. 
 
@@ -36,7 +36,7 @@ You can also use [tool permissions](/docs/guides/managing-tools/tool-permissions
 :::
 
 ### Disabled (Default)
-When tool selection strategy is disabled, Goose loads all tools from enabled extensions into context. This is the traditional behavior and works well if you only have a few extensions enabled.
+When tool selection strategy is disabled, goose loads all tools from enabled extensions into context. This is the traditional behavior and works well if you only have a few extensions enabled.
 
 **Best for:**
 - Simple setups with few extensions
@@ -44,7 +44,7 @@ When tool selection strategy is disabled, Goose loads all tools from enabled ext
 - Maximum tool availability without selection logic
 
 ### Enabled (LLM-based Strategy)
-When enabled, Goose uses LLM intelligence to analyze your query and select only the most relevant tools from your enabled extensions. This reduces token consumption and improves tool selection accuracy when you have many extensions enabled.
+When enabled, goose uses LLM intelligence to analyze your query and select only the most relevant tools from your enabled extensions. This reduces token consumption and improves tool selection accuracy when you have many extensions enabled.
 
 **Best for:**
 - Complex or ambiguous queries that require understanding context
@@ -72,7 +72,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
     goose configure
     ```
 
-    2. Select `Goose Settings`:
+    2. Select `goose settings`:
     ```sh
     ┌   goose-configure
     │
@@ -82,7 +82,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
     │  ○ Toggle Extensions
     │  ○ Remove Extension
     // highlight-start
-    │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
+    │  ● goose settings (Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more)
     // highlight-end
     └ 
     ```
@@ -92,17 +92,17 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
     ┌   goose-configure
     │
     ◇  What would you like to configure?
-    │  Goose Settings
+    │  goose settings
     │
     ◆  What setting would you like to configure?
-    │  ○ Goose Mode 
+    │  ○ goose mode 
     // highlight-start
     │  ● Router Tool Selection Strategy (Experimental: configure a strategy for auto selecting tools to use)
     // highlight-end
     │  ○ Tool Permission 
     │  ○ Tool Output 
     │  ○ Toggle Experiment 
-    │  ○ Goose recipe github repo 
+    │  ○ goose recipe github repo 
     └ 
     ```
 
@@ -111,7 +111,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
    ┌   goose-configure 
    │
    ◇  What would you like to configure?
-   │  Goose Settings 
+   │  goose settings
    │
    ◇  What setting would you like to configure?
    │  Router Tool Selection Strategy 
@@ -129,7 +129,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
     ┌   goose-configure
     │
     ◇  What would you like to configure?
-    │  Goose Settings
+    │  goose settings
     │
     ◇  What setting would you like to configure?
     │  Router Tool Selection Strategy
@@ -140,7 +140,7 @@ When enabled, Goose uses LLM intelligence to analyze your query and select only 
     └  Router enabled - using LLM-based intelligence for tool selection
     ```
 
-    When the router is enabled, Goose CLI displays a message indicating when the `llm_search` strategy is in use.
+    When the router is enabled, goose CLI displays a message indicating when the `llm_search` strategy is in use.
 
   </TabItem>
 </Tabs>
