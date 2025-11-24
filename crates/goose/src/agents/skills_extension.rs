@@ -282,8 +282,13 @@ impl McpClientTrait for SkillsClient {
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
+        let tools = if self.skills.is_empty() {
+            Vec::new()
+        } else {
+            Self::get_tools()
+        };
         Ok(ListToolsResult {
-            tools: Self::get_tools(),
+            tools,
             next_cursor: None,
         })
     }
@@ -592,6 +597,102 @@ Content from dir3
 
         client.info.instructions = Some(instructions);
         assert_eq!(client.info.instructions.as_ref().unwrap(), "");
+    }
+
+    #[tokio::test]
+    async fn test_no_tools_when_no_skills() {
+        let temp_dir = TempDir::new().unwrap();
+        let empty_dir = temp_dir.path().join("empty");
+        fs::create_dir(&empty_dir).unwrap();
+
+        let skills = SkillsClient::discover_skills_in_directories(&[empty_dir]);
+        assert_eq!(skills.len(), 0);
+
+        let client = SkillsClient {
+            info: InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    tools: Some(ToolsCapability {
+                        list_changed: Some(false),
+                    }),
+                    resources: None,
+                    prompts: None,
+                    completions: None,
+                    experimental: None,
+                    logging: None,
+                },
+                server_info: Implementation {
+                    name: EXTENSION_NAME.to_string(),
+                    title: Some("Skills".to_string()),
+                    version: "1.0.0".to_string(),
+                    icons: None,
+                    website_url: None,
+                },
+                instructions: Some(String::new()),
+            },
+            skills,
+        };
+
+        let result = client
+            .list_tools(None, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(result.tools.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_tools_available_when_skills_exist() {
+        let temp_dir = TempDir::new().unwrap();
+        let skills_dir = temp_dir.path().join("skills");
+        fs::create_dir(&skills_dir).unwrap();
+
+        let skill_dir = skills_dir.join("test-skill");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            r#"---
+name: test-skill
+description: A test skill
+---
+Content
+"#,
+        )
+        .unwrap();
+
+        let skills = SkillsClient::discover_skills_in_directories(&[skills_dir]);
+        assert_eq!(skills.len(), 1);
+
+        let client = SkillsClient {
+            info: InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    tools: Some(ToolsCapability {
+                        list_changed: Some(false),
+                    }),
+                    resources: None,
+                    prompts: None,
+                    completions: None,
+                    experimental: None,
+                    logging: None,
+                },
+                server_info: Implementation {
+                    name: EXTENSION_NAME.to_string(),
+                    title: Some("Skills".to_string()),
+                    version: "1.0.0".to_string(),
+                    icons: None,
+                    website_url: None,
+                },
+                instructions: Some(String::new()),
+            },
+            skills,
+        };
+
+        let result = client
+            .list_tools(None, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(result.tools.len(), 1);
+        assert_eq!(result.tools[0].name, "loadSkill");
     }
 
     #[test]
