@@ -58,6 +58,9 @@ fn launch_editor(editor_cmd: &str, file_path: &PathBuf) -> Result<()> {
     }
 
     let mut cmd = Command::new(parts[0]);
+    if let Ok(cwd) = std::env::current_dir() {
+        cmd.current_dir(cwd);
+    }
     if parts.len() > 1 {
         cmd.args(&parts[1..]);
     }
