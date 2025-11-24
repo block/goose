@@ -4,6 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType};
@@ -367,6 +368,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::export_session,
         super::routes::session::import_session,
         super::routes::session::update_session_user_recipe_values,
+        super::routes::session::edit_message,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -413,6 +415,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
+        super::routes::session::EditType,
+        super::routes::session::EditMessageRequest,
+        super::routes::session::EditMessageResponse,
         Message,
         MessageContent,
         MessageMetadata,
@@ -455,6 +460,7 @@ derive_utoipa!(Icon as IconSchema);
         PermissionLevel,
         PrincipalType,
         ModelInfo,
+        ModelConfig,
         Session,
         SessionInsights,
         SessionType,

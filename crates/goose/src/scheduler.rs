@@ -735,14 +735,14 @@ async fn execute_job(
         }
     }
 
-    agent.update_provider(agent_provider).await?;
-
     let session = SessionManager::create_session(
         std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
     )
     .await?;
+
+    agent.update_provider(agent_provider, &session.id).await?;
 
     let mut jobs_guard = jobs.lock().await;
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {

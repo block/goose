@@ -373,7 +373,6 @@ mod tests {
         async fn test_max_turns_limit() -> Result<()> {
             let agent = Agent::new();
             let provider = Arc::new(MockToolProvider::new());
-            agent.update_provider(provider).await?;
             let user_message = Message::user().with_text("Hello");
 
             let session = SessionManager::create_session(
@@ -382,6 +381,9 @@ mod tests {
                 SessionType::Hidden,
             )
             .await?;
+
+            agent.update_provider(provider, &session.id).await?;
+
             let session_config = SessionConfig {
                 id: session.id,
                 schedule_id: None,

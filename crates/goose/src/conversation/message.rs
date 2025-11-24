@@ -24,7 +24,15 @@ fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageC
 where
     D: Deserializer<'de>,
 {
-    let mut content: Vec<MessageContent> = Vec::deserialize(deserializer)?;
+    use serde::de::Error;
+
+    let mut raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+
+    // Filter out old "conversationCompacted" messages from pre-14.0
+    raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
+
+    let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
+        .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
