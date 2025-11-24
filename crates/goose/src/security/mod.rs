@@ -46,7 +46,7 @@ impl SecurityManager {
         let config = Config::global();
 
         config
-            .get_param::<bool>("SECURITY_PROMPT_ML_ENABLED")
+            .get_param::<bool>("SECURITY_PROMPT_BERT_ENABLED")
             .unwrap_or(false)
     }
 

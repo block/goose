@@ -5,7 +5,7 @@ import { useConfig } from '../../ConfigContext';
 interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;
   SECURITY_PROMPT_THRESHOLD?: number;
-  SECURITY_PROMPT_ML_ENABLED?: boolean;
+  SECURITY_PROMPT_BERT_ENABLED?: boolean;
   SECURITY_PROMPT_ML_MODEL?: string;
 }
 
@@ -24,7 +24,7 @@ export const SecurityToggle = () => {
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
     SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
-    SECURITY_PROMPT_ML_ENABLED: mlEnabled = false,
+    SECURITY_PROMPT_BERT_ENABLED: mlEnabled = false,
     SECURITY_PROMPT_ML_MODEL: mlModel = AVAILABLE_MODELS[0].value, // use single source of truth for default model
   } = (config as SecurityConfig) ?? {};
 
@@ -44,7 +44,7 @@ export const SecurityToggle = () => {
   };
 
   const handleMlToggle = async (enabled: boolean) => {
-    await upsert('SECURITY_PROMPT_ML_ENABLED', enabled, false);
+    await upsert('SECURITY_PROMPT_BERT_ENABLED', enabled, false);
 
     if (enabled) {
       const modelToSet = mlModel || AVAILABLE_MODELS[0].value;

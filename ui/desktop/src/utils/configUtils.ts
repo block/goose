@@ -17,7 +17,7 @@ export const configLabels: Record<string, string> = {
   // security settings
   SECURITY_PROMPT_ENABLED: 'Prompt Injection Detection Enabled',
   SECURITY_PROMPT_THRESHOLD: 'Prompt Injection Detection Threshold',
-  SECURITY_PROMPT_ML_ENABLED: 'ML-based Prompt Injection Detection Enabled',
+  SECURITY_PROMPT_BERT_ENABLED: 'ML-based Prompt Injection Detection Enabled',
   SECURITY_PROMPT_ML_MODEL: 'ML-based Prompt Injection Detection Model',
 
   // openai

@@ -47,7 +47,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `otel_exporter_otlp_timeout` | Export timeout in milliseconds for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | Integer (ms) | 10000 | No |
 | `SECURITY_PROMPT_ENABLED` | Enable prompt injection detection to identify potentially harmful commands | true/false | false | No |
 | `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for prompt injection detection (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
-| `SECURITY_PROMPT_ML_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
+| `SECURITY_PROMPT_BERT_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
 | `SECURITY_PROMPT_ML_MODEL` | Specify the BERT ML model to use for prompt injection detection | String | "ProtectAI DeBERTa" | No |
 
 :::info Automatic Multi-Model Configuration
