@@ -157,14 +157,13 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
-            let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
-            prompt_template::render_inline_once(&sanitized_override_prompt, &context)
+            // For subagents, the override is already a fully rendered prompt, not a template
+            sanitize_unicode_tags(override_prompt)
         } else {
-            prompt_template::render_global_file("system.md", &context)
-        }
-        .unwrap_or_else(|_| {
-            "You are a general-purpose AI agent called goose, created by Block".to_string()
-        });
+            prompt_template::render_global_file("system.md", &context).unwrap_or_else(|_| {
+                "You are a general-purpose AI agent called goose, created by Block".to_string()
+            })
+        };
 
         let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
 

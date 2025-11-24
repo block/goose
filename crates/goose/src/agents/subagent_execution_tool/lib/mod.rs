@@ -40,7 +40,7 @@ pub async fn run_tasks(
         {
             Ok(result) => {
                 let output = serde_json::to_string(&result).unwrap();
-                Ok(vec![Content::text(output)])
+                Ok(vec![Content::text(output).with_priority(0.0)])
             }
             Err(e) => Err(ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,

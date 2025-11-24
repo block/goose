@@ -19,21 +19,36 @@ static GLOBAL_ENV: Lazy<Arc<RwLock<Environment<'static>>>> = Lazy::new(|| {
     env.set_trim_blocks(true);
     env.set_lstrip_blocks(true);
 
-    // Pre-load all core templates from the embedded dir.
-    for file in CORE_PROMPTS_DIR.files() {
-        let name = file.path().to_string_lossy().to_string();
-        let source = String::from_utf8_lossy(file.contents()).to_string();
+    // Pre-load all core templates from the embedded dir (including subdirectories).
+    fn load_dir_recursive(dir: &Dir, env: &mut Environment<'static>) {
+        // Load all entries in the directory
+        for entry in dir.entries() {
+            match entry {
+                include_dir::DirEntry::File(file) => {
+                    let name = file.path().to_string_lossy().to_string();
+                    let source = String::from_utf8_lossy(file.contents()).to_string();
 
-        // Since we're using 'static lifetime for the Environment, we need to ensure
-        // the strings we add as templates live for the entire program duration.
-        // We can achieve this by leaking the strings (acceptable for initialization).
-        let static_name: &'static str = Box::leak(name.into_boxed_str());
-        let static_source: &'static str = Box::leak(source.into_boxed_str());
+                    // Since we're using 'static lifetime for the Environment, we need to ensure
+                    // the strings we add as templates live for the entire program duration.
+                    // We can achieve this by leaking the strings (acceptable for initialization).
+                    let static_name: &'static str = Box::leak(name.into_boxed_str());
+                    let static_source: &'static str = Box::leak(source.into_boxed_str());
 
-        if let Err(e) = env.add_template(static_name, static_source) {
-            tracing::error!("Failed to add template {}: {}", static_name, e);
+                    if let Err(e) = env.add_template(static_name, static_source) {
+                        tracing::error!("Failed to add template {}: {}", static_name, e);
+                    } else {
+                        tracing::debug!("Loaded template: {}", static_name);
+                    }
+                }
+                include_dir::DirEntry::Dir(subdir) => {
+                    // Recursively load subdirectory
+                    load_dir_recursive(subdir, env);
+                }
+            }
         }
     }
+
+    load_dir_recursive(&CORE_PROMPTS_DIR, &mut env);
 
     Arc::new(RwLock::new(env))
 });

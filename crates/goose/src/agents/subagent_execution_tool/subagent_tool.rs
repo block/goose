@@ -147,8 +147,16 @@ fn load_system_prompt(
     context.insert("subagent_id".to_string(), uuid::Uuid::new_v4().to_string());
 
     match prompt_template::render_global_file(template_path, &context) {
-        Ok(prompt) => Some(prompt),
+        Ok(prompt) => {
+            tracing::info!("Successfully loaded subagent template: {}", template_path);
+            Some(prompt)
+        }
         Err(e) => {
+            tracing::error!(
+                "Failed to load subagent template '{}': {}",
+                template_path,
+                e
+            );
             if !matches!(subagent_type, SubagentType::Default) {
                 tracing::warn!(
                     "Failed to load subagent persona '{}': {}. Falling back to default.",
@@ -328,6 +336,8 @@ pub async fn run_subagent_tool(
             .as_ref()
             .unwrap_or(&SubagentType::Default);
 
+        tracing::info!("Applying subagent type: {:?}", subagent_type);
+
         let task_instructions = recipe
             .instructions
             .as_deref()
@@ -350,6 +360,17 @@ pub async fn run_subagent_tool(
             available_tools,
             task_instructions,
         ) {
+            tracing::info!(
+                "Applied custom system prompt for subagent type: {:?}",
+                subagent_type
+            );
+            let preview_len = system_prompt
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(system_prompt.len());
+            tracing::debug!("System prompt preview: {}", &system_prompt[..preview_len]);
+
             let mut settings = recipe.settings.unwrap_or(Settings {
                 goose_provider: None,
                 goose_model: None,
@@ -358,7 +379,14 @@ pub async fn run_subagent_tool(
             });
             settings.system_prompt = Some(system_prompt);
             recipe.settings = Some(settings);
+        } else {
+            tracing::error!(
+                "Failed to load system prompt for subagent type: {:?}",
+                subagent_type
+            );
         }
+    } else {
+        tracing::info!("Recipe already has explicit system prompt, not applying subagent type");
     }
 
     // 4. Execution
