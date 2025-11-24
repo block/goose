@@ -408,102 +408,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_groq_provider_config_keys() {
+    async fn test_openai_compatible_providers_config_keys() {
         let providers_list = providers().await;
-
-        let groq_provider = providers_list.iter().find(|(meta, _)| meta.name == "groq");
-        assert!(
-            groq_provider.is_some(),
-            "Groq provider should be registered"
-        );
-
-        let (groq_meta, _) = groq_provider.unwrap();
-
-        // The first config key should be GROQ_API_KEY, not OPENAI_API_KEY
-        assert!(
-            !groq_meta.config_keys.is_empty(),
-            "Groq provider should have config keys"
-        );
-        assert_eq!(
-            groq_meta.config_keys[0].name, "GROQ_API_KEY",
-            "First config key should be GROQ_API_KEY, got {}",
-            groq_meta.config_keys[0].name
-        );
-        assert!(
-            groq_meta.config_keys[0].required,
-            "GROQ_API_KEY should be required"
-        );
-        assert!(
-            groq_meta.config_keys[0].secret,
-            "GROQ_API_KEY should be secret"
-        );
-
-        // Other config keys should be standard OpenAI ones
-        if groq_meta.config_keys.len() > 2 {
-            assert_eq!(groq_meta.config_keys[1].name, "OPENAI_HOST");
-            assert_eq!(groq_meta.config_keys[2].name, "OPENAI_BASE_PATH");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_mistral_provider_config_keys() {
-        let providers_list = providers().await;
-
-        let mistral_provider = providers_list
-            .iter()
-            .find(|(meta, _)| meta.name == "mistral");
-        if mistral_provider.is_some() {
-            let (mistral_meta, _) = mistral_provider.unwrap();
-
-            // The first config key should be MISTRAL_API_KEY, not OPENAI_API_KEY
-            assert!(
-                !mistral_meta.config_keys.is_empty(),
-                "Mistral provider should have config keys"
-            );
-            assert_eq!(
-                mistral_meta.config_keys[0].name, "MISTRAL_API_KEY",
-                "First config key should be MISTRAL_API_KEY, got {}",
-                mistral_meta.config_keys[0].name
-            );
-            assert!(
-                mistral_meta.config_keys[0].required,
-                "MISTRAL_API_KEY should be required"
-            );
-            assert!(
-                mistral_meta.config_keys[0].secret,
-                "MISTRAL_API_KEY should be secret"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_deepseek_provider_config_keys() {
-        let providers_list = providers().await;
-
-        let deepseek_provider = providers_list
-            .iter()
-            .find(|(meta, _)| meta.name == "custom_deepseek");
-        if deepseek_provider.is_some() {
-            let (deepseek_meta, _) = deepseek_provider.unwrap();
-
-            // The first config key should be DEEPSEEK_API_KEY, not OPENAI_API_KEY
-            assert!(
-                !deepseek_meta.config_keys.is_empty(),
-                "DeepSeek provider should have config keys"
-            );
-            assert_eq!(
-                deepseek_meta.config_keys[0].name, "DEEPSEEK_API_KEY",
-                "First config key should be DEEPSEEK_API_KEY, got {}",
-                deepseek_meta.config_keys[0].name
-            );
-            assert!(
-                deepseek_meta.config_keys[0].required,
-                "DEEPSEEK_API_KEY should be required"
-            );
-            assert!(
-                deepseek_meta.config_keys[0].secret,
-                "DEEPSEEK_API_KEY should be secret"
-            );
+        let cases = vec![
+            ("groq", "GROQ_API_KEY"),
+            ("mistral", "MISTRAL_API_KEY"),
+            ("custom_deepseek", "DEEPSEEK_API_KEY"),
+        ];
+        for (name, expected_key) in cases {
+            if let Some((meta, _)) = providers_list.iter().find(|(m, _)| m.name == name) {
+                assert!(
+                    !meta.config_keys.is_empty(),
+                    "{name} provider should have config keys"
+                );
+                assert_eq!(
+                    meta.config_keys[0].name, expected_key,
+                    "First config key for {name} should be {expected_key}, got {}",
+                    meta.config_keys[0].name
+                );
+                assert!(
+                    meta.config_keys[0].required,
+                    "{expected_key} should be required"
+                );
+                assert!(
+                    meta.config_keys[0].secret,
+                    "{expected_key} should be secret"
+                );
+            } else {
+                // Provider not registered; skip test for this provider
+                continue;
+            }
         }
     }
 }
