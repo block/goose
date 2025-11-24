@@ -191,7 +191,7 @@ export const TabBar: React.FC<TabBarProps> = ({
           >
             {/* Tab Title - flex-1 to take available space */}
             <span className={cn(
-              "truncate text-xs font-normal flex-1 pointer-events-none",
+              "truncate text-xs font-normal flex-1 pointer-events-none text-left",
               tab.isActive
                 ? "text-slate-200"
                 : "text-neutral-700"
