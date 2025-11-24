@@ -11,12 +11,12 @@ use goose_server::routes::reply::MessageEvent;
 use reqwest::Client as ReqwestClient;
 use tokio_stream::StreamExt;
 
-pub use types::{ProviderDetails, ToolInfo};
 use types::{
     AddExtensionRequest, ChatRequest, ConfigResponse, ExtensionQuery, ExtensionResponse,
     RemoveExtensionRequest, ResumeAgentRequest, SessionListResponse, StartAgentRequest,
     UpdateProviderRequest, UpsertConfigQuery,
 };
+pub use types::{ProviderDetails, ToolInfo};
 
 #[derive(Clone)]
 pub struct Client {
@@ -372,17 +372,17 @@ impl Client {
             .bytes_stream()
             .eventsource();
 
-        Ok(stream.map(|event| {
-            match event {
-                Ok(event) => {
-                    if event.data == "[DONE]" {
-                        serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
-                    } else {
-                        serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
-                    }
+        Ok(stream.map(|event| match event {
+            Ok(event) => {
+                if event.data == "[DONE]" {
+                    serde_json::from_str::<MessageEvent>(&event.data)
+                        .context("Failed to parse SSE event")
+                } else {
+                    serde_json::from_str::<MessageEvent>(&event.data)
+                        .context("Failed to parse SSE event")
                 }
-                Err(e) => Err(anyhow::anyhow!("SSE stream error: {}", e)),
             }
+            Err(e) => Err(anyhow::anyhow!("SSE stream error: {}", e)),
         }))
     }
 }
