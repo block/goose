@@ -155,6 +155,15 @@ export const UnifiedSidecarProvider: React.FC<UnifiedSidecarProviderProps> = ({ 
   const getActiveSidecars = useCallback((): SidecarInfo[] => {
     const sidecars = Array.from(activeSidecarsRef.current.values());
     console.log('🔧 UnifiedSidecarContext: getActiveSidecars called, returning:', sidecars.length, 'sidecars');
+    console.log('🔧 UnifiedSidecarContext: Active sidecars details:', 
+      sidecars.map(s => ({ 
+        id: s.id, 
+        type: s.type, 
+        title: s.title,
+        fileName: (s as any).fileName,
+        filePath: (s as any).filePath 
+      }))
+    );
     return sidecars;
   }, []);
 

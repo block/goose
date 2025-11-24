@@ -37,13 +37,42 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   // Extract text content from the message
   const textContent = getTextContent(message);
 
+  // Check if this message has sidecar context injected
+  const { hasContext, contextInfo, actualMessage } = useMemo(() => {
+    const contextPattern = /^## Active Tools & Context\n[\s\S]*?\n---\n\n/;
+    const match = textContent.match(contextPattern);
+    
+    if (match) {
+      // Extract the context section
+      const contextSection = match[0];
+      // Extract the actual user message after the separator
+      const userMessage = textContent.slice(match[0].length);
+      
+      // Count how many tools are mentioned in the context
+      const toolMatches = contextSection.match(/### \d+\. /g);
+      const toolCount = toolMatches ? toolMatches.length : 0;
+      
+      return {
+        hasContext: true,
+        contextInfo: { toolCount },
+        actualMessage: userMessage
+      };
+    }
+    
+    return {
+      hasContext: false,
+      contextInfo: null,
+      actualMessage: textContent
+    };
+  }, [textContent]);
+
   // Extract image paths from the message
-  const imagePaths = extractImagePaths(textContent);
+  const imagePaths = extractImagePaths(actualMessage);
 
   // Remove image paths from text for display - memoized for performance
   const displayText = useMemo(
-    () => removeImagePathsFromText(textContent, imagePaths),
-    [textContent, imagePaths]
+    () => removeImagePathsFromText(actualMessage, imagePaths),
+    [actualMessage, imagePaths]
   );
 
   // Memoize the timestamp
@@ -246,6 +275,18 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                     />
                   )}
                 </div>
+
+                {/* Context pill - shown inline after message */}
+                {hasContext && contextInfo && (
+                  <div className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 bg-blue-500/10 dark:bg-blue-400/10 border border-blue-500/20 dark:border-blue-400/20 rounded text-[10px] text-blue-600 dark:text-blue-400 w-fit">
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span className="font-medium">
+                      {contextInfo.toolCount} {contextInfo.toolCount === 1 ? 'tool' : 'tools'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Render images if any */}
                 {imagePaths.length > 0 && (

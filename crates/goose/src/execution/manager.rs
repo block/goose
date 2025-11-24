@@ -159,6 +159,59 @@ impl AgentManager {
             warn!("❌ Check that GOOSE_DEFAULT_PROVIDER and GOOSE_DEFAULT_MODEL are set correctly");
         }
 
+        // Load enabled extensions from config
+        match crate::config::ExtensionConfigManager::get_all() {
+            Ok(extensions) => {
+                let mut loaded_count = 0;
+                let mut failed_count = 0;
+                
+                for ext_config in extensions {
+                    if ext_config.enabled {
+                        match agent.add_extension(ext_config.config.clone()).await {
+                            Ok(_) => {
+                                debug!(
+                                    "✅ Loaded extension '{}' for session {}",
+                                    ext_config.config.name(),
+                                    session_id
+                                );
+                                loaded_count += 1;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "❌ Failed to load extension '{}' for session {}: {}",
+                                    ext_config.config.name(),
+                                    session_id,
+                                    e
+                                );
+                                failed_count += 1;
+                            }
+                        }
+                    }
+                }
+                
+                if loaded_count > 0 {
+                    info!(
+                        "✅ Loaded {} extension(s) for session {}{}",
+                        loaded_count,
+                        session_id,
+                        if failed_count > 0 {
+                            format!(" ({} failed)", failed_count)
+                        } else {
+                            String::new()
+                        }
+                    );
+                } else {
+                    warn!("⚠️  No extensions loaded for session {}", session_id);
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "❌ Failed to load extension configuration for session {}: {}",
+                    session_id, e
+                );
+            }
+        }
+
         Ok(agent)
     }
 

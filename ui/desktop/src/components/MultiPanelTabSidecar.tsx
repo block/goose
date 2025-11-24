@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { 
   X, 
@@ -25,6 +25,7 @@ import {
 import { TabSidecarState, TabSidecarView } from './TabBar';
 import DocumentEditor from './DocumentEditor';
 import WebBrowser from './WebBrowser';
+import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 export type SidecarLayoutMode = 'single' | 'columns' | 'rows' | 'grid' | 'custom';
 
@@ -379,6 +380,7 @@ export const MultiPanelTabSidecar: React.FC<MultiPanelTabSidecarProps> = ({
   const [isDragActive, setIsDragActive] = useState(false);
   const [dropZones, setDropZones] = useState<DropZone[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const unifiedSidecarContext = useUnifiedSidecarContextOptional();
 
   // Get active views - memoize to prevent recreation on every render
   const activeViews = React.useMemo(() => 
@@ -387,6 +389,120 @@ export const MultiPanelTabSidecar: React.FC<MultiPanelTabSidecarProps> = ({
     ), 
     [sidecarState.views, sidecarState.activeViews]
   );
+
+  // Register all active views with UnifiedSidecarContext for AI awareness
+  useEffect(() => {
+    if (!unifiedSidecarContext || activeViews.length === 0) {
+      return;
+    }
+
+    console.log('🔧 MultiPanelTabSidecar: Registering', activeViews.length, 'views with unified context');
+
+    // Register each active view
+    activeViews.forEach(view => {
+      let sidecarInfo;
+      const sidecarId = `tab-${tabId}-${view.id}`;
+
+      switch (view.contentType) {
+        case 'diff':
+          const diffLines = (view.contentProps.diffContent || '').split('\n');
+          const addedLines = diffLines.filter((line: string) => line.startsWith('+')).length;
+          const removedLines = diffLines.filter((line: string) => line.startsWith('-')).length;
+          
+          sidecarInfo = {
+            id: sidecarId,
+            type: 'diff-viewer' as const,
+            title: view.title || 'Diff Viewer',
+            fileName: view.fileName || 'File',
+            filePath: undefined,
+            addedLines,
+            removedLines,
+            totalChanges: addedLines + removedLines,
+            viewMode: 'unified' as const,
+            timestamp: Date.now(),
+          };
+          break;
+
+        case 'localhost':
+          const localhostUrl = view.contentProps.url || 'http://localhost:3000';
+          const port = parseInt(new URL(localhostUrl).port) || 3000;
+          
+          sidecarInfo = {
+            id: sidecarId,
+            type: 'localhost-viewer' as const,
+            title: view.title || 'Localhost Viewer',
+            url: localhostUrl,
+            port,
+            protocol: new URL(localhostUrl).protocol.replace(':', '') as 'http' | 'https',
+            isLocal: true,
+            serviceType: 'development',
+            timestamp: Date.now(),
+          };
+          break;
+
+        case 'web':
+          // Skip - WebBrowser component handles its own registration
+          console.log('🔧 MultiPanelTabSidecar: Skipping web viewer registration (handled by WebBrowser component)');
+          break;
+
+        case 'file':
+          const filePath = view.contentProps.path || '';
+          const fileName = filePath.split('/').pop() || filePath;
+          const fileExtension = fileName.split('.').pop() || '';
+          
+          sidecarInfo = {
+            id: sidecarId,
+            type: 'file-viewer' as const,
+            title: view.title || 'File Viewer',
+            filePath,
+            fileName,
+            fileSize: 0,
+            fileType: fileExtension,
+            isReadable: true,
+            lastModified: Date.now(),
+            timestamp: Date.now(),
+          };
+          break;
+
+        case 'editor':
+          const editorPath = view.contentProps.path;
+          const editorFileName = editorPath 
+            ? editorPath.split('/').pop() || editorPath 
+            : view.fileName || 'Untitled Document';
+          
+          sidecarInfo = {
+            id: sidecarId,
+            type: 'document-editor' as const,
+            title: view.title || 'Document Editor',
+            filePath: editorPath,
+            fileName: editorFileName,
+            contentLength: (view.contentProps.content || '').length,
+            hasUnsavedChanges: false,
+            isNewDocument: !editorPath,
+            language: editorPath ? editorPath.split('.').pop() : undefined,
+            timestamp: Date.now(),
+          };
+          break;
+      }
+
+      if (sidecarInfo) {
+        unifiedSidecarContext.registerSidecar(sidecarInfo);
+        console.log('🔧 MultiPanelTabSidecar: Registered sidecar:', sidecarInfo.id, sidecarInfo.type);
+      }
+    });
+
+    // Cleanup: unregister all views when they change or component unmounts
+    return () => {
+      activeViews.forEach(view => {
+        // Skip web viewer cleanup since it handles its own
+        if (view.contentType !== 'web') {
+          const sidecarId = `tab-${tabId}-${view.id}`;
+          unifiedSidecarContext.unregisterSidecar(sidecarId);
+          console.log('🔧 MultiPanelTabSidecar: Unregistered sidecar:', sidecarId);
+        }
+      });
+    };
+  }, [unifiedSidecarContext, activeViews, tabId]);
 
   // Initialize panel order when views change
   React.useEffect(() => {
