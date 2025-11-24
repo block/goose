@@ -183,9 +183,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
               "w-[160px] group relative tab-item",
               "transition-none",
-              tab.isActive
-                ? "bg-[#33333A]/90"
-                : "bg-[#0E0E13]/90 hover:bg-[#0E0E13]/90"
+              "bg-[#0E0E13]/90"
             )}
             onClick={() => onTabClick(tab.id)}
           >
@@ -194,7 +192,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               <span className={cn(
                 "truncate text-xs font-normal block pointer-events-none text-left transition-colors duration-200",
                 tab.isActive
-                  ? "text-slate-200"
+                  ? "text-white"
                   : "text-neutral-700 group-hover:text-white"
               )}>
                 {getTabTitle(tab)}
