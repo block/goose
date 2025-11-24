@@ -3137,6 +3137,7 @@ dependencies = [
  "tracing-subscriber",
  "tui-textarea",
  "ulid",
+ "unicode-width 0.2.0",
  "uuid",
 ]
 

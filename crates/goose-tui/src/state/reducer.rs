@@ -162,6 +162,13 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
 
 fn handle_misc(state: &mut AppState, action: &Action) -> bool {
     match action {
+        Action::ShowFlash(message) => {
+            state.flash_message = Some((
+                message.clone(),
+                Instant::now() + std::time::Duration::from_secs(3),
+            ));
+            true
+        }
         Action::ChangeTheme(name) => {
             state.config.theme = crate::utils::styles::Theme::from_name(name);
             true

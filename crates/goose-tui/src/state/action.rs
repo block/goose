@@ -23,6 +23,7 @@ pub enum Action {
     },
     ConfigLoaded(serde_json::Value),
     Error(String),
+    ShowFlash(String),
 
     SendMessage(goose::conversation::message::Message),
     Interrupt,

@@ -140,12 +140,33 @@ impl<'a> Component for InputComponent<'a> {
                             self.textarea.insert_newline();
                         }
                         KeyCode::Enter => {
-                            if state.is_working {
-                                return Ok(None);
-                            }
                             let text = self.textarea.lines().join("\n");
                             let trimmed = text.trim();
                             if !trimmed.is_empty() {
+                                // 1. Check for Safe Commands (Bypass Lock)
+                                if trimmed.starts_with('/') {
+                                    let cmd = trimmed.split_whitespace().next().unwrap_or("");
+                                    let safe_commands = [
+                                        "/config", "/help", "/todos", "/theme", "/exit", "/quit",
+                                        "/alias",
+                                    ];
+
+                                    if safe_commands.contains(&cmd) {
+                                        self.clear();
+                                        if let Some(action) =
+                                            self.handle_slash_command(trimmed, state)
+                                        {
+                                            return Ok(Some(action));
+                                        }
+                                    }
+                                }
+
+                                if state.is_working {
+                                    return Ok(Some(Action::ShowFlash(
+                                        "Goose is working... (Ctrl+C to interrupt)".to_string(),
+                                    )));
+                                }
+
                                 self.textarea = TextArea::default();
                                 self.textarea.set_placeholder_text("Type a message...");
                                 self.textarea.set_cursor_line_style(Style::default()); // Disable underline

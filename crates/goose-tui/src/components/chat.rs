@@ -13,6 +13,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 pub struct ChatComponent {
     list_state: ListState,
@@ -162,8 +163,9 @@ impl ChatComponent {
         };
 
         let header = format!("{tool_name} {display_args}");
-        let fixed = 5;
-        let padding = width.saturating_sub(header.len() + fixed + 2);
+        let header_width = UnicodeWidthStr::width(header.as_str());
+        let fixed = 5; // "╭─ " (3) + " " (1) + "╮" (1)
+        let padding = width.saturating_sub(header_width + fixed);
 
         let header_line = Line::from(vec![
             Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
@@ -186,6 +188,9 @@ impl ChatComponent {
         if let Ok(contents) = &resp.tool_result {
             let mut line_count = 0;
             let max_lines = 10;
+            // Inner width: width - "│ " (2) - "│" (1) = width - 3
+            let content_width = width.saturating_sub(3);
+
             for content in contents {
                 if let rmcp::model::Content {
                     raw: rmcp::model::RawContent::Text(text_content),
@@ -196,14 +201,27 @@ impl ChatComponent {
                         if line_count >= max_lines {
                             break;
                         }
-                        let inner_width = width.saturating_sub(4);
-                        let truncated = if line.len() > inner_width {
-                            &line[..inner_width]
+
+                        let line_width = UnicodeWidthStr::width(line);
+                        let (truncated_line, truncated_width) = if line_width > content_width {
+                            let mut w = 0;
+                            let mut s = String::new();
+                            for c in line.chars() {
+                                let cw = c.width().unwrap_or(0);
+                                if w + cw > content_width {
+                                    break;
+                                }
+                                w += cw;
+                                s.push(c);
+                            }
+                            (s, w)
                         } else {
-                            line
+                            (line.to_string(), line_width)
                         };
-                        let pad = inner_width.saturating_sub(truncated.chars().count());
-                        let box_line = format!("│ {}{: <width$}│", truncated, "", width = pad);
+
+                        let pad = content_width.saturating_sub(truncated_width);
+                        let box_line = format!("│ {}{: <width$}│", truncated_line, "", width = pad);
+
                         items.push(ListItem::new(Line::from(Span::styled(
                             box_line,
                             Style::default().fg(Color::Gray),
@@ -215,7 +233,8 @@ impl ChatComponent {
             }
             if line_count >= max_lines {
                 let content = "... (truncated)";
-                let pad = width.saturating_sub(content.len() + 4);
+                let content_w = UnicodeWidthStr::width(content);
+                let pad = content_width.saturating_sub(content_w);
                 let box_line = format!("│ {}{: <width$}│", content, "", width = pad);
                 items.push(ListItem::new(Line::from(Span::styled(
                     box_line,

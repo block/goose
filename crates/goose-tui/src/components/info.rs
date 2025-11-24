@@ -8,6 +8,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use unicode_width::UnicodeWidthStr;
 
 pub struct InfoComponent {
     frame_count: usize,
@@ -70,15 +71,7 @@ impl Component for InfoComponent {
         let mut spans = Vec::new();
         let theme = &state.config.theme;
 
-        // Check for flash message
-        if let Some((msg, _)) = &state.flash_message {
-            spans.push(Span::styled(
-                msg,
-                Style::default()
-                    .fg(theme.status.warning)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else if state.is_working {
+        if state.is_working {
             let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
             let spinner = spinner_frames[(self.frame_count / 4) % spinner_frames.len()];
 
@@ -154,6 +147,34 @@ impl Component for InfoComponent {
             }
         }
 
-        f.render_widget(Paragraph::new(Line::from(spans)), area);
+        let flash_message_span = if let Some((msg, _)) = &state.flash_message {
+            Some(Span::styled(
+                msg.clone(),
+                Style::default()
+                    .fg(theme.status.warning)
+                    .add_modifier(Modifier::BOLD),
+            ))
+        } else {
+            None
+        };
+
+        if let Some(flash_span) = flash_message_span {
+            let flash_width = UnicodeWidthStr::width(flash_span.content.as_ref()) as u16;
+            let chunks = ratatui::layout::Layout::default()
+                .direction(ratatui::layout::Direction::Horizontal)
+                .constraints([
+                    ratatui::layout::Constraint::Min(0),
+                    ratatui::layout::Constraint::Length(flash_width),
+                ])
+                .split(area);
+
+            f.render_widget(Paragraph::new(Line::from(spans)), chunks[0]);
+            f.render_widget(
+                Paragraph::new(Line::from(flash_span)).alignment(ratatui::layout::Alignment::Right),
+                chunks[1],
+            );
+        } else {
+            f.render_widget(Paragraph::new(Line::from(spans)), area);
+        }
     }
 }
