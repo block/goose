@@ -1039,7 +1039,7 @@ impl Agent {
 
             for (idx, request) in frontend_requests.iter().enumerate() {
                 let mut frontend_tool_stream = self.handle_frontend_tool_request(
-                    &request,
+                    request,
                     tool_response_messages[idx].clone(),
                 );
 
