@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, ScrollText, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -28,6 +28,8 @@ import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
 
 interface QueuedMessage {
   id: string;
@@ -140,6 +142,8 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
+  const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1486,9 +1490,6 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipe={recipe}
-                recipeId={recipeId}
-                hasMessages={messages.length > 0}
               />
             </div>
           </Tooltip>
@@ -1498,6 +1499,34 @@ export default function ChatInput({
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <BottomMenuExtensionSelection sessionId={sessionId} />
+            </>
+          )}
+          {sessionId && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <div className="flex items-center h-full">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => {
+                        if (recipe) {
+                          setShowEditRecipeModal(true);
+                        } else {
+                          setShowCreateRecipeModal(true);
+                        }
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                    >
+                      <ChefHat size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </>
           )}
           <div className="flex items-center h-full">
@@ -1552,6 +1581,23 @@ export default function ChatInput({
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
+
+        {sessionId && showCreateRecipeModal && (
+          <CreateRecipeFromSessionModal
+            isOpen={showCreateRecipeModal}
+            onClose={() => setShowCreateRecipeModal(false)}
+            sessionId={sessionId}
+          />
+        )}
+
+        {recipe && showEditRecipeModal && (
+          <CreateEditRecipeModal
+            isOpen={showEditRecipeModal}
+            onClose={() => setShowEditRecipeModal(false)}
+            recipe={recipe}
+            recipeId={recipeId}
+          />
+        )}
       </div>
     </div>
   );
