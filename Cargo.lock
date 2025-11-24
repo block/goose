@@ -2661,7 +2661,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
- "rmcp 0.9.0",
+ "rmcp 0.9.1",
  "schemars",
  "serde",
  "serde_json",
@@ -2711,7 +2711,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
- "rmcp 0.9.0",
+ "rmcp 0.9.1",
  "serde",
  "serde_json",
  "tokio",
@@ -2750,7 +2750,7 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
- "rmcp 0.9.0",
+ "rmcp 0.9.1",
  "rustyline",
  "serde",
  "serde_json",
@@ -2855,7 +2855,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "reqwest 0.12.12",
- "rmcp 0.9.0",
+ "rmcp 0.9.1",
  "schemars",
  "serde",
  "serde_json",
@@ -5592,9 +5592,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acc36ea743d4bbc97e9f3c33bf0b97765a5cf338de3d9c3d2f321a6e38095615"
+checksum = "eaa07b85b779d1e1df52dd79f6c6bffbe005b191f07290136cc42a142da3409a"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -5606,7 +5606,7 @@ dependencies = [
  "pin-project-lite",
  "process-wrap",
  "reqwest 0.12.12",
- "rmcp-macros 0.9.0",
+ "rmcp-macros 0.9.1",
  "schemars",
  "serde",
  "serde_json",
@@ -5634,9 +5634,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "263caba1c96f2941efca0fdcd97b03f42bcde52d2347d05e5d77c93ab18c5b58"
+checksum = "0f6fa09933cac0d0204c8a5d647f558425538ed6a0134b1ebb1ae4dc00c96db3"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
