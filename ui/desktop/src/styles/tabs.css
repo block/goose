@@ -34,9 +34,6 @@
 
 .tab-close-button:hover {
   transform: scale(1.1);
-  background: var(--color-background-danger);
-  color: var(--color-text-danger);
-  opacity: 0.8;
 }
 
 /* New tab button pulse effect */
