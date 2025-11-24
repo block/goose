@@ -334,13 +334,12 @@ impl Agent {
             }
         }
 
-        Self::handle_denied_tools(&permission_check_result, request_to_response_map).await;
-
+        Self::handle_denied_tools(permission_check_result, request_to_response_map).await;
         Ok(tool_futures)
     }
 
     async fn handle_denied_tools(
-        permission_check_result: &&PermissionCheckResult,
+        permission_check_result: &PermissionCheckResult,
         request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
     ) {
         for request in &permission_check_result.denied {
