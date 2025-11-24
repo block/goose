@@ -16,13 +16,29 @@ pub fn update(state: &mut AppState, action: Action) {
                 }
             }
         }
-        Action::Quit => {}
-        Action::Resize => {}
+        Action::Quit | Action::Resize => {}
         Action::ServerMessage(msg) => handle_server_message(state, msg),
+        Action::ModelsLoaded { provider, models } => handle_models_loaded(state, provider, models),
+        Action::ConfigLoaded(config) => handle_config_loaded(state, config),
+        _ => {
+            if !handle_data_loaded(state, &action)
+                && !handle_chat(state, &action)
+                && !handle_ui(state, &action)
+                && !handle_misc(state, &action)
+            {
+                // Handle remaining or ignore
+            }
+        }
+    }
+}
+
+fn handle_data_loaded(state: &mut AppState, action: &Action) -> bool {
+    match action {
         Action::SessionResumed(session) => {
-            state.session_id = session.id;
+            state.session_id = session.id.clone();
             state.messages = session
                 .conversation
+                .as_ref()
                 .map(|c| c.messages().clone())
                 .unwrap_or_default();
             state.token_state.total_tokens = session.total_tokens.unwrap_or(0);
@@ -37,68 +53,35 @@ pub fn update(state: &mut AppState, action: Action) {
             state.todos.clear();
             state.showing_session_picker = false;
             state.is_working = false;
+            true
         }
         Action::SessionsListLoaded(sessions) => {
-            state.available_sessions = sessions;
+            state.available_sessions = sessions.clone();
+            true
         }
         Action::ToolsLoaded(tools) => {
-            state.available_tools = tools;
+            state.available_tools = tools.clone();
+            true
         }
         Action::ProvidersLoaded(providers) => {
-            state.providers = providers;
+            state.providers = providers.clone();
+            true
         }
         Action::ExtensionsLoaded(extensions) => {
-            state.extensions = extensions;
+            state.extensions = extensions.clone();
+            true
         }
-        Action::ModelsLoaded { provider, models } => {
-            if let Some(p) = state.providers.iter_mut().find(|p| p.name == provider) {
-                let existing_map: std::collections::HashMap<String, ModelInfo> = p
-                    .metadata
-                    .known_models
-                    .drain(..)
-                    .map(|m| (m.name.clone(), m))
-                    .collect();
+        _ => false,
+    }
+}
 
-                let mut new_list = Vec::new();
-                for name in models {
-                    if let Some(info) = existing_map.get(&name) {
-                        new_list.push(info.clone());
-                    } else {
-                        let limit = ModelConfig::new(&name)
-                            .map(|c| c.context_limit())
-                            .unwrap_or(128_000);
-
-                        new_list.push(ModelInfo::new(name, limit));
-                    }
-                }
-                p.metadata.known_models = new_list;
-            }
-        }
-        Action::ConfigLoaded(config) => {
-            if let Some(obj) = config.as_object() {
-                if let Some(val) = obj.get("GOOSE_PROVIDER") {
-                    if let Some(s) = val.as_str() {
-                        state.active_provider = Some(s.to_string());
-                    }
-                }
-                if let Some(val) = obj.get("GOOSE_MODEL") {
-                    if let Some(s) = val.as_str() {
-                        state.active_model = Some(s.to_string());
-                    }
-                }
-            }
-        }
-        Action::Error(e) => {
-            state.flash_message = Some((
-                format!("Error: {e}"),
-                Instant::now() + std::time::Duration::from_secs(5),
-            ));
-            state.is_working = false;
-        }
+fn handle_chat(state: &mut AppState, action: &Action) -> bool {
+    match action {
         Action::SendMessage(message) => {
-            state.messages.push(message);
+            state.messages.push(message.clone());
             state.is_working = true;
             state.has_worked = true;
+            true
         }
         Action::Interrupt => {
             state.is_working = false;
@@ -106,31 +89,56 @@ pub fn update(state: &mut AppState, action: Action) {
                 "Interrupted".to_string(),
                 Instant::now() + std::time::Duration::from_secs(2),
             ));
-        }
-        Action::ToggleInputMode => {
-            state.input_mode = match state.input_mode {
-                InputMode::Normal => InputMode::Editing,
-                InputMode::Editing => InputMode::Normal,
-            };
-        }
-        Action::ToggleTodo => state.showing_todo = !state.showing_todo,
-        Action::ToggleHelp => state.showing_help = !state.showing_help,
-        Action::OpenSessionPicker => state.showing_session_picker = true,
-        Action::OpenConfig => state.showing_config = true,
-        Action::CreateNewSession | Action::ResumeSession(_) => {
-            state.is_working = true;
-        }
-        Action::ChangeTheme(name) => {
-            state.config.theme = crate::utils::styles::Theme::from_name(&name);
+            true
         }
         Action::ClearChat => {
             state.messages.clear();
             state.todos.clear();
             state.token_state = goose::conversation::message::TokenState::default();
             state.has_worked = false;
+            true
         }
-        Action::OpenMessageInfo(idx) => state.showing_message_info = Some(idx),
-        Action::SetInputEmpty(is_empty) => state.input_text_is_empty = is_empty,
+        Action::CreateNewSession | Action::ResumeSession(_) => {
+            state.is_working = true;
+            true
+        }
+        Action::Error(e) => {
+            state.flash_message = Some((
+                format!("Error: {e}"),
+                Instant::now() + std::time::Duration::from_secs(5),
+            ));
+            state.is_working = false;
+            true
+        }
+        _ => false,
+    }
+}
+
+fn handle_ui(state: &mut AppState, action: &Action) -> bool {
+    match action {
+        Action::ToggleInputMode => {
+            state.input_mode = match state.input_mode {
+                InputMode::Normal => InputMode::Editing,
+                InputMode::Editing => InputMode::Normal,
+            };
+            true
+        }
+        Action::ToggleTodo => {
+            state.showing_todo = !state.showing_todo;
+            true
+        }
+        Action::ToggleHelp => {
+            state.showing_help = !state.showing_help;
+            true
+        }
+        Action::OpenSessionPicker => {
+            state.showing_session_picker = true;
+            true
+        }
+        Action::OpenConfig => {
+            state.showing_config = true;
+            true
+        }
         Action::ClosePopup => {
             state.showing_help = false;
             state.showing_todo = false;
@@ -138,24 +146,89 @@ pub fn update(state: &mut AppState, action: Action) {
             state.showing_command_builder = false;
             state.showing_message_info = None;
             state.showing_config = false;
+            true
+        }
+        Action::OpenMessageInfo(idx) => {
+            state.showing_message_info = Some(*idx);
+            true
+        }
+        Action::StartCommandBuilder => {
+            state.showing_command_builder = true;
+            true
+        }
+        _ => false,
+    }
+}
+
+fn handle_misc(state: &mut AppState, action: &Action) -> bool {
+    match action {
+        Action::ChangeTheme(name) => {
+            state.config.theme = crate::utils::styles::Theme::from_name(name);
+            true
+        }
+        Action::SetInputEmpty(is_empty) => {
+            state.input_text_is_empty = *is_empty;
+            true
         }
         Action::DeleteCustomCommand(name) => {
-            state.config.custom_commands.retain(|c| c.name != name);
+            state.config.custom_commands.retain(|c| c.name != *name);
             let _ = state.config.save();
             state.showing_command_builder = false;
+            true
         }
-        Action::StartCommandBuilder => state.showing_command_builder = true,
         Action::SubmitCommandBuilder(cmd) => {
-            state.config.custom_commands.push(cmd);
+            state.config.custom_commands.push(cmd.clone());
             let _ = state.config.save();
             state.showing_command_builder = false;
+            true
         }
         Action::UpdateProvider { provider, model } => {
-            state.active_provider = Some(provider);
-            state.active_model = Some(model);
+            state.active_provider = Some(provider.clone());
+            state.active_model = Some(model.clone());
             state.showing_config = false;
+            true
         }
-        _ => {} // For other actions handled in main (ToggleExtension)
+        _ => false,
+    }
+}
+
+fn handle_models_loaded(state: &mut AppState, provider: String, models: Vec<String>) {
+    if let Some(p) = state.providers.iter_mut().find(|p| p.name == provider) {
+        let existing_map: std::collections::HashMap<String, ModelInfo> = p
+            .metadata
+            .known_models
+            .drain(..)
+            .map(|m| (m.name.clone(), m))
+            .collect();
+
+        let mut new_list = Vec::new();
+        for name in models {
+            if let Some(info) = existing_map.get(&name) {
+                new_list.push(info.clone());
+            } else {
+                let limit = ModelConfig::new(&name)
+                    .map(|c| c.context_limit())
+                    .unwrap_or(128_000);
+
+                new_list.push(ModelInfo::new(name, limit));
+            }
+        }
+        p.metadata.known_models = new_list;
+    }
+}
+
+fn handle_config_loaded(state: &mut AppState, config: serde_json::Value) {
+    if let Some(obj) = config.as_object() {
+        if let Some(val) = obj.get("GOOSE_PROVIDER") {
+            if let Some(s) = val.as_str() {
+                state.active_provider = Some(s.to_string());
+            }
+        }
+        if let Some(val) = obj.get("GOOSE_MODEL") {
+            if let Some(s) = val.as_str() {
+                state.active_model = Some(s.to_string());
+            }
+        }
     }
 }
 

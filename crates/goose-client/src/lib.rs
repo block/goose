@@ -18,6 +18,54 @@ use types::{
 };
 pub use types::{ProviderDetails, ToolInfo};
 
+pub struct ClientBuilder {
+    host: String,
+    port: u16,
+    secret_key: Option<String>,
+}
+
+impl ClientBuilder {
+    pub fn new() -> Self {
+        Self {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            secret_key: None,
+        }
+    }
+
+    pub fn host(mut self, host: impl Into<String>) -> Self {
+        self.host = host.into();
+        self
+    }
+
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    pub fn secret_key(mut self, secret_key: impl Into<String>) -> Self {
+        self.secret_key = Some(secret_key.into());
+        self
+    }
+
+    pub fn build(self) -> Result<Client> {
+        let secret_key = self
+            .secret_key
+            .ok_or_else(|| anyhow::anyhow!("Secret key is required"))?;
+        Ok(Client {
+            base_url: format!("http://{}:{}", self.host, self.port),
+            secret_key,
+            http_client: ReqwestClient::new(),
+        })
+    }
+}
+
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct Client {
     base_url: String,
@@ -26,12 +74,16 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::new()
+    }
+
     pub fn new(port: u16, secret_key: String) -> Self {
-        Self {
-            base_url: format!("http://127.0.0.1:{port}"),
-            secret_key,
-            http_client: ReqwestClient::new(),
-        }
+        Self::builder()
+            .port(port)
+            .secret_key(secret_key)
+            .build()
+            .expect("Failed to build client with provided parameters")
     }
 
     pub async fn get_providers(&self) -> Result<Vec<ProviderDetails>> {
@@ -373,15 +425,8 @@ impl Client {
             .eventsource();
 
         Ok(stream.map(|event| match event {
-            Ok(event) => {
-                if event.data == "[DONE]" {
-                    serde_json::from_str::<MessageEvent>(&event.data)
-                        .context("Failed to parse SSE event")
-                } else {
-                    serde_json::from_str::<MessageEvent>(&event.data)
-                        .context("Failed to parse SSE event")
-                }
-            }
+            Ok(event) => serde_json::from_str::<MessageEvent>(&event.data)
+                .context("Failed to parse SSE event"),
             Err(e) => Err(anyhow::anyhow!("SSE stream error: {}", e)),
         }))
     }

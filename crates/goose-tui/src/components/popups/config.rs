@@ -117,6 +117,182 @@ impl ConfigPopup {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
+    fn handle_key_input(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        state: &AppState,
+    ) -> Result<Option<Action>> {
+        match key.code {
+            KeyCode::Esc => {
+                if self.selected_provider_idx.is_some() {
+                    // Go back to provider list
+                    self.list_state.select(self.selected_provider_idx);
+                    self.selected_provider_idx = None;
+                    self.search_query.clear();
+                    return Ok(None);
+                }
+                self.reset();
+                return Ok(Some(Action::ClosePopup));
+            }
+            KeyCode::Char('q')
+                if self.search_query.is_empty() && self.selected_provider_idx.is_none() =>
+            {
+                self.reset();
+                return Ok(Some(Action::ClosePopup));
+            }
+            KeyCode::Tab => {
+                self.next_tab();
+            }
+            KeyCode::BackTab => {
+                self.previous_tab();
+            }
+            KeyCode::Right => {
+                if self.selected_provider_idx.is_none() {
+                    self.next_tab();
+                }
+            }
+            KeyCode::Left => {
+                if self.selected_provider_idx.is_some() && self.search_query.is_empty() {
+                    // Go back
+                    self.list_state.select(self.selected_provider_idx);
+                    self.selected_provider_idx = None;
+                    self.search_query.clear();
+                } else if self.selected_provider_idx.is_none() {
+                    self.previous_tab();
+                }
+            }
+            KeyCode::Char(c) => {
+                if self.selected_provider_idx.is_some() {
+                    self.search_query.push(c);
+                    self.list_state.select(Some(0));
+                    self.scroll_state = self.scroll_state.position(0);
+                } else {
+                    match c {
+                        'l' => self.next_tab(),
+                        'h' => self.previous_tab(),
+                        'j' => {
+                            let count = self.get_item_count(state);
+                            if count > 0 {
+                                let i = match self.list_state.selected() {
+                                    Some(i) => {
+                                        if i >= count - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.list_state.select(Some(i));
+                                self.scroll_state = self.scroll_state.position(i);
+                            }
+                        }
+                        'k' => {
+                            let count = self.get_item_count(state);
+                            if count > 0 {
+                                let i = match self.list_state.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            count - 1
+                                        } else {
+                                            i - 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.list_state.select(Some(i));
+                                self.scroll_state = self.scroll_state.position(i);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            KeyCode::Backspace => {
+                if self.selected_provider_idx.is_some() {
+                    self.search_query.pop();
+                    self.list_state.select(Some(0));
+                    self.scroll_state = self.scroll_state.position(0);
+                }
+            }
+            KeyCode::Down => {
+                let count = self.get_item_count(state);
+                if count > 0 {
+                    let i = match self.list_state.selected() {
+                        Some(i) => {
+                            if i >= count - 1 {
+                                0
+                            } else {
+                                i + 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    self.list_state.select(Some(i));
+                    self.scroll_state = self.scroll_state.position(i);
+                }
+            }
+            KeyCode::Up => {
+                let count = self.get_item_count(state);
+                if count > 0 {
+                    let i = match self.list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                count - 1
+                            } else {
+                                i - 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    self.list_state.select(Some(i));
+                    self.scroll_state = self.scroll_state.position(i);
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(idx) = self.list_state.selected() {
+                    if self.tab_index == 0 {
+                        if let Some(p_idx) = self.selected_provider_idx {
+                            // Model selection (filtered)
+                            let models = self.get_filtered_models(state, p_idx);
+                            let providers = self.get_display_providers(state);
+                            if let Some(&provider) = providers.get(p_idx) {
+                                if let Some(model) = models.get(idx) {
+                                    self.reset();
+                                    return Ok(Some(Action::UpdateProvider {
+                                        provider: provider.name.clone(),
+                                        model: model.name.clone(),
+                                    }));
+                                }
+                            }
+                        } else {
+                            // Provider selection - Drill down
+                            let providers = self.get_display_providers(state);
+                            if let Some(&provider) = providers.get(idx) {
+                                self.selected_provider_idx = Some(idx);
+                                self.list_state.select(Some(0));
+                                self.scroll_state = ScrollbarState::default();
+                                self.search_query.clear();
+                                return Ok(Some(Action::FetchModels(provider.name.clone())));
+                            }
+                        }
+                    } else {
+                        // Extension toggle
+                        if let Some(ext) = state.extensions.get(idx) {
+                            return Ok(Some(Action::ToggleExtension {
+                                name: ext.config.name().to_string(),
+                                enabled: !ext.enabled,
+                            }));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+
     fn render_models(&mut self, f: &mut Frame, area: Rect, state: &AppState, provider_idx: usize) {
         let models = self.get_filtered_models(state, provider_idx);
 
@@ -189,11 +365,11 @@ impl ConfigPopup {
                 };
 
                 let line1 = Line::from(vec![
-                    Span::styled(format!("{} ", symbol), Style::default().fg(color)),
+                    Span::styled(format!("{symbol} "), Style::default().fg(color)),
                     Span::styled(name, style.add_modifier(Modifier::BOLD)),
                 ]);
                 let line2 = Line::from(Span::styled(
-                    format!("  {}", desc),
+                    format!("  {desc}"),
                     Style::default().fg(Color::Gray),
                 ));
 
@@ -261,7 +437,7 @@ impl ConfigPopup {
 
                 let line1 = Line::from(vec![
                     Span::styled(
-                        format!("{} ", check),
+                        format!("{check} "),
                         if e.enabled {
                             Style::default().fg(Color::Green)
                         } else {
@@ -271,7 +447,7 @@ impl ConfigPopup {
                     Span::styled(name_str, style.add_modifier(Modifier::BOLD)),
                 ]);
                 let line2 = Line::from(Span::styled(
-                    format!("  {}", desc_str),
+                    format!("  {desc_str}"),
                     Style::default().fg(Color::DarkGray),
                 ));
 
@@ -321,173 +497,9 @@ impl Component for ConfigPopup {
         }
 
         match event {
-            Event::Input(key) => match key.code {
-                KeyCode::Esc => {
-                    if self.selected_provider_idx.is_some() {
-                        // Go back to provider list
-                        self.list_state.select(self.selected_provider_idx);
-                        self.selected_provider_idx = None;
-                        self.search_query.clear();
-                        return Ok(None);
-                    }
-                    self.reset();
-                    return Ok(Some(Action::ClosePopup));
-                }
-                KeyCode::Char('q')
-                    if self.search_query.is_empty() && self.selected_provider_idx.is_none() =>
-                {
-                    self.reset();
-                    return Ok(Some(Action::ClosePopup));
-                }
-                KeyCode::Tab => {
-                    self.next_tab();
-                }
-                KeyCode::BackTab => {
-                    self.previous_tab();
-                }
-                KeyCode::Right => {
-                    if self.selected_provider_idx.is_none() {
-                        self.next_tab();
-                    }
-                }
-                KeyCode::Left => {
-                    if self.selected_provider_idx.is_some() && self.search_query.is_empty() {
-                        // Go back
-                        self.list_state.select(self.selected_provider_idx);
-                        self.selected_provider_idx = None;
-                        self.search_query.clear();
-                    } else if self.selected_provider_idx.is_none() {
-                        self.previous_tab();
-                    }
-                }
-                KeyCode::Char(c) => {
-                    if self.selected_provider_idx.is_some() {
-                        self.search_query.push(c);
-                        self.list_state.select(Some(0));
-                        self.scroll_state = self.scroll_state.position(0);
-                    } else {
-                        match c {
-                            'l' => self.next_tab(),
-                            'h' => self.previous_tab(),
-                            'j' => {
-                                let count = self.get_item_count(state);
-                                if count > 0 {
-                                    let i = match self.list_state.selected() {
-                                        Some(i) => {
-                                            if i >= count - 1 {
-                                                0
-                                            } else {
-                                                i + 1
-                                            }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.list_state.select(Some(i));
-                                    self.scroll_state = self.scroll_state.position(i);
-                                }
-                            }
-                            'k' => {
-                                let count = self.get_item_count(state);
-                                if count > 0 {
-                                    let i = match self.list_state.selected() {
-                                        Some(i) => {
-                                            if i == 0 {
-                                                count - 1
-                                            } else {
-                                                i - 1
-                                            }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.list_state.select(Some(i));
-                                    self.scroll_state = self.scroll_state.position(i);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                KeyCode::Backspace => {
-                    if self.selected_provider_idx.is_some() {
-                        self.search_query.pop();
-                        self.list_state.select(Some(0));
-                        self.scroll_state = self.scroll_state.position(0);
-                    }
-                }
-                KeyCode::Down => {
-                    let count = self.get_item_count(state);
-                    if count > 0 {
-                        let i = match self.list_state.selected() {
-                            Some(i) => {
-                                if i >= count - 1 {
-                                    0
-                                } else {
-                                    i + 1
-                                }
-                            }
-                            None => 0,
-                        };
-                        self.list_state.select(Some(i));
-                        self.scroll_state = self.scroll_state.position(i);
-                    }
-                }
-                KeyCode::Up => {
-                    let count = self.get_item_count(state);
-                    if count > 0 {
-                        let i = match self.list_state.selected() {
-                            Some(i) => {
-                                if i == 0 {
-                                    count - 1
-                                } else {
-                                    i - 1
-                                }
-                            }
-                            None => 0,
-                        };
-                        self.list_state.select(Some(i));
-                        self.scroll_state = self.scroll_state.position(i);
-                    }
-                }
-                KeyCode::Enter => {
-                    if let Some(idx) = self.list_state.selected() {
-                        if self.tab_index == 0 {
-                            if let Some(p_idx) = self.selected_provider_idx {
-                                // Model selection (filtered)
-                                let models = self.get_filtered_models(state, p_idx);
-                                let providers = self.get_display_providers(state);
-                                if let Some(&provider) = providers.get(p_idx) {
-                                    if let Some(model) = models.get(idx) {
-                                        self.reset();
-                                        return Ok(Some(Action::UpdateProvider {
-                                            provider: provider.name.clone(),
-                                            model: model.name.clone(),
-                                        }));
-                                    }
-                                }
-                            } else {
-                                // Provider selection - Drill down
-                                let providers = self.get_display_providers(state);
-                                if let Some(&provider) = providers.get(idx) {
-                                    self.selected_provider_idx = Some(idx);
-                                    self.list_state.select(Some(0));
-                                    self.scroll_state = ScrollbarState::default();
-                                    self.search_query.clear();
-                                    return Ok(Some(Action::FetchModels(provider.name.clone())));
-                                }
-                            }
-                        } else {
-                            // Extension toggle
-                            if let Some(ext) = state.extensions.get(idx) {
-                                return Ok(Some(Action::ToggleExtension {
-                                    name: ext.config.name().to_string(),
-                                    enabled: !ext.enabled,
-                                }));
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            },
+            Event::Input(key) => {
+                return self.handle_key_input(*key, state);
+            }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::ScrollDown => {
                     let count = self.get_item_count(state);
@@ -548,7 +560,7 @@ impl Component for ConfigPopup {
             .split(area);
 
         if self.selected_provider_idx.is_none() {
-            let titles: Vec<Line> = vec!["Providers", "Extensions"]
+            let titles: Vec<Line> = ["Providers", "Extensions"]
                 .iter()
                 .map(|t| Line::from(Span::styled(*t, Style::default().fg(Color::Green))))
                 .collect();

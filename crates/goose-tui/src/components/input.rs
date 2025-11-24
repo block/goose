@@ -61,9 +61,47 @@ impl<'a> InputComponent<'a> {
             _ => (128, 128, 128),
         }
     }
+
+    fn handle_slash_command(&self, cmd_line: &str, state: &AppState) -> Option<Action> {
+        let parts: Vec<&str> = cmd_line.split_whitespace().collect();
+        let cmd = parts[0];
+        match cmd {
+            "/exit" | "/quit" => Some(Action::Quit),
+            "/help" => Some(Action::ToggleHelp),
+            "/todos" => Some(Action::ToggleTodo),
+            "/config" => Some(Action::OpenConfig),
+            "/session" => Some(Action::OpenSessionPicker),
+            "/alias" => Some(Action::StartCommandBuilder),
+            "/clear" => Some(Action::ClearChat),
+            "/theme" => parts
+                .get(1)
+                .map(|theme_name| Action::ChangeTheme(theme_name.to_string())),
+            // Custom Commands
+            _ => {
+                let cmd_name = cmd.strip_prefix('/').unwrap_or(cmd);
+                if let Some(custom) = state
+                    .config
+                    .custom_commands
+                    .iter()
+                    .find(|c| c.name == cmd_name)
+                {
+                    let message_text = format!(
+                        "Please run the tool '{}' with these arguments: {}",
+                        custom.tool, custom.args
+                    );
+                    let message =
+                        goose::conversation::message::Message::user().with_text(message_text);
+                    Some(Action::SendMessage(message))
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Component for InputComponent<'a> {
+    #[allow(clippy::too_many_lines)]
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
         if let Event::Tick = event {
             self.frame_count = self.frame_count.wrapping_add(1);
@@ -87,8 +125,9 @@ impl<'a> Component for InputComponent<'a> {
         if let Event::Input(key) = event {
             match state.input_mode {
                 InputMode::Normal => match key.code {
-                    KeyCode::Char('i') => return Ok(Some(Action::ToggleInputMode)),
-                    KeyCode::Char('e') => return Ok(Some(Action::ToggleInputMode)),
+                    KeyCode::Char('i') | KeyCode::Char('e') => {
+                        return Ok(Some(Action::ToggleInputMode))
+                    }
                     _ => {}
                 },
                 InputMode::Editing => {
@@ -112,43 +151,9 @@ impl<'a> Component for InputComponent<'a> {
                                 self.textarea.set_cursor_line_style(Style::default()); // Disable underline
 
                                 if trimmed.starts_with('/') {
-                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                                    let cmd = parts[0];
-                                    match cmd {
-                                        "/exit" | "/quit" => return Ok(Some(Action::Quit)),
-                                        "/help" => return Ok(Some(Action::ToggleHelp)),
-                                        "/todos" => return Ok(Some(Action::ToggleTodo)),
-                                        "/config" => return Ok(Some(Action::OpenConfig)),
-                                        "/session" => return Ok(Some(Action::OpenSessionPicker)),
-                                        "/alias" => return Ok(Some(Action::StartCommandBuilder)),
-                                        "/clear" => return Ok(Some(Action::ClearChat)),
-                                        "/theme" => {
-                                            if let Some(theme_name) = parts.get(1) {
-                                                return Ok(Some(Action::ChangeTheme(
-                                                    theme_name.to_string(),
-                                                )));
-                                            }
-                                            return Ok(None);
-                                        }
-                                        // Custom Commands
-                                        _ => {
-                                            let cmd_name = cmd.strip_prefix('/').unwrap_or(cmd);
-                                            if let Some(custom) = state
-                                                .config
-                                                .custom_commands
-                                                .iter()
-                                                .find(|c| c.name == cmd_name)
-                                            {
-                                                let message_text = format!(
-                                                    "Please run the tool '{}' with these arguments: {}",
-                                                    custom.tool, custom.args
-                                                );
-                                                let message =
-                                                    goose::conversation::message::Message::user()
-                                                        .with_text(message_text);
-                                                return Ok(Some(Action::SendMessage(message)));
-                                            }
-                                        }
+                                    if let Some(action) = self.handle_slash_command(trimmed, state)
+                                    {
+                                        return Ok(Some(action));
                                     }
                                 }
 

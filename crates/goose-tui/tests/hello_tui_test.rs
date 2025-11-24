@@ -10,7 +10,12 @@ mod tests {
             custom_commands: vec![],
         });
 
-        let state = AppState::new("test-session".to_string(), config);
+        let state = AppState::new(
+            "test-session".to_string(),
+            config,
+            None, // active_provider
+            None, // active_model
+        );
         assert_eq!(state.session_id, "test-session");
         assert_eq!(state.messages.len(), 0);
     }
