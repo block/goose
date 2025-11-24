@@ -23,11 +23,9 @@ import { startNewSession } from '../sessions';
 
 export default function Hub({
   setView,
-  setIsGoosehintsModalOpen,
   isExtensionsLoading,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   isExtensionsLoading: boolean;
 }) {
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,7 +59,6 @@ export default function Hub({
         messages={[]}
         disableAnimation={false}
         sessionCosts={undefined}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         isExtensionsLoading={isExtensionsLoading}
         toolCount={0}
       />

@@ -21,7 +21,6 @@ interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
   refreshTrigger?: number;
   children?: React.ReactNode;
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   setView?: (view: View, viewOptions?: ViewOptions) => void;
   currentPath?: string;
 }

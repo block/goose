@@ -77,7 +77,7 @@ export const VoiceDictationToggle = () => {
       </div>
 
       <div
-        className={`overflow-visible transition-all duration-300 ease-in-out ${
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
           settings.enabled ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
         }`}
       >

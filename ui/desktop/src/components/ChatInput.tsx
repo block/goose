@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText, ChefHat } from 'lucide-react';
+import { Bug, ScrollText, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -82,7 +82,6 @@ interface ChatInputProps {
       totalCost: number;
     };
   };
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipe?: Recipe | null;
   recipeId?: string | null;
@@ -109,7 +108,6 @@ export default function ChatInput({
   messages = [],
   disableAnimation = false,
   sessionCosts,
-  setIsGoosehintsModalOpen,
   recipe,
   recipeId,
   recipeAccepted,
@@ -1529,21 +1527,6 @@ export default function ChatInput({
               </div>
             </>
           )}
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
           {sessionId && (
             <Tooltip>
               <TooltipTrigger asChild>
