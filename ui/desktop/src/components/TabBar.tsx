@@ -182,10 +182,10 @@ export const TabBar: React.FC<TabBarProps> = ({
             className={cn(
               "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
               "w-[160px] group relative tab-item",
-              "transition-all duration-200 ease-out",
+              "transition-none",
               tab.isActive
-                ? "bg-[#33333A]/90 dark:bg-[#33333A]/90"
-                : "bg-[#0E0E13]/90 dark:bg-[#0E0E13]/90"
+                ? "bg-[#33333A]/90"
+                : "bg-[#0E0E13]/90 hover:bg-[#0E0E13]/90"
             )}
             onClick={() => onTabClick(tab.id)}
           >
