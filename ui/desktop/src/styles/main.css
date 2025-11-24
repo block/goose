@@ -373,9 +373,9 @@
 .Toastify__close-button {
   color: var(--text-prominent-inverse) !important;
   opacity: 0.7;
-  align-self: flex-start;
-  margin-top: 4px;
-  margin-right: 4px;
+  align-self: center;
+  margin-top: 0;
+  margin-right: 8px;
   padding: 4px;
   border-radius: 4px;
   transition:
