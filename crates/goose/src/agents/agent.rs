@@ -1038,9 +1038,8 @@ impl Agent {
             }
 
             for (idx, request) in frontend_requests.iter().enumerate() {
-                let requests = vec![request.clone()];
-                let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                    &requests,
+                let mut frontend_tool_stream = self.handle_frontend_tool_request(
+                    &request,
                     tool_response_messages[idx].clone(),
                 );
 

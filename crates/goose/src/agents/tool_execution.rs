@@ -134,18 +134,17 @@ impl Agent {
     }.boxed()
     }
 
-    pub(crate) fn handle_frontend_tool_requests<'a>(
+    pub(crate) fn handle_frontend_tool_request<'a>(
         &'a self,
-        tool_requests: &'a [ToolRequest],
+        tool_request: &'a ToolRequest,
         message_tool_response: Arc<Mutex<Message>>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
-                if let Ok(tool_call) = request.tool_call.clone() {
+                if let Ok(tool_call) = tool_request.tool_call.clone() {
                     if self.is_frontend_tool(&tool_call.name).await {
                         // Send frontend tool request and wait for response
                         yield Message::assistant().with_frontend_tool_request(
-                            request.id.clone(),
+                            tool_request.id.clone(),
                             Ok(tool_call.clone())
                         );
 
@@ -154,7 +153,6 @@ impl Agent {
                             *response = response.clone().with_tool_response(id, result);
                         }
                     }
-                }
             }
         }
         .boxed()
