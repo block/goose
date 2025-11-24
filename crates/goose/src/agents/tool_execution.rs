@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -52,97 +53,98 @@ impl Agent {
         &'a self,
         tool_requests: &'a [ToolRequest],
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
-        message_tool_response: Arc<Mutex<Message>>,
+        request_to_response_map: &'a HashMap<String, Arc<Mutex<Message>>>,
         cancellation_token: Option<CancellationToken>,
         session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests.iter() {
-                if let Ok(tool_call) = request.tool_call.clone() {
-                    // Find the corresponding inspection result for this tool request
-                    let security_message = inspection_results.iter()
-                        .find(|result| result.tool_request_id == request.id)
-                        .and_then(|result| {
-                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
-                                Some(message.clone())
-                            } else {
-                                None
+        for request in tool_requests.iter() {
+            if let Ok(tool_call) = request.tool_call.clone() {
+                // Find the corresponding inspection result for this tool request
+                let security_message = inspection_results.iter()
+                    .find(|result| result.tool_request_id == request.id)
+                    .and_then(|result| {
+                        if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                            Some(message.clone())
+                        } else {
+                            None
+                        }
+                    });
+
+                let confirmation = Message::assistant()
+                    .with_tool_confirmation_request(
+                        request.id.clone(),
+                        tool_call.name.to_string().clone(),
+                        tool_call.arguments.clone().unwrap_or_default(),
+                        security_message,
+                    )
+                    .user_only();
+                yield confirmation;
+
+                let mut rx = self.confirmation_rx.lock().await;
+                while let Some((req_id, confirmation)) = rx.recv().await {
+                    if req_id == request.id {
+                        // Log user decision if this was a security alert
+                        if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
+                            tracing::info!(
+                                counter.goose.prompt_injection_user_decisions = 1,
+                                decision = ?confirmation.permission,
+                                finding_id = %finding_id,
+                                "User security decision"
+                            );
+                        }
+
+                        if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                            let mut futures = tool_futures.lock().await;
+
+                            futures.push((req_id, match tool_result {
+                                Ok(result) => tool_stream(
+                                    result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                                    result.result,
+                                ),
+                                Err(e) => tool_stream(
+                                    Box::new(stream::empty()),
+                                    futures::future::ready(Err(e)),
+                                ),
+                            }));
+
+                            // Update the shared permission manager when user selects "Always Allow"
+                            if confirmation.permission == Permission::AlwaysAllow {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                    .await;
                             }
-                        });
-
-                    let confirmation = Message::assistant()
-                        .with_tool_confirmation_request(
-                            request.id.clone(),
-                            tool_call.name.to_string().clone(),
-                            tool_call.arguments.clone().unwrap_or_default(),
-                            security_message,
-                        )
-                        .user_only();
-                    yield confirmation;
-
-                    let mut rx = self.confirmation_rx.lock().await;
-                    while let Some((req_id, confirmation)) = rx.recv().await {
-                        if req_id == request.id {
-                            // Log user decision if this was a security alert
-                            if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
-                                tracing::info!(
-                                    counter.goose.prompt_injection_user_decisions = 1,
-                                    decision = ?confirmation.permission,
-                                    finding_id = %finding_id,
-                                    "User security decision"
-                                );
-                            }
-
-                            if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
-                                let mut futures = tool_futures.lock().await;
-
-                                futures.push((req_id, match tool_result {
-                                    Ok(result) => tool_stream(
-                                        result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
-                                        result.result,
-                                    ),
-                                    Err(e) => tool_stream(
-                                        Box::new(stream::empty()),
-                                        futures::future::ready(Err(e)),
-                                    ),
-                                }));
-
-                                // Update the shared permission manager when user selects "Always Allow"
-                                if confirmation.permission == Permission::AlwaysAllow {
-                                    self.tool_inspection_manager
-                                        .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
-                                        .await;
-                                }
-                            } else {
-                                // User declined - add declined response
-                                let mut response = message_tool_response.lock().await;
+                        } else {
+                            // User declined - update the specific response message for this request
+                            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                let mut response = response_msg.lock().await;
                                 *response = response.clone().with_tool_response(
                                     request.id.clone(),
                                     Ok(vec![Content::text(DECLINED_RESPONSE)]),
                                 );
                             }
-                            break; // Exit the loop once the matching `req_id` is found
                         }
+                        break; // Exit the loop once the matching `req_id` is found
                     }
                 }
             }
-        }.boxed()
+        }
+    }.boxed()
     }
 
-    pub(crate) fn handle_frontend_tool_requests<'a>(
+    pub(crate) fn handle_frontend_tool_request<'a>(
         &'a self,
-        tool_requests: &'a [ToolRequest],
+        tool_request: &'a ToolRequest,
         message_tool_response: Arc<Mutex<Message>>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
-                if let Ok(tool_call) = request.tool_call.clone() {
+                if let Ok(tool_call) = tool_request.tool_call.clone() {
                     if self.is_frontend_tool(&tool_call.name).await {
                         // Send frontend tool request and wait for response
                         yield Message::assistant().with_frontend_tool_request(
-                            request.id.clone(),
+                            tool_request.id.clone(),
                             Ok(tool_call.clone())
                         );
 
@@ -151,7 +153,6 @@ impl Agent {
                             *response = response.clone().with_tool_response(id, result);
                         }
                     }
-                }
             }
         }
         .boxed()
