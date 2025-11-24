@@ -185,17 +185,17 @@ export const TabBar: React.FC<TabBarProps> = ({
               "transition-all duration-200 ease-out",
               tab.isActive
                 ? "bg-[#33333A]/90 dark:bg-[#33333A]/90"
-                : "bg-[#0E0E13]/90 dark:bg-[#0E0E13]/90 hover:bg-[#0E0E13] dark:hover:bg-[#0E0E13]"
+                : "bg-[#0E0E13]/90 dark:bg-[#0E0E13]/90"
             )}
             onClick={() => onTabClick(tab.id)}
           >
             {/* Tab Title - with explicit padding */}
             <div className="flex-1 min-w-0 pl-3">
               <span className={cn(
-                "truncate text-xs font-normal block pointer-events-none text-left",
+                "truncate text-xs font-normal block pointer-events-none text-left transition-colors duration-200",
                 tab.isActive
                   ? "text-slate-200"
-                  : "text-neutral-700"
+                  : "text-neutral-700 group-hover:text-white"
               )}>
                 {getTabTitle(tab)}
               </span>
