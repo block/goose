@@ -9,7 +9,7 @@ use rmcp::model::{
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
     ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
-use rmcp::object;
+use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -18,6 +18,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "skills";
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct LoadSkillParams {
+    name: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SkillMetadata {
@@ -35,6 +40,7 @@ struct Skill {
 
 pub struct SkillsClient {
     info: InitializeResult,
+    skills: HashMap<String, Skill>,
 }
 
 impl SkillsClient {
@@ -61,12 +67,18 @@ impl SkillsClient {
             instructions: Some(String::new()),
         };
 
-        let mut client = Self { info };
+        let directories = Self::get_default_skill_directories()
+            .into_iter()
+            .filter(|d| d.exists())
+            .collect::<Vec<_>>();
+        let skills = Self::discover_skills_in_directories(&directories);
+
+        let mut client = Self { info, skills };
         client.info.instructions = Some(client.generate_instructions());
         Ok(client)
     }
 
-    fn get_skill_directories(&self) -> Vec<PathBuf> {
+    fn get_default_skill_directories() -> Vec<PathBuf> {
         let mut dirs = Vec::new();
 
         if let Some(home) = dirs::home_dir() {
@@ -80,7 +92,7 @@ impl SkillsClient {
             dirs.push(working_dir.join(".goose/skills"));
         }
 
-        dirs.into_iter().filter(|d| d.exists()).collect()
+        dirs
     }
 
     fn parse_skill_file(path: &Path) -> Result<Skill> {
@@ -104,26 +116,16 @@ impl SkillsClient {
     }
 
     fn parse_frontmatter(content: &str) -> Result<(SkillMetadata, String)> {
-        let lines: Vec<&str> = content.lines().collect();
+        let parts: Vec<&str> = content.split("---").collect();
 
-        if lines.is_empty() || !lines[0].trim().starts_with("---") {
-            return Err(anyhow::anyhow!("Missing YAML frontmatter"));
+        if parts.len() < 3 {
+            return Err(anyhow::anyhow!("Invalid frontmatter format"));
         }
 
-        let mut end_index = None;
-        for (i, line) in lines.iter().enumerate().skip(1) {
-            if line.trim().starts_with("---") {
-                end_index = Some(i);
-                break;
-            }
-        }
+        let yaml_content = parts[1].trim();
+        let metadata: SkillMetadata = serde_yaml::from_str(yaml_content)?;
 
-        let end_index = end_index.ok_or_else(|| anyhow::anyhow!("Unclosed YAML frontmatter"))?;
-
-        let yaml_content = lines[1..end_index].join("\n");
-        let metadata: SkillMetadata = serde_yaml::from_str(&yaml_content)?;
-
-        let body = lines[end_index + 1..].join("\n").trim().to_string();
+        let body = parts[2..].join("---").trim().to_string();
 
         Ok((metadata, body))
     }
@@ -152,11 +154,11 @@ impl SkillsClient {
         Ok(files)
     }
 
-    fn discover_skills(&self) -> HashMap<String, Skill> {
+    fn discover_skills_in_directories(directories: &[PathBuf]) -> HashMap<String, Skill> {
         let mut skills = HashMap::new();
 
-        for dir in self.get_skill_directories() {
-            if let Ok(entries) = std::fs::read_dir(&dir) {
+        for dir in directories {
+            if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_dir() {
@@ -175,15 +177,13 @@ impl SkillsClient {
     }
 
     fn generate_instructions(&self) -> String {
-        let skills = self.discover_skills();
-
-        if skills.is_empty() {
+        if self.skills.is_empty() {
             return "No skills available.".to_string();
         }
 
         let mut instructions = String::from("You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:\n\n");
 
-        let mut skill_list: Vec<_> = skills.iter().collect();
+        let mut skill_list: Vec<_> = self.skills.iter().collect();
         skill_list.sort_by_key(|(name, _)| *name);
 
         for (name, skill) in skill_list {
@@ -204,9 +204,8 @@ impl SkillsClient {
             .and_then(|v| v.as_str())
             .ok_or("Missing required parameter: name")?;
 
-        let skills = self.discover_skills();
-
-        let skill = skills
+        let skill = self
+            .skills
             .get(skill_name)
             .ok_or_else(|| format!("Skill '{}' not found", skill_name))?;
 
@@ -230,6 +229,15 @@ impl SkillsClient {
     }
 
     fn get_tools() -> Vec<Tool> {
+        let schema = schema_for!(LoadSkillParams);
+        let schema_value =
+            serde_json::to_value(schema).expect("Failed to serialize LoadSkillParams schema");
+
+        let input_schema = schema_value
+            .as_object()
+            .expect("Schema should be an object")
+            .clone();
+
         vec![Tool::new(
             "loadSkill".to_string(),
             indoc! {r#"
@@ -239,16 +247,7 @@ impl SkillsClient {
                 information about any supporting files in the skill directory.
             "#}
             .to_string(),
-            object!({
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "The name of the skill to load"
-                    }
-                },
-                "required": ["name"]
-            }),
+            input_schema,
         )
         .annotate(ToolAnnotations {
             title: Some("Load skill".to_string()),
@@ -408,11 +407,10 @@ description: A test skill
     #[test]
     fn test_discover_skills() {
         let temp_dir = TempDir::new().unwrap();
+        let skills_dir = temp_dir.path().join("skills");
+        fs::create_dir(&skills_dir).unwrap();
 
-        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
-        fs::create_dir_all(temp_dir.path().join("config/skills")).unwrap();
-
-        let skill1_dir = temp_dir.path().join("config/skills/test-skill-one-a1b2c3");
+        let skill1_dir = skills_dir.join("test-skill-one-a1b2c3");
         fs::create_dir(&skill1_dir).unwrap();
         fs::write(
             skill1_dir.join("SKILL.md"),
@@ -425,7 +423,7 @@ Body 1
         )
         .unwrap();
 
-        let skill2_dir = temp_dir.path().join("config/skills/test-skill-two-d4e5f6");
+        let skill2_dir = skills_dir.join("test-skill-two-d4e5f6");
         fs::create_dir(&skill2_dir).unwrap();
         fs::write(
             skill2_dir.join("SKILL.md"),
@@ -438,9 +436,7 @@ Body 2
         )
         .unwrap();
 
-        let skill3_dir = temp_dir
-            .path()
-            .join("config/skills/test-skill-three-g7h8i9");
+        let skill3_dir = skills_dir.join("test-skill-three-g7h8i9");
         fs::create_dir(&skill3_dir).unwrap();
         fs::write(
             skill3_dir.join("SKILL.md"),
@@ -453,18 +449,11 @@ Body 3
         )
         .unwrap();
 
-        let context = PlatformExtensionContext {
-            session_id: None,
-            extension_manager: None,
-            tool_route_manager: None,
-        };
-        let client = SkillsClient::new(context).unwrap();
-        let skills = client.discover_skills();
+        let skills = SkillsClient::discover_skills_in_directories(&[skills_dir]);
 
+        assert_eq!(skills.len(), 3);
         assert!(skills.contains_key("test-skill-one-a1b2c3"));
         assert!(skills.contains_key("test-skill-two-d4e5f6"));
         assert!(skills.contains_key("test-skill-three-g7h8i9"));
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
     }
 }
