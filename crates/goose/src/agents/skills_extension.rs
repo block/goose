@@ -375,6 +375,31 @@ description: test
     }
 
     #[test]
+    fn test_parse_frontmatter_with_extra_fields() {
+        let content = r#"---
+name: test-skill
+description: A test skill
+author: Test Author
+version: 1.0.0
+tags:
+  - test
+  - example
+extra_field: some value
+---
+
+# Test Skill
+
+This is the body of the skill.
+"#;
+
+        let (metadata, body) = SkillsClient::parse_frontmatter(content).unwrap();
+        assert_eq!(metadata.name, "test-skill");
+        assert_eq!(metadata.description, "A test skill");
+        assert!(body.contains("# Test Skill"));
+        assert!(body.contains("This is the body of the skill."));
+    }
+
+    #[test]
     fn test_parse_skill_file() {
         let temp_dir = TempDir::new().unwrap();
         let skill_dir = temp_dir.path().join("test-skill");
@@ -455,5 +480,165 @@ Body 3
         assert!(skills.contains_key("test-skill-one-a1b2c3"));
         assert!(skills.contains_key("test-skill-two-d4e5f6"));
         assert!(skills.contains_key("test-skill-three-g7h8i9"));
+    }
+
+    #[test]
+    fn test_discover_skills_from_multiple_directories() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let dir1 = temp_dir.path().join("dir1");
+        fs::create_dir(&dir1).unwrap();
+        let skill1_dir = dir1.join("skill-from-dir1");
+        fs::create_dir(&skill1_dir).unwrap();
+        fs::write(
+            skill1_dir.join("SKILL.md"),
+            r#"---
+name: skill-from-dir1
+description: Skill from directory 1
+---
+Content from dir1
+"#,
+        )
+        .unwrap();
+
+        let dir2 = temp_dir.path().join("dir2");
+        fs::create_dir(&dir2).unwrap();
+        let skill2_dir = dir2.join("skill-from-dir2");
+        fs::create_dir(&skill2_dir).unwrap();
+        fs::write(
+            skill2_dir.join("SKILL.md"),
+            r#"---
+name: skill-from-dir2
+description: Skill from directory 2
+---
+Content from dir2
+"#,
+        )
+        .unwrap();
+
+        let dir3 = temp_dir.path().join("dir3");
+        fs::create_dir(&dir3).unwrap();
+        let skill3_dir = dir3.join("skill-from-dir3");
+        fs::create_dir(&skill3_dir).unwrap();
+        fs::write(
+            skill3_dir.join("SKILL.md"),
+            r#"---
+name: skill-from-dir3
+description: Skill from directory 3
+---
+Content from dir3
+"#,
+        )
+        .unwrap();
+
+        let skills = SkillsClient::discover_skills_in_directories(&[dir1, dir2, dir3]);
+
+        assert_eq!(skills.len(), 3);
+        assert!(skills.contains_key("skill-from-dir1"));
+        assert!(skills.contains_key("skill-from-dir2"));
+        assert!(skills.contains_key("skill-from-dir3"));
+
+        assert_eq!(
+            skills.get("skill-from-dir1").unwrap().metadata.description,
+            "Skill from directory 1"
+        );
+        assert_eq!(
+            skills.get("skill-from-dir2").unwrap().metadata.description,
+            "Skill from directory 2"
+        );
+        assert_eq!(
+            skills.get("skill-from-dir3").unwrap().metadata.description,
+            "Skill from directory 3"
+        );
+    }
+
+    #[test]
+    fn test_discover_skills_working_dir_overrides_global() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Simulate ~/.claude/skills (global, lowest priority)
+        let global_claude = temp_dir.path().join("global-claude");
+        fs::create_dir(&global_claude).unwrap();
+        let skill_global_claude = global_claude.join("my-skill");
+        fs::create_dir(&skill_global_claude).unwrap();
+        fs::write(
+            skill_global_claude.join("SKILL.md"),
+            r#"---
+name: my-skill
+description: From global claude
+---
+Global claude content
+"#,
+        )
+        .unwrap();
+
+        // Simulate ~/.config/goose/skills (global, medium priority)
+        let global_goose = temp_dir.path().join("global-goose");
+        fs::create_dir(&global_goose).unwrap();
+        let skill_global_goose = global_goose.join("my-skill");
+        fs::create_dir(&skill_global_goose).unwrap();
+        fs::write(
+            skill_global_goose.join("SKILL.md"),
+            r#"---
+name: my-skill
+description: From global goose config
+---
+Global goose config content
+"#,
+        )
+        .unwrap();
+
+        // Simulate $PWD/.claude/skills (working dir, higher priority)
+        let working_claude = temp_dir.path().join("working-claude");
+        fs::create_dir(&working_claude).unwrap();
+        let skill_working_claude = working_claude.join("my-skill");
+        fs::create_dir(&skill_working_claude).unwrap();
+        fs::write(
+            skill_working_claude.join("SKILL.md"),
+            r#"---
+name: my-skill
+description: From working dir claude
+---
+Working dir claude content
+"#,
+        )
+        .unwrap();
+
+        // Simulate $PWD/.goose/skills (working dir, highest priority)
+        let working_goose = temp_dir.path().join("working-goose");
+        fs::create_dir(&working_goose).unwrap();
+        let skill_working_goose = working_goose.join("my-skill");
+        fs::create_dir(&skill_working_goose).unwrap();
+        fs::write(
+            skill_working_goose.join("SKILL.md"),
+            r#"---
+name: my-skill
+description: From working dir goose
+---
+Working dir goose content
+"#,
+        )
+        .unwrap();
+
+        // Test priority order: global_claude < global_goose < working_claude < working_goose
+        let skills = SkillsClient::discover_skills_in_directories(&[
+            global_claude,
+            global_goose,
+            working_claude,
+            working_goose,
+        ]);
+
+        assert_eq!(skills.len(), 1);
+        assert!(skills.contains_key("my-skill"));
+        // The last directory (working_goose) should win
+        assert_eq!(
+            skills.get("my-skill").unwrap().metadata.description,
+            "From working dir goose"
+        );
+        assert!(skills
+            .get("my-skill")
+            .unwrap()
+            .body
+            .contains("Working dir goose content"));
     }
 }
