@@ -16,10 +16,11 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
-import Hub from './components/hub';
-import Pair, { PairRouteState } from './components/pair';
+import Hub from './components/Hub';
+import Pair, { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -37,24 +38,17 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import { View, ViewOptions } from './utils/navigationUtils';
-import {
-  AgentState,
-  InitializationContext,
-  NoProviderOrModelError,
-  useAgent,
-} from './hooks/useAgent';
+import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
-import Pair2 from './components/Pair2';
+import { errorMessage } from './utils/conversionUtils';
 
 // Route Components
 const HubRouteWrapper = ({
   setIsGoosehintsModalOpen,
   isExtensionsLoading,
-  resetChat,
 }: {
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   isExtensionsLoading: boolean;
-  resetChat: () => void;
 }) => {
   const setView = useNavigation();
 
@@ -63,7 +57,6 @@ const HubRouteWrapper = ({
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       isExtensionsLoading={isExtensionsLoading}
-      resetChat={resetChat}
     />
   );
 };
@@ -72,30 +65,30 @@ const PairRouteWrapper = ({
   chat,
   setChat,
   setIsGoosehintsModalOpen,
-  setAgentWaitingMessage,
-  setFatalError,
-  agentState,
-  loadCurrentChat,
   activeSessionId,
   setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-  setAgentWaitingMessage: (msg: string | null) => void;
-  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
-  agentState: AgentState;
-  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }) => {
   const location = useLocation();
-  const setView = useNavigation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialMessage = routeState.initialMessage;
+
+  // Capture initialMessage in local state to survive route state being cleared by setSearchParams
+  const [capturedInitialMessage, setCapturedInitialMessage] = useState<string | undefined>(
+    undefined
+  );
+  const [lastSessionId, setLastSessionId] = useState<string | undefined>(undefined);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const recipeId = searchParams.get('recipeId') ?? undefined;
+  const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
 
   // Determine which session ID to use:
   // 1. From route state (when navigating from Hub with a new session)
@@ -105,9 +98,71 @@ const PairRouteWrapper = ({
   const sessionId =
     routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
 
+  // Use route state if available, otherwise use captured state
+  const initialMessage = routeState.initialMessage || capturedInitialMessage;
+
+  useEffect(() => {
+    if (routeState.initialMessage) {
+      setCapturedInitialMessage(routeState.initialMessage);
+    }
+  }, [routeState.initialMessage]);
+
+  useEffect(() => {
+    // Create a new session if we have an initialMessage, recipeId, or recipeDeeplink from config but no sessionId
+    if (
+      (initialMessage || recipeId || recipeDeeplinkFromConfig) &&
+      !sessionId &&
+      !isCreatingSession
+    ) {
+      console.log(
+        '[PairRouteWrapper] Creating new session for initialMessage, recipeId, or recipeDeeplink from config'
+      );
+      setIsCreatingSession(true);
+
+      (async () => {
+        try {
+          const newSession = await createSession({
+            recipeId,
+            recipeDeeplink: recipeDeeplinkFromConfig,
+          });
+
+          setSearchParams((prev) => {
+            prev.set('resumeSessionId', newSession.id);
+            // Remove recipeId from URL after session is created
+            prev.delete('recipeId');
+            return prev;
+          });
+          setActiveSessionId(newSession.id);
+        } catch (error) {
+          console.error('[PairRouteWrapper] Failed to create session:', error);
+        } finally {
+          setIsCreatingSession(false);
+        }
+      })();
+    }
+  }, [
+    initialMessage,
+    recipeId,
+    recipeDeeplinkFromConfig,
+    sessionId,
+    isCreatingSession,
+    setSearchParams,
+    setActiveSessionId,
+  ]);
+
+  // Clear captured initialMessage when sessionId actually changes to a different session
+  useEffect(() => {
+    if (sessionId !== lastSessionId) {
+      setLastSessionId(sessionId);
+      if (!routeState.initialMessage) {
+        setCapturedInitialMessage(undefined);
+      }
+    }
+  }, [sessionId, lastSessionId, routeState.initialMessage]);
+
   // Update URL with session ID when on /pair route (for refresh support)
   useEffect(() => {
-    if (process.env.ALPHA && sessionId && sessionId !== resumeSessionId) {
+    if (sessionId && sessionId !== resumeSessionId) {
       setSearchParams((prev) => {
         prev.set('resumeSessionId', sessionId);
         return prev;
@@ -117,29 +172,17 @@ const PairRouteWrapper = ({
 
   // Update active session state when session ID changes
   useEffect(() => {
-    if (process.env.ALPHA && sessionId && sessionId !== activeSessionId) {
+    if (sessionId && sessionId !== activeSessionId) {
       setActiveSessionId(sessionId);
     }
   }, [sessionId, activeSessionId, setActiveSessionId]);
 
-  return process.env.ALPHA ? (
-    <Pair2
+  return (
+    <Pair
+      key={sessionId}
       setChat={setChat}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
-      initialMessage={initialMessage}
-    />
-  ) : (
-    <Pair
-      chat={chat}
-      setChat={setChat}
-      setView={setView}
-      agentState={agentState}
-      loadCurrentChat={loadCurrentChat}
-      setFatalError={setFatalError}
-      setAgentWaitingMessage={setAgentWaitingMessage}
-      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      resumeSessionId={resumeSessionId}
       initialMessage={initialMessage}
     />
   );
@@ -322,9 +365,7 @@ export function AppInner() {
 
   const navigate = useNavigate();
   const setView = useNavigation();
-
   const location = useLocation();
-  const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -338,16 +379,7 @@ export function AppInner() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
-  const { agentState, loadCurrentChat, resetChat } = useAgent();
-  const resetChatIfNecessary = useCallback(() => {
-    if (chat.messages.length > 0) {
-      setSearchParams((prev) => {
-        prev.delete('resumeSessionId');
-        return prev;
-      });
-      resetChat();
-    }
-  }, [chat.messages.length, setSearchParams, resetChat]);
+  const { loadCurrentChat } = useAgent();
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -381,7 +413,7 @@ export function AppInner() {
         }
       })();
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
+  }, [loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -580,7 +612,7 @@ export function AppInner() {
   }, [navigate]);
 
   if (fatalError) {
-    return <ErrorUI error={new Error(fatalError)} />;
+    return <ErrorUI error={errorMessage(fatalError)} />;
   }
 
   return (
@@ -631,7 +663,6 @@ export function AppInner() {
                 <HubRouteWrapper
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   isExtensionsLoading={isExtensionsLoading}
-                  resetChat={resetChatIfNecessary}
                 />
               }
             />
@@ -641,10 +672,6 @@ export function AppInner() {
                 <PairRouteWrapper
                   chat={chat}
                   setChat={setChat}
-                  agentState={agentState}
-                  loadCurrentChat={loadCurrentChat}
-                  setFatalError={setFatalError}
-                  setAgentWaitingMessage={setAgentWaitingMessage}
                   setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   activeSessionId={activeSessionId}
                   setActiveSessionId={setActiveSessionId}

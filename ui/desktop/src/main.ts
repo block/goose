@@ -25,7 +25,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus, startGoosed } from './goosed';
-import { expandTilde, getBinaryPath } from './utils/pathUtils';
+import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
@@ -47,7 +47,6 @@ import {
   updateTrayMenu,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
-import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -192,9 +191,9 @@ if (process.platform !== 'darwin') {
               undefined,
               undefined,
               undefined,
-              undefined,
               recipeDeeplink || undefined,
-              scheduledJobId || undefined
+              scheduledJobId || undefined,
+              undefined
             );
           });
           return; // Skip the rest of the handler
@@ -280,7 +279,7 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    const recipeDeeplink = parsedUrl.searchParams.get('config');
+    const recipeDeeplink = parseRecipeDeeplink(parsedUrl.toString());
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
@@ -291,12 +290,12 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       undefined,
       undefined,
       undefined,
-      undefined,
       recipeDeeplink || undefined,
-      scheduledJobId || undefined
+      scheduledJobId || undefined,
+      undefined
     );
+    pendingDeepLink = null;
   }
-  pendingDeepLink = null;
 }
 
 let windowDeeplinkURL: string | null = null;
@@ -325,9 +324,9 @@ app.on('open-url', async (_event, url) => {
         undefined,
         undefined,
         undefined,
-        undefined,
         recipeDeeplink || undefined,
-        scheduledJobId || undefined
+        scheduledJobId || undefined,
+        undefined
       );
       windowDeeplinkURL = null;
       return; // Skip the rest of the handler
@@ -350,7 +349,6 @@ app.on('open-url', async (_event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
-    pendingDeepLink = null;
   }
 });
 
@@ -408,8 +406,8 @@ async function handleFileOpen(filePath: string) {
       newWindow.focus();
       newWindow.moveTop();
     }
-  } catch {
-    console.error('Failed to handle file open');
+  } catch (error) {
+    console.error('Failed to handle file open:', error);
 
     // Show user-friendly error notification
     new Notification({
@@ -494,9 +492,8 @@ const createChat = async (
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
-  recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
   viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
+  recipeDeeplink?: string, // Raw deeplink decoded on server
   scheduledJobId?: string, // Scheduled job ID if applicable
   recipeId?: string
 ) => {
@@ -693,10 +690,7 @@ const createChat = async (
   }
   if (
     appPath === '/' &&
-    (recipe !== undefined ||
-      recipeDeeplink !== undefined ||
-      recipeId !== undefined ||
-      initialMessage)
+    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
   ) {
     appPath = '/pair';
   }
@@ -704,6 +698,14 @@ const createChat = async (
   let searchParams = new URLSearchParams();
   if (resumeSessionId) {
     searchParams.set('resumeSessionId', resumeSessionId);
+    if (appPath === '/') {
+      appPath = '/pair';
+    }
+  }
+  // Only add recipeId to URL for the non-deeplink case (saved recipes launched from UI)
+  // For deeplinks, the recipe object is passed via appConfig, not URL params
+  if (recipeId) {
+    searchParams.set('recipeId', recipeId);
     if (appPath === '/') {
       appPath = '/pair';
     }
@@ -1041,15 +1043,14 @@ function parseRecipeDeeplink(url: string): string | undefined {
     // URLSearchParams decodes + as space, which can break encoded configs
     // Parse raw query to preserve "+" characters in values like config
     const search = parsedUrl.search || '';
-    // parse recipe deeplink from search params
     const configMatch = search.match(/(?:[?&])config=([^&]*)/);
-    // get recipe deeplink from config match
     let recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
     if (recipeDeeplinkTmp) {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
-      } catch {
-        // Leave as-is if decoding fails
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage);
         return undefined;
       }
     }
@@ -1599,11 +1600,6 @@ ipcMain.handle('check-ollama', async () => {
   }
 });
 
-// Handle binary path requests
-ipcMain.handle('get-binary-path', (_event, binaryName) => {
-  return getBinaryPath(app, binaryName);
-});
-
 ipcMain.handle('read-file', async (_event, filePath) => {
   try {
     const expandedPath = expandTilde(filePath);
@@ -2059,14 +2055,11 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, recipe, viewType, recipeId) => {
+    (_, query, dir, version, resumeSessionId, viewType, recipeId) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
-
-      // Log the recipe for debugging
-      console.log('Creating chat window with recipe:', recipe);
 
       createChat(
         app,
@@ -2074,7 +2067,6 @@ async function appMain() {
         dir,
         version,
         resumeSessionId,
-        recipe,
         viewType,
         undefined,
         undefined,
@@ -2090,7 +2082,7 @@ async function appMain() {
     }
   });
 
-  ipcMain.on('notify', (_event, data) => {
+  ipcMain.on('notify', (event, data) => {
     try {
       // Validate notification data
       if (!data || typeof data !== 'object') {
@@ -2115,10 +2107,24 @@ async function appMain() {
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
 
       console.log('NOTIFY', data);
-      new Notification({
+      const notification = new Notification({
         title: sanitizeText(data.title),
         body: sanitizeText(data.body),
-      }).show();
+      });
+
+      // Add click handler to focus the window
+      notification.on('click', () => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          if (window.isMinimized()) {
+            window.restore();
+          }
+          window.show();
+          window.focus();
+        }
+      });
+
+      notification.show();
     } catch (error) {
       console.error('Error showing notification:', error);
     }
@@ -2166,39 +2172,6 @@ async function appMain() {
     if (window) {
       window.reload();
     }
-  });
-
-  ipcMain.handle('start-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
-      windowPowerSaveBlockers.set(windowId, blockerId);
-      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      console.log(`[Main] Power save blocker already active for window ${windowId}`);
-    }
-
-    return false;
-  });
-
-  ipcMain.handle('stop-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      powerSaveBlocker.stop(blockerId);
-      windowPowerSaveBlockers.delete(windowId);
-      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
-      return true;
-    }
-
-    return false;
   });
 
   // Handle metadata fetching from main process

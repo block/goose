@@ -103,6 +103,7 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
@@ -124,6 +125,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
@@ -140,6 +142,14 @@ jobs:
           SKIP_BUILD: 1
         run: |
           bash scripts/test_subrecipes.sh
+
+      - name: Set up Python (for error proxy)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv (for error proxy)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # pin@v6
 
       - name: Run Compaction Tests
         env:

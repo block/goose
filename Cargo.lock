@@ -281,9 +281,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.87"
+version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d556ec1359574147ec0c4fc5eb525f3f23263a592b1a9c07e0a75b427de55c97"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2616,7 +2616,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2661,7 +2661,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
- "rmcp",
+ "rmcp 0.9.0",
  "schemars",
  "serde",
  "serde_json",
@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2711,7 +2711,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
- "rmcp",
+ "rmcp 0.9.0",
  "serde",
  "serde_json",
  "tokio",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2750,11 +2750,12 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
- "rmcp",
+ "rmcp 0.9.0",
  "rustyline",
  "serde",
  "serde_json",
  "serde_yaml",
+ "serial_test",
  "shlex",
  "tar",
  "temp-env",
@@ -2774,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2786,7 +2787,6 @@ dependencies = [
  "docx-rs",
  "etcetera",
  "glob",
- "goose",
  "http-body-util",
  "hyper 1.6.0",
  "ignore",
@@ -2804,7 +2804,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.11.27",
- "rmcp",
+ "rmcp 0.8.5",
  "schemars",
  "serde",
  "serde_json",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2855,7 +2855,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "reqwest 0.12.12",
- "rmcp",
+ "rmcp 0.9.0",
  "schemars",
  "serde",
  "serde_json",
@@ -2873,11 +2873,12 @@ dependencies = [
  "tracing-subscriber",
  "utoipa",
  "uuid",
+ "winreg 0.55.0",
 ]
 
 [[package]]
 name = "goose-test"
-version = "1.14.0"
+version = "1.15.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5488,7 +5489,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "winreg",
+ "winreg 0.50.0",
 ]
 
 [[package]]
@@ -5576,13 +5577,36 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures",
+ "paste",
+ "pin-project-lite",
+ "rmcp-macros 0.8.5",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acc36ea743d4bbc97e9f3c33bf0b97765a5cf338de3d9c3d2f321a6e38095615"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
  "http 1.2.0",
  "oauth2",
  "paste",
  "pin-project-lite",
  "process-wrap",
  "reqwest 0.12.12",
- "rmcp-macros",
+ "rmcp-macros 0.9.0",
  "schemars",
  "serde",
  "serde_json",
@@ -5600,6 +5624,19 @@ name = "rmcp-macros"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01263441d3f8635c628e33856c468b96ebbce1af2d3699ea712ca71432d4ee7a"
+dependencies = [
+ "darling 0.21.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.99",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "263caba1c96f2941efca0fdcd97b03f42bcde52d2347d05e5d77c93ab18c5b58"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
@@ -8445,6 +8482,16 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "winreg"
+version = "0.55.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb5a765337c50e9ec252c2069be9bf91c7df47afb103b642ba3a53bf8101be97"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

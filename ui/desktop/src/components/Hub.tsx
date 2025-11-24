@@ -25,19 +25,17 @@ export default function Hub({
   setView,
   setIsGoosehintsModalOpen,
   isExtensionsLoading,
-  resetChat,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   isExtensionsLoading: boolean;
-  resetChat: () => void;
 }) {
   const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      await startNewSession(combinedTextFromInput, resetChat, setView);
+      await startNewSession(combinedTextFromInput, setView);
       e.preventDefault();
     }
   };
@@ -51,10 +49,8 @@ export default function Hub({
       <ChatInput
         sessionId={null}
         handleSubmit={handleSubmit}
-        autoSubmit={false}
         chatState={ChatState.Idle}
         onStop={() => {}}
-        commandHistory={[]}
         initialValue=""
         setView={setView}
         totalTokens={0}

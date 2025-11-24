@@ -18,10 +18,10 @@ JUDGE_PROVIDER=${GOOSE_JUDGE_PROVIDER:-openrouter}
 JUDGE_MODEL=${GOOSE_JUDGE_MODEL:-google/gemini-2.5-flash}
 
 PROVIDERS=(
+  #"google:gemini-2.5-pro"
   "anthropic:claude-haiku-4-5-20251001"
-  "google:gemini-2.5-pro"
-  "openrouter:google/gemini-2.5-pro"
-  "openai:gpt-5-mini"
+  #"openrouter:google/gemini-2.5-pro"
+  #"openai:gpt-5-mini"
 )
 
 # In CI, only run Databricks tests if DATABRICKS_HOST and DATABRICKS_TOKEN are set

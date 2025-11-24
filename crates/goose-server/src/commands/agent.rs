@@ -49,7 +49,7 @@ pub async fn run() -> Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = crate::routes::configure(app_state)
+    let app = crate::routes::configure(app_state, secret_key.clone())
         .layer(middleware::from_fn_with_state(
             secret_key.clone(),
             check_token,

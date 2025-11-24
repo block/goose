@@ -42,14 +42,6 @@ export default function ChatSettingsSection() {
 
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Scheduling Engine</CardTitle>
-          <CardDescription>
-            Choose which scheduling backend to use for scheduled recipes and tasks
-          </CardDescription>
-        </CardHeader>
-      </Card>
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
           <CardDescription>
             Experimental: configure how Goose selects tools for your requests, useful when there are

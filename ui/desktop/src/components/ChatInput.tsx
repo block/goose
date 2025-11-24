@@ -18,7 +18,7 @@ import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
-import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
@@ -64,10 +64,10 @@ interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
   onStop?: () => void;
-  commandHistory?: string[]; // Current chat's message history
+  commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
-  onFilesProcessed?: () => void; // Callback to clear dropped files after processing
+  onFilesProcessed?: () => void;
   setView: (view: View) => void;
   totalTokens?: number;
   accumulatedInputTokens?: number;
@@ -87,7 +87,6 @@ interface ChatInputProps {
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
-  autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
 }
@@ -114,7 +113,6 @@ export default function ChatInput({
   recipeAccepted,
   initialPrompt,
   toolCount,
-  autoSubmit = false,
   append: _append,
   isExtensionsLoading = false,
 }: ChatInputProps) {
@@ -215,15 +213,17 @@ export default function ChatInput({
     query: string;
     mentionStart: number;
     selectedIndex: number;
+    isSlashCommand: boolean;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
     query: '',
     mentionStart: -1,
     selectedIndex: 0,
+    isSlashCommand: false,
   });
   const mentionPopoverRef = useRef<{
-    getDisplayFiles: () => FileItemWithMatch[];
+    getDisplayFiles: () => DisplayItemWithMatch[];
     selectFile: (index: number) => void;
   }>(null);
 
@@ -305,7 +305,6 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -563,13 +562,17 @@ export default function ChatInput({
     setDisplayValue(val);
     updateValue(val);
     setHasUserTyped(true);
-    checkForMention(val, cursorPosition, evt.target);
+    checkForMentionOrSlash(val, cursorPosition, evt.target);
   };
 
-  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
-    // Find the last @ before the cursor
+  const checkForMentionOrSlash = (
+    text: string,
+    cursorPosition: number,
+    textArea: HTMLTextAreaElement
+  ) => {
+    const isSlashCommand = text.startsWith('/');
     const beforeCursor = text.slice(0, cursorPosition);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const lastAtIndex = isSlashCommand ? 0 : beforeCursor.lastIndexOf('@');
 
     if (lastAtIndex === -1) {
       // No @ found, close mention popover
@@ -597,6 +600,7 @@ export default function ChatInput({
       query: afterAt,
       mentionStart: lastAtIndex,
       selectedIndex: 0, // Reset selection when query changes
+      isSlashCommand,
       // filteredFiles will be populated by the MentionPopover component
     }));
   };
@@ -932,13 +936,6 @@ export default function ChatInput({
     ]
   );
 
-  useEffect(() => {
-    if (!!autoSubmit && !didAutoSubmit) {
-      setDidAutoSubmit(true);
-      performSubmit(initialValue);
-    }
-  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
-
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
@@ -1024,13 +1021,13 @@ export default function ChatInput({
     }
   };
 
-  const handleMentionFileSelect = (filePath: string) => {
+  const handleMentionItemSelect = (itemText: string) => {
     // Replace the @ mention with the file path
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    const newValue = `${beforeMention}${itemText}${afterMention}`;
 
     setDisplayValue(newValue);
     setValue(newValue);
@@ -1040,7 +1037,7 @@ export default function ChatInput({
     // Set cursor position after the inserted file path
     setTimeout(() => {
       if (textAreaRef.current) {
-        const newCursorPosition = beforeMention.length + filePath.length;
+        const newCursorPosition = beforeMention.length + itemText.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
       }
     }, 0);
@@ -1453,7 +1450,6 @@ export default function ChatInput({
         {/* Directory path */}
         <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1468,9 +1464,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
-
         <div className="w-px h-4 bg-border-default mx-2" />
-
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
@@ -1500,7 +1494,7 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {process.env.ALPHA && sessionId && (
+          {sessionId && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <BottomMenuExtensionSelection sessionId={sessionId} />
@@ -1538,7 +1532,6 @@ export default function ChatInput({
             </Tooltip>
           )}
         </div>
-
         {sessionId && diagnosticsOpen && (
           <DiagnosticsModal
             isOpen={diagnosticsOpen}
@@ -1546,12 +1539,12 @@ export default function ChatInput({
             sessionId={sessionId}
           />
         )}
-
         <MentionPopover
           ref={mentionPopoverRef}
           isOpen={mentionPopover.isOpen}
+          isSlashCommand={mentionPopover.isSlashCommand}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
-          onSelect={handleMentionFileSelect}
+          onSelect={handleMentionItemSelect}
           position={mentionPopover.position}
           query={mentionPopover.query}
           selectedIndex={mentionPopover.selectedIndex}
