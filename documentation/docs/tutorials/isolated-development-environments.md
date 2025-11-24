@@ -5,12 +5,12 @@ title: Isolated Development Environments
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This guide shows you how to set up isolated development environments using the **[Container Use MCP](https://github.com/dagger/container-use)** with Goose. With this setup, your development work will be isolated to both git branches and containers, allowing you to experiment freely without affecting your main system state.
+This guide shows you how to set up isolated development environments using the **[Container Use MCP](https://github.com/dagger/container-use)** with goose. With this setup, your development work will be isolated to both git branches and containers, allowing you to experiment freely without affecting your main system state.
 Note that the container-use MCP is very new and emerging, but offers powerful ways to do isolated development which are very agent friendly (build on tools like Docker, copy on write filesystems and more)
 
 ## Overview
 
-The **[Container Use MCP](https://github.com/dagger/container-use)** server provides containerized development environments that integrate seamlessly with Goose. This allows you to:
+The **[Container Use MCP](https://github.com/dagger/container-use)** server provides containerized development environments that integrate seamlessly with goose. This allows you to:
 
 - Work on changes isolated to git branches
 - Run code in containers without affecting your local machine
@@ -22,7 +22,7 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 - Docker ([Podman](https://docs.dagger.io/ci/integrations/podman), [NerdCtl](https://docs.dagger.io/ci/integrations/nerdctl/) or [Container](https://docs.dagger.io/ci/integrations/apple-container/)) installed and running on your system
 - Git installed and configured
-- Goose installed and configured
+- goose installed and configured
 
 ## Installation
 
@@ -30,20 +30,20 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 Head on over to the [Container Use README](https://github.com/dagger/container-use/blob/main/README.md) for up-to-date install instructions for this fast moving project.
 
-## Adding to Goose
+## Adding to goose
 
 ### Method 1: Quick Setup Link
 
-Click this link to automatically add the extension to Goose:
+Click this link to automatically add the extension to goose:
 
-**[Add Container-Use to Goose](goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments)**
+**[Add Container-Use to goose](goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments)**
 
 ### Method 2: Manual Configuration
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
-  1. Click `...` in the top right corner of the Goose Desktop.
+  1. Click `...` in the top right corner of the goose Desktop.
   2. Select `Advanced Settings` from the menu.
   3. Under `Extensions`, click `Add custom extension`.
   4. Fill in the details:
@@ -96,17 +96,17 @@ extensions:
 
 ## Usage
 
-Once the extension is enabled in Goose, you can:
+Once the extension is enabled in goose, you can:
 
 ### Starting Isolated Development
 
-Simply mention in your conversation with Goose that you want to work in an isolated environment:
+Simply mention in your conversation with goose that you want to work in an isolated environment:
 
 ```
 "I want to experiment with adding a new feature, but I want to do it in an isolated environment so I don't affect my main codebase."
 ```
 
-Goose will automatically:
+goose will automatically:
 1. Create a new git branch for your work
 2. Set up a containerized environment
 3. Ensure all changes are isolated from your host system
@@ -136,15 +136,15 @@ Goose will automatically:
 
 ### Feature Development
 
-1. Start a conversation with Goose about a new feature
+1. Start a conversation with goose about a new feature
 2. Request isolated development environment
-3. Goose creates branch and container
+3. goose creates branch and container
 4. Develop and test the feature
 5. If successful, merge the branch; if not, discard it
 
 ### Dependency Exploration
 
-1. Ask Goose to explore a new library or tool
+1. Ask goose to explore a new library or tool
 2. Work in isolated container with the dependency
 3. Test compatibility and functionality
 4. Decide whether to integrate into main project
@@ -182,6 +182,6 @@ If you encounter issues:
 
 ## Next Steps
 
-With container-use enabled in Goose, you're ready to develop with confidence. Try starting a conversation about a project you've been hesitant to experiment with, and let Goose set up a safe, isolated environment for your exploration.
+With container-use enabled in goose, you're ready to develop with confidence. Try starting a conversation about a project you've been hesitant to experiment with, and let goose set up a safe, isolated environment for your exploration.
 
 Remember: with isolated environments, there's no such thing as a failed experiment - only learning opportunities that don't affect your main codebase.

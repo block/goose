@@ -1,17 +1,17 @@
 ---
-title: Using Goose in Headless Mode for Automation
-description: Goose Headless Mode
+title: Using goose in Headless Mode for Automation
+description: goose Headless Mode
 ---
 
-# Automate Development Tasks with Goose Headless Mode
+# Automate Development Tasks with goose Headless Mode
 
 *Run AI-powered engineering workflows in CI/CD pipelines, servers, and batch processing scenarios*
 
-The ability to automate complex engineering tasks without human intervention has been huge, but let's take it to the next level with AI. Goose's "headless" mode enables developers to harness the full power of AI automation in server environments, CI/CD pipelines, and batch processing scenarios where interactive sessions simply aren't feasible.
+The ability to automate complex engineering tasks without human intervention has been huge, but let's take it to the next level with AI. goose's "headless" mode enables developers to harness the full power of AI automation in server environments, CI/CD pipelines, and batch processing scenarios where interactive sessions simply aren't feasible.
 
 ## What is Headless Mode?
 
-Headless mode is Goose's non-interactive execution environment, designed for automated scenarios where human intervention isn't available (or wanted).
+Headless mode is goose's non-interactive execution environment, designed for automated scenarios where human intervention isn't available (or wanted).
 
 Unlike the interactive desktop app or CLI sessions, headless mode processes instructions and exits automatically, making it perfect for integration into existing development workflows.
 
@@ -131,7 +131,7 @@ Always check exit codes and handle failures gracefully in your automation script
 ```bash
 #!/bin/bash
 if ! goose run --no-session -t "Run security audit and fix critical issues"; then
-    echo "Goose automation failed - manual intervention required"
+    echo "goose automation failed - manual intervention required"
     exit 1
 fi
 ```
@@ -142,7 +142,7 @@ Use `--no-session` for one-off tasks to avoid cluttering your session history, b
 
 ## Recipe Execution in Headless Mode
 
-[Recipes](/docs/guides/recipes/) are Goose's powerful way to define reusable, parameterized workflows. In headless mode, recipes become even more valuable as they enable sophisticated automation scenarios.
+[Recipes](/docs/guides/recipes/) are goose's powerful way to define reusable, parameterized workflows. In headless mode, recipes become even more valuable as they enable sophisticated automation scenarios.
 
 ### Recipe Requirements for Headless Mode
 
@@ -213,9 +213,9 @@ While headless mode is incredibly powerful, it's important to understand its con
 
 ### 1. No User Interaction Capability
 
-**What this means**: Goose cannot ask for clarification, approval, or additional input during execution. If it's unsure of what to do, the prompt result will usually show you a question like "How should I proceed?".
+**What this means**: goose cannot ask for clarification, approval, or additional input during execution. If it's unsure of what to do, the prompt result will usually show you a question like "How should I proceed?".
 
-**Impact**: If instructions are ambiguous or if unexpected situations arise, Goose will make its best judgment based on available context, which might not always align with your intentions.
+**Impact**: If instructions are ambiguous or if unexpected situations arise, goose will make its best judgment based on available context, which might not always align with your intentions.
 
 **Mitigation**: Provide extremely detailed instructions, especially on what to do if it runs into a problem, and **test your automation thoroughly in non-production** environments first.
 
@@ -237,7 +237,7 @@ goose run -t "Fix the TypeScript compilation errors in src/components/, ensure a
 
 ### 3. Tool Permission Dependencies
 
-**What this means**: Goose cannot prompt for permission to use potentially risky tools or operations.
+**What this means**: goose cannot prompt for permission to use potentially risky tools or operations.
 
 **Impact**: Operations requiring approval will either use default permissions or fail, potentially blocking automation workflows.
 
@@ -250,7 +250,7 @@ export GOOSE_MODE=auto  # Automatically approve safe operations
 
 ### 4. Context Decision Automation
 
-**What this means**: When conversation context limits are reached, Goose automatically applies the configured strategy without user input.
+**What this means**: When conversation context limits are reached, goose automatically applies the configured strategy without user input.
 
 **Impact**: Important context might be lost if summarization isn't perfect, or execution might be interrupted if context clearing is too aggressive.
 
@@ -311,13 +311,13 @@ export GOOSE_ALLOWLIST=https://company.com/allowed-extensions.json
 
 ## The Future of Automated Development
 
-Goose's headless mode represents more than just a feature -- it's a shift toward truly automated development workflows powered by AI. We can remove human intervention in routine tasks so teams can focus on high-value work while AI handles the repetitive, time-consuming operations that slow us down.
+goose's headless mode represents more than just a feature -- it's a shift toward truly automated development workflows powered by AI. We can remove human intervention in routine tasks so teams can focus on high-value work while AI handles the repetitive, time-consuming operations that slow us down.
 
-Whether you're looking to streamline your CI/CD pipelines, automate server maintenance, or handle bulk operations across multiple repositories, Goose's headless mode provides the foundation for building sophisticated, reliable automation workflows.
+Whether you're looking to streamline your CI/CD pipelines, automate server maintenance, or handle bulk operations across multiple repositories, goose's headless mode provides the foundation for building sophisticated, reliable automation workflows.
 
 **Start your automation journey today:**
 
-1. **Install Goose** and configure your environment variables
+1. **Install goose** and configure your environment variables
 2. **Create your first recipe** with clear prompts and detailed instructions  
 3. **Test in a safe environment** before deploying to production
 4. **Integrate with your existing workflows** and watch your productivity soar

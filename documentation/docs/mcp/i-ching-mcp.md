@@ -1,9 +1,9 @@
 ---
 title: I Ching Extension
-description: Add I Ching MCP Server as a Goose Extension
+description: Add I Ching MCP Server as a goose Extension
 ---
 
-This tutorial covers how to add the [I Ching MCP Server](https://github.com/threemachines/i-ching) as a Goose extension to enable traditional I Ching divination readings.
+This tutorial covers how to add the [I Ching MCP Server](https://github.com/threemachines/i-ching) as a goose extension to enable traditional I Ching divination readings.
 
 :::tip TLDR
 1. Install: `cargo install i-ching`
@@ -20,8 +20,8 @@ rustc --version
 
 If you need to install or update Rust, visit [rustup.rs](https://rustup.rs/).
 
-:::tip Use Goose to Help!
-If you're unsure about any of these steps, you can ask Goose to help you check your system and guide you through the Rust installation process.
+:::tip Use goose to Help!
+If you're unsure about any of these steps, you can ask goose to help you check your system and guide you through the Rust installation process.
 :::
 
 Once Rust is ready, install the I Ching crate from crates.io:
@@ -30,15 +30,15 @@ Once Rust is ready, install the I Ching crate from crates.io:
 cargo install i-ching
 ```
 
-Then click the link above to configure it in Goose.
+Then click the link above to configure it in goose.
 
 ## Example Usage
 
-### Goose Prompt
+### goose Prompt
 
 > Our team is facing a challenging decision about our product roadmap. Could you consult the I Ching for some perspective on how to approach this choice?
 
-### Goose Output
+### goose Output
 
 I'd be happy to consult the I Ching for guidance on your team's product roadmap decision. Let me cast a hexagram for you using the traditional three coins method.
 ─── cast_hexagram | iching ──────────────────────────
