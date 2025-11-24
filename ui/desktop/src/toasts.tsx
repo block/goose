@@ -181,9 +181,6 @@ function ToastErrorContent({
     if (traceback) {
       try {
         await navigator.clipboard.writeText(traceback);
-        setTimeout(() => {
-          toast.dismiss();
-        }, 1500);
       } catch (error) {
         console.error('Failed to copy error:', error);
       }
