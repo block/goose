@@ -21,6 +21,10 @@ pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SubagentParams {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instructions: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,7 +110,8 @@ pub fn create_subagent_tool() -> Tool {
         "Delegate a task to an autonomous subagent. Returns the result immediately. 
         Use this tool to offload complex work (research, coding, critique) to a specialized agent. 
         Defaults to 'return_last_only=true' for concise results.
-        Accepts standard recipe parameters like 'extensions', 'settings', 'retry', etc."
+        Accepts standard recipe parameters like 'extensions', 'settings', 'retry', etc.
+        Can also be used to execute an existing task by providing 'task_id' (e.g. from a sub-recipe)."
             .to_string(),
         input_schema,
     )
@@ -194,8 +199,10 @@ impl TryFrom<SubagentParams> for Recipe {
     type Error = anyhow::Error;
 
     fn try_from(params: SubagentParams) -> Result<Self, Self::Error> {
-        if params.instructions.is_none() && params.prompt.is_none() {
-            return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
+        if params.task_id.is_none() && params.instructions.is_none() && params.prompt.is_none() {
+            return Err(anyhow!(
+                "Either 'instructions' or 'prompt' is required unless 'task_id' is provided"
+            ));
         }
 
         let mut builder = Recipe::builder()
@@ -206,6 +213,11 @@ impl TryFrom<SubagentParams> for Recipe {
                     .description
                     .unwrap_or_else(|| "Inline recipe task".to_string()),
             );
+
+        // Allow building partial recipe if we are just executing a task ID
+        if params.task_id.is_some() && params.instructions.is_none() && params.prompt.is_none() {
+            builder = builder.instructions("Executing existing task".to_string());
+        }
 
         if let Some(inst) = params.instructions {
             builder = builder.instructions(inst);
