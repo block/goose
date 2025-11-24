@@ -16,7 +16,7 @@ use utoipa::ToSchema;
 pub mod build_recipe;
 pub mod local_recipes;
 pub mod read_recipe_file_content;
-mod recipe_extension_adapter;
+pub mod recipe_extension_adapter;
 pub mod template_recipe;
 pub mod validate_recipe;
 pub mod yaml_format_utils;
@@ -28,7 +28,7 @@ fn default_version() -> String {
     "1.0.0".to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct Recipe {
     // Required fields
     #[serde(default = "default_version")]
@@ -75,7 +75,7 @@ pub struct Recipe {
     pub retry: Option<RetryConfig>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct Author {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<String>, // creator/contact information of the recipe
@@ -84,7 +84,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,
@@ -99,13 +99,13 @@ pub struct Settings {
     pub system_prompt: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_schema: Option<serde_json::Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct SubRecipe {
     pub name: String,
     pub path: String,
@@ -142,7 +142,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -160,7 +160,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -183,7 +183,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 
 pub struct RecipeParameter {
     pub key: String,

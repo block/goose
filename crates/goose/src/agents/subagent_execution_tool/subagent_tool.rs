@@ -6,13 +6,14 @@ use serde_json::Value;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_execution_tool::lib::run_tasks;
 use crate::agents::subagent_execution_tool::task_types::{ExecutionMode, Task, TaskPayload};
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
 use crate::prompt_template;
-use crate::recipe::{Recipe, RecipeBuilder, Settings};
+use crate::recipe::{Recipe, RecipeBuilder, RecipeParameter, Response, Settings, SubRecipe};
 use crate::session::SessionManager;
 use tokio_util::sync::CancellationToken;
 
@@ -37,11 +38,15 @@ pub struct SubagentParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extensions: Option<Vec<Value>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "crate::recipe::recipe_extension_adapter::deserialize_recipe_extensions"
+    )]
+    pub extensions: Option<Vec<ExtensionConfig>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<Value>,
+    pub settings: Option<Settings>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<String>>,
@@ -50,13 +55,13 @@ pub struct SubagentParams {
     pub author: Option<Value>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Vec<Value>>,
+    pub parameters: Option<Vec<RecipeParameter>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<Value>,
+    pub response: Option<Response>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sub_recipes: Option<Vec<Value>>,
+    pub sub_recipes: Option<Vec<SubRecipe>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<Value>,
@@ -135,10 +140,30 @@ fn load_system_prompt(subagent_type: &SubagentType) -> Option<String> {
     }
 }
 
-fn apply_if_ok<T, F>(builder: RecipeBuilder, val: Option<&Value>, func: F) -> RecipeBuilder
+fn apply_if_ok<T, F>(
+    builder: crate::recipe::RecipeBuilder,
+    val: Option<T>,
+    func: F,
+) -> crate::recipe::RecipeBuilder
+where
+    F: FnOnce(crate::recipe::RecipeBuilder, T) -> crate::recipe::RecipeBuilder,
+{
+    if let Some(v) = val {
+        func(builder, v)
+    } else {
+        builder
+    }
+}
+
+// Helper for retry which is still Value
+fn apply_value_if_ok<T, F>(
+    builder: crate::recipe::RecipeBuilder,
+    val: Option<&Value>,
+    func: F,
+) -> crate::recipe::RecipeBuilder
 where
     T: for<'de> Deserialize<'de>,
-    F: FnOnce(RecipeBuilder, T) -> RecipeBuilder,
+    F: FnOnce(crate::recipe::RecipeBuilder, T) -> crate::recipe::RecipeBuilder,
 {
     if let Some(v) = val {
         if let Ok(decoded) = serde_json::from_value::<T>(v.clone()) {
@@ -150,92 +175,72 @@ where
     builder
 }
 
-pub fn task_params_to_inline_recipe(
-    task_param: &Value,
-) -> Result<Recipe> {
-    let instructions = task_param.get("instructions").and_then(|v| v.as_str());
-    let prompt = task_param.get("prompt").and_then(|v| v.as_str());
-
-    if instructions.is_none() && prompt.is_none() {
-        return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
-    }
-
-    let mut builder = Recipe::builder()
-        .version("1.0.0")
-        .title(
-            task_param
-                .get("title")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Dynamic Task"),
-        )
-        .description(
-            task_param
-                .get("description")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Inline recipe task"),
-        );
-
-    if let Some(inst) = instructions {
-        builder = builder.instructions(inst);
-    }
-    if let Some(p) = prompt {
-        builder = builder.prompt(p);
-    }
-
-    if let Some(extensions) = task_param.get("extensions") {
-        if let Ok(ext_configs) = serde_json::from_value::<
-            Vec<crate::agents::extension::ExtensionConfig>,
-        >(extensions.clone())
-        {
-            builder = builder.extensions(ext_configs);
+// Helper for author which is still Value
+fn apply_author_if_ok(
+    builder: crate::recipe::RecipeBuilder,
+    val: Option<Value>,
+) -> crate::recipe::RecipeBuilder {
+    if let Some(v) = val {
+        if let Ok(decoded) = serde_json::from_value::<crate::recipe::Author>(v.clone()) {
+            return builder.author(decoded);
         } else {
-            tracing::warn!("Failed to parse extensions: {:?}", extensions);
+            tracing::warn!("Failed to deserialize optional field: {:?}", v);
         }
     }
+    builder
+}
 
-    builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
-    builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
-    builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
-    builder = apply_if_ok(
-        builder,
-        task_param.get("activities"),
-        RecipeBuilder::activities,
-    );
-    builder = apply_if_ok(
-        builder,
-        task_param.get("author"),
-        RecipeBuilder::author,
-    );
-    builder = apply_if_ok(
-        builder,
-        task_param.get("parameters"),
-        RecipeBuilder::parameters,
-    );
-    builder = apply_if_ok(
-        builder,
-        task_param.get("sub_recipes"),
-        RecipeBuilder::sub_recipes,
-    );
+impl TryFrom<SubagentParams> for Recipe {
+    type Error = anyhow::Error;
 
-    if let Some(version) = task_param.get("version").and_then(|v| v.as_str()) {
-        builder = builder.version(version);
+    fn try_from(params: SubagentParams) -> Result<Self, Self::Error> {
+        if params.instructions.is_none() && params.prompt.is_none() {
+            return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
+        }
+
+        let mut builder = Recipe::builder()
+            .version(params.version.unwrap_or_else(|| "1.0.0".to_string()))
+            .title(params.title.unwrap_or_else(|| "Dynamic Task".to_string()))
+            .description(
+                params
+                    .description
+                    .unwrap_or_else(|| "Inline recipe task".to_string()),
+            );
+
+        if let Some(inst) = params.instructions {
+            builder = builder.instructions(inst);
+        }
+        if let Some(p) = params.prompt {
+            builder = builder.prompt(p);
+        }
+
+        builder = apply_if_ok(builder, params.extensions, RecipeBuilder::extensions);
+        builder = apply_if_ok(builder, params.settings, RecipeBuilder::settings);
+        builder = apply_if_ok(builder, params.activities, RecipeBuilder::activities);
+        builder = apply_author_if_ok(builder, params.author);
+        builder = apply_if_ok(builder, params.parameters, RecipeBuilder::parameters);
+        builder = apply_if_ok(builder, params.response, RecipeBuilder::response);
+        builder = apply_if_ok(builder, params.sub_recipes, RecipeBuilder::sub_recipes);
+
+        // retry is still Value in SubagentParams
+        builder = apply_value_if_ok(builder, params.retry.as_ref(), RecipeBuilder::retry);
+
+        let recipe = builder
+            .build()
+            .map_err(|e| anyhow!("Failed to build recipe: {}", e))?;
+
+        if recipe.check_for_security_warnings() {
+            return Err(anyhow!("Recipe contains potentially harmful content"));
+        }
+
+        if let Some(ref retry) = recipe.retry {
+            retry
+                .validate()
+                .map_err(|e| anyhow!("Invalid retry config: {}", e))?;
+        }
+
+        Ok(recipe)
     }
-
-    let recipe = builder
-        .build()
-        .map_err(|e| anyhow!("Failed to build recipe: {}", e))?;
-
-    if recipe.check_for_security_warnings() {
-        return Err(anyhow!("Recipe contains potentially harmful content"));
-    }
-
-    if let Some(ref retry) = recipe.retry {
-        retry
-            .validate()
-            .map_err(|e| anyhow!("Invalid retry config: {}", e))?;
-    }
-
-    Ok(recipe)
 }
 
 pub async fn run_subagent_tool(
@@ -247,7 +252,8 @@ pub async fn run_subagent_tool(
     extension_configs: Vec<crate::agents::extension::ExtensionConfig>,
     cancellation_token: Option<CancellationToken>,
 ) -> ToolCallResult {
-    let parsed_params: SubagentParams = match serde_json::from_value(params.clone()) {
+    // 1. Strict Deserialization
+    let parsed_params: SubagentParams = match serde_json::from_value(params) {
         Ok(p) => p,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -258,10 +264,15 @@ pub async fn run_subagent_tool(
         }
     };
 
-    let subagent_type = parsed_params.subagent_type.unwrap_or(SubagentType::Default);
-    let system_prompt = load_system_prompt(&subagent_type);
+    let subagent_type = parsed_params
+        .subagent_type
+        .as_ref()
+        .unwrap_or(&SubagentType::Default);
+    let system_prompt = load_system_prompt(subagent_type);
+    let return_last_only = parsed_params.return_last_only;
 
-    let mut recipe = match task_params_to_inline_recipe(&params) {
+    // 2. Type-Safe Conversion
+    let mut recipe = match Recipe::try_from(parsed_params) {
         Ok(r) => r,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -272,9 +283,12 @@ pub async fn run_subagent_tool(
         }
     };
 
-    let has_explicit_system_prompt = params
-        .get("settings")
-        .and_then(|s| s.get("system_prompt"))
+    // 3. Persona Application
+    // If settings.system_prompt is not explicitly set, use the persona's prompt
+    let has_explicit_system_prompt = recipe
+        .settings
+        .as_ref()
+        .and_then(|s| s.system_prompt.as_ref())
         .is_some();
 
     if !has_explicit_system_prompt {
@@ -290,6 +304,7 @@ pub async fn run_subagent_tool(
         }
     }
 
+    // 4. Execution
     let session = match SessionManager::create_session(
         working_dir.to_path_buf(),
         "Subagent Task".to_string(),
@@ -311,7 +326,7 @@ pub async fn run_subagent_tool(
         id: session.id.clone(),
         payload: TaskPayload {
             recipe,
-            return_last_only: parsed_params.return_last_only,
+            return_last_only,
             sequential_when_repeated: false,
             parameter_values: None,
         },

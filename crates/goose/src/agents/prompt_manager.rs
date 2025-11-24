@@ -46,7 +46,7 @@ struct SystemPromptContext {
 }
 
 pub struct SystemPromptBuilder<'a, M> {
-    model_name: String,
+    _model_name: String,
     manager: &'a M,
 
     extensions_info: Vec<ExtensionInfo>,
@@ -227,12 +227,11 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
-    pub fn builder<'a>(&'a self, model_name: &str) -> SystemPromptBuilder<'a, Self> {
+    pub fn builder(&self, model_name: impl Into<String>) -> SystemPromptBuilder<'_, PromptManager> {
         SystemPromptBuilder {
-            model_name: model_name.to_string(),
+            _model_name: model_name.into(),
             manager: self,
-
-            extensions_info: vec![],
+            extensions_info: Vec::new(),
             frontend_instructions: None,
             extension_tool_count: None,
             router_enabled: false,
