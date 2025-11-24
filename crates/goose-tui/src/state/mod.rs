@@ -1,7 +1,9 @@
 pub mod action;
 pub mod reducer;
 
+use crate::services::client::ProviderDetails;
 use crate::services::config::TuiConfig;
+use goose::config::ExtensionEntry;
 use goose::conversation::message::{Message, TokenState};
 use goose::session::Session;
 use serde::{Deserialize, Serialize};
@@ -37,18 +39,28 @@ pub struct AppState {
     pub config: TuiConfig,
     pub available_tools: Vec<ToolInfo>,
     pub available_sessions: Vec<Session>,
+    pub providers: Vec<ProviderDetails>,
+    pub extensions: Vec<ExtensionEntry>,
     pub showing_help: bool,
     pub showing_todo: bool,
     pub showing_session_picker: bool,
     pub showing_command_builder: bool,
     pub showing_message_info: Option<usize>,
+    pub showing_config: bool,
     pub has_worked: bool,
     pub input_text_is_empty: bool,
     pub model_context_limit: usize,
+    pub active_provider: Option<String>,
+    pub active_model: Option<String>,
 }
 
 impl AppState {
-    pub fn new(session_id: String, config: TuiConfig) -> Self {
+    pub fn new(
+        session_id: String,
+        config: TuiConfig,
+        active_provider: Option<String>,
+        active_model: Option<String>,
+    ) -> Self {
         Self {
             session_id,
             messages: Vec::new(),
@@ -60,14 +72,19 @@ impl AppState {
             config,
             available_tools: Vec::new(),
             available_sessions: Vec::new(),
+            providers: Vec::new(),
+            extensions: Vec::new(),
             showing_help: false,
             showing_todo: false,
             showing_session_picker: false,
             showing_command_builder: false,
             showing_message_info: None,
+            showing_config: false,
             has_worked: false,
             input_text_is_empty: true,
             model_context_limit: 128_000,
+            active_provider,
+            active_model,
         }
     }
 }

@@ -1,5 +1,7 @@
+use crate::services::client::ProviderDetails;
 use crate::services::config::CustomCommand;
 use crate::state::ToolInfo;
+use goose::config::ExtensionEntry;
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
@@ -14,6 +16,13 @@ pub enum Action {
     SessionResumed(Box<Session>),
     SessionsListLoaded(Vec<Session>),
     ToolsLoaded(Vec<ToolInfo>),
+    ProvidersLoaded(Vec<ProviderDetails>),
+    ExtensionsLoaded(Vec<ExtensionEntry>),
+    ModelsLoaded {
+        provider: String,
+        models: Vec<String>,
+    },
+    ConfigLoaded(serde_json::Value),
     Error(String),
 
     SendMessage(goose::conversation::message::Message),
@@ -30,6 +39,16 @@ pub enum Action {
     ClosePopup,
     OpenMessageInfo(usize),
     SetInputEmpty(bool),
+    OpenConfig,
+    FetchModels(String),
+    UpdateProvider {
+        provider: String,
+        model: String,
+    },
+    ToggleExtension {
+        name: String,
+        enabled: bool,
+    },
 
     DeleteCustomCommand(String),
     StartCommandBuilder,

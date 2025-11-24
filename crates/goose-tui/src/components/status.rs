@@ -124,6 +124,14 @@ impl StatusComponent {
                 spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
         }
+
+        if let Some(model) = &state.active_model {
+            spans.push(Span::styled(
+                model.clone(),
+                Style::default().fg(theme.base.foreground),
+            ));
+            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        }
         spans
     }
 

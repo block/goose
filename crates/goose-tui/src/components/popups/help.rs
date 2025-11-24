@@ -57,6 +57,7 @@ impl Component for HelpPopup {
                 Style::default().add_modifier(Modifier::UNDERLINED),
             )),
             Line::from("  /help       Show this help"),
+            Line::from("  /config     Open configuration"),
             Line::from("  /session    Open session picker"),
             Line::from("  /theme      Change theme (e.g. /theme light)"),
             Line::from("  /alias      Create custom command"),

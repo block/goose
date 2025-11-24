@@ -113,7 +113,7 @@ async fn run_tui(session: Option<String>) -> Result<()> {
     let model = global_config.get_goose_model().ok();
 
     if let Err(e) = client
-        .update_provider(&initial_session.id, provider, model.clone())
+        .update_provider(&initial_session.id, provider.clone(), model.clone())
         .await
     {
         tracing::error!("Failed to update provider: {}", e);
@@ -126,7 +126,12 @@ async fn run_tui(session: Option<String>) -> Result<()> {
     }
 
     let config = TuiConfig::load()?;
-    let mut state = AppState::new(initial_session.id.clone(), config);
+    let mut state = AppState::new(
+        initial_session.id.clone(),
+        config,
+        Some(provider.clone()), // Pass the active provider
+        model.clone(),          // Pass the active model
+    );
 
     if let Some(ref model_name) = model {
         state.model_context_limit = goose::model::ModelConfig::new(model_name)
@@ -247,6 +252,30 @@ fn process_event(
                     let cwd = std::env::current_dir().unwrap_or_default();
                     match client.start_agent(cwd.to_string_lossy().to_string()).await {
                         Ok(s) => {
+                            // Configure the new session with global defaults
+                            let global_config = goose::config::Config::global();
+                            let provider = global_config
+                                .get_goose_provider()
+                                .unwrap_or_else(|_| "openai".to_string());
+                            let model = global_config.get_goose_model().ok();
+
+                            if let Err(e) = client.update_provider(&s.id, provider, model).await {
+                                let _ = tx.send(Event::Error(format!(
+                                    "Failed to update provider: {}",
+                                    e
+                                )));
+                            }
+
+                            for ext in goose::config::get_enabled_extensions() {
+                                if let Err(e) = client.add_extension(&s.id, ext.clone()).await {
+                                    let _ = tx.send(Event::Error(format!(
+                                        "Failed to add extension {}: {}",
+                                        ext.name(),
+                                        e
+                                    )));
+                                }
+                            }
+
                             let _ = tx.send(Event::SessionResumed(Box::new(s)));
                         }
                         Err(e) => {
@@ -268,6 +297,173 @@ fn process_event(
                         }
                     }
                 });
+            }
+            Action::OpenConfig => {
+                let client = client.clone();
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    // Fetch providers
+                    match client.get_providers().await {
+                        Ok(providers) => {
+                            let _ = tx.send(Event::ProvidersLoaded(providers));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                    // Fetch extensions
+                    match client.get_extensions().await {
+                        Ok(extensions) => {
+                            let _ = tx.send(Event::ExtensionsLoaded(extensions));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                    // Fetch config (for active provider)
+                    match client.read_config().await {
+                        Ok(config) => {
+                            let _ = tx.send(Event::ConfigLoaded(config));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+            Action::FetchModels(provider) => {
+                let client = client.clone();
+                let tx = tx.clone();
+                let p = provider.clone();
+                tokio::spawn(async move {
+                    match client.get_provider_models(&p).await {
+                        Ok(models) => {
+                            let _ = tx.send(Event::ModelsLoaded {
+                                provider: p,
+                                models,
+                            });
+                        }
+                        Err(e) => {
+                            // Don't show error globally, maybe just log it?
+                            // Some providers might not support fetching models or be unconfigured.
+                            // Showing error message might be annoying if user just browses.
+                            // But `Event::Error` shows a flash message.
+                            tracing::warn!("Failed to fetch models for {}: {}", p, e);
+                        }
+                    }
+                });
+            }
+            Action::UpdateProvider { provider, model } => {
+                let client = client.clone();
+                let tx = tx.clone();
+                let session_id = state.session_id.clone();
+                let p = provider.clone();
+                let m = model.clone();
+                tokio::spawn(async move {
+                    // 1. Update session
+                    if let Err(e) = client
+                        .update_provider(&session_id, p.clone(), Some(m.clone()))
+                        .await
+                    {
+                        let _ = tx.send(Event::Error(format!(
+                            "Failed to update session provider: {}",
+                            e
+                        )));
+                        return;
+                    }
+                    // 2. Update persistent config
+                    // TODO: Need to handle serde_json::Value properly
+                    if let Err(e) = client
+                        .upsert_config("GOOSE_PROVIDER", serde_json::json!(p), false)
+                        .await
+                    {
+                        let _ = tx.send(Event::Error(format!(
+                            "Failed to update config provider: {}",
+                            e
+                        )));
+                    }
+                    if let Err(e) = client
+                        .upsert_config("GOOSE_MODEL", serde_json::json!(m), false)
+                        .await
+                    {
+                        let _ = tx.send(Event::Error(format!(
+                            "Failed to update config model: {}",
+                            e
+                        )));
+                    }
+
+                    // Refresh
+                    // We can just trigger OpenConfig again to refresh list if needed, but mostly we want UI feedback?
+                    // Let's assume ConfigUpdated event will handle refresh
+                    // Actually, we don't have an event for ConfigUpdated coming back from thread.
+                    // We can reuse OpenConfig action if we want to refresh.
+                });
+            }
+            Action::ToggleExtension { name, enabled } => {
+                let client = client.clone();
+                let tx = tx.clone();
+                let session_id = state.session_id.clone();
+                let ext_name = name.clone();
+                let enabled = *enabled;
+
+                // We need the config object. It's in state, but we are inside async block.
+                // Pass it in? Or fetch it?
+                // We can find it in state.extensions
+                let ext_config = state
+                    .extensions
+                    .iter()
+                    .find(|e| e.config.name() == ext_name)
+                    .map(|e| e.config.clone());
+
+                if let Some(config) = ext_config {
+                    tokio::spawn(async move {
+                        if enabled {
+                            // Enable
+                            if let Err(e) = client.add_extension(&session_id, config.clone()).await
+                            {
+                                let _ = tx.send(Event::Error(format!(
+                                    "Failed to enable extension in session: {}",
+                                    e
+                                )));
+                            }
+                            if let Err(e) =
+                                client.add_config_extension(ext_name, config, true).await
+                            {
+                                let _ = tx.send(Event::Error(format!(
+                                    "Failed to enable extension in config: {}",
+                                    e
+                                )));
+                            }
+                        } else {
+                            // Disable
+                            if let Err(e) = client.remove_extension(&session_id, &ext_name).await {
+                                let _ = tx.send(Event::Error(format!(
+                                    "Failed to disable extension in session: {}",
+                                    e
+                                )));
+                            }
+                            // To disable in config, we update it with enabled=false
+                            if let Err(e) =
+                                client.add_config_extension(ext_name, config, false).await
+                            {
+                                let _ = tx.send(Event::Error(format!(
+                                    "Failed to disable extension in config: {}",
+                                    e
+                                )));
+                            }
+                        }
+
+                        // Refresh
+                        match client.get_extensions().await {
+                            Ok(extensions) => {
+                                let _ = tx.send(Event::ExtensionsLoaded(extensions));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Event::Error(e.to_string()));
+                            }
+                        }
+                    });
+                }
             }
             Action::Quit => {
                 state::reducer::update(state, action);

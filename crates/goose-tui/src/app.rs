@@ -2,6 +2,7 @@ use crate::components::chat::ChatComponent;
 use crate::components::info::InfoComponent;
 use crate::components::input::InputComponent;
 use crate::components::popups::builder::BuilderPopup;
+use crate::components::popups::config::ConfigPopup;
 use crate::components::popups::help::HelpPopup;
 use crate::components::popups::message::MessagePopup;
 use crate::components::popups::session::SessionPopup;
@@ -27,6 +28,7 @@ pub struct App<'a> {
     session_popup: SessionPopup,
     builder_popup: BuilderPopup<'a>,
     message_popup: MessagePopup,
+    config_popup: ConfigPopup,
 
     pub last_popup_close_time: Option<Instant>,
 }
@@ -49,6 +51,7 @@ impl<'a> App<'a> {
             session_popup: SessionPopup::new(),
             builder_popup: BuilderPopup::new(),
             message_popup: MessagePopup::new(),
+            config_popup: ConfigPopup::new(),
 
             last_popup_close_time: None,
         }
@@ -108,6 +111,15 @@ impl<'a> App<'a> {
             }
             return Ok(None);
         }
+        if state.showing_config {
+            if let Some(action) = self.config_popup.handle_event(event, state)? {
+                if matches!(action, Action::ClosePopup) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
         Ok(None)
     }
 
@@ -143,6 +155,19 @@ impl<'a> Component for App<'a> {
                 return Ok(Some(Action::SessionResumed((*session).clone())))
             }
             Event::ToolsLoaded(tools) => return Ok(Some(Action::ToolsLoaded(tools.clone()))),
+            Event::ProvidersLoaded(providers) => {
+                return Ok(Some(Action::ProvidersLoaded(providers.clone())))
+            }
+            Event::ExtensionsLoaded(extensions) => {
+                return Ok(Some(Action::ExtensionsLoaded(extensions.clone())))
+            }
+            Event::ModelsLoaded { provider, models } => {
+                return Ok(Some(Action::ModelsLoaded {
+                    provider: provider.clone(),
+                    models: models.clone(),
+                }))
+            }
+            Event::ConfigLoaded(config) => return Ok(Some(Action::ConfigLoaded(config.clone()))),
             Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
             Event::Resize => return Ok(Some(Action::Resize)),
             _ => {}
@@ -159,7 +184,8 @@ impl<'a> Component for App<'a> {
             || state.showing_help
             || state.showing_session_picker
             || state.showing_command_builder
-            || state.showing_message_info.is_some();
+            || state.showing_message_info.is_some()
+            || state.showing_config;
 
         if popup_active {
             if let Some(action) = self.handle_popups(event, state)? {
@@ -231,5 +257,6 @@ impl<'a> Component for App<'a> {
         if state.showing_message_info.is_some() {
             self.message_popup.render(f, f.area(), state);
         }
+        self.config_popup.render(f, f.area(), state);
     }
 }

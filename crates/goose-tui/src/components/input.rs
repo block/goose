@@ -118,6 +118,7 @@ impl<'a> Component for InputComponent<'a> {
                                         "/exit" | "/quit" => return Ok(Some(Action::Quit)),
                                         "/help" => return Ok(Some(Action::ToggleHelp)),
                                         "/todos" => return Ok(Some(Action::ToggleTodo)),
+                                        "/config" => return Ok(Some(Action::OpenConfig)),
                                         "/session" => return Ok(Some(Action::OpenSessionPicker)),
                                         "/alias" => return Ok(Some(Action::StartCommandBuilder)),
                                         "/clear" => return Ok(Some(Action::ClearChat)),
@@ -222,8 +223,8 @@ impl<'a> Component for InputComponent<'a> {
             if let Some(first_line) = self.textarea.lines().first() {
                 if first_line.starts_with('/') {
                     let mut commands = vec![
-                        "/exit", "/quit", "/help", "/todos", "/session", "/alias", "/clear",
-                        "/theme",
+                        "/exit", "/quit", "/help", "/todos", "/config", "/session", "/alias",
+                        "/clear", "/theme",
                     ];
                     let custom: Vec<String> = state
                         .config

@@ -1,6 +1,8 @@
 use super::action::Action;
 use crate::state::{AppState, InputMode, TodoItem};
 use goose::conversation::message::MessageContent;
+use goose::model::ModelConfig;
+use goose::providers::base::ModelInfo;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 use std::time::Instant;
@@ -42,6 +44,50 @@ pub fn update(state: &mut AppState, action: Action) {
         Action::ToolsLoaded(tools) => {
             state.available_tools = tools;
         }
+        Action::ProvidersLoaded(providers) => {
+            state.providers = providers;
+        }
+        Action::ExtensionsLoaded(extensions) => {
+            state.extensions = extensions;
+        }
+        Action::ModelsLoaded { provider, models } => {
+            if let Some(p) = state.providers.iter_mut().find(|p| p.name == provider) {
+                let existing_map: std::collections::HashMap<String, ModelInfo> = p
+                    .metadata
+                    .known_models
+                    .drain(..)
+                    .map(|m| (m.name.clone(), m))
+                    .collect();
+
+                let mut new_list = Vec::new();
+                for name in models {
+                    if let Some(info) = existing_map.get(&name) {
+                        new_list.push(info.clone());
+                    } else {
+                        let limit = ModelConfig::new(&name)
+                            .map(|c| c.context_limit())
+                            .unwrap_or(128_000);
+
+                        new_list.push(ModelInfo::new(name, limit));
+                    }
+                }
+                p.metadata.known_models = new_list;
+            }
+        }
+        Action::ConfigLoaded(config) => {
+            if let Some(obj) = config.as_object() {
+                if let Some(val) = obj.get("GOOSE_PROVIDER") {
+                    if let Some(s) = val.as_str() {
+                        state.active_provider = Some(s.to_string());
+                    }
+                }
+                if let Some(val) = obj.get("GOOSE_MODEL") {
+                    if let Some(s) = val.as_str() {
+                        state.active_model = Some(s.to_string());
+                    }
+                }
+            }
+        }
         Action::Error(e) => {
             state.flash_message = Some((
                 format!("Error: {e}"),
@@ -70,6 +116,7 @@ pub fn update(state: &mut AppState, action: Action) {
         Action::ToggleTodo => state.showing_todo = !state.showing_todo,
         Action::ToggleHelp => state.showing_help = !state.showing_help,
         Action::OpenSessionPicker => state.showing_session_picker = true,
+        Action::OpenConfig => state.showing_config = true,
         Action::CreateNewSession | Action::ResumeSession(_) => {
             state.is_working = true;
         }
@@ -90,6 +137,7 @@ pub fn update(state: &mut AppState, action: Action) {
             state.showing_session_picker = false;
             state.showing_command_builder = false;
             state.showing_message_info = None;
+            state.showing_config = false;
         }
         Action::DeleteCustomCommand(name) => {
             state.config.custom_commands.retain(|c| c.name != name);
@@ -102,6 +150,12 @@ pub fn update(state: &mut AppState, action: Action) {
             let _ = state.config.save();
             state.showing_command_builder = false;
         }
+        Action::UpdateProvider { provider, model } => {
+            state.active_provider = Some(provider);
+            state.active_model = Some(model);
+            state.showing_config = false;
+        }
+        _ => {} // For other actions handled in main (ToggleExtension)
     }
 }
 

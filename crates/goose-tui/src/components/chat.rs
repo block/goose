@@ -23,6 +23,7 @@ pub struct ChatComponent {
     stick_to_bottom: bool,
     frame_count: usize,
     last_input_mode: InputMode,
+    last_item_count: usize,
 }
 
 impl Default for ChatComponent {
@@ -42,6 +43,7 @@ impl ChatComponent {
             stick_to_bottom: true,
             frame_count: 0,
             last_input_mode: InputMode::Normal,
+            last_item_count: 0,
         }
     }
 
@@ -431,7 +433,11 @@ impl Component for ChatComponent {
                 }
                 MouseEventKind::ScrollDown => {
                     let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some(cur + 3));
+                    let next = cur + 3;
+                    self.list_state.select(Some(next));
+                    if next >= self.last_item_count.saturating_sub(1) {
+                        self.stick_to_bottom = true;
+                    }
                 }
                 MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
                     if let Some(idx) = self.list_state.selected() {
@@ -452,7 +458,11 @@ impl Component for ChatComponent {
                         }
                         KeyCode::Char('j') | KeyCode::Down => {
                             let cur = self.list_state.selected().unwrap_or(0);
-                            self.list_state.select(Some(cur + 1));
+                            let next = cur + 1;
+                            self.list_state.select(Some(next));
+                            if next >= self.last_item_count.saturating_sub(1) {
+                                self.stick_to_bottom = true;
+                            }
                         }
                         KeyCode::Enter => {
                             if let Some(idx) = self.list_state.selected() {
@@ -534,6 +544,8 @@ impl Component for ChatComponent {
         if self.stick_to_bottom && !display_items.is_empty() {
             self.list_state.select(Some(display_items.len() - 1));
         }
+
+        self.last_item_count = display_items.len();
 
         // Render Logo if empty
         if display_items.is_empty() {

@@ -1,6 +1,8 @@
+use crate::services::client::ProviderDetails;
 use crate::state::ToolInfo;
 use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
 use futures::{FutureExt, StreamExt};
+use goose::config::ExtensionEntry;
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
@@ -18,6 +20,13 @@ pub enum Event {
     SessionsList(Vec<Session>),
     SessionResumed(Box<Session>),
     ToolsLoaded(Vec<ToolInfo>),
+    ProvidersLoaded(Vec<ProviderDetails>),
+    ExtensionsLoaded(Vec<ExtensionEntry>),
+    ModelsLoaded {
+        provider: String,
+        models: Vec<String>,
+    },
+    ConfigLoaded(serde_json::Value),
     Error(String),
 }
 #[allow(dead_code)]
