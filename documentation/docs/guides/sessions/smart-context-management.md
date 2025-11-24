@@ -9,24 +9,24 @@ import TabItem from '@theme/TabItem';
 import { ScrollText } from 'lucide-react';
 import { PanelLeft } from 'lucide-react';
 
-When working with [Large Language Models (LLMs)](/docs/getting-started/providers), there are limits to how much conversation history they can process at once. Goose provides smart context management features to help handle context and conversation limits so you can maintain productive sessions. Here are some key concepts:
+When working with [Large Language Models (LLMs)](/docs/getting-started/providers), there are limits to how much conversation history they can process at once. goose provides smart context management features to help handle context and conversation limits so you can maintain productive sessions. Here are some key concepts:
 
 - **Context Length**: The amount of conversation history the LLM can consider, also referred to as the context window
 - **Context Limit**: The maximum number of tokens the model can process
-- **Context Management**: How Goose handles conversations approaching these limits
-- **Turn**: One complete prompt-response interaction between Goose and the LLM
+- **Context Management**: How goose handles conversations approaching these limits
+- **Turn**: One complete prompt-response interaction between goose and the LLM
 
-## How Goose Manages Context
-Goose uses a two-tiered approach to context management:
+## How goose Manages Context
+goose uses a two-tiered approach to context management:
 
 1. **Auto-Compaction**: Proactively summarizes conversation when approaching token limits
 2. **Context Strategies**: Backup strategy used if the context limit is still exceeded after auto-compaction
 
-This layered approach lets Goose handle token and context limits gracefully.
+This layered approach lets goose handle token and context limits gracefully.
 
 ## Automatic Compaction
-Goose automatically compacts (summarizes) older parts of your conversation when approaching token limits, allowing you to maintain long-running sessions without manual intervention. 
-Auto-compaction is triggered by default when you reach 80% of the token limit in Goose Desktop and the Goose CLI.
+goose automatically compacts (summarizes) older parts of your conversation when approaching token limits, allowing you to maintain long-running sessions without manual intervention. 
+Auto-compaction is triggered by default when you reach 80% of the token limit in goose Desktop and the goose CLI.
 
 Control the auto-compaction behavior with the `GOOSE_AUTO_COMPACT_THRESHOLD` [environment variable](/docs/guides/environment-variables.md#session-management). 
 Disable this feature by setting the value to `0.0`.
@@ -37,9 +37,9 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 ```
 
 When you reach the auto-compaction threshold:
-  1. Goose will automatically start compacting the conversation to make room.
+  1. goose will automatically start compacting the conversation to make room.
   2. Once complete, you'll see a confirmation message that the conversation was compacted and summarized.
-  3. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for Goose.
+  3. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for goose.
 
 ### Manual Compaction
 You can also trigger compaction manually before reaching context or token limits:
@@ -50,7 +50,7 @@ You can also trigger compaction manually before reaching context or token limits
   1. Point to the token usage indicator dot next to the model name at the bottom of the app
   2. Click <ScrollText className="inline" size={16} /> `Compact now` in the context window that appears
   3. Once complete, you'll see a confirmation message that the conversation was compacted and summarized.
-  4. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for Goose.
+  4. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for goose.
 
   :::info 
   You must send at least one message in the chat before the `Compact now` button is enabled. 
@@ -76,7 +76,7 @@ Key information has been preserved while reducing context length.
 
 ## Context Limit Strategies
 
-When auto-compaction is disabled, or if a conversation still exceeds the context limit, Goose offers different ways to handle it:
+When auto-compaction is disabled, or if a conversation still exceeds the context limit, goose offers different ways to handle it:
 
 | Feature | Description | Best For | Availability | Impact |
 |---------|-------------|-----------|-----------|---------|
@@ -88,7 +88,7 @@ When auto-compaction is disabled, or if a conversation still exceeds the context
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
-Goose Desktop exclusively uses summarization by compacting the conversation to manage context, preserving key information while reducing size.
+goose Desktop exclusively uses summarization by compacting the conversation to manage context, preserving key information while reducing size.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -99,7 +99,7 @@ The default behavior depends on the mode you're running in:
 - **Interactive mode**: Prompts user to choose (equivalent to `prompt`)
 - **Headless mode** (`goose run`): Automatically summarizes (equivalent to `summarize`)
 
-You can configure how Goose handles context limits by setting the `GOOSE_CONTEXT_STRATEGY` environment variable:
+You can configure how goose handles context limits by setting the `GOOSE_CONTEXT_STRATEGY` environment variable:
 
 ```bash
 # Set automatic strategy (choose one)
@@ -127,21 +127,21 @@ final_summary: [A summary of your conversation will appear here]
 
 Context maxed out
 --------------------------------------------------
-Goose summarized messages for you.
+goose summarized messages for you.
 ```
 
-**With `GOOSE_CONTEXT_STRATEGY` configured**, Goose will automatically apply your chosen strategy:
+**With `GOOSE_CONTEXT_STRATEGY` configured**, goose will automatically apply your chosen strategy:
 
 ```sh
 # Example with GOOSE_CONTEXT_STRATEGY=summarize
 Context maxed out - automatically summarized messages.
 --------------------------------------------------
-Goose automatically summarized messages for you.
+goose automatically summarized messages for you.
 
 # Example with GOOSE_CONTEXT_STRATEGY=truncate
 Context maxed out - automatically truncated messages.
 --------------------------------------------------
-Goose tried its best to truncate messages for you.
+goose tried its best to truncate messages for you.
 
 # Example with GOOSE_CONTEXT_STRATEGY=clear
 Context maxed out - automatically cleared session.
@@ -151,7 +151,7 @@ Context maxed out - automatically cleared session.
 </Tabs>
 
 ## Maximum Turns
-The `Max Turns` limit is the maximum number of consecutive turns that Goose can take without user input (default: 1000). When the limit is reached, Goose stops and prompts: "I've reached the maximum number of actions I can do without user input. Would you like me to continue?" If the user answers in the affirmative, Goose continues until the limit is reached and then prompts again.
+The `Max Turns` limit is the maximum number of consecutive turns that goose can take without user input (default: 1000). When the limit is reached, goose stops and prompts: "I've reached the maximum number of actions I can do without user input. Would you like me to continue?" If the user answers in the affirmative, goose continues until the limit is reached and then prompts again.
 
 This feature gives you control over agent autonomy and prevents infinite loops and runaway behavior, which could have significant cost consequences or damaging impact in production environments. Use it for:
 
@@ -177,7 +177,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       goose configure
       ```
 
-      2. Select `Goose Settings`:
+      2. Select `goose settings`:
       ```sh
       ┌   goose-configure
       │
@@ -187,7 +187,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       │  ○ Toggle Extensions
       │  ○ Remove Extension
       // highlight-start
-      │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
+      │  ● goose settings (Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more)
       // highlight-end
       └ 
       ```
@@ -197,10 +197,10 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       ┌   goose-configure
       │
       ◇  What would you like to configure?
-      │  Goose Settings
+      │  goose settings
       │
       ◆  What setting would you like to configure?
-      │  ○ Goose Mode 
+      │  ○ goose mode 
       │  ○ Router Tool Selection Strategy 
       │  ○ Tool Permission 
       │  ○ Tool Output 
@@ -208,7 +208,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       │  ● Max Turns (Set maximum number of turns without user input)
       // highlight-end
       │  ○ Toggle Experiment 
-      │  ○ Goose recipe github repo 
+      │  ○ goose recipe github repo 
       │  ○ Scheduler Type 
       └ 
       ```
@@ -218,7 +218,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       ┌   goose-configure 
       │
       ◇  What would you like to configure?
-      │  Goose Settings 
+      │  goose settings 
       │
       ◇  What setting would you like to configure?
       │  Max Turns 
@@ -228,7 +228,7 @@ This setting is stored as the `GOOSE_MAX_TURNS` environment variable in your [co
       │  10
         // highlight-end
       │
-      └  Set maximum turns to 10 - Goose will ask for input after 10 consecutive actions
+      └  Set maximum turns to 10 - goose will ask for input after 10 consecutive actions
       ```
 
       :::tip
@@ -245,12 +245,12 @@ The appropriate max turns value depends on your use case and comfort level with 
 
 - **5-10 turns**: Good for exploratory tasks, debugging, or when you want frequent check-ins. For example, "analyze this codebase and suggest improvements" where you want to review each step
 - **25-50 turns**: Effective for well-defined tasks with moderate complexity, such as "refactor this module to use the new API" or "set up a basic CI/CD pipeline"
-- **100+ turns**: More suitable for complex, multi-step automation where you trust Goose to work independently, like "migrate this entire project from React 16 to React 18" or "implement comprehensive test coverage for this service"
+- **100+ turns**: More suitable for complex, multi-step automation where you trust goose to work independently, like "migrate this entire project from React 16 to React 18" or "implement comprehensive test coverage for this service"
 
-Remember that even simple-seeming tasks often require multiple turns. For example, asking Goose to "fix the failing tests" might involve analyzing test output (1 turn), identifying the root cause (1 turn), making code changes (1 turn), and verifying the fix (1 turn).
+Remember that even simple-seeming tasks often require multiple turns. For example, asking goose to "fix the failing tests" might involve analyzing test output (1 turn), identifying the root cause (1 turn), making code changes (1 turn), and verifying the fix (1 turn).
 
 ## Token Usage
-After sending your first message, Goose Desktop and Goose CLI display token usage.
+After sending your first message, goose Desktop and goose CLI display token usage.
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
@@ -280,7 +280,7 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
 
 ## Model Context Limit Overrides
 
-Context limits are automatically detected based on your model name, but Goose provides settings to override the default limits:
+Context limits are automatically detected based on your model name, but goose provides settings to override the default limits:
 
 | Model | Description | Best For | Setting |
 |-------|-------------|----------|---------|
@@ -295,12 +295,12 @@ This setting only affects the displayed token usage and progress indicators. Act
 
 This feature is particularly useful with:
 
-- **LiteLLM Proxy Models**: When using LiteLLM with custom model names that don't match Goose's patterns
+- **LiteLLM Proxy Models**: When using LiteLLM with custom model names that don't match goose's patterns
 - **Enterprise Deployments**: Custom model deployments with non-standard naming  
 - **Fine-tuned Models**: Custom models with different context limits than their base versions
 - **Development/Testing**: Temporarily adjusting context limits for testing purposes
 
-Goose resolves context limits with the following precedence (highest to lowest):
+goose resolves context limits with the following precedence (highest to lowest):
 
 1. Explicit context_limit in model configuration (if set programmatically)
 2. Specific environment variable (e.g., `GOOSE_LEAD_CONTEXT_LIMIT`)
@@ -313,7 +313,7 @@ Goose resolves context limits with the following precedence (highest to lowest):
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
-     Model context limit overrides are not yet available in the Goose Desktop app.
+     Model context limit overrides are not yet available in the goose Desktop app.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -368,14 +368,14 @@ To manage live cost tracking:
   3. Click the `App` tab 
   4. Toggle `Cost Tracking` on/off
 
-The session cost is shown at the bottom of the Goose window and updates dynamically as tokens are consumed. Hover over the cost to see a detailed breakdown of token usage. If multiple models are used in the session, this includes a cost breakdown by model. Ollama and local deployments always show a cost of $0.00.
+The session cost is shown at the bottom of the goose window and updates dynamically as tokens are consumed. Hover over the cost to see a detailed breakdown of token usage. If multiple models are used in the session, this includes a cost breakdown by model. Ollama and local deployments always show a cost of $0.00.
 
 Pricing data is regularly fetched from the OpenRouter API and cached locally. The `Advanced settings` tab shows when the data was last updated and allows you to refresh. 
 
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
 </TabItem>
     <TabItem value="cli" label="goose CLI">
-    Show estimated cost in the Goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-files.md).
+    Show estimated cost in the goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-files.md).
 
   ```
   # Set environment variable

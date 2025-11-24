@@ -21,7 +21,7 @@ The "main recipe" registers its subrecipes in the `sub_recipes` field, which con
 - `path`: File path to the subrecipe file (relative or absolute)
 - `values`: (Optional) Pre-configured parameter values that are always passed to the subrecipe
 
-When the main recipe is run, Goose generates a tool for each subrecipe that:
+When the main recipe is run, goose generates a tool for each subrecipe that:
 - Accepts parameters defined by the subrecipe
 - Executes the subrecipe in a separate session with its own context
 - Returns output to the main recipe
@@ -410,4 +410,4 @@ In this example:
 - **Test independently**: Verify subrecipes work alone before combining
 
 ## Learn More
-Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
+Check out the [Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master goose recipes.
