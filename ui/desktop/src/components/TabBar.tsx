@@ -180,7 +180,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         <TabTooltip key={tab.id} tab={tab} workingDirectory={workingDirectory}>
           <button
             className={cn(
-              "h-8 px-3 cursor-pointer no-drag border-0 rounded-2xl inline-flex items-center gap-1.5",
+              "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
               "w-[160px] group relative tab-item",
               "transition-all duration-200 ease-out",
               tab.isActive
@@ -189,18 +189,20 @@ export const TabBar: React.FC<TabBarProps> = ({
             )}
             onClick={() => onTabClick(tab.id)}
           >
-            {/* Tab Title - flex-1 to take available space */}
-            <span className={cn(
-              "truncate text-xs font-normal flex-1 pointer-events-none text-left",
-              tab.isActive
-                ? "text-slate-200"
-                : "text-neutral-700"
-            )}>
-              {getTabTitle(tab)}
-            </span>
+            {/* Tab Title - with explicit padding */}
+            <div className="flex-1 min-w-0 pl-3">
+              <span className={cn(
+                "truncate text-xs font-normal block pointer-events-none text-left",
+                tab.isActive
+                  ? "text-slate-200"
+                  : "text-neutral-700"
+              )}>
+                {getTabTitle(tab)}
+              </span>
+            </div>
 
             {/* Close Button - Always reserve space, only show icon when active */}
-            <div className="flex-shrink-0 w-3 flex items-center justify-center">
+            <div className="flex-shrink-0 w-3 pr-3 flex items-center justify-center">
               {tab.isActive && (
                 <button
                   onClick={(e) => {
