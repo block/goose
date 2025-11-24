@@ -121,6 +121,70 @@ export default function CommentableMarkdown({
     }
   }, [currentSelection, onCreateComment]);
 
+  // Render highlight for active selection (while creating comment)
+  const renderActiveSelectionHighlight = useCallback(() => {
+    if (!currentSelection || !containerRef.current) return null;
+
+    try {
+      const containerText = containerRef.current.textContent || '';
+      const range = document.createRange();
+      const walker = document.createTreeWalker(
+        containerRef.current,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let currentOffset = 0;
+      let startNode = null;
+      let endNode = null;
+      let relativeStartOffset = 0;
+      let relativeEndOffset = 0;
+
+      // Walk through text nodes to find the right positions
+      let textNode;
+      while (textNode = walker.nextNode()) {
+        const nodeLength = textNode.textContent?.length || 0;
+        
+        if (!startNode && currentOffset + nodeLength > currentSelection.startOffset) {
+          startNode = textNode;
+          relativeStartOffset = currentSelection.startOffset - currentOffset;
+        }
+        
+        if (startNode && currentOffset + nodeLength >= currentSelection.endOffset) {
+          endNode = textNode;
+          relativeEndOffset = currentSelection.endOffset - currentOffset;
+          break;
+        }
+        
+        currentOffset += nodeLength;
+      }
+
+      if (!startNode || !endNode) return null;
+
+      range.setStart(startNode, Math.max(0, relativeStartOffset));
+      range.setEnd(endNode, Math.min(endNode.textContent?.length || 0, relativeEndOffset));
+      
+      const rects = range.getClientRects();
+      const containerRect = containerRef.current.getBoundingClientRect();
+
+      return Array.from(rects).map((rect, index) => (
+        <div
+          key={`active-selection-${index}`}
+          className="absolute pointer-events-none bg-yellow-200/40 dark:bg-yellow-500/30 rounded-sm border border-yellow-300/60 dark:border-yellow-400/40"
+          style={{
+            left: rect.left - containerRect.left,
+            top: rect.top - containerRect.top,
+            width: rect.width,
+            height: rect.height,
+          }}
+        />
+      ));
+    } catch (error) {
+      console.warn('Error rendering active selection highlight:', error);
+      return null;
+    }
+  }, [currentSelection]);
+
   // Render highlights for existing comments
   const renderHighlights = useCallback(() => {
     if (!comments.length || !containerRef.current) return null;
@@ -215,12 +279,13 @@ export default function CommentableMarkdown({
         onMouseUp={handleMouseUp}
         className="relative select-text"
       >
+        {renderActiveSelectionHighlight()}
         {renderHighlights()}
         <MarkdownContent content={content} />
       </div>
 
-      {/* Comment button */}
-      {showCommentButton && currentSelection && (
+      {/* Comment button - hidden, selection triggers badge instead */}
+      {/* {showCommentButton && currentSelection && (
         <button
           data-comment-ui
           onClick={handleCreateComment}
@@ -232,7 +297,7 @@ export default function CommentableMarkdown({
         >
           💬 Comment
         </button>
-      )}
+      )} */}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { FileViewer } from '../FileViewer';
 import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
 import AppInstaller from '../AppInstaller';
+import { useUnifiedSidecarContextOptional } from '../../contexts/UnifiedSidecarContext';
 
 export interface SidecarContainer {
   id: string;
@@ -341,6 +342,9 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   onAddContainer,
   onReorderContainers 
 }) => {
+  // Get unified sidecar context for AI awareness
+  const unifiedSidecarContext = useUnifiedSidecarContextOptional();
+  
   // Enhanced container removal handler that destroys child windows
   const handleContainerRemoval = useCallback((containerId: string) => {
     console.log('🔍 EnhancedBentoBox: Removing container:', containerId);
@@ -380,6 +384,128 @@ export const EnhancedBentoBox: React.FC<EnhancedBentoBoxProps> = ({
   // Use ref to store current containers to avoid callback dependencies
   const containersRef = useRef(containers);
   containersRef.current = containers;
+  
+  // Track which containers we've registered to avoid duplicate registrations
+  const registeredContainersRef = useRef<Set<string>>(new Set());
+  
+  // Register/unregister containers with unified sidecar context for AI awareness
+  // NOTE: WebViewer and some other components handle their own registration
+  // with real-time updates, so we only register containers that don't self-register
+  useEffect(() => {
+    if (!unifiedSidecarContext) {
+      console.log('🔧 EnhancedBentoBox: No unified sidecar context available');
+      return;
+    }
+
+    console.log('🔧 EnhancedBentoBox: Syncing', containers.length, 'containers with unified context');
+
+    // Get current container IDs (excluding web-viewer which self-registers)
+    const currentContainerIds = new Set(
+      containers
+        .filter(c => c.contentType !== 'web-viewer')
+        .map(c => c.id)
+    );
+    
+    // Unregister containers that are no longer present
+    registeredContainersRef.current.forEach(registeredId => {
+      if (!currentContainerIds.has(registeredId)) {
+        console.log('🔧 EnhancedBentoBox: Unregistering removed container:', registeredId);
+        unifiedSidecarContext.unregisterSidecar(registeredId);
+        registeredContainersRef.current.delete(registeredId);
+      }
+    });
+
+    // Register new containers that aren't already registered
+    containers.forEach(container => {
+      // Skip if already registered or if it's a web-viewer (self-registers)
+      if (registeredContainersRef.current.has(container.id) || container.contentType === 'web-viewer') {
+        return;
+      }
+      
+      let sidecarInfo;
+      
+      switch (container.contentType) {
+        case 'localhost':
+          // SidecarTabs (localhost viewer) - register here since it doesn't self-register
+          sidecarInfo = {
+            id: container.id,
+            type: 'localhost-viewer' as const,
+            title: container.title || 'Localhost Viewer',
+            url: 'http://localhost:3000',
+            port: 3000,
+            protocol: 'http' as const,
+            isLocal: true,
+            serviceType: 'development',
+            timestamp: Date.now(),
+          };
+          break;
+          
+        case 'file':
+          const filePath = container.contentProps?.filePath || '';
+          const fileName = filePath.split('/').pop() || filePath;
+          const fileExtension = fileName.split('.').pop() || '';
+          sidecarInfo = {
+            id: container.id,
+            type: 'file-viewer' as const,
+            title: container.title || 'File Viewer',
+            filePath: filePath,
+            fileName: fileName,
+            fileSize: 0, // Would need to fetch from file system
+            fileType: fileExtension,
+            isReadable: true,
+            lastModified: Date.now(),
+            timestamp: Date.now(),
+          };
+          break;
+          
+        case 'document-editor':
+          const editorFilePath = container.contentProps?.filePath;
+          const editorFileName = editorFilePath 
+            ? editorFilePath.split('/').pop() || editorFilePath 
+            : container.title || 'Untitled Document';
+          sidecarInfo = {
+            id: container.id,
+            type: 'document-editor' as const,
+            title: container.title || 'Document Editor',
+            filePath: editorFilePath,
+            fileName: editorFileName,
+            contentLength: 0, // Would need to track content length
+            hasUnsavedChanges: false,
+            isNewDocument: !editorFilePath,
+            language: editorFilePath ? editorFilePath.split('.').pop() : undefined,
+            timestamp: Date.now(),
+          };
+          break;
+          
+        case 'app-installer':
+          sidecarInfo = {
+            id: container.id,
+            type: 'app-installer' as const,
+            title: container.title || 'App Installer',
+            availableAppsCount: 0, // Would need to fetch from AppInstaller
+            installedAppsCount: 0,
+            currentView: 'browse' as const,
+            timestamp: Date.now(),
+          };
+          break;
+      }
+
+      if (sidecarInfo) {
+        unifiedSidecarContext.registerSidecar(sidecarInfo);
+        registeredContainersRef.current.add(container.id);
+        console.log('🔧 EnhancedBentoBox: Registered new sidecar:', sidecarInfo.id, sidecarInfo.type);
+      }
+    });
+
+    // Cleanup on unmount: unregister all our tracked containers
+    return () => {
+      console.log('🔧 EnhancedBentoBox: Cleanup - unregistering all tracked containers');
+      registeredContainersRef.current.forEach(containerId => {
+        unifiedSidecarContext.unregisterSidecar(containerId);
+      });
+      registeredContainersRef.current.clear();
+    };
+  }, [unifiedSidecarContext, containers]);
   
   // Debug containers changes
   useEffect(() => {

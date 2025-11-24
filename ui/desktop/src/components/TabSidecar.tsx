@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, SquareSplitHorizontal, BetweenHorizontalStart, FileDiff, Globe, FileText, Edit, Monitor } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
 import DocumentEditor from './DocumentEditor';
 import WebBrowser from './WebBrowser';
+import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 interface TabSidecarProps {
   sidecarState: TabSidecarState;
@@ -95,10 +96,120 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
   className = ''
 }) => {
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('unified');
+  const unifiedSidecarContext = useUnifiedSidecarContextOptional();
 
   // Get the first active view (for now, we'll show one at a time)
   const currentViewId = sidecarState.activeViews[0];
   const currentView = sidecarState.views.find(v => v.id === currentViewId);
+
+  // Register the current view with UnifiedSidecarContext for AI awareness
+  useEffect(() => {
+    if (!unifiedSidecarContext || !currentView) {
+      return;
+    }
+
+    console.log('🔧 TabSidecar: Registering view with unified context:', currentView.id, currentView.contentType);
+
+    // Create sidecar info based on content type
+    let sidecarInfo;
+    const sidecarId = `tab-${tabId}-${currentView.id}`;
+
+    switch (currentView.contentType) {
+      case 'diff':
+        const diffLines = (currentView.contentProps.diffContent || '').split('\n');
+        const addedLines = diffLines.filter((line: string) => line.startsWith('+')).length;
+        const removedLines = diffLines.filter((line: string) => line.startsWith('-')).length;
+        
+        sidecarInfo = {
+          id: sidecarId,
+          type: 'diff-viewer' as const,
+          title: currentView.title || 'Diff Viewer',
+          fileName: currentView.fileName || 'File',
+          filePath: undefined,
+          addedLines,
+          removedLines,
+          totalChanges: addedLines + removedLines,
+          viewMode: viewMode,
+          timestamp: Date.now(),
+        };
+        break;
+
+      case 'localhost':
+        const localhostUrl = currentView.contentProps.url || 'http://localhost:3000';
+        const port = parseInt(new URL(localhostUrl).port) || 3000;
+        
+        sidecarInfo = {
+          id: sidecarId,
+          type: 'localhost-viewer' as const,
+          title: currentView.title || 'Localhost Viewer',
+          url: localhostUrl,
+          port,
+          protocol: new URL(localhostUrl).protocol.replace(':', '') as 'http' | 'https',
+          isLocal: true,
+          serviceType: 'development',
+          timestamp: Date.now(),
+        };
+        break;
+
+      case 'web':
+        // Note: WebBrowser component handles its own registration
+        // Skip registration here to avoid duplicates
+        console.log('🔧 TabSidecar: Skipping web viewer registration (handled by WebBrowser component)');
+        break;
+
+      case 'file':
+        const filePath = currentView.contentProps.path || '';
+        const fileName = filePath.split('/').pop() || filePath;
+        const fileExtension = fileName.split('.').pop() || '';
+        
+        sidecarInfo = {
+          id: sidecarId,
+          type: 'file-viewer' as const,
+          title: currentView.title || 'File Viewer',
+          filePath,
+          fileName,
+          fileSize: 0, // Would need to fetch from file system
+          fileType: fileExtension,
+          isReadable: true,
+          lastModified: Date.now(),
+          timestamp: Date.now(),
+        };
+        break;
+
+      case 'editor':
+        const editorPath = currentView.contentProps.path;
+        const editorFileName = editorPath 
+          ? editorPath.split('/').pop() || editorPath 
+          : currentView.fileName || 'Untitled Document';
+        
+        sidecarInfo = {
+          id: sidecarId,
+          type: 'document-editor' as const,
+          title: currentView.title || 'Document Editor',
+          filePath: editorPath,
+          fileName: editorFileName,
+          contentLength: (currentView.contentProps.content || '').length,
+          hasUnsavedChanges: false, // Would need to track this
+          isNewDocument: !editorPath,
+          language: editorPath ? editorPath.split('.').pop() : undefined,
+          timestamp: Date.now(),
+        };
+        break;
+    }
+
+    if (sidecarInfo) {
+      unifiedSidecarContext.registerSidecar(sidecarInfo);
+      console.log('🔧 TabSidecar: Registered sidecar:', sidecarInfo.id, sidecarInfo.type);
+    }
+
+    // Cleanup: unregister when view changes or component unmounts
+    return () => {
+      if (sidecarInfo) {
+        unifiedSidecarContext.unregisterSidecar(sidecarId);
+        console.log('🔧 TabSidecar: Unregistered sidecar:', sidecarId);
+      }
+    };
+  }, [unifiedSidecarContext, currentView, tabId, viewMode]);
 
   if (!currentView || !sidecarState.activeViews.includes(currentView.id)) {
     return null;

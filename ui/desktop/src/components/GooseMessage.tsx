@@ -7,6 +7,7 @@ import CommentableMarkdown from './CommentableMarkdown';
 import MessageComments from './MessageComments';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import ToolCallChain from './ToolCallChain';
+import { useCommentDisplayMode } from '../hooks/useCommentDisplayMode';
 import {
   identifyConsecutiveToolCalls,
   shouldHideMessage,
@@ -83,8 +84,17 @@ export default function GooseMessage({
   onFocusComment,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  
   // Track which tool confirmations we've already handled to prevent infinite loops
   const handledToolConfirmations = useRef<Set<string>>(new Set());
+  
+  // Detect display mode for comments based on available space and sidecar state
+  const { displayMode } = useCommentDisplayMode({
+    containerRef: messageContainerRef,
+    breakpoint: 1200,
+    condenseWithSidecar: true,
+  });
 
   // Extract text content from the message
   let textContent = getTextContent(message);
@@ -258,7 +268,14 @@ export default function GooseMessage({
   const isFromCollaborator = message.sender && (message as any).metadata?.isFromCollaborator;
 
   return (
-    <div className="goose-message flex w-full justify-start min-w-0 gap-3 relative">
+    <div 
+      ref={messageContainerRef} 
+      className={cn(
+        "goose-message flex w-full justify-start min-w-0 gap-3 relative",
+        // Add right padding in condensed mode to make room for comment gutter
+        displayMode === 'condensed' && 'pr-16'
+      )}
+    >
       {/* Goose Avatar on the left side with optional user badge */}
       <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
         {/* Main Goose avatar */}
@@ -390,10 +407,13 @@ export default function GooseMessage({
 
       </div>
 
-      {/* Floating comments - positioned absolutely to the right */}
-      {/* Only show if this message has existing comments OR if this is the active message for commenting */}
+      {/* Comments - positioned absolutely to the right for both modes */}
+      {/* Badge appears in right gutter near highlighted text, drawer overlays when expanded */}
       {((comments && comments.length > 0) || (isCreatingComment && activeMessageId === uniqueMessageId)) && (
-        <div className="absolute left-full ml-4 top-0 w-80 z-10">
+        <div className={cn(
+          'absolute top-0 z-10',
+          displayMode === 'full' ? 'left-full ml-4 w-80' : 'right-2'
+        )}>
           <MessageComments
             messageId={uniqueMessageId}
             comments={comments || []}
@@ -406,6 +426,7 @@ export default function GooseMessage({
             onReplyToComment={onReplyToComment || (() => {})}
             onResolveComment={onResolveComment || (() => {})}
             onCancelComment={onCancelComment || (() => {})}
+            displayMode={displayMode}
           />
         </div>
       )}

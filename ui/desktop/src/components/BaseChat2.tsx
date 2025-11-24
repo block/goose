@@ -106,6 +106,7 @@ function BaseChatContent({
     initialMessage,
     onSessionIdChange,
     isMatrixTab: !!matrixRoomId, // Pass Matrix tab flag based on whether we have a matrixRoomId
+    tabId, // Pass tabId for sidecar filtering
   });
 
   // Create append function for adding messages programmatically

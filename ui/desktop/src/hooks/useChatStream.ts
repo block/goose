@@ -116,6 +116,7 @@ interface UseChatStreamProps {
   initialMessage?: string;
   onSessionIdChange?: (newSessionId: string) => void;
   isMatrixTab?: boolean; // Flag to indicate if this is a Matrix tab that should listen for Matrix messages
+  tabId?: string; // Tab ID to filter sidecars for context injection
 }
 
 interface UseChatStreamReturn {
@@ -284,6 +285,7 @@ export function useChatStream({
   initialMessage,
   onSessionIdChange,
   isMatrixTab = false,
+  tabId,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -473,7 +475,90 @@ export function useChatStream({
       // Check if this is a goose control command or mention that shouldn't trigger AI response
       const commandResult = checkForGooseCommands(userMessage, gooseEnabled);
       
-      const currentMessages = [...messagesRef.current, createUserMessage(userMessage)];
+      // Inject sidecar context into the user message before creating the message object
+      let messageWithContext = userMessage;
+      
+      // Get unified sidecar context from global window object
+      const unifiedSidecarContext = (window as any).__unifiedSidecarContext;
+      
+      if (unifiedSidecarContext && unifiedSidecarContext.getSidecarContext) {
+        try {
+          let activeSidecars = unifiedSidecarContext.getActiveSidecars ? unifiedSidecarContext.getActiveSidecars() : [];
+          console.log('🔧 useChatStream: All active sidecars:', activeSidecars.length);
+          console.log('🔧 useChatStream: All sidecar details:', 
+            activeSidecars.map((s: any) => ({ 
+              id: s.id, 
+              type: s.type, 
+              title: s.title,
+              fileName: s.fileName,
+              filePath: s.filePath 
+            })));
+          
+          // Filter sidecars by tabId if provided
+          if (tabId) {
+            const tabPrefix = `tab-${tabId}-`;
+            activeSidecars = activeSidecars.filter((s: any) => s.id.startsWith(tabPrefix));
+            console.log('🔧 useChatStream: Filtered to tab', tabId, ':', activeSidecars.length, 'sidecars');
+            console.log('🔧 useChatStream: Tab-filtered sidecar details:', 
+              activeSidecars.map((s: any) => ({ 
+                id: s.id, 
+                type: s.type, 
+                title: s.title 
+              })));
+          }
+          
+          // Generate context only from filtered sidecars
+          // We need to temporarily override the context to only include our filtered sidecars
+          const contextInfo = activeSidecars.length > 0 
+            ? generateContextForSidecars(activeSidecars)
+            : '';
+            
+          console.log('🔧 useChatStream: Generated context info length:', contextInfo.length, 'chars');
+          if (contextInfo.length > 0) {
+            console.log('🔧 useChatStream: Context preview:', contextInfo.substring(0, 500));
+          }
+          
+          if (contextInfo.trim()) {
+            // Prepend context to user message
+            messageWithContext = `${contextInfo}\n\n---\n\n${userMessage}`;
+            console.log('🔧 useChatStream: Successfully injected sidecar context');
+          } else {
+            console.log('🔧 useChatStream: Context info is empty, not injecting');
+          }
+        } catch (error) {
+          console.error('🔧 useChatStream: Error injecting sidecar context:', error);
+        }
+      } else {
+        console.log('🔧 useChatStream: No unified sidecar context found on window object');
+      }
+      
+      // Helper function to generate context from filtered sidecars
+      function generateContextForSidecars(sidecars: any[]): string {
+        if (sidecars.length === 0) return '';
+        
+        let contextParts: string[] = [];
+        contextParts.push('## Active Tools & Context');
+        contextParts.push('The user currently has the following tools and content open in sidecars:');
+        contextParts.push('');
+
+        sidecars.forEach((sidecar, index) => {
+          contextParts.push(`### ${index + 1}. ${sidecar.type} - ${sidecar.title}`);
+          if (sidecar.fileName) {
+            contextParts.push(`File: **${sidecar.fileName}**`);
+          }
+          if (sidecar.filePath) {
+            contextParts.push(`Path: ${sidecar.filePath}`);
+          }
+          contextParts.push('');
+        });
+
+        contextParts.push('Use this context to provide more relevant assistance based on the tools and content the user is actively working with.');
+        contextParts.push('');
+
+        return contextParts.join('\n');
+      }
+      
+      const currentMessages = [...messagesRef.current, createUserMessage(messageWithContext)];
       setMessagesAndLog(currentMessages, 'user-entered');
 
       // Update goose enabled state if it changed
