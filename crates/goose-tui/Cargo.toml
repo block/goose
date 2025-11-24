@@ -10,6 +10,7 @@ description = "A terminal user interface for Goose"
 [dependencies]
 goose = { path = "../goose" }
 goose-server = { path = "../goose-server" }
+goose-client = { path = "../goose-client" }
 rmcp = { workspace = true }
 anyhow = "1.0"
 ratatui = "0.29.0"

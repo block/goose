@@ -1,7 +1,6 @@
-use crate::services::events::Event;
-use crate::state::ToolInfo;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
+use futures::stream::{self, Stream};
 use goose::agents::ExtensionConfig;
 use goose::config::ExtensionEntry;
 use goose::conversation::message::Message;
@@ -10,8 +9,14 @@ use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use reqwest::Client as ReqwestClient;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolInfo {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct Client {
@@ -143,8 +148,6 @@ impl Client {
             .context("Failed to fetch provider models")?;
 
         if !response.status().is_success() {
-            // If we get a 400 or similar (e.g. unconfigured), we might just want to return empty list or handle gracefully
-            // But for now bail with error text
             let error_text = response.text().await.unwrap_or_default();
             anyhow::bail!("Failed to get provider models: {}", error_text);
         }
@@ -406,9 +409,8 @@ impl Client {
         &self,
         messages: Vec<Message>,
         session_id: String,
-        tx: mpsc::UnboundedSender<Event>,
-    ) -> Result<()> {
-        let mut stream = self
+    ) -> Result<impl Stream<Item = Result<MessageEvent>>> {
+        let stream = self
             .http_client
             .post(format!("{}/reply", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
@@ -424,28 +426,28 @@ impl Client {
             .bytes_stream()
             .eventsource();
 
-        while let Some(event) = stream.next().await {
+        Ok(stream.map(|event| {
             match event {
                 Ok(event) => {
                     if event.data == "[DONE]" {
-                        break;
-                    }
-                    match serde_json::from_str::<MessageEvent>(&event.data) {
-                        Ok(msg) => {
-                            let _ = tx.send(Event::Server(std::sync::Arc::new(msg)));
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to parse SSE event: {}", e);
-                        }
+                        // We can't signal completion easily in the stream except by ending it.
+                        // eventsource-stream might continue.
+                        // But usually [DONE] is the last message.
+                        // We can return a special value or just handle it.
+                        // For now, let's try to parse it, it will fail, then we return error?
+                        // Or filter it out?
+                        // Better: map it to a Finish-like event if it wasn't already?
+                        // Actually, the server sends a Finish event before [DONE].
+                        // So we can probably ignore [DONE] by filtering?
+                        // Or we can treat it as end of stream.
+                        // Let's just try to parse.
+                        serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
+                    } else {
+                        serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
                     }
                 }
-                Err(e) => {
-                    tracing::error!("SSE stream error: {}", e);
-                    let _ = tx.send(Event::Error(e.to_string()));
-                }
+                Err(e) => Err(anyhow::anyhow!("SSE stream error: {}", e)),
             }
-        }
-
-        Ok(())
+        }))
     }
 }

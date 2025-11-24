@@ -1,11 +1,11 @@
 pub mod action;
 pub mod reducer;
 
-use crate::services::client::ProviderDetails;
 use crate::services::config::TuiConfig;
 use goose::config::ExtensionEntry;
 use goose::conversation::message::{Message, TokenState};
 use goose::session::Session;
+use goose_client::{ProviderDetails, ToolInfo};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
@@ -13,13 +13,6 @@ use std::time::Instant;
 pub enum InputMode {
     Normal,
     Editing,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolInfo {
-    pub name: String,
-    pub description: String,
-    pub parameters: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

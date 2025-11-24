@@ -1,9 +1,8 @@
-use crate::services::client::ProviderDetails;
-use crate::state::ToolInfo;
 use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
 use futures::{FutureExt, StreamExt};
 use goose::config::ExtensionEntry;
 use goose::session::Session;
+use goose_client::{ProviderDetails, ToolInfo};
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 use std::time::Duration;

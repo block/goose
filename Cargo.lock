@@ -2975,6 +2975,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-client"
+version = "1.14.0"
+dependencies = [
+ "anyhow",
+ "eventsource-stream",
+ "futures",
+ "goose",
+ "goose-server",
+ "reqwest 0.12.12",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
 name = "goose-mcp"
 version = "1.14.0"
 dependencies = [
@@ -3100,6 +3117,7 @@ dependencies = [
  "eventsource-stream",
  "futures",
  "goose",
+ "goose-client",
  "goose-mcp",
  "goose-server",
  "pulldown-cmark",

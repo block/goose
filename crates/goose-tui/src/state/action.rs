@@ -1,8 +1,7 @@
-use crate::services::client::ProviderDetails;
 use crate::services::config::CustomCommand;
-use crate::state::ToolInfo;
 use goose::config::ExtensionEntry;
 use goose::session::Session;
+use goose_client::{ProviderDetails, ToolInfo};
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 

@@ -9,7 +9,7 @@ use anyhow::Result;
 use app::App;
 use clap::{Parser, Subcommand};
 use components::Component;
-use services::client::Client;
+use goose_client::Client;
 use services::config::TuiConfig;
 use services::events::{Event, EventHandler};
 use state::action::Action;
@@ -17,6 +17,7 @@ use state::AppState;
 use std::env;
 use std::fs;
 use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
@@ -221,11 +222,22 @@ fn process_event(
                 let session_id = state.session_id.clone();
 
                 let task = tokio::spawn(async move {
-                    if let Err(e) = client
-                        .reply(messages_snapshot, session_id, tx.clone())
-                        .await
-                    {
-                        let _ = tx.send(Event::Error(e.to_string()));
+                    match client.reply(messages_snapshot, session_id).await {
+                        Ok(mut stream) => {
+                            while let Some(result) = stream.next().await {
+                                match result {
+                                    Ok(msg) => {
+                                        let _ = tx.send(Event::Server(std::sync::Arc::new(msg)));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Event::Error(e.to_string()));
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Event::Error(e.to_string()));
+                        }
                     }
                 });
                 *reply_task = Some(task);
