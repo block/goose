@@ -340,7 +340,6 @@ impl Agent {
     }
 
     async fn handle_denied_tools(permission_check_result: &&PermissionCheckResult, request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>) {
-        // Handle denied tools
         for request in &permission_check_result.denied {
             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                 let mut response = response_msg.lock().await;
