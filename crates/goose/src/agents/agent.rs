@@ -334,7 +334,13 @@ impl Agent {
             }
         }
 
-        // Handle denied tools - update the specific response message for each request
+        Self::handle_denied_tools(&permission_check_result, request_to_response_map).await;
+
+        Ok(tool_futures)
+    }
+
+    async fn handle_denied_tools(permission_check_result: &&PermissionCheckResult, request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>) {
+        // Handle denied tools
         for request in &permission_check_result.denied {
             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                 let mut response = response_msg.lock().await;
@@ -344,8 +350,6 @@ impl Agent {
                 );
             }
         }
-
-        Ok(tool_futures)
     }
 
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
@@ -931,16 +935,6 @@ impl Agent {
                                     break;
                                 }
 
-                                if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                                    if final_output_tool.final_output.is_some() {
-                                        let final_event = AgentEvent::Message(
-                                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
-                                        );
-                                        yield final_event;
-                                        break;
-                                    }
-                                }
-
                                 turns_taken += 1;
                                 if turns_taken > max_turns {
                                     yield AgentEvent::Message(
@@ -949,6 +943,16 @@ impl Agent {
                                         )
                                     );
                                     break;
+                                }
+
+                                if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                                    if final_output_tool.final_output.is_some() {
+                                        let final_event = AgentEvent::Message(
+                                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
+                                        );
+                                        yield final_event;
+                                        break;
+                                    }
                                 }
 
                                 let conversation_with_moim = super::moim::inject_moim(
