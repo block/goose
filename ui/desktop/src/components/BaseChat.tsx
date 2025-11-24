@@ -113,6 +113,7 @@ function BaseChatContent({
     tokenState,
     notifications: toolCallNotifications,
     onMessageUpdate,
+    reloadSession,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -393,9 +394,7 @@ function BaseChatContent({
       }
 
       // Reload session to get updated messages
-      // Note: We can't directly update messages here since useChatStream manages them
-      // The session will be reloaded on next render or we can trigger a refresh
-      window.location.reload();
+      await reloadSession();
 
       // Show modal with token usage update
       setContextUsageData({ before: beforeTokens, after: afterTokens });
@@ -408,7 +407,7 @@ function BaseChatContent({
       console.error('Error in Save handler:', error);
       // Show error in console, user can see it there
     }
-  }, [messages, messageCheckboxStates, sessionId, calculateAgentVisibleTokens]);
+  }, [messages, messageCheckboxStates, sessionId, calculateAgentVisibleTokens, reloadSession]);
 
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>
@@ -484,16 +483,16 @@ function BaseChatContent({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {isEditingConversation && (
-        <div>
-          <EditConversationBanner onSave={handleSaveConversation} />
-        </div>
-      )}
       <MainPanelLayout
         backgroundColor={'bg-background-muted'}
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
+        {isEditingConversation && (
+          <div className="pt-12">
+            <EditConversationBanner onSave={handleSaveConversation} />
+          </div>
+        )}
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
@@ -581,6 +580,7 @@ function BaseChatContent({
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
             isEditingConversation={isEditingConversation}
+            onEditingConversationChange={setIsEditingConversation}
             {...customChatInputProps}
           />
         </div>
