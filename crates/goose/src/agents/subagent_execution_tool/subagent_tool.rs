@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SubagentParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
@@ -78,7 +78,7 @@ fn default_return_last_only() -> bool {
     true
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SubagentType {
     Default,
@@ -124,9 +124,27 @@ pub fn create_subagent_tool() -> Tool {
     })
 }
 
-fn load_system_prompt(subagent_type: &SubagentType) -> Option<String> {
+fn load_system_prompt(
+    subagent_type: &SubagentType,
+    max_turns: Option<u32>,
+    tool_count: usize,
+    available_tools: Vec<String>,
+    task_instructions: &str,
+) -> Option<String> {
     let template_path = subagent_type.template_path();
-    let context: HashMap<String, String> = HashMap::new();
+
+    let mut context = HashMap::new();
+    context.insert(
+        "max_turns".to_string(),
+        max_turns.unwrap_or(100).to_string(),
+    );
+    context.insert("tool_count".to_string(), tool_count.to_string());
+    context.insert("available_tools".to_string(), available_tools.join(", "));
+    context.insert(
+        "task_instructions".to_string(),
+        task_instructions.to_string(),
+    );
+    context.insert("subagent_id".to_string(), uuid::Uuid::new_v4().to_string());
 
     match prompt_template::render_global_file(template_path, &context) {
         Ok(prompt) => Some(prompt),
@@ -137,7 +155,13 @@ fn load_system_prompt(subagent_type: &SubagentType) -> Option<String> {
                     template_path,
                     e
                 );
-                return load_system_prompt(&SubagentType::Default);
+                return load_system_prompt(
+                    &SubagentType::Default,
+                    max_turns,
+                    tool_count,
+                    available_tools,
+                    task_instructions,
+                );
             }
             tracing::error!("Failed to load default subagent persona: {}", e);
             None
@@ -276,15 +300,10 @@ pub async fn run_subagent_tool(
         }
     };
 
-    let subagent_type = parsed_params
-        .subagent_type
-        .as_ref()
-        .unwrap_or(&SubagentType::Default);
-    let system_prompt = load_system_prompt(subagent_type);
     let return_last_only = parsed_params.return_last_only;
 
     // 2. Type-Safe Conversion
-    let mut recipe = match Recipe::try_from(parsed_params) {
+    let mut recipe = match Recipe::try_from(parsed_params.clone()) {
         Ok(r) => r,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -304,14 +323,40 @@ pub async fn run_subagent_tool(
         .is_some();
 
     if !has_explicit_system_prompt {
-        if let Some(prompt) = system_prompt {
+        let subagent_type = parsed_params
+            .subagent_type
+            .as_ref()
+            .unwrap_or(&SubagentType::Default);
+
+        let task_instructions = recipe
+            .instructions
+            .as_deref()
+            .or(recipe.prompt.as_deref())
+            .unwrap_or("Execute the assigned task");
+
+        let tool_count = extension_configs.len();
+        let available_tools: Vec<String> = extension_configs
+            .iter()
+            .map(|ext| ext.name().to_string())
+            .collect();
+
+        let max_turns: Option<u32> = None;
+        // TODO: Extract max_turns from settings if available
+
+        if let Some(system_prompt) = load_system_prompt(
+            subagent_type,
+            max_turns,
+            tool_count,
+            available_tools,
+            task_instructions,
+        ) {
             let mut settings = recipe.settings.unwrap_or(Settings {
                 goose_provider: None,
                 goose_model: None,
                 temperature: None,
                 system_prompt: None,
             });
-            settings.system_prompt = Some(prompt);
+            settings.system_prompt = Some(system_prompt);
             recipe.settings = Some(settings);
         }
     }
