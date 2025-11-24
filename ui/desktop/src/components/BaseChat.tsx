@@ -434,11 +434,6 @@ function BaseChatContent({
       {/* Custom header */}
       {renderHeader && renderHeader()}
 
-      {/* Participants Bar - shows who's in the conversation for Matrix sessions */}
-      {showParticipantsBar && matrixRoomId && (
-        <ParticipantsBar matrixRoomId={matrixRoomId} />
-      )}
-
       {/* Chat container - full height, extends behind floating input */}
       <div className="absolute inset-0">
         <ScrollArea
@@ -451,6 +446,13 @@ function BaseChatContent({
           paddingX={6}
           paddingY={0}
         >
+          {/* Participants Bar - sticky at top, content scrolls behind it */}
+          {showParticipantsBar && matrixRoomId && (
+            <div className="sticky top-0 z-50 -mx-6 mb-0">
+              <ParticipantsBar matrixRoomId={matrixRoomId} />
+            </div>
+          )}
+          
             {/* Chat thread container with max width */}
             <div className="max-w-4xl mx-auto w-full">
             {/* Recipe agent header - sticky at top of chat container */}
