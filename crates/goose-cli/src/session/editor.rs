@@ -47,6 +47,24 @@ fn create_temp_file(messages: &[&str]) -> Result<NamedTempFile> {
     Ok(temp_file)
 }
 
+/// RAII guard to ensure symlink is cleaned up even on panic
+struct SymlinkCleanup {
+    symlink_path: PathBuf,
+}
+
+impl SymlinkCleanup {
+    fn new(symlink_path: PathBuf) -> Self {
+        Self { symlink_path }
+    }
+}
+
+impl Drop for SymlinkCleanup {
+    fn drop(&mut self) {
+        // Always try to clean up the symlink, ignoring any errors
+        let _ = std::fs::remove_file(&self.symlink_path);
+    }
+}
+
 /// Launch editor and wait for completion
 fn launch_editor(editor_cmd: &str, file_path: &PathBuf) -> Result<()> {
     use std::process::Stdio;
@@ -85,7 +103,25 @@ fn launch_editor(editor_cmd: &str, file_path: &PathBuf) -> Result<()> {
 pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
     // Create temporary file with context
     let temp_file = create_temp_file(messages)?;
-    let file_path = temp_file.path().to_path_buf();
+    let temp_path = temp_file.path().to_path_buf();
+
+    // Create a symlink in the current directory (project directory)
+    let symlink_path = PathBuf::from(".goose_prompt_temp.md");
+
+    // Remove existing symlink if it exists
+    if symlink_path.exists() {
+        std::fs::remove_file(&symlink_path)?;
+    }
+
+    // Create the symlink - handle both Unix and Windows
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&temp_path, &symlink_path)?;
+
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&temp_path, &symlink_path)?;
+
+    // Create RAII guard to ensure symlink cleanup even on panic or error
+    let _cleanup_guard = SymlinkCleanup::new(symlink_path.clone());
 
     // Store the original template for comparison
     let _original_template = {
@@ -106,12 +142,12 @@ pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
     // Get editor command
     let editor_cmd = get_editor_command();
 
-    // Launch editor
-    launch_editor(&editor_cmd, &file_path)?;
+    // Launch editor with the symlink path
+    launch_editor(&editor_cmd, &symlink_path)?;
 
-    // Read the edited content
+    // Read the edited content from the symlink (which points to the temp file)
     let mut content = String::new();
-    let mut file = fs::File::open(&file_path)?;
+    let mut file = std::fs::File::open(&symlink_path)?;
     file.read_to_string(&mut content)?;
 
     // Extract user input (remove our template headers)
@@ -120,7 +156,7 @@ pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
     // Check if the user actually made changes (wrote something meaningful)
     let has_meaningful_content = !user_input.trim().is_empty();
 
-    // Clean up is automatic when temp_file goes out of scope
+    // The symlink will be automatically cleaned up by the Drop trait of _cleanup_guard
     Ok((user_input, has_meaningful_content))
 }
 
@@ -343,5 +379,113 @@ with multiple lines.
             newest_pos < oldest_pos,
             "Newest message should appear before oldest message"
         );
+    }
+
+    #[test]
+    fn test_symlink_raii_cleanup_on_panic() {
+        use std::os::unix::fs;
+        use std::panic;
+
+        let messages = vec!["## User: Test message for panic cleanup"];
+        let temp_file = create_temp_file(&messages).unwrap();
+        let temp_path = temp_file.path().to_path_buf();
+
+        // Use a unique filename for this test
+        let symlink_path = PathBuf::from(format!("test_panic_cleanup_{}.md", std::process::id()));
+
+        // Remove existing symlink if it exists
+        if symlink_path.exists() {
+            let _ = std::fs::remove_file(&symlink_path);
+        }
+
+        // Verify symlink doesn't exist initially
+        assert!(
+            !symlink_path.exists(),
+            "Symlink should not exist before test"
+        );
+
+        // Create the symlink
+        #[cfg(unix)]
+        fs::symlink(&temp_path, &symlink_path).unwrap();
+
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&temp_path, &symlink_path).unwrap();
+
+        // Verify symlink was created
+        assert!(symlink_path.exists(), "Symlink should exist after creation");
+
+        // Test that the RAII cleanup guard works by creating one and triggering a panic
+        let cleanup_guard = SymlinkCleanup::new(symlink_path.clone());
+
+        // Trigger a panic to simulate an error condition
+        let result = panic::catch_unwind(|| {
+            let _guard = cleanup_guard;
+            panic!("Simulating a panic to test cleanup");
+        });
+
+        // The panic should have been caught
+        assert!(result.is_err(), "Panic should have been caught");
+
+        // Verify that the symlink was cleaned up by the Drop trait despite the panic
+        assert!(
+            !symlink_path.exists(),
+            "Symlink should be cleaned up even after panic"
+        );
+    }
+
+    #[test]
+    fn test_symlink_creation_and_cleanup() {
+        use std::os::unix::fs;
+
+        let messages = vec!["## User: Test message"];
+        let temp_file = create_temp_file(&messages).unwrap();
+        let temp_path = temp_file.path().to_path_buf();
+
+        // Use a more unique filename to avoid conflicts
+        let symlink_path = PathBuf::from(format!("test_symlink_cleanup_{}.md", std::process::id()));
+
+        // Remove existing symlink if it exists (handle both files and symlinks)
+        if symlink_path.exists() {
+            let _ = std::fs::remove_file(&symlink_path);
+        }
+
+        // Ensure it's actually gone before creating symlink
+        assert!(
+            !symlink_path.exists(),
+            "Symlink should be removed before creating new one"
+        );
+
+        // Create the symlink
+        #[cfg(unix)]
+        fs::symlink(&temp_path, &symlink_path).unwrap();
+
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&temp_path, &symlink_path).unwrap();
+
+        // Verify symlink was created and points to the temp file
+        assert!(symlink_path.exists());
+
+        // Verify content can be read through symlink
+        let content = std::fs::read_to_string(&symlink_path).unwrap();
+        assert!(content.contains("## User: Test message"));
+
+        // Verify symlink points to the correct target
+        #[cfg(unix)]
+        {
+            let read_link = std::fs::read_link(&symlink_path).unwrap();
+            assert_eq!(read_link, temp_path);
+        }
+
+        #[cfg(windows)]
+        {
+            // On Windows, we can verify the file exists and contains expected content
+            assert!(temp_path.exists());
+            let temp_content = std::fs::read_to_string(&temp_path).unwrap();
+            assert_eq!(content, temp_content);
+        }
+
+        // Clean up
+        let _ = std::fs::remove_file(&symlink_path);
+        assert!(!symlink_path.exists());
     }
 }
