@@ -374,43 +374,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_openai_provider_config_keys() {
-        let providers_list = providers().await;
-
-        let openai_provider = providers_list
-            .iter()
-            .find(|(meta, _)| meta.name == "openai");
-        assert!(
-            openai_provider.is_some(),
-            "OpenAI provider should be registered"
-        );
-
-        let (openai_meta, _) = openai_provider.unwrap();
-
-        // The first config key should be OPENAI_API_KEY
-        assert!(
-            !openai_meta.config_keys.is_empty(),
-            "OpenAI provider should have config keys"
-        );
-        assert_eq!(
-            openai_meta.config_keys[0].name, "OPENAI_API_KEY",
-            "First config key should be OPENAI_API_KEY, got {}",
-            openai_meta.config_keys[0].name
-        );
-        assert!(
-            openai_meta.config_keys[0].required,
-            "OPENAI_API_KEY should be required"
-        );
-        assert!(
-            openai_meta.config_keys[0].secret,
-            "OPENAI_API_KEY should be secret"
-        );
-    }
-
-    #[tokio::test]
     async fn test_openai_compatible_providers_config_keys() {
         let providers_list = providers().await;
         let cases = vec![
+            ("openai", "OPENAI_API_KEY"),
             ("groq", "GROQ_API_KEY"),
             ("mistral", "MISTRAL_API_KEY"),
             ("custom_deepseek", "DEEPSEEK_API_KEY"),

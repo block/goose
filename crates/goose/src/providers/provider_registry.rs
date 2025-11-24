@@ -98,6 +98,7 @@ impl ProviderRegistry {
 
         let mut config_keys = base_metadata.config_keys.clone();
 
+        // Force the API key to be platform-specific over `OPENAI_API_KEY`
         if let Some(api_key_index) = config_keys
             .iter()
             .position(|key| key.required && key.secret)
