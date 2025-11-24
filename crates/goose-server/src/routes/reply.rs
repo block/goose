@@ -81,10 +81,10 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
-    messages: Vec<Message>,
-    session_id: String,
-    recipe_name: Option<String>,
-    recipe_version: Option<String>,
+    pub messages: Vec<Message>,
+    pub session_id: String,
+    pub recipe_name: Option<String>,
+    pub recipe_version: Option<String>,
 }
 
 pub struct SseResponse {

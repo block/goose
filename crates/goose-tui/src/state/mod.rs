@@ -6,7 +6,6 @@ use goose::config::ExtensionEntry;
 use goose::conversation::message::{Message, TokenState};
 use goose::session::Session;
 use goose_client::{ProviderDetails, ToolInfo};
-use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -131,8 +131,7 @@ impl ConfigPopup {
 
         if items.is_empty() {
             f.render_widget(
-                Paragraph::new("No matching models.")
-                    .alignment(ratatui::layout::Alignment::Center),
+                Paragraph::new("No matching models.").alignment(ratatui::layout::Alignment::Center),
                 area,
             );
             return;

@@ -25,7 +25,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,51 +38,51 @@ pub struct UpdateFromSessionRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-    session_id: String,
+    pub provider: String,
+    pub model: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
-    extension_name: Option<String>,
-    session_id: String,
+    pub extension_name: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    session_id: String,
+    pub session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
-    working_dir: String,
+    pub working_dir: String,
     #[serde(default)]
-    recipe: Option<Recipe>,
+    pub recipe: Option<Recipe>,
     #[serde(default)]
-    recipe_id: Option<String>,
+    pub recipe_id: Option<String>,
     #[serde(default)]
-    recipe_deeplink: Option<String>,
+    pub recipe_deeplink: Option<String>,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
-    session_id: String,
-    load_model_and_extensions: bool,
+    pub session_id: String,
+    pub load_model_and_extensions: bool,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct AddExtensionRequest {
-    session_id: String,
-    config: ExtensionConfig,
+    pub session_id: String,
+    pub config: ExtensionConfig,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct RemoveExtensionRequest {
-    name: String,
-    session_id: String,
+    pub name: String,
+    pub session_id: String,
 }
 
 #[utoipa::path(

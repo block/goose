@@ -17,11 +17,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionListResponse {
     /// List of available session information objects
-    sessions: Vec<Session>,
+    pub sessions: Vec<Session>,
 }
 
 #[derive(Deserialize, ToSchema)]

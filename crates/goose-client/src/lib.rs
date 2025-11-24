@@ -1,87 +1,28 @@
+mod types;
+
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
-use futures::stream::{self, Stream};
+use futures::stream::Stream;
 use goose::agents::ExtensionConfig;
 use goose::config::ExtensionEntry;
 use goose::conversation::message::Message;
-use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
 use reqwest::Client as ReqwestClient;
-use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolInfo {
-    pub name: String,
-    pub description: String,
-    pub parameters: Vec<String>,
-}
+pub use types::{ProviderDetails, ToolInfo};
+use types::{
+    AddExtensionRequest, ChatRequest, ConfigResponse, ExtensionQuery, ExtensionResponse,
+    RemoveExtensionRequest, ResumeAgentRequest, SessionListResponse, StartAgentRequest,
+    UpdateProviderRequest, UpsertConfigQuery,
+};
 
 #[derive(Clone)]
 pub struct Client {
     base_url: String,
     secret_key: String,
     http_client: ReqwestClient,
-}
-
-#[derive(Serialize)]
-struct ChatRequestPayload {
-    messages: Vec<Message>,
-    session_id: String,
-    recipe_name: Option<String>,
-    recipe_version: Option<String>,
-}
-
-#[derive(Serialize)]
-struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-    session_id: String,
-}
-
-#[derive(Serialize)]
-struct AddExtensionRequestPayload {
-    session_id: String,
-    config: ExtensionConfig,
-}
-
-#[derive(Serialize)]
-struct ResumeAgentRequest {
-    session_id: String,
-    load_model_and_extensions: bool,
-}
-
-#[derive(Deserialize)]
-struct SessionListResponse {
-    sessions: Vec<Session>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
-pub struct ProviderDetails {
-    pub name: String,
-    pub metadata: ProviderMetadata,
-    pub is_configured: bool,
-    pub provider_type: ProviderType,
-}
-
-#[derive(Deserialize)]
-struct ExtensionResponse {
-    extensions: Vec<ExtensionEntry>,
-}
-
-#[derive(Serialize)]
-struct UpsertConfigQuery {
-    key: String,
-    value: serde_json::Value,
-    is_secret: bool,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
-pub struct ConfigResponse {
-    pub config: serde_json::Value,
 }
 
 impl Client {
@@ -202,7 +143,9 @@ impl Client {
         }
 
         let wrapper: ConfigResponse = response.json().await.context("Failed to parse config")?;
-        Ok(wrapper.config)
+        // Convert HashMap to Value
+        let map: serde_json::Map<String, serde_json::Value> = wrapper.config.into_iter().collect();
+        Ok(serde_json::Value::Object(map))
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<Session>> {
@@ -231,10 +174,10 @@ impl Client {
             .http_client
             .post(format!("{}/agent/remove_extension", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
-            .json(&serde_json::json!({
-                "session_id": session_id,
-                "name": name
-            }))
+            .json(&RemoveExtensionRequest {
+                session_id: session_id.to_string(),
+                name: name.to_string(),
+            })
             .send()
             .await
             .context("Failed to remove extension from session")?;
@@ -256,11 +199,11 @@ impl Client {
             .http_client
             .post(format!("{}/config/extensions", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
-            .json(&serde_json::json!({
-                "name": name,
-                "config": config,
-                "enabled": enabled
-            }))
+            .json(&ExtensionQuery {
+                name,
+                config,
+                enabled,
+            })
             .send()
             .await
             .context("Failed to add config extension")?;
@@ -294,9 +237,12 @@ impl Client {
             .http_client
             .post(format!("{}/agent/start", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
-            .json(&serde_json::json!({
-                "working_dir": working_dir
-            }))
+            .json(&StartAgentRequest {
+                working_dir,
+                recipe: None,
+                recipe_id: None,
+                recipe_deeplink: None,
+            })
             .send()
             .await
             .context("Failed to send start request")?;
@@ -368,7 +314,7 @@ impl Client {
             .http_client
             .post(format!("{}/agent/add_extension", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
-            .json(&AddExtensionRequestPayload {
+            .json(&AddExtensionRequest {
                 session_id: session_id.to_string(),
                 config,
             })
@@ -414,7 +360,7 @@ impl Client {
             .http_client
             .post(format!("{}/reply", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
-            .json(&ChatRequestPayload {
+            .json(&ChatRequest {
                 messages,
                 session_id,
                 recipe_name: None,
@@ -430,17 +376,6 @@ impl Client {
             match event {
                 Ok(event) => {
                     if event.data == "[DONE]" {
-                        // We can't signal completion easily in the stream except by ending it.
-                        // eventsource-stream might continue.
-                        // But usually [DONE] is the last message.
-                        // We can return a special value or just handle it.
-                        // For now, let's try to parse it, it will fail, then we return error?
-                        // Or filter it out?
-                        // Better: map it to a Finish-like event if it wasn't already?
-                        // Actually, the server sends a Finish event before [DONE].
-                        // So we can probably ignore [DONE] by filtering?
-                        // Or we can treat it as end of stream.
-                        // Let's just try to parse.
                         serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
                     } else {
                         serde_json::from_str::<MessageEvent>(&event.data).context("Failed to parse SSE event")
