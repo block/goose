@@ -178,7 +178,7 @@ impl SkillsClient {
 
     fn generate_instructions(&self) -> String {
         if self.skills.is_empty() {
-            return "No skills available.".to_string();
+            return String::new();
         }
 
         let mut instructions = String::from("You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:\n\n");
@@ -550,6 +550,126 @@ Content from dir3
             skills.get("skill-from-dir3").unwrap().metadata.description,
             "Skill from directory 3"
         );
+    }
+
+    #[test]
+    fn test_empty_instructions_when_no_skills() {
+        let temp_dir = TempDir::new().unwrap();
+        let empty_dir = temp_dir.path().join("empty");
+        fs::create_dir(&empty_dir).unwrap();
+
+        let skills = SkillsClient::discover_skills_in_directories(&[empty_dir]);
+        assert_eq!(skills.len(), 0);
+
+        let mut client = SkillsClient {
+            info: InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    tools: Some(ToolsCapability {
+                        list_changed: Some(false),
+                    }),
+                    resources: None,
+                    prompts: None,
+                    completions: None,
+                    experimental: None,
+                    logging: None,
+                },
+                server_info: Implementation {
+                    name: EXTENSION_NAME.to_string(),
+                    title: Some("Skills".to_string()),
+                    version: "1.0.0".to_string(),
+                    icons: None,
+                    website_url: None,
+                },
+                instructions: Some(String::new()),
+            },
+            skills,
+        };
+
+        let instructions = client.generate_instructions();
+        assert_eq!(instructions, "");
+        assert!(instructions.is_empty());
+
+        client.info.instructions = Some(instructions);
+        assert_eq!(client.info.instructions.as_ref().unwrap(), "");
+    }
+
+    #[test]
+    fn test_instructions_with_skills() {
+        let temp_dir = TempDir::new().unwrap();
+        let skills_dir = temp_dir.path().join("skills");
+        fs::create_dir(&skills_dir).unwrap();
+
+        let skill1_dir = skills_dir.join("alpha-skill");
+        fs::create_dir(&skill1_dir).unwrap();
+        fs::write(
+            skill1_dir.join("SKILL.md"),
+            r#"---
+name: alpha-skill
+description: First skill alphabetically
+---
+Content
+"#,
+        )
+        .unwrap();
+
+        let skill2_dir = skills_dir.join("beta-skill");
+        fs::create_dir(&skill2_dir).unwrap();
+        fs::write(
+            skill2_dir.join("SKILL.md"),
+            r#"---
+name: beta-skill
+description: Second skill alphabetically
+---
+Content
+"#,
+        )
+        .unwrap();
+
+        let skills = SkillsClient::discover_skills_in_directories(&[skills_dir]);
+        assert_eq!(skills.len(), 2);
+
+        let mut client = SkillsClient {
+            info: InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    tools: Some(ToolsCapability {
+                        list_changed: Some(false),
+                    }),
+                    resources: None,
+                    prompts: None,
+                    completions: None,
+                    experimental: None,
+                    logging: None,
+                },
+                server_info: Implementation {
+                    name: EXTENSION_NAME.to_string(),
+                    title: Some("Skills".to_string()),
+                    version: "1.0.0".to_string(),
+                    icons: None,
+                    website_url: None,
+                },
+                instructions: Some(String::new()),
+            },
+            skills,
+        };
+
+        let instructions = client.generate_instructions();
+        assert!(!instructions.is_empty());
+        assert!(instructions.contains("You have these skills at your disposal"));
+        assert!(instructions.contains("alpha-skill: First skill alphabetically"));
+        assert!(instructions.contains("beta-skill: Second skill alphabetically"));
+
+        let lines: Vec<&str> = instructions.lines().collect();
+        let alpha_line = lines
+            .iter()
+            .position(|l| l.contains("alpha-skill"))
+            .unwrap();
+        let beta_line = lines.iter().position(|l| l.contains("beta-skill")).unwrap();
+        assert!(alpha_line < beta_line);
+
+        client.info.instructions = Some(instructions);
+        assert!(!client.info.instructions.as_ref().unwrap().is_empty());
     }
 
     #[test]
