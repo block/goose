@@ -56,6 +56,31 @@ pub struct UpdateConversationRequest {
     conversation: Vec<goose::conversation::message::Message>,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum EditType {
+    Fork,
+    Edit,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EditMessageRequest {
+    timestamp: i64,
+    #[serde(default = "default_edit_type")]
+    edit_type: EditType,
+}
+
+fn default_edit_type() -> EditType {
+    EditType::Fork
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EditMessageResponse {
+    session_id: String,
+}
+
 const MAX_NAME_LENGTH: usize = 200;
 
 #[utoipa::path(
@@ -344,6 +369,64 @@ async fn update_conversation(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/edit_message",
+    request_body = EditMessageRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session prepared for editing - frontend should submit the edited message", body = EditMessageResponse),
+        (status = 400, description = "Bad request - Invalid message timestamp"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session or message not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn edit_message(
+    Path(session_id): Path<String>,
+    Json(request): Json<EditMessageRequest>,
+) -> Result<Json<EditMessageResponse>, StatusCode> {
+    match request.edit_type {
+        EditType::Fork => {
+            let new_session = SessionManager::copy_session(&session_id, "(edited)".to_string())
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to copy session: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            SessionManager::truncate_conversation(&new_session.id, request.timestamp)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to truncate conversation: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            Ok(Json(EditMessageResponse {
+                session_id: new_session.id,
+            }))
+        }
+        EditType::Edit => {
+            SessionManager::truncate_conversation(&session_id, request.timestamp)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to truncate conversation: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            Ok(Json(EditMessageResponse {
+                session_id: session_id.clone(),
+            }))
+        }
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -361,5 +444,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/sessions/{session_id}/conversation",
             put(update_conversation),
         )
+        .route("/sessions/{session_id}/edit_message", post(edit_message))
         .with_state(state)
 }

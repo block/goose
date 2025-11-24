@@ -145,7 +145,7 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
    │  ○ Add Extension 
    │  ○ Toggle Extensions 
    │  ○ Remove Extension 
-   │  ○ Goose Settings 
+   │  ○ goose settings 
    └  
    ```
    3. Choose a model provider. For this quickstart, select `Tetrate Agent Router Service` and press Enter. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. For information about other providers, see [Configure LLM Provider](/docs/getting-started/providers).

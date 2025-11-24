@@ -2,6 +2,10 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
+use goose_mcp::mcp_server_runner::{serve, McpCommand};
+use goose_mcp::{
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+};
 
 use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
@@ -420,7 +424,10 @@ enum Command {
 
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp { name: String },
+    Mcp {
+        #[arg(value_parser = clap::value_parser!(McpCommand))]
+        server: McpCommand,
+    },
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
@@ -877,15 +884,18 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Command::Configure {}) => {
-            handle_configure().await?;
-        }
-        Some(Command::Info { verbose }) => {
-            handle_info(verbose)?;
-        }
-        Some(Command::Mcp { name }) => {
+        Some(Command::Configure {}) => handle_configure().await?,
+        Some(Command::Info { verbose }) => handle_info(verbose)?,
+        Some(Command::Mcp { server }) => {
+            let name = server.name();
             crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
+            match server {
+                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+                McpCommand::Memory => serve(MemoryServer::new()).await?,
+                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+                McpCommand::Developer => serve(DeveloperServer::new()).await?,
+            }
         }
         Some(Command::Acp {}) => {
             run_acp_agent().await?;
@@ -1170,8 +1180,12 @@ pub async fn cli() -> anyhow::Result<()> {
                         "Recipe execution started"
                     );
 
-                    let (input_config, recipe_info) =
-                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
+                        recipe_name,
+                        params,
+                        additional_sub_recipes,
+                        quiet,
+                    )?;
                     (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {

@@ -11,7 +11,7 @@ import { Button } from './ui/button';
 
 interface UserMessageProps {
   message: Message;
-  onMessageUpdate?: (messageId: string, newContent: string) => void;
+  onMessageUpdate?: (messageId: string, newContent: string, editType?: 'fork' | 'edit') => void;
   isEditingConversation?: boolean;
   onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
   messages?: Message[];
@@ -138,25 +138,26 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
   }, []);
 
   // Handle save action
-  const handleSave = useCallback(() => {
-    // Exit edit mode immediately
-    setIsEditing(false);
-
-    // Check if content has actually changed
-    if (editContent !== displayText) {
-      // Validate content
+  const handleSave = useCallback(
+    (editType: 'fork' | 'edit' = 'fork') => {
       if (editContent.trim().length === 0) {
         setError('Message cannot be empty');
         return;
       }
 
-      // Update the message content through the callback
+      setIsEditing(false);
+
+      if (editContent.trim() === displayText.trim()) {
+        return;
+      }
+
       if (onMessageUpdate && message.id) {
-        onMessageUpdate(message.id, editContent);
+        onMessageUpdate(message.id, editContent, editType);
         setHasBeenEdited(true);
       }
-    }
-  }, [editContent, displayText, onMessageUpdate, message.id]);
+    },
+    [editContent, displayText, onMessageUpdate, message.id]
+  );
 
   // Handle cancel action
   const handleCancel = useCallback(() => {
@@ -229,13 +230,31 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
                 {error}
               </div>
             )}
-            <div className="flex justify-end gap-3 mt-4">
-              <Button onClick={handleCancel} variant="ghost" aria-label="Cancel editing">
-                Cancel
-              </Button>
-              <Button onClick={handleSave} aria-label="Save changes">
-                Save
-              </Button>
+            <div className="flex justify-between items-center mt-4">
+              <div className="text-xs text-text-subtle">
+                <span className="font-semibold">Edit in Place</span> updates this session •{' '}
+                <span className="font-semibold">Fork Session</span> creates a new session
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleCancel} variant="ghost" aria-label="Cancel editing">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleSave('edit')}
+                  variant="secondary"
+                  aria-label="Edit message in place"
+                  title="Update the message in this session"
+                >
+                  Edit in Place
+                </Button>
+                <Button
+                  onClick={() => handleSave('fork')}
+                  aria-label="Fork session with edited message"
+                  title="Create a new session with the edited message"
+                >
+                  Fork Session
+                </Button>
+              </div>
             </div>
           </div>
         ) : (

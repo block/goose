@@ -9,12 +9,11 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
-  createToolErrorResponseMessage,
+  NotificationEvent,
 } from '../types/message';
-import { Message } from '../api';
+import { Message, confirmPermission } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
-import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 
@@ -28,7 +27,6 @@ interface GooseMessageProps {
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
-  appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
   isEditingConversation?: boolean;
   messageCheckboxStates?: Map<string, boolean>;
@@ -41,7 +39,6 @@ export default function GooseMessage({
   messages,
   toolCallNotifications,
   append,
-  appendMessage,
   isStreaming = false,
   isEditingConversation = false,
   messageCheckboxStates,
@@ -129,9 +126,25 @@ export default function GooseMessage({
       if (!hasExistingResponse) {
         handledToolConfirmations.current.add(toolConfirmationContent.id);
 
-        appendMessage(
-          createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
-        );
+        void (async () => {
+          try {
+            await confirmPermission({
+              body: {
+                session_id: sessionId,
+                id: toolConfirmationContent.id,
+                action: 'deny',
+              },
+              throwOnError: true,
+            });
+          } catch (error) {
+            console.error('Failed to send tool cancellation to backend:', error);
+            const { toastError } = await import('../toasts');
+            toastError({
+              title: 'Failed to cancel tool',
+              msg: 'The agent may be waiting for a response. Please try restarting the session.',
+            });
+          }
+        })();
       }
     }
   }, [
@@ -140,7 +153,7 @@ export default function GooseMessage({
     hasToolConfirmation,
     toolConfirmationContent,
     messages,
-    appendMessage,
+    sessionId,
   ]);
 
   return (

@@ -11,7 +11,6 @@ description.workspace = true
 workspace = true
 
 [dependencies]
-goose = { path = "../goose" }
 rmcp = { version = "0.8.1", features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
@@ -33,7 +32,7 @@ reqwest = { version = "0.11", features = [
     "json",
     "rustls-tls-native-roots",
 ], default-features = false }
-async-trait = "0.1"
+async-trait = "0.1.89"
 chrono = { version = "0.4.38", features = ["serde"] }
 etcetera = "0.8.0"
 tempfile = "3.8"
@@ -77,13 +76,13 @@ libc = "0.2"
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
 tokio-util = "0.7.16"
+clap = { version = "4", features = ["derive"] }
 
 
 [dev-dependencies]
 serial_test = "3.0.0"
 sysinfo = "0.32.1"
 temp-env = "0.3.6"
-clap = { version = "4", features = ["derive"] }
 colored = "2"
 
 [features]

@@ -138,7 +138,8 @@ function removeThinkingIndicator() {
 // Connect to WebSocket
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const token = window.GOOSE_WS_TOKEN || '';
+    const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
     
     socket = new WebSocket(wsUrl);
     

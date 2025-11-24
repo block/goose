@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::rejection::JsonRejection;
@@ -8,8 +9,8 @@ use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
-use goose::recipe_deeplink;
 use goose::session::SessionManager;
+use goose::{recipe_deeplink, slash_commands};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,7 +40,7 @@ fn clean_data_error(err: &axum::extract::rejection::JsonDataError) -> String {
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
     get_all_recipes_manifests, get_recipe_file_path_by_id, short_id_from_path, validate_recipe,
-    RecipeValidationError,
+    RecipeManifest, RecipeValidationError,
 };
 use crate::state::AppState;
 
@@ -114,14 +115,6 @@ pub struct ParseRecipeResponse {
     pub recipe: Recipe,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RecipeManifestResponse {
-    recipe: Recipe,
-    #[serde(rename = "lastModified")]
-    last_modified: String,
-    id: String,
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DeleteRecipeRequest {
     id: String,
@@ -129,7 +122,19 @@ pub struct DeleteRecipeRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ListRecipeResponse {
-    recipe_manifest_responses: Vec<RecipeManifestResponse>,
+    manifests: Vec<RecipeManifest>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ScheduleRecipeRequest {
+    id: String,
+    cron_schedule: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SetSlashCommandRequest {
+    id: String,
+    slash_command: Option<String>,
 }
 
 #[utoipa::path(
@@ -281,26 +286,36 @@ async fn scan_recipe(
 async fn list_recipes(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
-    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap_or_default();
-    let mut recipe_file_hash_map = HashMap::new();
-    let recipe_manifest_responses = recipe_manifest_with_paths
+    let mut manifests = get_all_recipes_manifests().unwrap_or_default();
+    let recipe_file_hash_map: HashMap<_, _> = manifests
         .iter()
-        .map(|recipe_manifest_with_path| {
-            let id = &recipe_manifest_with_path.id;
-            let file_path = recipe_manifest_with_path.file_path.clone();
-            recipe_file_hash_map.insert(id.clone(), file_path);
-            RecipeManifestResponse {
-                recipe: recipe_manifest_with_path.recipe.clone(),
-                id: id.clone(),
-                last_modified: recipe_manifest_with_path.last_modified.clone(),
-            }
-        })
-        .collect::<Vec<RecipeManifestResponse>>();
+        .map(|m| (m.id.clone(), m.file_path.clone()))
+        .collect();
     state.set_recipe_file_hash_map(recipe_file_hash_map).await;
 
-    Ok(Json(ListRecipeResponse {
-        recipe_manifest_responses,
-    }))
+    let scheduler = state.scheduler();
+    let scheduled_jobs = scheduler.list_scheduled_jobs().await;
+    let schedule_map: HashMap<_, _> = scheduled_jobs
+        .into_iter()
+        .map(|j| (PathBuf::from(j.source), j.cron))
+        .collect();
+
+    let all_commands = slash_commands::list_commands();
+    let slash_map: HashMap<_, _> = all_commands
+        .into_iter()
+        .map(|sc| (PathBuf::from(sc.recipe_path), sc.command))
+        .collect();
+
+    for manifest in &mut manifests {
+        if let Some(cron) = schedule_map.get(&manifest.file_path) {
+            manifest.schedule_cron = Some(cron.clone());
+        }
+        if let Some(command) = slash_map.get(&manifest.file_path) {
+            manifest.slash_command = Some(command.clone());
+        }
+    }
+
+    Ok(Json(ListRecipeResponse { manifests }))
 }
 
 #[utoipa::path(
@@ -333,6 +348,68 @@ async fn delete_recipe(
 
 #[utoipa::path(
     post,
+    path = "/recipes/schedule",
+    request_body = ScheduleRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe scheduled successfully"),
+        (status = 404, description = "Recipe not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn schedule_recipe(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ScheduleRecipeRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let file_path = match get_recipe_file_path_by_id(state.as_ref(), &request.id).await {
+        Ok(path) => path,
+        Err(err) => return Err(err.status),
+    };
+
+    let scheduler = state.scheduler();
+    match scheduler
+        .schedule_recipe(file_path, request.cron_schedule)
+        .await
+    {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(e) => {
+            tracing::error!("Failed to schedule recipe: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/recipes/slash-command",
+    request_body = SetSlashCommandRequest,
+    responses(
+        (status = 200, description = "Slash command set successfully"),
+        (status = 404, description = "Recipe not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+async fn set_recipe_slash_command(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SetSlashCommandRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let file_path = match get_recipe_file_path_by_id(state.as_ref(), &request.id).await {
+        Ok(path) => path,
+        Err(err) => return Err(err.status),
+    };
+
+    match slash_commands::set_recipe_slash_command(file_path, request.slash_command) {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(e) => {
+            tracing::error!("Failed to set slash command: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/recipes/save",
     request_body = SaveRecipeRequest,
     responses(
@@ -350,6 +427,13 @@ async fn save_recipe(
 ) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
     let request = deserialize_save_recipe_request(raw_json)?;
+    let has_security_warnings = request.recipe.check_for_security_warnings();
+    if has_security_warnings {
+        return Err(ErrorResponse {
+            message: "This recipe contains hidden characters that could be malicious. Please remove them before trying to save.".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
     ensure_recipe_valid(&request.recipe)?;
 
     let file_path = match request.id.as_ref() {
@@ -440,6 +524,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
         .route("/recipes/delete", post(delete_recipe))
+        .route("/recipes/schedule", post(schedule_recipe))
+        .route("/recipes/slash-command", post(set_recipe_slash_command))
         .route("/recipes/save", post(save_recipe))
         .route("/recipes/parse", post(parse_recipe))
         .with_state(state)
