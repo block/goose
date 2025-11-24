@@ -24,7 +24,7 @@ The goose CLI and desktop apps are under active and continuous development. To g
           2. Unzip the downloaded zip file.
           3. Run the executable file to launch the goose Desktop application.
           4. Overwrite the existing goose application with the new version.
-          5. Run the executable file to launch the goose desktop application.
+          5. Run the executable file to launch the goose Desktop application.
         </div>
       </TabItem>
       <TabItem value="cli" label="goose CLI">
