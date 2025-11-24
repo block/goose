@@ -191,7 +191,7 @@ export const TabBar: React.FC<TabBarProps> = ({
           >
             {/* Tab Title */}
             <span className={cn(
-              "truncate text-xs font-normal font-['Inter'] flex-1 pointer-events-none text-center",
+              "truncate text-xs font-normal flex-1 pointer-events-none text-center",
               tab.isActive
                 ? "text-slate-200"
                 : "text-neutral-700"
