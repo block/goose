@@ -3,7 +3,16 @@ import { Button } from '../../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { QRCodeSVG } from 'qrcode.react';
-import { Loader2, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Loader2,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  ExternalLink,
+  QrCode,
+} from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
 import { startTunnel, stopTunnel, getTunnelStatus } from '../../../api/sdk.gen';
 import type { TunnelInfo } from '../../../api/types.gen';
@@ -16,6 +25,8 @@ const STATUS_MESSAGES = {
   disabled: 'Tunnel is disabled',
 } as const;
 
+const IOS_APP_STORE_URL = 'https://apps.apple.com/app/goose-ai-assistant/id6738286074';
+
 export default function TunnelSection() {
   const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
     state: 'idle',
@@ -24,6 +35,7 @@ export default function TunnelSection() {
     secret: '',
   });
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showAppStoreQRModal, setShowAppStoreQRModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
@@ -116,8 +128,31 @@ export default function TunnelSection() {
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="mb-1">Remote Access</CardTitle>
-          <CardDescription>
-            Enable remote access to goose from mobile devices using secure tunneling via Cloudflare
+          <CardDescription className="flex flex-col gap-2">
+            <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-800 dark:text-blue-200">
+                <strong>Preview feature:</strong> Enable remote access to goose from mobile devices
+                using secure tunneling.{' '}
+                <a
+                  href={IOS_APP_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 underline hover:no-underline"
+                >
+                  Get the iOS app
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+                {' or '}
+                <button
+                  onClick={() => setShowAppStoreQRModal(true)}
+                  className="inline-flex items-center gap-1 underline hover:no-underline"
+                >
+                  scan QR code
+                  <QrCode className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4 space-y-4">
@@ -252,6 +287,45 @@ export default function TunnelSection() {
             </Button>
             <Button variant="destructive" onClick={handleToggleTunnel}>
               Stop Tunnel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAppStoreQRModal} onOpenChange={setShowAppStoreQRModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Download goose iOS App</DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="flex justify-center">
+              <div className="p-4 bg-white rounded-lg">
+                <QRCodeSVG value={IOS_APP_STORE_URL} size={200} />
+              </div>
+            </div>
+
+            <div className="text-center text-sm text-text-muted">
+              Scan this QR code with your iPhone camera to install the goose mobile app from the App
+              Store
+            </div>
+
+            <div className="text-center">
+              <a
+                href={IOS_APP_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open in App Store
+              </a>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAppStoreQRModal(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
