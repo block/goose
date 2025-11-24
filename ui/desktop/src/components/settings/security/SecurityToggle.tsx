@@ -6,7 +6,7 @@ interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;
   SECURITY_PROMPT_THRESHOLD?: number;
   SECURITY_PROMPT_BERT_ENABLED?: boolean;
-  SECURITY_PROMPT_ML_MODEL?: string;
+  SECURITY_PROMPT_BERT_MODEL?: string;
 }
 
 // TODO: is this the best way to store this info? - figure out other options
@@ -25,7 +25,7 @@ export const SecurityToggle = () => {
     SECURITY_PROMPT_ENABLED: enabled = false,
     SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
     SECURITY_PROMPT_BERT_ENABLED: mlEnabled = false,
-    SECURITY_PROMPT_ML_MODEL: mlModel = AVAILABLE_MODELS[0].value, // use single source of truth for default model
+    SECURITY_PROMPT_BERT_MODEL: mlModel = AVAILABLE_MODELS[0].value, // use single source of truth for default model
   } = (config as SecurityConfig) ?? {};
 
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
@@ -48,14 +48,14 @@ export const SecurityToggle = () => {
 
     if (enabled) {
       const modelToSet = mlModel || AVAILABLE_MODELS[0].value;
-      await upsert('SECURITY_PROMPT_ML_MODEL', modelToSet, false);
+      await upsert('SECURITY_PROMPT_BERT_MODEL', modelToSet, false);
     }
   };
 
   const handleModelChange = async (model: string) => {
     const modelInfo = AVAILABLE_MODELS.find((m) => m.value === model);
     if (modelInfo) {
-      await upsert('SECURITY_PROMPT_ML_MODEL', model, false);
+      await upsert('SECURITY_PROMPT_BERT_MODEL', model, false);
     }
   };
 
