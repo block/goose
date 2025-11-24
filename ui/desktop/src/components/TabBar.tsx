@@ -180,8 +180,8 @@ export const TabBar: React.FC<TabBarProps> = ({
         <TabTooltip key={tab.id} tab={tab} workingDirectory={workingDirectory}>
           <button
             className={cn(
-              "h-8 px-[5px] cursor-pointer no-drag border-0 rounded-2xl inline-flex justify-center items-center gap-2",
-              "min-w-[128px] max-w-[220px] group relative tab-item",
+              "h-8 px-3 cursor-pointer no-drag border-0 rounded-2xl inline-flex items-center gap-1.5",
+              "w-[160px] group relative tab-item",
               "transition-all duration-200 ease-out",
               tab.isActive
                 ? "bg-[#33333A]/90 dark:bg-[#33333A]/90"
@@ -189,9 +189,9 @@ export const TabBar: React.FC<TabBarProps> = ({
             )}
             onClick={() => onTabClick(tab.id)}
           >
-            {/* Tab Title */}
+            {/* Tab Title - flex-1 to take available space */}
             <span className={cn(
-              "truncate text-xs font-normal flex-1 pointer-events-none text-center",
+              "truncate text-xs font-normal flex-1 pointer-events-none",
               tab.isActive
                 ? "text-slate-200"
                 : "text-neutral-700"
@@ -199,19 +199,21 @@ export const TabBar: React.FC<TabBarProps> = ({
               {getTabTitle(tab)}
             </span>
 
-            {/* Close Button - Only show for active tab */}
-            {tab.isActive && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTabClose(tab.id);
-                }}
-                className="flex-shrink-0 flex items-center justify-center tab-close-button pointer-events-auto"
-                title="Close tab"
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
-            )}
+            {/* Close Button - Always reserve space, only show icon when active */}
+            <div className="flex-shrink-0 w-3 flex items-center justify-center">
+              {tab.isActive && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTabClose(tab.id);
+                  }}
+                  className="flex items-center justify-center tab-close-button pointer-events-auto"
+                  title="Close tab"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+              )}
+            </div>
           </button>
         </TabTooltip>
       ))}
