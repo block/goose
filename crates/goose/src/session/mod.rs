@@ -1,6 +1,9 @@
 mod chat_history_search;
+mod claude_code;
+mod codex;
 mod diagnostics;
 pub mod extension_data;
+mod external_sessions;
 mod legacy;
 pub mod session_manager;
 
