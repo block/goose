@@ -2263,6 +2263,92 @@
           }
         }
       }
+    },
+    "/tunnel/start": {
+      "post": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Start the tunnel",
+        "operationId": "start_tunnel",
+        "responses": {
+          "200": {
+            "description": "Tunnel started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TunnelInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tunnel/status": {
+      "get": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Get tunnel info",
+        "operationId": "get_tunnel_status",
+        "responses": {
+          "200": {
+            "description": "Tunnel info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TunnelInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tunnel/stop": {
+      "post": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Stop the tunnel",
+        "operationId": "stop_tunnel",
+        "responses": {
+          "200": {
+            "description": "Tunnel stopped successfully"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5132,6 +5218,39 @@
             "type": "object"
           }
         }
+      },
+      "TunnelInfo": {
+        "type": "object",
+        "required": [
+          "state",
+          "url",
+          "hostname",
+          "secret"
+        ],
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TunnelState"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "TunnelState": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "starting",
+          "running",
+          "error",
+          "disabled"
+        ]
       },
       "UpdateCustomProviderRequest": {
         "type": "object",

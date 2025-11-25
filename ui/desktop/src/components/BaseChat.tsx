@@ -46,7 +46,6 @@ export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
@@ -60,7 +59,6 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
-  setIsGoosehintsModalOpen,
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
@@ -574,7 +572,6 @@ function BaseChatContent({
             messages={messages}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipe={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}

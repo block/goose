@@ -1,4 +1,4 @@
-import { Sliders, ChefHat, Bot, Eye } from 'lucide-react';
+import { Sliders, Bot } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
@@ -9,24 +9,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '../../../ui/dropdown-menu';
 import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
-import { Recipe } from '../../../../recipe';
-import CreateEditRecipeModal from '../../../recipes/CreateEditRecipeModal';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
-  recipe?: Recipe | null;
-  recipeId?: string | null;
-  hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
 }
 
 export default function ModelsBottomBar({
@@ -34,9 +28,6 @@ export default function ModelsBottomBar({
   dropdownRef,
   setView,
   alerts,
-  recipe,
-  recipeId,
-  hasMessages = false,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -53,9 +44,6 @@ export default function ModelsBottomBar({
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
-
-  // View recipe modal state
-  const [showViewRecipeModal, setShowViewRecipeModal] = useState(false);
 
   // Check if lead/worker mode is active
   useEffect(() => {
@@ -164,13 +152,6 @@ export default function ModelsBottomBar({
     })();
   }, [currentModel, getCurrentModelDisplayName]);
 
-  // Handle view recipe - open modal instead of navigating
-  const handleViewRecipe = () => {
-    if (recipe) {
-      setShowViewRecipeModal(true);
-    }
-  };
-
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
@@ -200,33 +181,6 @@ export default function ModelsBottomBar({
             <span>Lead/Worker Settings</span>
             <Sliders className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
-
-          {/* Recipe-specific menu items - only show when actively using a recipe */}
-          {recipe && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleViewRecipe}>
-                <span>View/Edit Recipe</span>
-                <Eye className="ml-auto h-4 w-4" />
-              </DropdownMenuItem>
-            </>
-          )}
-
-          {/* Only show "Create a recipe from this session" when there are messages AND no recipe is currently active */}
-          {hasMessages && !recipe && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  // Signal to create an agent from the current chat
-                  window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
-                }}
-              >
-                <span>Create a recipe from this session</span>
-                <ChefHat className="ml-auto h-4 w-4" />
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -241,17 +195,6 @@ export default function ModelsBottomBar({
       {isLeadWorkerModalOpen ? (
         <LeadWorkerSettings isOpen={isLeadWorkerModalOpen} onClose={handleLeadWorkerModalClose} />
       ) : null}
-
-      {/* View Recipe Modal */}
-      {/* todo: we don't have the actual recipe name when in chat only in recipes list view so we generate it for now */}
-      {recipe && (
-        <CreateEditRecipeModal
-          isOpen={showViewRecipeModal}
-          onClose={() => setShowViewRecipeModal(false)}
-          recipe={recipe}
-          recipeId={recipeId}
-        />
-      )}
     </div>
   );
 }
