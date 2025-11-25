@@ -4812,6 +4812,10 @@
             "type": "string",
             "nullable": true
           },
+          "system_prompt": {
+            "type": "string",
+            "nullable": true
+          },
           "temperature": {
             "type": "number",
             "format": "float",

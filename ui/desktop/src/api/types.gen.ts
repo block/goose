@@ -780,6 +780,7 @@ export type SetSlashCommandRequest = {
 export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
+    system_prompt?: string | null;
     temperature?: number | null;
 };
 
