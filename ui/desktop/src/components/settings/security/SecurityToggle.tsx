@@ -7,32 +7,69 @@ interface SecurityConfig {
   SECURITY_PROMPT_THRESHOLD?: number;
   SECURITY_PROMPT_BERT_ENABLED?: boolean;
   SECURITY_PROMPT_BERT_MODEL?: string;
+  SECURITY_PROMPT_BERT_ENDPOINT?: string;
+  SECURITY_PROMPT_BERT_TOKEN?: string;
 }
-
-// TODO: is this the best way to store this info? - figure out other options
-const AVAILABLE_MODELS = [
-  {
-    value: 'deberta-prompt-injection-v2',
-    label: 'ProtectAI DeBERTa',
-    description: 'BERT-based model trained for prompt injection detection',
-  },
-];
 
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
+
+  const getAvailableModels = () => {
+    try {
+      const mappingEnv = window.appConfig?.get('ML_MODEL_MAPPING') as string | undefined;
+      console.log('ML_MODEL_MAPPING in SecurityToggle:', mappingEnv);
+      if (mappingEnv) {
+        const mapping = JSON.parse(mappingEnv);
+        return Object.keys(mapping).map((modelName) => ({
+          value: modelName,
+          label: modelName,
+          description: `Model: ${modelName}`,
+        }));
+      }
+    } catch (error) {
+      console.warn('Failed to parse ML_MODEL_MAPPING:', error);
+    }
+
+    return [];
+  };
+
+  const isInternalUser = () => {
+    const mappingEnv = window.appConfig?.get('ML_MODEL_MAPPING');
+    const hasMapping = !!mappingEnv;
+    console.log('isInternalUser check:', hasMapping, 'env:', mappingEnv);
+    return hasMapping;
+  };
+
+  const availableModels = getAvailableModels();
+  const showModelDropdown = isInternalUser();
+
+  console.log('availableModels:', availableModels);
+  console.log('showModelDropdown:', showModelDropdown);
 
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
     SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
     SECURITY_PROMPT_BERT_ENABLED: mlEnabled = false,
-    SECURITY_PROMPT_BERT_MODEL: mlModel = AVAILABLE_MODELS[0].value, // use single source of truth for default model
+    SECURITY_PROMPT_BERT_MODEL: mlModel = availableModels[0]?.value || '',
+    SECURITY_PROMPT_BERT_ENDPOINT: mlEndpoint = '',
+    SECURITY_PROMPT_BERT_TOKEN: mlToken = '',
   } = (config as SecurityConfig) ?? {};
 
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
+  const [endpointInput, setEndpointInput] = useState(mlEndpoint);
+  const [tokenInput, setTokenInput] = useState(mlToken);
 
   useEffect(() => {
     setThresholdInput(configThreshold.toString());
   }, [configThreshold]);
+
+  useEffect(() => {
+    setEndpointInput(mlEndpoint);
+  }, [mlEndpoint]);
+
+  useEffect(() => {
+    setTokenInput(mlToken);
+  }, [mlToken]);
 
   const handleToggle = async (enabled: boolean) => {
     await upsert('SECURITY_PROMPT_ENABLED', enabled, false);
@@ -47,16 +84,30 @@ export const SecurityToggle = () => {
     await upsert('SECURITY_PROMPT_BERT_ENABLED', enabled, false);
 
     if (enabled) {
-      const modelToSet = mlModel || AVAILABLE_MODELS[0].value;
-      await upsert('SECURITY_PROMPT_BERT_MODEL', modelToSet, false);
+      if (showModelDropdown) {
+        const modelToSet = mlModel || availableModels[0]?.value;
+        if (modelToSet) {
+          await upsert('SECURITY_PROMPT_BERT_MODEL', modelToSet, false);
+        }
+      } else {
+        await upsert('SECURITY_PROMPT_BERT_MODEL', '', false);
+      }
     }
   };
 
   const handleModelChange = async (model: string) => {
-    const modelInfo = AVAILABLE_MODELS.find((m) => m.value === model);
+    const modelInfo = availableModels.find((m) => m.value === model);
     if (modelInfo) {
       await upsert('SECURITY_PROMPT_BERT_MODEL', model, false);
     }
+  };
+
+  const handleEndpointChange = async (endpoint: string) => {
+    await upsert('SECURITY_PROMPT_BERT_ENDPOINT', endpoint, false);
+  };
+
+  const handleTokenChange = async (token: string) => {
+    await upsert('SECURITY_PROMPT_BERT_TOKEN', token, true); // true = secret
   };
 
   return (
@@ -140,41 +191,104 @@ export const SecurityToggle = () => {
               </div>
             </div>
 
-            {/* Model Selection */}
+            {/* Configuration Section */}
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                enabled && mlEnabled ? 'max-h-96 opacity-100 mt-3' : 'max-h-0 opacity-0'
+                enabled && mlEnabled ? 'max-h-[32rem] opacity-100 mt-3' : 'max-h-0 opacity-0'
               }`}
             >
               <div className={enabled && mlEnabled ? '' : 'opacity-50'}>
-                <label
-                  className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
-                >
-                  Detection Model
-                </label>
-                <p className="text-xs text-text-muted mb-2">
-                  Select which ML model to use for prompt injection detection
-                </p>
-                <select
-                  value={mlModel}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  disabled={!enabled || !mlEnabled}
-                  className={`w-full px-3 py-2 text-sm border rounded ${
-                    enabled && mlEnabled
-                      ? 'border-border-default bg-background-default text-text-default'
-                      : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
-                  }`}
-                >
-                  {AVAILABLE_MODELS.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-                {enabled && mlEnabled && (
-                  <p className="text-xs text-text-muted mt-2">
-                    {AVAILABLE_MODELS.find((m) => m.value === mlModel)?.description}
-                  </p>
+                {showModelDropdown ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label
+                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
+                      >
+                        Detection Model
+                      </label>
+                      <p className="text-xs text-text-muted mb-2">
+                        Select which ML model to use for prompt injection detection
+                      </p>
+                      <select
+                        value={mlModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                        disabled={!enabled || !mlEnabled}
+                        className={`w-full px-3 py-2 text-sm border rounded ${
+                          enabled && mlEnabled
+                            ? 'border-border-default bg-background-default text-text-default'
+                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                        }`}
+                      >
+                        {availableModels.map((model) => (
+                          <option key={model.value} value={model.value}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </select>
+                      {enabled && mlEnabled && mlModel && (
+                        <p className="text-xs text-text-muted mt-2">
+                          {availableModels.find((m) => m.value === mlModel)?.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label
+                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
+                      >
+                        Classification Endpoint
+                      </label>
+                      <p className="text-xs text-text-muted mb-2">
+                        Enter the full URL for your ML classification service (including model
+                        identifier)
+                      </p>
+                      <input
+                        type="url"
+                        value={endpointInput}
+                        onChange={(e) => setEndpointInput(e.target.value)}
+                        onBlur={(e) => handleEndpointChange(e.target.value)}
+                        disabled={!enabled || !mlEnabled}
+                        placeholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
+                        className={`w-full px-3 py-2 text-sm border rounded ${
+                          enabled && mlEnabled
+                            ? 'border-border-default bg-background-default text-text-default'
+                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
+                      >
+                        API Token (Optional)
+                      </label>
+                      <p className="text-xs text-text-muted mb-2">
+                        Authentication token for the ML service (e.g., HuggingFace token)
+                      </p>
+                      <input
+                        type="password"
+                        value={tokenInput}
+                        onChange={(e) => setTokenInput(e.target.value)}
+                        onBlur={(e) => handleTokenChange(e.target.value)}
+                        disabled={!enabled || !mlEnabled}
+                        placeholder="hf_..."
+                        className={`w-full px-3 py-2 text-sm border rounded ${
+                          enabled && mlEnabled
+                            ? 'border-border-default bg-background-default text-text-default'
+                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                        }`}
+                      />
+                      {enabled && mlEnabled && (
+                        <p className="text-xs text-text-muted mt-2">
+                          Supports HuggingFace Inference API format. Local servers may not require a
+                          token.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::Duration;
 
-/// Request format following HuggingFace Inference API specification
+/// Request format following HuggingFace Inference Text Classification API specification
 #[derive(Debug, Serialize)]
 struct ClassificationRequest {
     inputs: String,
@@ -18,11 +19,26 @@ struct ClassificationLabel {
 
 type ClassificationResponse = Vec<Vec<ClassificationLabel>>;
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct ModelEndpointInfo {
+    pub endpoint: String,
+    #[serde(flatten)]
+    pub extra_params: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ModelMappingConfig {
+    #[serde(flatten)]
+    pub models: HashMap<String, ModelEndpointInfo>,
+}
+
+#[derive(Debug)]
 pub struct ClassificationClient {
     endpoint_url: String,
     client: reqwest::Client,
     timeout: Duration,
     auth_token: Option<String>,
+    extra_params: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl ClassificationClient {
@@ -30,6 +46,7 @@ impl ClassificationClient {
         endpoint_url: String,
         timeout_ms: Option<u64>,
         auth_token: Option<String>,
+        extra_params: Option<HashMap<String, serde_json::Value>>,
     ) -> Result<Self> {
         let timeout = Duration::from_millis(timeout_ms.unwrap_or(5000));
 
@@ -43,7 +60,49 @@ impl ClassificationClient {
             client,
             timeout,
             auth_token,
+            extra_params,
         })
+    }
+
+    pub fn from_model_name(model_name: &str, timeout_ms: Option<u64>) -> Result<Self> {
+        let mapping_json = std::env::var("ML_MODEL_MAPPING")
+            .context("ML_MODEL_MAPPING environment variable not set")?;
+
+        let mapping = serde_json::from_str::<ModelMappingConfig>(&mapping_json)
+            .context("Failed to parse ML_MODEL_MAPPING JSON")?;
+
+        let model_info = mapping.models.get(model_name).context(format!(
+            "Model '{}' not found in ML_MODEL_MAPPING",
+            model_name
+        ))?;
+
+        tracing::info!(
+            model_name = %model_name,
+            endpoint = %model_info.endpoint,
+            extra_params = ?model_info.extra_params,
+            "Creating classification client from model mapping"
+        );
+
+        Self::new(
+            model_info.endpoint.clone(),
+            timeout_ms,
+            None,
+            Some(model_info.extra_params.clone()),
+        )
+    }
+
+    pub fn from_endpoint(
+        endpoint_url: String,
+        timeout_ms: Option<u64>,
+        auth_token: Option<String>,
+    ) -> Result<Self> {
+        tracing::info!(
+            endpoint = %endpoint_url,
+            has_token = auth_token.is_some(),
+            "Creating classification client from endpoint"
+        );
+
+        Self::new(endpoint_url, timeout_ms, auth_token, None)
     }
 
     pub async fn classify(&self, text: &str) -> Result<f32> {
@@ -51,11 +110,17 @@ impl ClassificationClient {
             endpoint = %self.endpoint_url,
             text_length = text.len(),
             timeout_ms = ?self.timeout.as_millis(),
+            extra_params = ?self.extra_params,
         );
+
+        let parameters = self
+            .extra_params
+            .as_ref()
+            .map(|params| serde_json::to_value(params).unwrap_or(serde_json::Value::Null));
 
         let request = ClassificationRequest {
             inputs: text.to_string(),
-            parameters: None, // Reserved for future use (e.g., truncation, max_length)
+            parameters,
         };
 
         let mut request_builder = self.client.post(&self.endpoint_url).json(&request);
@@ -143,6 +208,7 @@ mod tests {
             "http://localhost:8000/classify".to_string(),
             Some(3000),
             None,
+            None,
         );
         assert!(client.is_ok());
     }
@@ -153,8 +219,45 @@ mod tests {
             "http://localhost:8000/classify".to_string(),
             None,
             Some("test_token".to_string()),
+            None,
         );
         assert!(client.is_ok());
         assert_eq!(client.unwrap().auth_token, Some("test_token".to_string()));
+    }
+
+    #[test]
+    fn test_from_endpoint() {
+        let client = ClassificationClient::from_endpoint(
+            "http://localhost:8000/classify".to_string(),
+            Some(3000),
+            Some("test_token".to_string()),
+        );
+        assert!(client.is_ok());
+        let client = client.unwrap();
+        assert_eq!(client.endpoint_url, "http://localhost:8000/classify");
+        assert_eq!(client.auth_token, Some("test_token".to_string()));
+        assert!(client.extra_params.is_none());
+    }
+
+    #[test]
+    fn test_from_endpoint_without_token() {
+        let client = ClassificationClient::from_endpoint(
+            "http://localhost:8000/classify".to_string(),
+            None,
+            None,
+        );
+        assert!(client.is_ok());
+        let client = client.unwrap();
+        assert_eq!(client.endpoint_url, "http://localhost:8000/classify");
+        assert!(client.auth_token.is_none());
+    }
+
+    #[test]
+    fn test_from_model_name_without_mapping() {
+        // Should fail when ML_MODEL_MAPPING is not set
+        std::env::remove_var("ML_MODEL_MAPPING");
+        let result = ClassificationClient::from_model_name("test-model", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("ML_MODEL_MAPPING"));
     }
 }

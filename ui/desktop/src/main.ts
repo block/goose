@@ -568,6 +568,7 @@ const createChat = async (
           recipeId: recipeId,
           recipeDeeplink: recipeDeeplink,
           scheduledJobId: scheduledJobId,
+          ML_MODEL_MAPPING: process.env.ML_MODEL_MAPPING,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
