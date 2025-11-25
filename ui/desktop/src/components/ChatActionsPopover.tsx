@@ -58,14 +58,9 @@ export function ChatActionsPopover({
             onClick={() => setIsOpen(!isOpen)}
             variant="ghost"
             size="sm"
-            className={`flex items-center gap-1.5 text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-all hover:bg-bgSubtle ${
-              shouldShowIconOnly 
-                ? 'rounded-full p-2' 
-                : 'rounded-full px-3 py-1.5 border border-border-default'
-            }`}
+            className="w-8 h-8 rounded-full bg-transparent text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
           >
             <Workflow className="w-4 h-4" />
-            {!shouldShowIconOnly && <span className="text-xs font-medium">Tools</span>}
           </Button>
         </TooltipTrigger>
         <TooltipContent>Actions & Files</TooltipContent>

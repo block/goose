@@ -504,52 +504,57 @@ function BaseChatContent({
       <div
         className={`absolute bottom-0 left-0 right-0 z-20 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
       >
-        {/* Combined hover zone for both dock and chat input */}
+        {/* Hover trigger zone - thin strip at top edge to show sidecar apps */}
         <div
+          className="absolute top-0 left-0 right-0 h-8 z-30"
+          onMouseEnter={() => setIsHoveringChatInput(true)}
+          onMouseLeave={() => setIsHoveringChatInput(false)}
+        />
+
+        {/* Tab Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
+        <div 
+          className="relative max-w-4xl mx-auto w-full"
           onMouseEnter={() => setIsHoveringChatInput(true)}
           onMouseLeave={() => setIsHoveringChatInput(false)}
         >
-          {/* Tab Sidecar Invoker Dock - positioned above ChatInput with proper spacing */}
-          <div className="relative max-w-4xl mx-auto w-full">
-            {tabId && (
-              <TabSidecarInvoker 
-                tabId={tabId}
-                isVisible={isHoveringChatInput}
-              />
-            )}
-          </div>
-
-          <ChatInput
-            sessionId={sessionId}
-            handleSubmit={handleFormSubmit}
-            chatState={chatState}
-            onStop={stopStreaming}
-            commandHistory={commandHistory}
-            initialValue={initialPrompt}
-            setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
-            accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
-            }
-            accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
-            }
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            autoSubmit={false}
-            append={append}
-            gooseEnabled={gooseEnabled}
-            {...customChatInputProps}
-          />
+          {tabId && (
+            <TabSidecarInvoker 
+              tabId={tabId}
+              isVisible={isHoveringChatInput}
+            />
+          )}
         </div>
+
+        <ChatInput
+          sessionId={sessionId}
+          handleSubmit={handleFormSubmit}
+          chatState={chatState}
+          onStop={stopStreaming}
+          commandHistory={commandHistory}
+          initialValue={initialPrompt}
+          setView={setView}
+          totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+          accumulatedInputTokens={
+            tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+          }
+          accumulatedOutputTokens={
+            tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+          }
+          droppedFiles={droppedFiles}
+          onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+          messages={messages}
+          disableAnimation={disableAnimation}
+          sessionCosts={sessionCosts}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          recipe={recipe}
+          recipeAccepted={!hasNotAcceptedRecipe}
+          initialPrompt={initialPrompt}
+          toolCount={toolCount || 0}
+          autoSubmit={false}
+          append={append}
+          gooseEnabled={gooseEnabled}
+          {...customChatInputProps}
+        />
       </div>
 
       {recipe && (
