@@ -226,9 +226,9 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
   }, [viewMode, isDiffViewer]);
 
   return (
-    <div className="h-full w-full rounded-2xl shadow-2xl drop-shadow-2xl overflow-hidden">
+    <div className="h-full w-full shadow-2xl drop-shadow-2xl overflow-hidden">
       <div
-        className={`bg-background-default overflow-hidden flex flex-col h-full rounded-2xl ${className}`}
+        className={`bg-background-default overflow-hidden flex flex-col h-full ${className}`}
       >
         {/* Sidecar Header */}
         <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">

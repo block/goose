@@ -270,10 +270,10 @@ const Panel: React.FC<PanelProps> = ({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className={`h-full w-full rounded-2xl shadow-2xl drop-shadow-2xl cursor-grab active:cursor-grabbing ${className || ''} ${isLocalDragging ? 'shadow-2xl' : ''}`}
+      className={`h-full w-full shadow-2xl drop-shadow-2xl cursor-grab active:cursor-grabbing ${className || ''} ${isLocalDragging ? 'shadow-2xl' : ''}`}
       style={style}
     >
-      <div className="bg-background-default overflow-hidden flex flex-col h-full rounded-2xl">
+      <div className="bg-background-default overflow-hidden flex flex-col h-full">
         {/* Sidecar Header */}
         <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
