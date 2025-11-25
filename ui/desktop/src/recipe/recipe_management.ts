@@ -1,9 +1,4 @@
-import {
-  Recipe,
-  saveRecipe as saveRecipeApi,
-  listRecipes,
-  RecipeManifestResponse,
-} from '../api';
+import { Recipe, saveRecipe as saveRecipeApi, listRecipes, RecipeManifest } from '../api';
 
 export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Promise<string> => {
   try {
@@ -24,10 +19,10 @@ export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Prom
   }
 };
 
-export const listSavedRecipes = async (): Promise<RecipeManifestResponse[]> => {
+export const listSavedRecipes = async (): Promise<RecipeManifest[]> => {
   try {
     const listRecipeResponse = await listRecipes();
-    return listRecipeResponse?.data?.recipe_manifest_responses ?? [];
+    return listRecipeResponse?.data?.manifests ?? [];
   } catch (error) {
     console.warn('Failed to list saved recipes:', error);
     return [];

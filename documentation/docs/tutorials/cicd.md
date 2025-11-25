@@ -1,12 +1,12 @@
 ---
 title: CI/CD Environments
-description: Set up Goose in your CI/CD pipeline to automate tasks
+description: Set up goose in your CI/CD pipeline to automate tasks
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Goose isn’t just useful on your local machine, it can also streamline tasks in CI/CD environments. By integrating Goose into your pipeline, you can automate tasks such as:
+goose isn’t just useful on your local machine, it can also streamline tasks in CI/CD environments. By integrating goose into your pipeline, you can automate tasks such as:
 
 - Code reviews
 - Documentation checks
@@ -15,11 +15,11 @@ Goose isn’t just useful on your local machine, it can also streamline tasks in
 - Rollbacks and recovery processes
 - Intelligent test execution
 
-This guide walks you through setting up Goose in your CI/CD pipeline, with a focus on using GitHub Actions for code reviews.
+This guide walks you through setting up goose in your CI/CD pipeline, with a focus on using GitHub Actions for code reviews.
 
 
-## Using Goose with GitHub Actions
-You can run Goose directly within GitHub Actions. Follow these steps to set up your workflow.
+## Using goose with GitHub Actions
+You can run goose directly within GitHub Actions. Follow these steps to set up your workflow.
 
 :::info TLDR
 <details>
@@ -28,7 +28,7 @@ You can run Goose directly within GitHub Actions. Follow these steps to set up y
    ```yaml title="goose.yml"
 
 
-name: Goose
+name: goose
 
 on:
    pull_request:
@@ -46,7 +46,7 @@ env:
 
 jobs:
    goose-comment:
-      name: Goose Comment
+      name: goose Comment
       runs-on: ubuntu-latest
       steps:
          - name: Check out repository
@@ -65,14 +65,14 @@ jobs:
               gh pr diff $PR_NUMBER
               } > changes.txt
 
-         - name: Install Goose CLI
+         - name: Install goose CLI
            run: |
               mkdir -p /home/runner/.local/bin
               curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
               | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
               echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
-         - name: Configure Goose
+         - name: Configure goose
            run: |
               mkdir -p ~/.config/goose
               cat <<EOF > ~/.config/goose/config.yaml
@@ -81,7 +81,7 @@ jobs:
               keyring: false
               EOF
 
-         - name: Create instructions for Goose
+         - name: Create instructions for goose
            run: |
               cat <<EOF > instructions.txt
               Create a summary of the changes provided. Don't provide any session or logging details.
@@ -96,7 +96,7 @@ jobs:
          - name: Test
            run: cat instructions.txt
 
-         - name: Run Goose and filter output
+         - name: Run goose and filter output
            run: |
               goose run --instructions instructions.txt | \
               # Remove ANSI color codes
@@ -128,11 +128,11 @@ Create a new file in your repository at `.github/workflows/goose.yml`. This will
 Configure the action such that it:
 
 - Triggers the workflow when a pull request is opened, updated, reopened, or labeled
-- Grants the necessary permissions for Goose to interact with the repository
+- Grants the necessary permissions for goose to interact with the repository
 - Configures environment variables for your chosen LLM provider
 
 ```yaml
-name: Goose
+name: goose
 
 on:
     pull_request:
@@ -149,20 +149,20 @@ env:
 ```
 
 
-### 3. Install and Configure Goose
+### 3. Install and Configure goose
 
-To install and set up Goose in your workflow, add the following steps:
+To install and set up goose in your workflow, add the following steps:
 
 ```yaml
 steps:
-    - name: Install Goose CLI
+    - name: Install goose CLI
       run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
             | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
           echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
-    - name: Configure Goose
+    - name: Configure goose
       run: |
           mkdir -p ~/.config/goose
           cat <<EOF > ~/.config/goose/config.yaml
@@ -178,10 +178,10 @@ Replace `REPLACE_WITH_PROVIDER` and `REPLACE_WITH_MODEL` with your LLM provider 
 
 ### 4. Gather PR Changes and Prepare Instructions
 
-This step extracts pull request details and formats them into structured instructions for Goose.
+This step extracts pull request details and formats them into structured instructions for goose.
 
 ```yaml
-    - name: Create instructions for Goose
+    - name: Create instructions for goose
       run: |
           cat <<EOF > instructions.txt
           Create a summary of the changes provided. Don't provide any session or logging details.
@@ -194,12 +194,12 @@ This step extracts pull request details and formats them into structured instruc
           EOF
 ```
 
-### 5. Run Goose and Clean Output
+### 5. Run goose and Clean Output
 
-Now, run Goose with the formatted instructions and clean the output by removing ANSI color codes and unnecessary log messages.
+Now, run goose with the formatted instructions and clean the output by removing ANSI color codes and unnecessary log messages.
 
 ```yaml
-    - name: Run Goose and filter output
+    - name: Run goose and filter output
       run: |
           goose run --instructions instructions.txt | \
             # Remove ANSI color codes
@@ -215,7 +215,7 @@ Now, run Goose with the formatted instructions and clean the output by removing 
 
 ### 6. Post Comment to PR
 
-Finally, post the Goose output as a comment on the pull request:
+Finally, post the goose output as a comment on the pull request:
 
 ```yaml
     - name: Post comment to PR
@@ -224,7 +224,7 @@ Finally, post the Goose output as a comment on the pull request:
           gh pr comment $PR_NUMBER --body-file pr_comment.txt
 ```
 
-With this workflow, Goose will run on pull requests, analyze the changes, and post a summary as a comment on the PR.
+With this workflow, goose will run on pull requests, analyze the changes, and post a summary as a comment on the PR.
 
 This is just one example of what's possible. Feel free to modify your GitHub Action to meet your needs.
 
@@ -232,7 +232,7 @@ This is just one example of what's possible. Feel free to modify your GitHub Act
 
 ## Security Considerations
 
-When running Goose in a CI/CD enviroment, keep these security practices in mind:
+When running goose in a CI/CD enviroment, keep these security practices in mind:
 
 1. **Secret Management**
       - Store your sensitive credentials (like API keys) as GitHub Secrets. 
@@ -242,4 +242,4 @@ When running Goose in a CI/CD enviroment, keep these security practices in mind:
       - Grant only the necessary permissions in your workflow and regularly audit them.
 
 3. **Input Validation**
-      - Ensure any inputs passed to Goose are sanitized and validated to prevent unexpected behavior.
+      - Ensure any inputs passed to goose are sanitized and validated to prevent unexpected behavior.

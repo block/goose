@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
@@ -41,7 +41,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.52",
     "@ai-sdk/ui-utils": "^1.2.11",
-    "@mcp-ui/client": "^5.13.0",
+    "@mcp-ui/client": "^5.14.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -68,8 +68,10 @@
     "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3",
     "express": "^5.1.0",
+    "katex": "^0.16.25",
     "lodash": "^4.17.21",
     "lucide-react": "^0.546.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
@@ -78,8 +80,10 @@
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
+    "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "split-type": "^0.3.4",
     "swr": "^2.3.6",
     "tailwind-merge": "^3.3.1",

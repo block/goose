@@ -1,0 +1,75 @@
+# Community Stars Team Lists
+# This file categorizes contributors for the block/goose Community Stars program
+# Format: One username per line under each category header
+#
+# Note: External contributors (eligible for Community All-Stars) are automatically
+# detected - they don't need to be listed here. Anyone not in the lists below
+# defaults to "external" unless they have public Block org membership.
+
+# Goose Maintainers (excluded from rankings)
+angiejones
+zanesq
+michaelneale
+alexhancock
+blackgirlbytes
+jamadeo
+lily-de
+dianed-square
+yingjiehe-xyz
+EbonyLouis
+DOsinga
+Kvadratni
+salman1993
+acekyd
+katzdave
+taniandjerry
+zakiali
+tlongwell-block
+aha-square
+amed-xyz
+emma-squared
+nahiyankhan
+jsibbison-square
+agiuliano-square
+spencrmartin
+alicehau
+opdich
+aharvard
+dhanji
+baxen
+
+# Block, non-goose (eligible for Team Stars)
+wendytang
+kalvinnchau
+lifeizhou-ap
+angelahning
+wpfleger96
+matthewdiamant
+tiensi
+JohnMAustin78
+jackjackbits
+finn-block
+shellz-n-stuff
+sheagcraig
+cloud-on-prem
+dorien-koelemeijer
+elenazherdeva
+maniksurtani
+AaronGoldsmith
+exitcode0
+alexrrouse
+JJSwigut
+damienrj
+joahg
+simonsickle
+taylorkmho
+chaitanyarahalkar
+
+# External, goose (excluded from rankings)
+The-Best-Codes
+Abhijay007
+
+# Bots (excluded from rankings)
+dependabot[bot]
+SquareGist
+github-actions[bot]

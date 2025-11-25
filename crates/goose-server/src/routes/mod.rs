@@ -2,6 +2,7 @@ pub mod agent;
 pub mod audio;
 pub mod config_management;
 pub mod errors;
+pub mod mcp_ui_proxy;
 pub mod recipe;
 pub mod recipe_utils;
 pub mod reply;
@@ -9,6 +10,7 @@ pub mod schedule;
 pub mod session;
 pub mod setup;
 pub mod status;
+pub mod tunnel;
 pub mod utils;
 
 use std::sync::Arc;
@@ -16,7 +18,7 @@ use std::sync::Arc;
 use axum::Router;
 
 // Function to configure all routes
-pub fn configure(state: Arc<crate::state::AppState>) -> Router {
+pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
     Router::new()
         .merge(status::routes())
         .merge(reply::routes(state.clone()))
@@ -27,4 +29,6 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(tunnel::routes(state.clone()))
+        .merge(mcp_ui_proxy::routes(secret_key))
 }

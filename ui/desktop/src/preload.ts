@@ -52,7 +52,6 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipe?: Recipe,
     viewType?: string,
     recipeId?: string
   ) => void;
@@ -64,8 +63,7 @@ type ElectronAPI = {
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
-  startPowerSaveBlocker: () => Promise<number>;
-  stopPowerSaveBlocker: () => Promise<void>;
+  getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
   ensureDirectory: (dirPath: string) => Promise<boolean>;
@@ -143,7 +141,6 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipe?: Recipe,
     viewType?: string,
     recipeId?: string
   ) =>
@@ -153,7 +150,6 @@ const electronAPI: ElectronAPI = {
       dir,
       version,
       resumeSessionId,
-      recipe,
       viewType,
       recipeId
     ),
@@ -166,8 +162,7 @@ const electronAPI: ElectronAPI = {
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
-  startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
-  stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
+  getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),

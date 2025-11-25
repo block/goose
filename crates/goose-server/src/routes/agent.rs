@@ -16,7 +16,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
-use goose::providers::{create, create_with_named_model};
+use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::session_manager::SessionType;
@@ -65,6 +65,11 @@ pub struct StartAgentRequest {
     recipe_id: Option<String>,
     #[serde(default)]
     recipe_deeplink: Option<String>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct StopAgentRequest {
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -204,7 +209,7 @@ async fn resume_agent(
 
     if payload.load_model_and_extensions {
         let agent = state
-            .get_agent_for_route(payload.session_id)
+            .get_agent_for_route(payload.session_id.clone())
             .await
             .map_err(|code| ErrorResponse {
                 message: "Failed to get agent for route".into(),
@@ -214,25 +219,39 @@ async fn resume_agent(
         let config = Config::global();
 
         let provider_result = async {
-            let provider_name: String = config.get_goose_provider().map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing provider".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-
-            let model: String = config.get_goose_model().map_err(|_| ErrorResponse {
-                message: "Could not configure agent: missing model".into(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-
-            let provider = create_with_named_model(&provider_name, &model)
-                .await
-                .map_err(|_| ErrorResponse {
-                    message: "Could not configure agent: missing model".into(),
+            let provider_name = session
+                .provider_name
+                .clone()
+                .or_else(|| config.get_goose_provider().ok())
+                .ok_or_else(|| ErrorResponse {
+                    message: "Could not configure agent: missing provider".into(),
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 })?;
 
+            let model_config = match session.model_config.clone() {
+                Some(saved_config) => saved_config,
+                None => {
+                    let model_name = config.get_goose_model().map_err(|_| ErrorResponse {
+                        message: "Could not configure agent: missing model".into(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?;
+                    ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
+                        message: format!("Could not configure agent: invalid model {}", e),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?
+                }
+            };
+
+            let provider =
+                create(&provider_name, model_config)
+                    .await
+                    .map_err(|e| ErrorResponse {
+                        message: format!("Could not create provider: {}", e),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    })?;
+
             agent
-                .update_provider(provider)
+                .update_provider(provider, &payload.session_id)
                 .await
                 .map_err(|e| ErrorResponse {
                     message: format!("Could not configure agent: {}", e),
@@ -428,12 +447,15 @@ async fn update_agent_provider(
         )
     })?;
 
-    agent.update_provider(new_provider).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to update provider: {}", e),
-        )
-    })?;
+    agent
+        .update_provider(new_provider, &payload.session_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to update provider: {}", e),
+            )
+        })?;
 
     Ok(())
 }
@@ -582,6 +604,34 @@ async fn agent_remove_extension(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/stop",
+    request_body = StopAgentRequest,
+    responses(
+        (status = 200, description = "Agent stopped successfully", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn stop_agent(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<StopAgentRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let session_id = payload.session_id;
+    state
+        .agent_manager
+        .remove_session(&session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to stop agent for session {}: {}", session_id, e),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -595,5 +645,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
+        .route("/agent/stop", post(stop_agent))
         .with_state(state)
 }
