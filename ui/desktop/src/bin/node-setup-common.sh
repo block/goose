@@ -24,19 +24,21 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 log "Starting node setup (common)."
 
 # One-time cleanup for existing Linux users to fix locking issues
-if grep -q "Fedora" /etc/os-release; then
-    CLEANUP_MARKER=~/.config/goose/.mcp-hermit-cleanup-v1
-else
-    CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
-fi
-if [[ "$(uname -s)" == "Linux" ]] && [ ! -f "$CLEANUP_MARKER" ]; then
-    log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
-    if [ -d ~/.config/goose/mcp-hermit ]; then
-        rm -rf ~/.config/goose/mcp-hermit
-        log "Removed old mcp-hermit directory."
+if [[ "$(uname -s)" == "Linux" ]]; then
+    if grep -q "Fedora" /etc/os-release; then
+        CLEANUP_MARKER=~/.config/goose/.mcp-hermit-cleanup-v1
+    else
+        CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
+    fi    
+    if [ ! -f "$CLEANUP_MARKER" ]; then
+        log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
+        if [ -d ~/.config/goose/mcp-hermit ]; then
+            rm -rf ~/.config/goose/mcp-hermit
+            log "Removed old mcp-hermit directory."
+        fi
+        touch "$CLEANUP_MARKER"
+        log "Cleanup completed. Marker file created."
     fi
-    touch "$CLEANUP_MARKER"
-    log "Cleanup completed. Marker file created."
 fi
 
 # Ensure ~/.config/goose/mcp-hermit/bin exists
