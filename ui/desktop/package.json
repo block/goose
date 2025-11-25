@@ -71,6 +71,7 @@
     "katex": "^0.16.25",
     "lodash": "^4.17.21",
     "lucide-react": "^0.546.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
