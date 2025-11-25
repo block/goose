@@ -1,17 +1,20 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, RequestLog};
+use super::utils::{
+    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    RequestLog,
+};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage,
+};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Tool;
 use serde_json::Value;
-
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
 pub const XAI_DEFAULT_MODEL: &str = "grok-code-fast-1";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
@@ -42,6 +45,7 @@ pub struct XaiProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
     #[serde(skip)]
     name: String,
 }
@@ -60,13 +64,12 @@ impl XaiProvider {
         Ok(Self {
             api_client,
             model,
+            supports_streaming: true,
             name: Self::metadata().name,
         })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        tracing::debug!("xAI request model: {:?}", self.model.model_name);
-
         let response = self
             .api_client
             .response_post("chat/completions", &payload)
@@ -118,6 +121,7 @@ impl Provider for XaiProvider {
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
 
         let mut log = RequestLog::start(&self.model, &payload)?;
@@ -131,5 +135,41 @@ impl Provider for XaiProvider {
         let response_model = get_model(&response);
         log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        self.supports_streaming
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &super::utils::ImageFormat::OpenAi,
+            true,
+        )?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .response_post("chat/completions", &payload)
+                    .await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
     }
 }

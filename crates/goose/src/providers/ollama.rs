@@ -3,7 +3,8 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, Provider
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    RequestLog,
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
@@ -11,23 +12,14 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::utils::safe_truncate;
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use regex::Regex;
 use rmcp::model::Tool;
-use serde_json::{json, Value};
-use std::io;
+use serde_json::Value;
 use std::time::Duration;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
@@ -200,6 +192,7 @@ impl Provider for OllamaProvider {
             messages,
             filtered_tools,
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
 
         let mut log = RequestLog::start(model_config, &payload)?;
@@ -254,17 +247,14 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(
+        let payload = create_request(
             &self.model,
             system,
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            true,
         )?;
-        payload["stream"] = json!(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
@@ -279,19 +269,7 @@ impl Provider for OllamaProvider {
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| &f.usage))?;
-                yield (message, usage);
-            }
-        }))
+        stream_openai_compat(response, log)
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

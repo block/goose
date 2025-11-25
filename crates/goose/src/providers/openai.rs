@@ -1,16 +1,3 @@
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::TryStreamExt;
-use reqwest::StatusCode;
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
-
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
@@ -18,14 +5,19 @@ use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    ImageFormat,
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
+use anyhow::Result;
+use async_trait::async_trait;
+use reqwest::StatusCode;
+use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
-use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
@@ -238,7 +230,14 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            false,
+        )?;
 
         let mut log = RequestLog::start(&self.model, &payload)?;
         let json_response = self
@@ -319,12 +318,14 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload =
-            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        payload["stream"] = serde_json::Value::Bool(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
+        let payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            true,
+        )?;
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
@@ -339,20 +340,8 @@ impl Provider for OpenAiProvider {
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        let stream = response.bytes_stream().map_err(io::Error::other);
 
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        stream_openai_compat(response, log)
     }
 }
 
