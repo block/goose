@@ -188,7 +188,7 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
 
 pub fn stream_openai_compat(
     response: Response,
-    mut log: RequestLog, // Take ownership instead of &mut
+    mut log: RequestLog,
 ) -> Result<MessageStream, ProviderError> {
     let stream = response.bytes_stream().map_err(io::Error::other);
 
@@ -210,10 +210,12 @@ pub fn stream_openai_compat(
 }
 
 pub fn is_google_model(payload: &Value) -> bool {
-    if let Some(model) = payload.get("model").and_then(|m| m.as_str()) {
-        return model.to_lowercase().contains("google");
-    }
-    false
+    payload
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("")
+        .to_lowercase()
+        .contains("google")
 }
 
 /// Extracts `StatusCode` from response status or payload error code.
