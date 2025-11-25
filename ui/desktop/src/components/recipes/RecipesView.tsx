@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -191,6 +191,8 @@ export default function RecipesView() {
   const handleSaveSchedule = async () => {
     if (!scheduleRecipeManifest) return;
 
+    const isCreating = !scheduleRecipeManifest.schedule_cron;
+
     try {
       await scheduleRecipe({
         body: {
@@ -199,14 +201,18 @@ export default function RecipesView() {
         },
       });
 
+      setShowScheduleDialog(false);
+      setScheduleRecipeManifest(null);
+      await loadSavedRecipes();
+
       toastSuccess({
         title: 'Schedule saved',
         msg: `Recipe will run ${getReadableCron(scheduleCron)}`,
       });
 
-      setShowScheduleDialog(false);
-      setScheduleRecipeManifest(null);
-      await loadSavedRecipes();
+      if (isCreating) {
+        setView('schedules');
+      }
     } catch (error) {
       console.error('Failed to save schedule:', error);
       setError(error instanceof Error ? error.message : 'Failed to save schedule');
@@ -302,6 +308,19 @@ export default function RecipesView() {
       return cron;
     }
   };
+
+  // Memoize to prevent CronPicker from resetting on every render
+  const memoizedSchedule = useMemo(() => {
+    if (!scheduleRecipeManifest?.schedule_cron) return null;
+    return {
+      id: scheduleRecipeManifest.id,
+      source: '',
+      cron: scheduleRecipeManifest.schedule_cron,
+      last_run: null,
+      currently_running: false,
+      paused: false,
+    };
+  }, [scheduleRecipeManifest?.id, scheduleRecipeManifest?.schedule_cron]);
 
   const RecipeItem = ({
     recipeManifestResponse,
@@ -618,18 +637,8 @@ export default function RecipesView() {
             </DialogHeader>
             <div className="space-y-4">
               <CronPicker
-                schedule={
-                  scheduleRecipeManifest.schedule_cron
-                    ? {
-                        id: scheduleRecipeManifest.id,
-                        source: '',
-                        cron: scheduleRecipeManifest.schedule_cron,
-                        last_run: null,
-                        currently_running: false,
-                        paused: false,
-                      }
-                    : null
-                }
+                key={scheduleRecipeManifest.id}
+                schedule={memoizedSchedule}
                 onChange={setScheduleCron}
                 isValid={setScheduleIsValid}
               />
