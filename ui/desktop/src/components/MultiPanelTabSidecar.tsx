@@ -24,7 +24,7 @@ import {
 } from './ui/dropdown-menu';
 import { TabSidecarState, TabSidecarView } from './TabBar';
 import DocumentEditor from './DocumentEditor';
-import WebBrowser from './WebBrowser';
+import WebViewer from './WebViewer';
 import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 export type SidecarLayoutMode = 'single' | 'columns' | 'rows' | 'grid' | 'custom';

@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
 import DocumentEditor from './DocumentEditor';
-import WebBrowser from './WebBrowser';
+import WebViewer from './WebViewer';
 import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 interface TabSidecarProps {
