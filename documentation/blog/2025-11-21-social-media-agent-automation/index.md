@@ -1,6 +1,6 @@
 ---
 title: Building a Social Media Agent
-description: Join me as I build a fully automated social media agent using MCP servers to fetch content and post through Sprout Social. No more manual social promo!
+description: I built a fully automated social media agent using MCP servers to fetch content and post through Sprout Social.
 authors: 
     - ebony
 ---
@@ -15,13 +15,11 @@ When I posted that on LinkedIn the other night, I realized I'm definitely not th
 
 It’s exhausting, so I decided to automate it.
 
-And yeah… I definitely got a little too excited and started coding before the livestream. I was up until 8 PM because once the idea hit, I had to see if it would actually work.
-
 <!-- truncate -->
 
 ## The Game Plan
 
-Here's what we're building: two [Model Context Protocol servers](https://modelcontextprotocol.io/docs/getting-started/intro) that work together to handle all our social media promotion automatically.
+Here's what we're building: two [MCP servers](https://modelcontextprotocol.io/docs/getting-started/intro) that work together to handle all our social media promotion automatically.
 
 **MCP Server #1: Content Fetcher**  
 This one goes out and grabs all our content from:
@@ -462,11 +460,11 @@ Got questions or ideas? Come chat with us on [Discord](https://discord.gg/block-
   <meta property="og:title" content="Building a Social Media Agent" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/11/21/building-social-media-agent" />
-  <meta property="og:description" content="Join me as I build a fully automated social media agent using MCP servers to fetch content and post through Sprout Social. No more manual social promo!" />
+  <meta property="og:description" content="I built a fully automated social media agent using MCP servers to fetch content and post through Sprout Social." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/header-image-7f5ab50f65332fb53302ca30a3f86e46.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Building a Social Media Agent" />
-  <meta name="twitter:description" content="Join me as I build a fully automated social media agent using MCP servers to fetch content and post through Sprout Social. No more manual social promo!" />
+  <meta name="twitter:description" content="I built a fully automated social media agent using MCP servers to fetch content and post through Sprout Social." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/header-image-7f5ab50f65332fb53302ca30a3f86e46.png" />
 </head>
