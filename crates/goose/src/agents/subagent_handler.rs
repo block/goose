@@ -19,18 +19,16 @@ pub async fn run_complete_subagent_task(
     recipe: Recipe,
     task_config: TaskConfig,
     return_last_only: bool,
-    session_id: String,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) =
-        get_agent_messages(recipe, task_config, session_id, return_last_only)
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to execute task: {}", e),
-                    None,
-                )
-            })?;
+    let (messages, final_output) = get_agent_messages(recipe, task_config, return_last_only)
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -99,7 +97,6 @@ pub async fn run_complete_subagent_task(
 fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
-    session_id: String,
     return_last_only: bool,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
@@ -109,17 +106,25 @@ fn get_agent_messages(
             .or(recipe.prompt.clone())
             .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
 
+        let session = crate::session::SessionManager::create_session(
+            task_config.parent_working_dir.clone(),
+            recipe.title.clone(),
+            crate::session::SessionType::SubAgent,
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to create subagent session: {}", e))?;
+
         let agent_manager = AgentManager::instance()
             .await
             .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
 
         let agent = agent_manager
-            .get_or_create_agent(session_id.clone())
+            .get_or_create_agent(session.id.clone())
             .await
             .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
 
         agent
-            .update_provider(task_config.provider, &session_id)
+            .update_provider(task_config.provider, &session.id)
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
@@ -153,13 +158,13 @@ fn get_agent_messages(
             }
         }
         let session_config = SessionConfig {
-            id: session_id.clone(),
+            id: session.id.clone(),
             schedule_id: None,
             max_turns: task_config.max_turns.map(|v| v as u32),
             retry_config: recipe.retry,
         };
 
-        let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
+        let mut stream = crate::session_context::with_session_id(Some(session.id.clone()), async {
             agent.reply(user_message, session_config, None).await
         })
         .await

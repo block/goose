@@ -83,7 +83,7 @@ async fn handle_recipe_task(
     }
 
     tokio::select! {
-        result = run_complete_subagent_task(recipe, task_config, return_last_only, task.id.clone()) => {
+        result = run_complete_subagent_task(recipe, task_config, return_last_only) => {
             result.map(|text| serde_json::json!({"result": text}))
                   .map_err(|e| format!("Recipe execution failed: {}", e))
         }

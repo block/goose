@@ -526,11 +526,8 @@ impl Agent {
                 .get("return_last_only")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
-            let sub_session_id = format!("sub_{}", Uuid::new_v4());
 
-            let result =
-                run_complete_subagent_task(recipe, task_config, return_last_only, sub_session_id)
-                    .await;
+            let result = run_complete_subagent_task(recipe, task_config, return_last_only).await;
 
             match result {
                 Ok(output) => ToolCallResult::from(Ok(vec![Content::text(output)])),
