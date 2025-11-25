@@ -857,20 +857,22 @@ enum TermCommand {
                       Each terminal gets a persistent goose session that automatically resumes.\n\n\
                       Setup:\n  \
                         echo 'eval \"$(goose term init zsh)\"' >> ~/.zshrc\n  \
-                        source ~/.zshrc"
+                        source ~/.zshrc\n\n\
+                      With --default (anything typed that isn't a command goes to goose):\n  \
+                        echo 'eval \"$(goose term init zsh --default)\"' >> ~/.zshrc"
     )]
     Init {
         /// Shell type (bash, zsh, fish, powershell)
         #[arg(value_enum)]
         shell: Shell,
 
-        /// Enable command_not_found_handler (sends unknown commands to goose)
+        /// Make goose the default handler for unknown commands
         #[arg(
-            long = "with-command-not-found",
-            help = "Enable command_not_found_handler for automatic goose invocation",
-            long_help = "When enabled, any command not found will be automatically sent to goose for interpretation. Only supported for zsh and bash."
+            long = "default",
+            help = "Make goose the default handler for unknown commands",
+            long_help = "When enabled, anything you type that isn't a valid command will be sent to goose. Only supported for zsh and bash."
         )]
-        with_command_not_found: bool,
+        default: bool,
     },
 
     /// Log a shell command (called by shell hook)
@@ -1471,17 +1473,14 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Term { command }) => {
             match command {
-                TermCommand::Init {
-                    shell,
-                    with_command_not_found,
-                } => {
+                TermCommand::Init { shell, default } => {
                     let shell_str = match shell {
                         Shell::Bash => "bash",
                         Shell::Zsh => "zsh",
                         Shell::Fish => "fish",
                         Shell::Powershell => "powershell",
                     };
-                    handle_term_init(shell_str, with_command_not_found).await?;
+                    handle_term_init(shell_str, default).await?;
                 }
                 TermCommand::Log { command } => {
                     handle_term_log(command).await?;

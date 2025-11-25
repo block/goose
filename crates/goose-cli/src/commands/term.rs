@@ -1,9 +1,6 @@
 use anyhow::{anyhow, Result};
 use goose::config::paths::Paths;
-
 use goose::session::SessionManager;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -12,69 +9,28 @@ use crate::session::{build_session, SessionBuilderConfig};
 
 const TERMINAL_SESSION_PREFIX: &str = "term:";
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct TerminalConfig {
-    /// Map from working directory path to session ID
-    terminal_sessions: HashMap<String, String>,
-}
-
-impl TerminalConfig {
-    fn config_path() -> Result<PathBuf> {
-        let config_dir = Paths::config_dir();
-        fs::create_dir_all(&config_dir)?;
-        Ok(config_dir.join("term-sessions.json"))
-    }
-
-    fn load() -> Result<Self> {
-        let path = Self::config_path()?;
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let content = fs::read_to_string(&path)?;
-        Ok(serde_json::from_str(&content)?)
-    }
-
-    fn save(&self) -> Result<()> {
-        let path = Self::config_path()?;
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-        Ok(())
-    }
-
-    fn get_session_id(&self, working_dir: &str) -> Option<&str> {
-        self.terminal_sessions.get(working_dir).map(|s| s.as_str())
-    }
-
-    fn set_session_id(&mut self, working_dir: String, session_id: String) {
-        self.terminal_sessions.insert(working_dir, session_id);
-    }
-}
-
 async fn get_or_create_terminal_session(working_dir: PathBuf) -> Result<String> {
-    let working_dir_str = working_dir.to_string_lossy().to_string();
-    let mut config = TerminalConfig::load()?;
+    let session_name = format!(
+        "{}{}",
+        TERMINAL_SESSION_PREFIX,
+        working_dir.to_string_lossy()
+    );
 
-    if let Some(session_id) = config.get_session_id(&working_dir_str) {
-        if SessionManager::get_session(session_id, false).await.is_ok() {
-            return Ok(session_id.to_string());
-        }
+    // Find existing session by name
+    let sessions = SessionManager::list_sessions().await?;
+    if let Some(session) = sessions.iter().find(|s| s.name == session_name) {
+        return Ok(session.id.clone());
     }
 
-    let session_name = format!("{}{}", TERMINAL_SESSION_PREFIX, working_dir_str);
-    let session = SessionManager::create_session(
-        working_dir.clone(),
-        session_name.clone(),
-        Default::default(),
-    )
-    .await?;
+    // Create new session
+    let session =
+        SessionManager::create_session(working_dir, session_name.clone(), Default::default())
+            .await?;
 
     SessionManager::update_session(&session.id)
         .user_provided_name(session_name)
         .apply()
         .await?;
-
-    config.set_session_id(working_dir_str, session.id.clone());
-    config.save()?;
 
     Ok(session.id)
 }
