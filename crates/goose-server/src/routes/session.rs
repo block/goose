@@ -10,6 +10,7 @@ use axum::{
     Json, Router,
 };
 use goose::conversation::Conversation;
+use goose::conversation::message::Message;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
@@ -53,7 +54,7 @@ pub struct ImportSessionRequest {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateConversationRequest {
-    conversation: Vec<goose::conversation::message::Message>,
+    conversation: Vec<Message>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
