@@ -21,15 +21,16 @@ pub async fn run_complete_subagent_task(
     return_last_only: bool,
     session_id: String,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id)
-        .await
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to execute task: {}", e),
-                None,
-            )
-        })?;
+    let (messages, final_output) =
+        get_agent_messages(recipe, task_config, session_id, return_last_only)
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to execute task: {}", e),
+                    None,
+                )
+            })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -99,6 +100,7 @@ fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
     session_id: String,
+    return_last_only: bool,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
@@ -135,6 +137,12 @@ fn get_agent_messages(
         agent
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
+
+        if return_last_only {
+            agent.extend_system_prompt(
+                "You have been invoked in 'return_last_only' mode. Your final message must be a self-contained, complete summary of your work, as all intermediate steps will be discarded.".to_string()
+            ).await;
+        }
 
         let user_message = Message::user().with_text(text_instruction);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);

@@ -14,7 +14,7 @@ use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 use crate::session::SessionManager;
 
-use super::param_utils::prepare_command_params;
+use crate::agents::recipe_tools::param_utils::prepare_command_params;
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
 

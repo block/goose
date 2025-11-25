@@ -260,7 +260,6 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
@@ -434,73 +433,7 @@ fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
-    print_tool_header(call);
 
-    // Print task_parameters array
-    if let Some(task_parameters) = call
-        .arguments
-        .as_ref()
-        .and_then(|args| args.get("task_parameters"))
-        .and_then(|v| match v {
-            Value::Array(arr) => Some(arr),
-            _ => None,
-        })
-    {
-        println!("{}:", style("task_parameters").dim());
-        for task_param in task_parameters.iter() {
-            println!("    -");
-
-            if let Some(param_obj) = task_param.as_object() {
-                for (key, value) in param_obj {
-                    match value {
-                        Value::String(s) => {
-                            // For strings, print the full content without truncation
-                            println!("        {}: {}", style(key).dim(), style(s).green());
-                        }
-                        Value::Array(arr) => {
-                            // For arrays, print each item on its own line
-                            println!("        {}:", style(key).dim());
-                            for item in arr {
-                                if let Value::String(s) = item {
-                                    println!("            - {}", style(s).green());
-                                } else if let Value::Object(_) = item {
-                                    // For objects in arrays, print them with indentation
-                                    print!("            - ");
-                                    if let Value::Object(obj) = item {
-                                        print_params(&Some(obj.clone()), 3, debug);
-                                    }
-                                } else {
-                                    println!(
-                                        "            - {}",
-                                        style(format!("{}", item)).green()
-                                    );
-                                }
-                            }
-                        }
-                        Value::Object(_) => {
-                            // For objects, print them with proper indentation
-                            println!("        {}:", style(key).dim());
-                            if let Value::Object(obj) = value {
-                                print_params(&Some(obj.clone()), 2, debug);
-                            }
-                        }
-                        _ => {
-                            // For other types (numbers, booleans, null)
-                            println!(
-                                "        {}: {}",
-                                style(key).dim(),
-                                style(format!("{}", value)).green()
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    println!();
-}
 
 fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     print_tool_header(call);

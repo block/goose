@@ -16,7 +16,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
+use crate::agents::subagent_tools::should_enabled_subagents;
 use crate::session::SessionManager;
 #[cfg(test)]
 use crate::session::SessionType;
@@ -126,9 +126,8 @@ impl Agent {
             let model_name = provider.get_model_config().model_name;
 
             if !should_enabled_subagents(&model_name) {
-                tools.retain(|tool| {
-                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
-                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
+                tools.retain(|_tool| {
+true
                 });
             }
         }
