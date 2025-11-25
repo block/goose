@@ -390,6 +390,39 @@ async fn edit_message(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/fork",
+    responses(
+        (status = 200, description = "Session forked successfully", body = Session),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn fork_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
+    let original_session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get session: {}", e);
+            StatusCode::NOT_FOUND
+        })?;
+
+    let new_name = format!("{} (fork)", original_session.name);
+
+    let forked_session = SessionManager::copy_session(&session_id, new_name)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to copy session: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(forked_session))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -404,5 +437,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             put(update_session_user_recipe_values),
         )
         .route("/sessions/{session_id}/edit_message", post(edit_message))
+        .route("/sessions/{session_id}/fork", post(fork_session))
         .with_state(state)
 }

@@ -1239,11 +1239,19 @@ impl SessionStorage {
             )
             .await?;
 
-        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+        let mut builder = SessionUpdateBuilder::new(new_session.id.clone())
             .extension_data(original_session.extension_data)
             .schedule_id(original_session.schedule_id)
             .recipe(original_session.recipe)
             .user_recipe_values(original_session.user_recipe_values);
+
+        if let Some(provider_name) = original_session.provider_name {
+            builder = builder.provider_name(provider_name);
+        }
+
+        if let Some(model_config) = original_session.model_config {
+            builder = builder.model_config(model_config);
+        }
 
         self.apply_update(builder).await?;
 

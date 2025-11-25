@@ -2637,6 +2637,35 @@ export type ExportSessionResponses = {
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
+export type ForkSessionData = {
+    body?: never;
+    path: {
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/fork';
+};
+
+export type ForkSessionErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ForkSessionResponses = {
+    /**
+     * Session forked successfully
+     */
+    200: Session;
+};
+
+export type ForkSessionResponse = ForkSessionResponses[keyof ForkSessionResponses];
+
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;
     path: {
