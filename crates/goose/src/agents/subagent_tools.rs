@@ -1,10 +1,10 @@
-use rmcp::model::{Tool, ToolAnnotations};
-use serde_json::{json, Value};
-use std::sync::Arc;
 use crate::agents::extension::ExtensionConfig;
 use crate::config::GooseMode;
 use crate::recipe::{Recipe, RecipeBuilder};
 use anyhow::{anyhow, Result};
+use rmcp::model::{Tool, ToolAnnotations};
+use serde_json::{json, Value};
+use std::sync::Arc;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
@@ -18,8 +18,8 @@ pub fn create_subagent_tool() -> Tool {
             },
             "title": { "type": "string" },
             "description": { "type": "string" },
-            "extensions": { 
-                "type": "array", 
+            "extensions": {
+                "type": "array",
                 "items": { "type": "string" },
                 "description": "List of extension names to enable for the subagent. If omitted, uses parent's extensions. If empty array, no extensions."
             },

@@ -433,8 +433,6 @@ fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-
-
 fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     print_tool_header(call);
 

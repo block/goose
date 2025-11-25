@@ -6,8 +6,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::subagent_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
+use crate::agents::subagent_tools::should_enabled_subagents;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
     config::{Config, GooseMode},

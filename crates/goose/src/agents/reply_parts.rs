@@ -126,9 +126,7 @@ impl Agent {
             let model_name = provider.get_model_config().model_name;
 
             if !should_enabled_subagents(&model_name) {
-                tools.retain(|_tool| {
-true
-                });
+                tools.retain(|_tool| true);
             }
         }
 
