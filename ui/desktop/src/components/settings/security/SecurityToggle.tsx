@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Switch } from '../../ui/switch';
 import { useConfig } from '../../ConfigContext';
 
@@ -14,37 +14,25 @@ interface SecurityConfig {
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  const getAvailableModels = () => {
+  const availableModels = useMemo(() => {
     try {
       const mappingEnv = window.appConfig?.get('ML_MODEL_MAPPING') as string | undefined;
-      console.log('ML_MODEL_MAPPING in SecurityToggle:', mappingEnv);
       if (mappingEnv) {
         const mapping = JSON.parse(mappingEnv);
         return Object.keys(mapping).map((modelName) => ({
           value: modelName,
           label: modelName,
-          description: `Model: ${modelName}`,
         }));
       }
     } catch (error) {
       console.warn('Failed to parse ML_MODEL_MAPPING:', error);
     }
-
     return [];
-  };
+  }, []);
 
-  const isInternalUser = () => {
-    const mappingEnv = window.appConfig?.get('ML_MODEL_MAPPING');
-    const hasMapping = !!mappingEnv;
-    console.log('isInternalUser check:', hasMapping, 'env:', mappingEnv);
-    return hasMapping;
-  };
-
-  const availableModels = getAvailableModels();
-  const showModelDropdown = isInternalUser();
-
-  console.log('availableModels:', availableModels);
-  console.log('showModelDropdown:', showModelDropdown);
+  const showModelDropdown = useMemo(() => {
+    return availableModels.length > 0;
+  }, [availableModels]);
 
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
@@ -96,10 +84,7 @@ export const SecurityToggle = () => {
   };
 
   const handleModelChange = async (model: string) => {
-    const modelInfo = availableModels.find((m) => m.value === model);
-    if (modelInfo) {
-      await upsert('SECURITY_PROMPT_BERT_MODEL', model, false);
-    }
+    await upsert('SECURITY_PROMPT_BERT_MODEL', model, false);
   };
 
   const handleEndpointChange = async (endpoint: string) => {
