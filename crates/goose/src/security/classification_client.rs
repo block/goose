@@ -109,8 +109,7 @@ impl ClassificationClient {
         tracing::debug!(
             endpoint = %self.endpoint_url,
             text_length = text.len(),
-            timeout_ms = ?self.timeout.as_millis(),
-            extra_params = ?self.extra_params,
+            "Sending classification request"
         );
 
         let parameters = self
@@ -135,17 +134,16 @@ impl ClassificationClient {
             .context("Failed to send classification request")?;
 
         let status = response.status();
-        if !status.is_success() {
-            let error_body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read error response".to_string());
-            anyhow::bail!(
+        let response = if !status.is_success() {
+            let error_body = response.text().await.unwrap_or_default();
+            return Err(anyhow::anyhow!(
                 "Classification API returned error status {}: {}",
                 status,
                 error_body
-            );
-        }
+            ));
+        } else {
+            response
+        };
 
         let classification_response: ClassificationResponse = response
             .json()
@@ -178,20 +176,11 @@ impl ClassificationClient {
             }
         };
 
-        if !(0.0..=1.0).contains(&injection_score) {
-            anyhow::bail!(
-                "Calculated injection score is invalid: {} (must be between 0.0 and 1.0)",
-                injection_score
-            );
-        }
-
         tracing::info!(
             injection_score = %injection_score,
             top_label = %top_label.label,
             top_score = %top_label.score,
-            all_labels = ?batch_result,
-            endpoint = %self.endpoint_url,
-            "HTTP classification detector results"
+            "Classification complete"
         );
 
         Ok(injection_score)
