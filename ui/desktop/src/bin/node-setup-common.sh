@@ -24,7 +24,13 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 log "Starting node setup (common)."
 
 # One-time cleanup for existing Linux users to fix locking issues
-CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
+
+if grep -q "Fedora" /etc/os-release; then
+    CLEANUP_MARKER=~/.config/goose/.mcp-hermit-cleanup-v1
+else
+    CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
+fi
+
 if [[ "$(uname -s)" == "Linux" ]] && [ ! -f "$CLEANUP_MARKER" ]; then
     log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
     if [ -d ~/.config/goose/mcp-hermit ]; then
