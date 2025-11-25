@@ -52,7 +52,7 @@ use tracing::{debug, error, info, instrument, warn};
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
