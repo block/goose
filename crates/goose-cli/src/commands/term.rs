@@ -77,11 +77,13 @@ command_not_found_handler() {{
             format!(
                 r#"export GOOSE_SESSION_ID="{session_id}"
 alias gt='{goose_bin} term run'
+alias @goose='{goose_bin} term run'
+alias @g='{goose_bin} term run'
 
 # Log commands to goose (runs silently in background)
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
+    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
 }}
 
@@ -96,11 +98,13 @@ fi{command_not_found_handler}"#
             format!(
                 r#"export GOOSE_SESSION_ID="{session_id}"
 alias gt='{goose_bin} term run'
+alias @goose='{goose_bin} term run'
+alias @g='{goose_bin} term run'
 
 # Log commands to goose (runs silently in background)
 goose_preexec() {{
     [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^gt($|[[:space:]]) ]] && return
+    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
 }}
 
@@ -119,11 +123,13 @@ fi{command_not_found_handler}"#
             format!(
                 r#"set -gx GOOSE_SESSION_ID "{session_id}"
 function gt; {goose_bin} term run $argv; end
+function @goose; {goose_bin} term run $argv; end
+function @g; {goose_bin} term run $argv; end
 
 # Log commands to goose
 function goose_preexec --on-event fish_preexec
     string match -q -r '^goose term' -- $argv[1]; and return
-    string match -q -r '^gt($|\s)' -- $argv[1]; and return
+    string match -q -r '^(gt|@goose|@g)($|\s)' -- $argv[1]; and return
     {goose_bin} term log "$argv[1]" 2>/dev/null &
 end"#
             )
@@ -132,12 +138,14 @@ end"#
             format!(
                 r#"$env:GOOSE_SESSION_ID = "{session_id}"
 function gt {{ & '{goose_bin}' term run @args }}
+function @goose {{ & '{goose_bin}' term run @args }}
+function @g {{ & '{goose_bin}' term run @args }}
 
 # Log commands to goose
 Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
     $line = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$null)
-    if ($line -notmatch '^goose term' -and $line -notmatch '^gt($|\s)') {{
+    if ($line -notmatch '^goose term' -and $line -notmatch '^(gt|@goose|@g)($|\s)') {{
         Start-Job -ScriptBlock {{ & '{goose_bin}' term log $using:line }} | Out-Null
     }}
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()

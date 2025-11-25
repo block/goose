@@ -840,7 +840,8 @@ enum Command {
                         eval \"$(goose term init zsh)\"  # Add to ~/.zshrc\n\n\
                       Usage:\n  \
                         goose term run \"list files in this directory\"\n  \
-                        gt \"create a python script\"  # using alias"
+                        @goose \"create a python script\"  # using alias\n  \
+                        @g \"quick question\"  # short alias"
     )]
     Term {
         #[command(subcommand)]
@@ -888,8 +889,8 @@ enum TermCommand {
         long_about = "Run a prompt in the terminal-integrated session.\n\n\
                       Examples:\n  \
                         goose term run list files in this directory\n  \
-                        goose term run create a python script that prints hello world\n  \
-                        gt list files  # using alias"
+                        @goose list files  # using alias\n  \
+                        @g why did that fail  # short alias"
     )]
     Run {
         /// The prompt to send to goose (multiple words allowed without quotes)
