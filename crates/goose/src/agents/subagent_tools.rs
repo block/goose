@@ -31,7 +31,7 @@ pub fn create_subagent_tool() -> Tool {
 
     Tool::new(
         SUBAGENT_TOOL_NAME,
-        "Create a subagent to handle complex, isolated tasks. It starts without prior conversation context. Provide self-contained instructions for its operation.",
+        "Create a subagent to handle isolated tasks. It starts without prior conversation context. Provide self-contained instructions for its operation. Specify only `instructions` except in advanced use cases.",
         Arc::new(schema.as_object().expect("Schema must be an object").clone())
     ).annotate(ToolAnnotations {
         title: Some("Start Subagent".to_string()),
@@ -105,12 +105,10 @@ pub fn task_params_to_inline_recipe(
     task_param: &Value,
     loaded_extensions: &[String],
 ) -> Result<Recipe> {
-    let instructions = task_param.get("instructions").and_then(|v| v.as_str());
-    let prompt = task_param.get("prompt").and_then(|v| v.as_str());
-
-    if instructions.is_none() && prompt.is_none() {
-        return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
-    }
+    let instructions = task_param
+        .get("instructions")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow!("'instructions' is required"))?;
 
     let mut builder = Recipe::builder()
         .version("1.0.0")
@@ -125,14 +123,8 @@ pub fn task_params_to_inline_recipe(
                 .get("description")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Inline recipe task"),
-        );
-
-    if let Some(inst) = instructions {
-        builder = builder.instructions(inst);
-    }
-    if let Some(p) = prompt {
-        builder = builder.prompt(p);
-    }
+        )
+        .instructions(instructions);
 
     if let Some(extensions) = task_param.get("extensions") {
         if let Some(ext_configs) = process_extensions(extensions, loaded_extensions) {
@@ -141,13 +133,6 @@ pub fn task_params_to_inline_recipe(
     }
 
     builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
-    builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
-    builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
-    builder = apply_if_ok(
-        builder,
-        task_param.get("parameters"),
-        RecipeBuilder::parameters,
-    );
 
     let recipe = builder
         .build()
@@ -155,12 +140,6 @@ pub fn task_params_to_inline_recipe(
 
     if recipe.check_for_security_warnings() {
         return Err(anyhow!("Recipe contains potentially harmful content"));
-    }
-
-    if let Some(ref retry) = recipe.retry {
-        retry
-            .validate()
-            .map_err(|e| anyhow!("Invalid retry config: {}", e))?;
     }
 
     Ok(recipe)

@@ -23,16 +23,6 @@ mod tests {
     }
 
     #[test]
-    fn test_minimal_task_with_prompt() {
-        let params = json!({
-            "prompt": "Test prompt"
-        });
-
-        let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
-    }
-
-    #[test]
     fn test_missing_required_fields() {
         let params = json!({
             "title": "Test"
@@ -40,14 +30,12 @@ mod tests {
 
         let result = task_params_to_inline_recipe(&params, &test_loaded_extensions());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("instructions' or 'prompt"));
+        assert!(result.unwrap_err().to_string().contains("instructions"));
     }
 
     #[test]
     fn test_with_recipe_fields() {
+        // retry and response are no longer supported
         let params = json!({
             "instructions": "Test",
             "title": "Custom Title",
@@ -71,13 +59,9 @@ mod tests {
         let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
         assert_eq!(recipe.title, "Custom Title");
         assert_eq!(recipe.description, "Custom Description");
-        assert!(recipe.retry.is_some());
-        assert!(recipe.response.is_some());
-
-        // Verify retry config details
-        let retry = recipe.retry.unwrap();
-        assert_eq!(retry.max_retries, 3);
-        assert_eq!(retry.checks.len(), 1);
+        // retry and response are ignored now
+        assert!(recipe.retry.is_none());
+        assert!(recipe.response.is_none());
     }
 
     #[test]
@@ -134,56 +118,6 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_retry_config() {
-        // Test with max_retries = 0 (invalid)
-        let params = json!({
-            "instructions": "Test",
-            "retry": {
-                "max_retries": 0,  // Invalid: must be > 0
-                "checks": []
-            }
-        });
-
-        let result = task_params_to_inline_recipe(&params, &test_loaded_extensions());
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid retry config"));
-    }
-
-    #[test]
-    fn test_invalid_retry_config_missing_checks() {
-        // Test with missing required field 'checks'
-        let params = json!({
-            "instructions": "Test",
-            "retry": {
-                "max_retries": 3
-                // Missing 'checks' field
-            }
-        });
-
-        let result = task_params_to_inline_recipe(&params, &test_loaded_extensions());
-        // This should fail during deserialization since 'checks' is required
-        assert!(result.is_ok()); // But retry field will be None due to failed deserialization
-        let recipe = result.unwrap();
-        assert!(recipe.retry.is_none());
-    }
-
-    #[test]
-    fn test_both_instructions_and_prompt() {
-        // Test that both instructions and prompt can be provided
-        let params = json!({
-            "instructions": "Test instructions",
-            "prompt": "Test prompt"
-        });
-
-        let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
-        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
-    }
-
-    #[test]
     fn test_invalid_json_in_optional_fields() {
         // Test that invalid JSON in optional fields is gracefully ignored
         let params = json!({
@@ -218,50 +152,6 @@ mod tests {
         assert_eq!(settings.goose_provider, Some("openai".to_string()));
         assert_eq!(settings.goose_model, Some("gpt-4".to_string()));
         assert_eq!(settings.temperature, Some(0.7));
-    }
-
-    #[test]
-    fn test_with_parameters() {
-        let params = json!({
-            "instructions": "Test",
-            "parameters": [
-                {
-                    "key": "test_param",
-                    "input_type": "string",
-                    "requirement": "required",
-                    "description": "A test parameter"
-                }
-            ]
-        });
-
-        let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert!(recipe.parameters.is_some());
-        let parameters = recipe.parameters.unwrap();
-        assert_eq!(parameters.len(), 1);
-        assert_eq!(parameters[0].key, "test_param");
-    }
-
-    #[test]
-    fn test_empty_strings_for_required_fields() {
-        // Empty strings should be valid for instructions/prompt
-        let params = json!({
-            "instructions": ""
-        });
-
-        let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert_eq!(recipe.instructions, Some("".to_string()));
-    }
-
-    #[test]
-    fn test_very_long_instruction() {
-        // Test with a very long instruction string
-        let long_instruction = "a".repeat(10000);
-        let params = json!({
-            "instructions": long_instruction.clone()
-        });
-
-        let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert_eq!(recipe.instructions, Some(long_instruction));
     }
 
     #[test]

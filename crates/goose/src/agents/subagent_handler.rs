@@ -103,8 +103,7 @@ fn get_agent_messages(
         let text_instruction = recipe
             .instructions
             .clone()
-            .or(recipe.prompt.clone())
-            .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
+            .ok_or_else(|| anyhow!("Recipe has no instructions"))?;
 
         let session = crate::session::SessionManager::create_session(
             task_config.parent_working_dir.clone(),
