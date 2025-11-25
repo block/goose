@@ -386,6 +386,7 @@ function BaseChatContent({
                       }}
                       isUserMessage={(m: any) => m.role === 'user'}
                       isStreamingMessage={chatState !== ChatState.Idle}
+                      tabId={tabId}
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
                       // Comment props
@@ -417,6 +418,7 @@ function BaseChatContent({
                         }}
                         isUserMessage={(m: any) => m.role === 'user'}
                         isStreamingMessage={chatState !== ChatState.Idle}
+                        tabId={tabId}
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
                         // Comment props

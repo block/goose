@@ -6,6 +6,7 @@ import MarkdownContent from './MarkdownContent';
 import CommentableMarkdown from './CommentableMarkdown';
 import MessageComments from './MessageComments';
 import ToolCallWithResponse from './ToolCallWithResponse';
+import CompactToolCall from './CompactToolCall';
 import ToolCallChain from './ToolCallChain';
 import { useCommentDisplayMode } from '../hooks/useCommentDisplayMode';
 import {
@@ -42,6 +43,7 @@ interface GooseMessageProps {
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  tabId?: string; // Tab ID for opening sidecars
   // Comment-related props
   comments?: MessageComment[];
   activeSelection?: TextSelection | null;
@@ -68,6 +70,7 @@ export default function GooseMessage({
   append,
   appendMessage,
   isStreaming = false,
+  tabId,
   // Comment props
   comments = [],
   activeSelection,
@@ -371,26 +374,24 @@ export default function GooseMessage({
                 toolResponsesMap={toolResponsesMap}
                 messageHistoryIndex={messageHistoryIndex}
                 isStreaming={isStreaming}
+                tabId={tabId}
               />
             ) : !messageChain ? (
-              <div className="relative flex flex-col w-full">
-                <div className="flex flex-col gap-3">
-                  {toolRequests.map((toolRequest) => (
-                    <div className="goose-message-tool" key={toolRequest.id}>
-                      <ToolCallWithResponse
-                        isCancelledMessage={
-                          messageIndex < messageHistoryIndex &&
-                          toolResponsesMap.get(toolRequest.id) == undefined
-                        }
-                        toolRequest={toolRequest}
-                        toolResponse={toolResponsesMap.get(toolRequest.id)}
-                        notifications={toolCallNotifications.get(toolRequest.id)}
-                        isStreamingMessage={isStreaming}
-                        append={append}
-                      />
-                    </div>
-                  ))}
-                </div>
+              <div className="relative flex flex-wrap gap-2 w-full">
+                {toolRequests.map((toolRequest) => (
+                  <CompactToolCall
+                    key={toolRequest.id}
+                    tabId={tabId || sessionId}
+                    toolRequest={toolRequest}
+                    toolResponse={toolResponsesMap.get(toolRequest.id)}
+                    notifications={toolCallNotifications.get(toolRequest.id)}
+                    isStreamingMessage={isStreaming}
+                    isCancelledMessage={
+                      messageIndex < messageHistoryIndex &&
+                      toolResponsesMap.get(toolRequest.id) == undefined
+                    }
+                  />
+                ))}
               </div>
             ) : null}
           </div>
