@@ -14,6 +14,7 @@ import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { AlertType, useAlerts } from './alerts';
 import { ChatSettingsPopover } from './ChatSettingsPopover';
+import { ChatActionsPopover } from './ChatActionsPopover';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
@@ -2266,44 +2267,12 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div ref={bottomControlsRef} className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher shouldShowIconOnly={shouldShowIconOnly} />
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Action button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleActionButtonClick}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Action className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Actions</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Quick Actions</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Attach button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleFileSelect}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Attach className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Attach</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
-        </Tooltip>
+        {/* Chat Actions Popover - consolidated tools */}
+        <ChatActionsPopover
+          shouldShowIconOnly={shouldShowIconOnly}
+          onActionButtonClick={handleActionButtonClick}
+          onAttachClick={handleFileSelect}
+        />
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Session Sharing Component - disabled for Matrix rooms */}
