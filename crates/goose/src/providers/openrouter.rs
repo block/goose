@@ -3,12 +3,12 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat, is_google_model,
-    RequestLog,
+    get_model, handle_response_google_compat, handle_response_openai_compat,
+    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
 };
 use crate::conversation::message::Message;
 
@@ -40,6 +40,7 @@ pub struct OpenRouterProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
     #[serde(skip)]
     name: String,
 }
@@ -62,6 +63,7 @@ impl OpenRouterProvider {
         Ok(Self {
             api_client,
             model,
+            supports_streaming: true,
             name: Self::metadata().name,
         })
     }
@@ -371,5 +373,52 @@ impl Provider for OpenRouterProvider {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
+    }
+
+    fn supports_streaming(&self) -> bool {
+        self.supports_streaming
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &super::utils::ImageFormat::OpenAi,
+            true,
+        )?;
+
+        if self.supports_cache_control().await {
+            payload = update_request_for_anthropic(&payload);
+        }
+
+        // Always add transforms: ["middle-out"] for OpenRouter to handle prompts > context size
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("transforms".to_string(), json!(["middle-out"]));
+
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .response_post("api/v1/chat/completions", &payload)
+                    .await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
     }
 }
