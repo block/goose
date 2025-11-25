@@ -225,11 +225,6 @@ export const SecurityToggle = () => {
                           </option>
                         ))}
                       </select>
-                      {enabled && mlEnabled && mlModel && (
-                        <p className="text-xs text-text-muted mt-2">
-                          {availableModels.find((m) => m.value === mlModel)?.description}
-                        </p>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -251,7 +246,7 @@ export const SecurityToggle = () => {
                         onBlur={(e) => handleEndpointChange(e.target.value)}
                         disabled={!enabled || !mlEnabled}
                         placeholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
-                        className={`w-full px-3 py-2 text-sm border rounded ${
+                        className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
                           enabled && mlEnabled
                             ? 'border-border-default bg-background-default text-text-default'
                             : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
@@ -275,18 +270,12 @@ export const SecurityToggle = () => {
                         onBlur={(e) => handleTokenChange(e.target.value)}
                         disabled={!enabled || !mlEnabled}
                         placeholder="hf_..."
-                        className={`w-full px-3 py-2 text-sm border rounded ${
+                        className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
                           enabled && mlEnabled
                             ? 'border-border-default bg-background-default text-text-default'
                             : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
                         }`}
                       />
-                      {enabled && mlEnabled && (
-                        <p className="text-xs text-text-muted mt-2">
-                          Supports HuggingFace Inference API format. Local servers may not require a
-                          token.
-                        </p>
-                      )}
                     </div>
                   </div>
                 )}

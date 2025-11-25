@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use url::Url;
 
 /// Request format following HuggingFace Inference Text Classification API specification
 #[derive(Debug, Serialize)]
@@ -36,7 +37,6 @@ pub struct ModelMappingConfig {
 pub struct ClassificationClient {
     endpoint_url: String,
     client: reqwest::Client,
-    timeout: Duration,
     auth_token: Option<String>,
     extra_params: Option<HashMap<String, serde_json::Value>>,
 }
@@ -58,7 +58,6 @@ impl ClassificationClient {
         Ok(Self {
             endpoint_url,
             client,
-            timeout,
             auth_token,
             extra_params,
         })
@@ -96,6 +95,13 @@ impl ClassificationClient {
         timeout_ms: Option<u64>,
         auth_token: Option<String>,
     ) -> Result<Self> {
+        Url::parse(&endpoint_url)
+            .context("Invalid endpoint URL format. Must be a valid HTTP/HTTPS URL")?;
+
+        let auth_token = auth_token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
+
         tracing::info!(
             endpoint = %endpoint_url,
             has_token = auth_token.is_some(),
@@ -248,5 +254,26 @@ mod tests {
         let result = ClassificationClient::from_model_name("test-model", None);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ML_MODEL_MAPPING"));
+    }
+
+    #[test]
+    fn test_from_endpoint_invalid_url() {
+        // Should fail with invalid URL
+        let result = ClassificationClient::from_endpoint("not-a-valid-url".to_string(), None, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid endpoint URL"));
+    }
+
+    #[test]
+    fn test_from_endpoint_valid_https_url() {
+        let result = ClassificationClient::from_endpoint(
+            "https://api.example.com/classify".to_string(),
+            None,
+            None,
+        );
+        assert!(result.is_ok());
     }
 }
