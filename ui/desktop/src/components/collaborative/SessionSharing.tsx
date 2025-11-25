@@ -20,8 +20,6 @@ interface SessionSharingProps {
   messages: Message[];
   onMessageSync?: (message: Message) => void;
   className?: string;
-  sessionSharing?: any;
-  shouldShowIconOnly?: boolean;
 }
 
 interface SessionParticipant extends MatrixUser {
@@ -45,8 +43,6 @@ const SessionSharing: React.FC<SessionSharingProps> = ({
   messages,
   onMessageSync,
   className = '',
-  sessionSharing,
-  shouldShowIconOnly = false,
 }) => {
   const {
     isShared,
@@ -61,7 +57,7 @@ const SessionSharing: React.FC<SessionSharingProps> = ({
     declineInvitation,
     getAvailableFriends,
     clearError,
-  } = sessionSharing || useSessionSharing({
+  } = useSessionSharing({
     sessionId,
     sessionTitle,
     messages,

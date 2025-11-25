@@ -1,7 +1,7 @@
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import { Message, getToolRequests } from '../types/message';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import CompactToolCall from './CompactToolCall';
+import ToolCallWithResponse from './ToolCallWithResponse';
 
 interface ToolCallChainProps {
   messages: Message[];
@@ -10,7 +10,6 @@ interface ToolCallChainProps {
   toolResponsesMap: Map<string, import('../types/message').ToolResponseMessageContent>;
   messageHistoryIndex: number;
   isStreaming?: boolean;
-  tabId?: string;
 }
 
 export default function ToolCallChain({
@@ -20,7 +19,6 @@ export default function ToolCallChain({
   toolResponsesMap,
   messageHistoryIndex,
   isStreaming = false,
-  tabId,
 }: ToolCallChainProps) {
   const lastMessageIndex = chainIndices[chainIndices.length - 1];
   const lastMessage = messages[lastMessageIndex];
@@ -28,24 +26,24 @@ export default function ToolCallChain({
 
   return (
     <div className="relative flex flex-col w-full">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3">
         {chainIndices.map((messageIndex) => {
           const message = messages[messageIndex];
           const toolRequests = getToolRequests(message);
 
           return toolRequests.map((toolRequest) => (
-            <CompactToolCall
-              key={toolRequest.id}
-              tabId={tabId || 'default'}
-              toolRequest={toolRequest}
-              toolResponse={toolResponsesMap.get(toolRequest.id)}
-              notifications={toolCallNotifications.get(toolRequest.id)}
-              isStreamingMessage={isStreaming}
-              isCancelledMessage={
-                messageIndex < messageHistoryIndex &&
-                toolResponsesMap.get(toolRequest.id) == undefined
-              }
-            />
+            <div key={toolRequest.id} className="goose-message-tool">
+              <ToolCallWithResponse
+                isCancelledMessage={
+                  messageIndex < messageHistoryIndex &&
+                  toolResponsesMap.get(toolRequest.id) == undefined
+                }
+                toolRequest={toolRequest}
+                toolResponse={toolResponsesMap.get(toolRequest.id)}
+                notifications={toolCallNotifications.get(toolRequest.id)}
+                isStreamingMessage={isStreaming}
+              />
+            </div>
           ));
         })}
       </div>

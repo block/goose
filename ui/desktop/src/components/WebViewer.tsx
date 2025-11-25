@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff, X } from 'lucide-react';
+import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, Home, Globe, Shield, ShieldOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { useWebViewerContextOptional } from '../contexts/WebViewerContext';
@@ -175,7 +175,6 @@ interface WebViewerProps {
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
   allowAllSites?: boolean; // If false, restricts to localhost only
-  onClose?: () => void; // Callback when close button is clicked
 }
 
 function isValidUrl(url: string): boolean {
@@ -249,7 +248,6 @@ export function WebViewer({
   initialUrl = 'http://localhost:3000',
   onUrlChange,
   allowAllSites = true,
-  onClose,
 }: WebViewerProps) {
   // Use registry to get or create a stable window ID
   const childWindowId = useRef<string>('');
@@ -1205,7 +1203,7 @@ export function WebViewer({
   return (
     <div className="h-full flex flex-col bg-background-default rounded-lg">
       {/* URL Bar and Controls */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-background-muted rounded-t-lg border-b border-border-subtle">
+      <div className="flex items-center gap-2 p-3 bg-background-muted rounded-t-lg">
         {/* Navigation buttons */}
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -1312,7 +1310,7 @@ export function WebViewer({
           </Button>
         </div>
 
-        {/* External link button and close button */}
+        {/* External link button */}
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1322,17 +1320,6 @@ export function WebViewer({
             </TooltipTrigger>
             <TooltipContent>Open in Browser</TooltipContent>
           </Tooltip>
-
-          {onClose && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={onClose} className="p-1 h-8 w-8">
-                  <X size={14} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Close</TooltipContent>
-            </Tooltip>
-          )}
         </div>
       </div>
 

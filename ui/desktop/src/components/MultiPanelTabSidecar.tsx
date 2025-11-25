@@ -24,7 +24,7 @@ import {
 } from './ui/dropdown-menu';
 import { TabSidecarState, TabSidecarView } from './TabBar';
 import DocumentEditor from './DocumentEditor';
-import WebViewer from './WebViewer';
+import WebBrowser from './WebBrowser';
 import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 export type SidecarLayoutMode = 'single' | 'columns' | 'rows' | 'grid' | 'custom';
@@ -95,16 +95,16 @@ const renderIcon = (iconType: string) => {
 };
 
 // Content renderer
-const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string, viewId: string, onClose?: () => void) => {
+const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string, viewId: string) => {
   const key = `${contentType}-${tabId}-${viewId}`;
   
   switch (contentType) {
     case 'diff':
       return <MonacoDiffViewer key={key} diffContent={contentProps.diffContent || ''} />;
     case 'localhost':
-      return <LocalhostViewer key={key} initialUrl={contentProps.url || 'http://localhost:3000'} onClose={onClose} />;
+      return <LocalhostViewer key={key} url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
     case 'web':
-      return <WebViewer key={key} initialUrl={contentProps.url || 'https://google.com'} allowAllSites={true} onClose={onClose} />;
+      return <WebBrowser key={key} initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
     case 'file':
       return <SimpleFileViewer key={key} path={contentProps.path || ''} />;
     case 'editor':
@@ -154,7 +154,6 @@ const Panel: React.FC<PanelProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   
   const isDiffViewer = view.contentType === 'diff';
-  const isWebViewer = view.contentType === 'web' || view.contentType === 'localhost';
 
   // Update the diff viewer when view mode changes
   React.useEffect(() => {
@@ -271,13 +270,12 @@ const Panel: React.FC<PanelProps> = ({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className={`h-full w-full shadow-2xl drop-shadow-2xl cursor-grab active:cursor-grabbing ${className || ''} ${isLocalDragging ? 'shadow-2xl' : ''}`}
+      className={`h-full w-full rounded-2xl shadow-2xl drop-shadow-2xl cursor-grab active:cursor-grabbing ${className || ''} ${isLocalDragging ? 'shadow-2xl' : ''}`}
       style={style}
     >
-      <div className="bg-background-default overflow-hidden flex flex-col h-full">
-        {/* Sidecar Header - Hidden for web viewers */}
-        {!isWebViewer && (
-          <div className="flex items-center justify-between px-4 py-2 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
+      <div className="bg-background-default overflow-hidden flex flex-col h-full rounded-2xl">
+        {/* Sidecar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
             {/* Drag Handle */}
             <motion.div
@@ -360,11 +358,10 @@ const Panel: React.FC<PanelProps> = ({
             </Tooltip>
           </div>
         </div>
-        )}
 
         {/* Sidecar Content */}
         <div className="flex-1 overflow-hidden">
-          {renderContent(view.contentType, view.contentProps, tabId, view.id, () => onHideView(view.id))}
+          {renderContent(view.contentType, view.contentProps, tabId)}
         </div>
       </div>
     </motion.div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, MessageCircle, Bot, Users, Calendar, Target, Folder } from 'lucide-react';
+import { X, Plus, MessageCircle, Bot, Users, Calendar, Target } from 'lucide-react';
 import { cn } from '../utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { getSession } from '../api';
@@ -31,7 +31,6 @@ export interface Tab {
   isActive: boolean;
   hasUnsavedChanges?: boolean;
   matrixRoomId?: string;
-  matrixRecipientId?: string;
   recipeTitle?: string;
   // Add sidecar state to each tab
   sidecarState?: TabSidecarState;
@@ -44,8 +43,7 @@ interface TabBarProps {
   onTabClose: (tabId: string) => void;
   onNewTab: () => void;
   className?: string;
-  sidebarCollapsed?: boolean;
-  workingDirectory?: string;
+  sidebarCollapsed?: boolean; // Add prop to know if sidebar is collapsed
 }
 
 const getTabIcon = (type: Tab['type']) => {
@@ -65,8 +63,8 @@ const getTabTitle = (tab: Tab) => {
   return tab.title || 'New Chat';
 };
 
-// Tab tooltip component with session details and workspace directory
-const TabTooltip: React.FC<{ tab: Tab; children: React.ReactNode; workingDirectory?: string }> = ({ tab, children, workingDirectory }) => {
+// Tab tooltip component with session details
+const TabTooltip: React.FC<{ tab: Tab; children: React.ReactNode }> = ({ tab, children }) => {
   const [sessionData, setSessionData] = useState<{
     messageCount: number;
     totalTokens: number;
@@ -110,14 +108,6 @@ const TabTooltip: React.FC<{ tab: Tab; children: React.ReactNode; workingDirecto
         <div className="space-y-2">
           {/* Full tab title */}
           <div className="font-medium text-sm">{getTabTitle(tab)}</div>
-          
-          {/* Workspace directory */}
-          {workingDirectory && (
-            <div className="flex items-center gap-1.5 text-xs opacity-90">
-              <Folder className="w-3 h-3" />
-              <span className="truncate">{workingDirectory}</span>
-            </div>
-          )}
           
           {/* Session metadata */}
           {sessionData && !isLoading && (
@@ -163,61 +153,64 @@ export const TabBar: React.FC<TabBarProps> = ({
   onTabClose,
   onNewTab,
   className,
-  sidebarCollapsed = false,
-  workingDirectory
+  sidebarCollapsed = false
 }) => {
   return (
     <div className={cn(
-      "flex items-center",
-      "min-h-[48px] gap-2 overflow-x-auto tab-bar-container",
-      "transition-all duration-200", 
+      "flex items-center bg-background-default border-b border-border-subtle",
+      "min-h-[44px] gap-1 overflow-x-auto tab-bar-container",
+      "shadow-sm transition-all duration-200", // Add subtle shadow for depth and smooth transitions
       // Adjust padding based on sidebar state - extra left padding when sidebar is collapsed for macOS stoplight buttons
       sidebarCollapsed ? "pl-20 pr-3" : "px-3",
       className
     )}>
       {/* Tabs */}
       {tabs.map((tab) => (
-        <TabTooltip key={tab.id} tab={tab} workingDirectory={workingDirectory}>
-          <button
+        <TabTooltip key={tab.id} tab={tab}>
+          <div
             className={cn(
-              "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
-              "w-[160px] group relative tab-item",
-              "transition-none",
-              // Light theme: lighter gray background, Dark theme: very dark background
-              "bg-zinc-200/90 dark:bg-[#1a1a1f]/90"
+              "flex items-center gap-2 px-4 py-2.5 cursor-pointer",
+              "min-w-[120px] max-w-[180px] group relative tab-item",
+              "transition-all duration-200 ease-out", // Smoother, longer transition
+              tab.isActive
+                ? "bg-background-muted text-text-prominent shadow-sm active"
+                : "bg-transparent text-text-muted hover:bg-background-subtle hover:text-text-standard"
             )}
             onClick={() => onTabClick(tab.id)}
           >
-            {/* Tab Title - with explicit padding */}
-            <div className="flex-1 min-w-0 pl-3">
-              <span className={cn(
-                "truncate text-xs font-normal block pointer-events-none text-left transition-colors duration-200",
-                tab.isActive
-                  // Light theme: dark text when active, Dark theme: white text when active
-                  ? "text-zinc-900 dark:text-white"
-                  // Light theme: medium gray inactive. Dark theme: dark gray inactive, hover to white
-                  : "text-zinc-500 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white"
-              )}>
-                {getTabTitle(tab)}
-              </span>
+            {/* Tab Icon */}
+            <div className="flex-shrink-0 opacity-80">
+              {getTabIcon(tab.type)}
             </div>
 
-            {/* Close Button - Always reserve space, only show icon when active */}
-            <div className="flex-shrink-0 w-3 pr-3 flex items-center justify-center">
-              {tab.isActive && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTabClose(tab.id);
-                  }}
-                  className="flex items-center justify-center tab-close-button pointer-events-auto"
-                  title="Close tab"
-                >
-                  <X className="w-3 h-3 text-zinc-900 dark:text-white" />
-                </button>
-              )}
-            </div>
-          </button>
+            {/* Tab Title */}
+            <span className="truncate text-sm font-medium flex-1">
+              {getTabTitle(tab)}
+            </span>
+
+            {/* Unsaved Changes Indicator */}
+            {tab.hasUnsavedChanges && (
+              <div className="w-2 h-2 bg-accent-warning rounded-full flex-shrink-0 unsaved-indicator" />
+            )}
+
+            {/* Close Button - Only show for active tab */}
+            {tab.isActive && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(tab.id);
+                }}
+                className={cn(
+                  "flex-shrink-0 p-1.5 rounded-md tab-close-button",
+                  "text-text-muted hover:text-text-standard transition-all duration-200",
+                  "ml-1 -mr-1" // Add some margin for better spacing and extend clickable area
+                )}
+                title="Close tab"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </TabTooltip>
       ))}
 
@@ -225,9 +218,11 @@ export const TabBar: React.FC<TabBarProps> = ({
       <button
         onClick={onNewTab}
         className={cn(
-          "flex items-center justify-center w-8 h-8 rounded-2xl",
-          "bg-zinc-200/90 dark:bg-[#1a1a1f]/90 hover:bg-zinc-300 dark:hover:bg-[#25252a]/90 transition-all duration-200",
-          "text-zinc-700 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+          "flex items-center justify-center w-10 h-10 rounded-full ml-1 flex-shrink-0",
+          "text-text-muted hover:text-text-standard new-tab-button",
+          "hover:bg-background-subtle transition-all duration-200",
+          "border border-transparent hover:border-border-subtle",
+          "shadow-sm hover:shadow-md" // Add subtle shadow effects
         )}
         title="New tab (Ctrl+T)"
       >
@@ -237,9 +232,8 @@ export const TabBar: React.FC<TabBarProps> = ({
       {/* Spacer to push content left */}
       <div className="flex-1" />
       
-      {/* Optional future controls can go here */}
+      {/* Right spacer to ensure plus button stays accessible - only show when sidebar is collapsed */}
+      {sidebarCollapsed && <div className="flex-shrink-0 w-[200px]" />}
     </div>
   );
 };
-
-export default TabBar;

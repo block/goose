@@ -212,7 +212,7 @@ const ConfigureProvidersRoute = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="w-screen h-screen">
+    <div className="w-screen h-screen bg-background-default">
       <ProviderSettings
         onClose={() => navigate('/settings', { state: { section: 'models' } })}
         isOnboarding={false}
@@ -233,7 +233,7 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   }, [navigate, onSelectProvider]);
 
   return (
-    <div className="w-screen h-screen">
+    <div className="w-screen h-screen bg-background-default">
       <ProviderSettings onClose={onClose} isOnboarding={true} />
     </div>
   );
@@ -601,7 +601,7 @@ export function AppInner() {
         pauseOnHover
       />
       <ExtensionInstallModal addExtension={addExtension} />
-      <div className="relative w-screen h-screen overflow-hidden flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
         <Routes>
           <Route

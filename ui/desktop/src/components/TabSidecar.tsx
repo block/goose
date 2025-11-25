@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { TabSidecarState } from './TabBar';
 import DocumentEditor from './DocumentEditor';
-import WebViewer from './WebViewer';
+import WebBrowser from './WebBrowser';
 import { useUnifiedSidecarContextOptional } from '../contexts/UnifiedSidecarContext';
 
 interface TabSidecarProps {
@@ -72,14 +72,14 @@ const renderIcon = (iconType: string) => {
 };
 
 // Content renderer
-const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string, onClose?: () => void) => {
+const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string) => {
   switch (contentType) {
     case 'diff':
       return <MonacoDiffViewer key={`diff-${tabId}`} diffContent={contentProps.diffContent || ''} />;
     case 'localhost':
-      return <LocalhostViewer key={`localhost-${tabId}`} initialUrl={contentProps.url || 'http://localhost:3000'} onClose={onClose} />;
+      return <LocalhostViewer key={`localhost-${tabId}`} url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
     case 'web':
-      return <WebViewer key={`web-${tabId}`} initialUrl={contentProps.url || 'https://google.com'} allowAllSites={true} onClose={onClose} />;
+      return <WebBrowser key={`web-${tabId}`} initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
     case 'file':
       return <SimpleFileViewer key={`file-${tabId}`} path={contentProps.path || ''} />;
     case 'editor':
@@ -217,7 +217,6 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
 
   // Check if current view is diff viewer
   const isDiffViewer = currentView.contentType === 'diff';
-  const isWebViewer = currentView.contentType === 'web' || currentView.contentType === 'localhost';
 
   // Update the diff viewer when view mode changes
   React.useEffect(() => {
@@ -227,13 +226,12 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
   }, [viewMode, isDiffViewer]);
 
   return (
-    <div className="h-full w-full shadow-2xl drop-shadow-2xl overflow-hidden">
+    <div className="h-full w-full rounded-2xl shadow-2xl drop-shadow-2xl overflow-hidden">
       <div
-        className={`bg-background-default overflow-hidden flex flex-col h-full ${className}`}
+        className={`bg-background-default overflow-hidden flex flex-col h-full rounded-2xl ${className}`}
       >
-        {/* Sidecar Header - Hidden for web viewers */}
-        {!isWebViewer && (
-          <div className="flex items-center justify-between px-4 py-2 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
+        {/* Sidecar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
             {renderIcon(currentView.iconType)}
             <div className="flex flex-col">
@@ -306,11 +304,10 @@ export const TabSidecar: React.FC<TabSidecarProps> = ({
             </Tooltip>
           </div>
         </div>
-        )}
 
         {/* Sidecar Content */}
         <div className="flex-1 overflow-hidden">
-          {renderContent(currentView.contentType, currentView.contentProps, tabId, () => onHideView(currentView.id))}
+          {renderContent(currentView.contentType, currentView.contentProps, tabId)}
         </div>
       </div>
     </div>

@@ -40,7 +40,6 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
-  tabId?: string; // Tab ID for opening sidecars
   // Comment-related props
   comments?: Map<string, MessageComment[]>;
   activeSelection?: TextSelection | null;
@@ -71,7 +70,6 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
-  tabId,
   // Comment props
   comments = new Map(),
   activeSelection,
@@ -248,7 +246,6 @@ export default function ProgressiveMessageList({
                     append={append}
                     appendMessage={appendMessage}
                     toolCallNotifications={toolCallNotifications}
-                    tabId={tabId}
                     isStreaming={
                       isStreamingMessage &&
                       !isUser &&

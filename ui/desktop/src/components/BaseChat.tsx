@@ -191,11 +191,12 @@ function BaseChatContent({
           id: `web-viewer-${Date.now()}`,
           title: 'Web Viewer',
           icon: <div className="w-4 h-4 bg-cyan-500 rounded" />,
-          content: (
-            <div className="h-full w-full flex items-center justify-center text-text-muted bg-background-muted border border-border-subtle rounded-lg">
-              <p>Web viewer will go here</p>
-            </div>
-          ),
+          content: null, // Will be rendered by contentType
+          contentType: 'web-viewer',
+          contentProps: {
+            initialUrl: 'https://google.com',
+            allowAllSites: true
+          }
         });
         break;
       case 'app-installer':
@@ -434,11 +435,16 @@ function BaseChatContent({
       {/* Custom header */}
       {renderHeader && renderHeader()}
 
+      {/* Participants Bar - shows who's in the conversation for Matrix sessions */}
+      {showParticipantsBar && matrixRoomId && (
+        <ParticipantsBar matrixRoomId={matrixRoomId} />
+      )}
+
       {/* Chat container - full height, extends behind floating input */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 bg-background-muted">
         <ScrollArea
           ref={scrollRef}
-          className={`h-full relative ${contentClassName}`}
+          className={`h-full bg-background-default relative ${contentClassName}`}
           autoScroll
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -446,18 +452,11 @@ function BaseChatContent({
           paddingX={6}
           paddingY={0}
         >
-          {/* Participants Bar - sticky at top, content scrolls behind it */}
-          {showParticipantsBar && matrixRoomId && (
-            <div className="sticky top-0 z-50 -mx-6 mb-0">
-              <ParticipantsBar matrixRoomId={matrixRoomId} />
-            </div>
-          )}
-          
             {/* Chat thread container with max width */}
             <div className="max-w-4xl mx-auto w-full">
             {/* Recipe agent header - sticky at top of chat container */}
             {recipeConfig?.title && (
-              <div className="sticky top-0 z-10 px-0 -mx-6 mb-6 pt-6">
+              <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
                 <AgentHeader
                   title={recipeConfig.title}
                   profileInfo={

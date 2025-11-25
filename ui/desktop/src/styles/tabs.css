@@ -23,6 +23,40 @@
   position: relative;
 }
 
+/* Invisible extended tap target area above the tab */
+.tab-item::after {
+  content: '';
+  position: absolute;
+  top: -24px; /* Extend 24px above the visible tab */
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Visual accent bar at bottom of tab */
+.tab-item::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background-color 0.2s ease;
+  z-index: 2;
+}
+
+.tab-item:hover::before {
+  background: var(--color-background-accent);
+  opacity: 0.3;
+}
+
+.tab-item.active::before {
+  background: var(--color-background-accent);
+}
 
 /* Tab close button enhanced styling */
 .tab-close-button {
@@ -34,6 +68,9 @@
 
 .tab-close-button:hover {
   transform: scale(1.1);
+  background: var(--color-background-danger);
+  color: var(--color-text-danger);
+  opacity: 0.8;
 }
 
 /* New tab button pulse effect */
@@ -229,6 +266,7 @@
     transition: none !important;
   }
   
+  .tab-item::before,
   .new-tab-button::after {
     transition: none !important;
   }

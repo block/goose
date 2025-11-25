@@ -183,7 +183,7 @@ export default function Hub({
       console.log('🔄 Showing regular chat interface with Matrix integration');
       return (
         <ContextManagerProvider>
-          <div className="relative flex flex-col h-full">
+          <div className="relative flex flex-col h-full bg-background-default">
             {/* Header with back button and room info */}
             <div className="flex items-center gap-3 p-4 border-b border-border-default bg-background-muted">
               <button
@@ -254,7 +254,7 @@ export default function Hub({
     // Otherwise, render the Matrix chat popup (original behavior)
     return (
       <ContextManagerProvider>
-        <div className="relative flex flex-col h-full">
+        <div className="relative flex flex-col h-full bg-background-default">
           <MatrixChat
             roomId={matrixRoomId}
             recipientId={matrixRecipientId}
@@ -268,7 +268,7 @@ export default function Hub({
 
   return (
     <ContextManagerProvider>
-      <div className="relative flex flex-col h-full">
+      <div className="relative flex flex-col h-full bg-background-default">
         {/* Animated Node Matrix Background */}
         <NodeMatrixBackground />
         

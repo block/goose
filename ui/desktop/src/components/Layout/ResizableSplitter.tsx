@@ -115,7 +115,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
         style={{ width: `${rightWidth}%` }}
       >
         {floatingRight ? (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 p-4">
             {rightContent}
           </div>
         ) : (
