@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
-use goose::session::session_manager::SessionType;
+use goose::config::paths::Paths;
+
 use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,8 +20,7 @@ struct TerminalConfig {
 
 impl TerminalConfig {
     fn config_path() -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-        let config_dir = home.join(".config").join("goose");
+        let config_dir = Paths::config_dir();
         fs::create_dir_all(&config_dir)?;
         Ok(config_dir.join("term-sessions.json"))
     }
@@ -64,7 +64,7 @@ async fn get_or_create_terminal_session(working_dir: PathBuf) -> Result<String> 
     let session = SessionManager::create_session(
         working_dir.clone(),
         session_name.clone(),
-        SessionType::Hidden,
+        Default::default(),
     )
     .await?;
 
@@ -201,8 +201,7 @@ Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
 }
 
 fn shell_history_path(session_id: &str) -> Result<PathBuf> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-    let history_dir = home.join(".config").join("goose").join("shell-history");
+    let history_dir = Paths::config_dir().join("shell-history");
     fs::create_dir_all(&history_dir)?;
     Ok(history_dir.join(format!("{}.txt", session_id)))
 }
