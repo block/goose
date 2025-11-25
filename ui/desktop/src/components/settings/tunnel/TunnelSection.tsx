@@ -25,7 +25,7 @@ const STATUS_MESSAGES = {
   disabled: 'Tunnel is disabled',
 } as const;
 
-const IOS_APP_STORE_URL = 'https://apps.apple.com/app/goose-ai-assistant/id6738286074';
+const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/goose-ai/id6752889295';
 
 export default function TunnelSection() {
   const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
