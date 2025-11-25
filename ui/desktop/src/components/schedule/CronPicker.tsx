@@ -92,7 +92,7 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
   useEffect(() => {
     const parsed = parseCron(schedule?.cron || '');
     setPeriod(parsed.period);
-    setSecond(parsed.second === '*' ? '0' : parsed.second.padStart(2, '0'));
+    setSecond(parsed.second === '*' ? '00' : parsed.second.padStart(2, '0'));
     setMinute(parsed.minute === '*' ? '00' : parsed.minute.padStart(2, '0'));
     const hour24 = parsed.hour === '*' ? 14 : parseInt(parsed.hour, 10);
     const { hour, isPM: pm } = to12Hour(hour24);
