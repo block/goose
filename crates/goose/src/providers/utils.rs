@@ -1,10 +1,13 @@
-use super::base::Usage;
+use super::base::{MessageStream, Usage};
 use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
+use crate::providers::formats::openai::response_to_streaming_message;
 use anyhow::{anyhow, Result};
+use async_stream::try_stream;
 use base64::Engine;
+use futures::TryStreamExt;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
@@ -12,9 +15,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::fmt::Display;
 use std::fs::File;
+use std::io;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::pin;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -178,16 +186,31 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
     })
 }
 
-/// Check if the model is a Google model based on the "model" field in the payload.
-///
-/// ### Arguments
-/// - `payload`: The JSON payload as a `serde_json::Value`.
-///
-/// ### Returns
-/// - `bool`: Returns `true` if the model is a Google model, otherwise `false`.
+pub fn stream_openai_compat(
+    response: Response,
+    mut log: RequestLog, // Take ownership instead of &mut
+) -> Result<MessageStream, ProviderError> {
+    let stream = response.bytes_stream().map_err(io::Error::other);
+
+    Ok(Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(anyhow::Error::from);
+
+        let message_stream = response_to_streaming_message(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+            yield (message, usage);
+        }
+    }))
+}
+
 pub fn is_google_model(payload: &Value) -> bool {
     if let Some(model) = payload.get("model").and_then(|m| m.as_str()) {
-        // Check if the model name contains "google"
         return model.to_lowercase().contains("google");
     }
     false

@@ -613,6 +613,7 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
     image_format: &ImageFormat,
+    for_streaming: bool,
 ) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
@@ -652,13 +653,8 @@ pub fn create_request(
     });
 
     let messages_spec = format_messages(messages, image_format);
-    let mut tools_spec = if !tools.is_empty() {
-        format_tools(tools)?
-    } else {
-        vec![]
-    };
+    let mut tools_spec = format_tools(tools)?;
 
-    // Validate tool schemas
     validate_tool_schemas(&mut tools_spec);
 
     let mut messages_array = vec![system_message];
@@ -670,25 +666,17 @@ pub fn create_request(
     });
 
     if let Some(effort) = reasoning_effort {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("reasoning_effort".to_string(), json!(effort));
+        payload["reasoning_effort"] = json!(effort);
     }
 
     if !tools_spec.is_empty() {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("tools".to_string(), json!(tools_spec));
+        payload["tools"] = json!(tools_spec);
     }
+
     // o1, o3 models currently don't support temperature
     if !is_ox_model {
         if let Some(temp) = model_config.temperature {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("temperature".to_string(), json!(temp));
+            payload["temperature"] = json!(temp);
         }
     }
 
@@ -704,6 +692,12 @@ pub fn create_request(
             .unwrap()
             .insert(key.to_string(), json!(tokens));
     }
+
+    if for_streaming {
+        payload["stream"] = json!(true);
+        payload["stream_options"] = json!({"include_usage": true});
+    }
+
     Ok(payload)
 }
 
@@ -1262,7 +1256,14 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let obj = request.as_object().unwrap();
         let expected = json!({
             "model": "gpt-4o",
@@ -1294,7 +1295,14 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let obj = request.as_object().unwrap();
         let expected = json!({
             "model": "o1",
@@ -1327,7 +1335,14 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let obj = request.as_object().unwrap();
         let expected = json!({
             "model": "o3-mini",

@@ -211,6 +211,7 @@ async fn create_request_based_on_model(
         messages,
         tools,
         &super::utils::ImageFormat::OpenAi,
+        false,
     )?;
 
     if provider.supports_cache_control().await {

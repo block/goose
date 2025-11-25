@@ -149,7 +149,14 @@ impl Provider for AzureProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
