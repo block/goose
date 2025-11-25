@@ -220,7 +220,6 @@ async fn create_request_based_on_model(
         payload = update_request_for_anthropic(&payload);
     }
 
-    // Always add transforms: ["middle-out"] for OpenRouter to handle prompts > context size
     payload
         .as_object_mut()
         .unwrap()
@@ -398,7 +397,6 @@ impl Provider for OpenRouterProvider {
             payload = update_request_for_anthropic(&payload);
         }
 
-        // Always add transforms: ["middle-out"] for OpenRouter to handle prompts > context size
         payload
             .as_object_mut()
             .unwrap()
