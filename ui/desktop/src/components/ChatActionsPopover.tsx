@@ -69,36 +69,35 @@ export function ChatActionsPopover({
       {isOpen && (
         <div
           ref={popoverRef}
-          className="fixed z-50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-lg shadow-[0px_8px_24px_rgba(0,0,0,0.12)] dark:shadow-[0px_8px_24px_rgba(0,0,0,0.4)] min-w-80 max-w-md"
+          className="fixed z-50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[32px] shadow-[0px_8px_24px_rgba(0,0,0,0.12)] dark:shadow-[0px_8px_24px_rgba(0,0,0,0.4)] min-w-80 max-w-md animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200"
           style={{
             left: '50%',
             bottom: '120px',
             transform: 'translateX(-50%)',
           }}
         >
-          <div className="p-4 space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-border-default pb-2">
-              <h3 className="text-sm font-semibold text-text-default">Tools</h3>
+          <div className="p-4">
+            {/* All Actions */}
+            <div className="space-y-1">
               <Button
                 type="button"
+                onClick={async () => {
+                  await window.electron.directoryChooser(true);
+                  setIsOpen(false);
+                }}
                 variant="ghost"
                 size="sm"
-                onClick={() => setIsOpen(false)}
-                className="h-6 w-6 p-0"
+                className="w-full flex items-center justify-start text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
               >
-                ×
+                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+                  <circle cx="12" cy="13" r="2"/>
+                </svg>
+                <span className="text-xs truncate max-w-[200px]">
+                  {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
+                </span>
               </Button>
-            </div>
 
-            {/* Directory Switcher */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-text-muted">Working Directory</label>
-              <DirSwitcher shouldShowIconOnly={false} />
-            </div>
-
-            {/* Actions */}
-            <div className="space-y-2 pt-2 border-t border-border-default">
               <Button
                 type="button"
                 onClick={handleActionClick}
