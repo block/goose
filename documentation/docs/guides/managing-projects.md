@@ -4,19 +4,19 @@ title: Managing Projects
 sidebar_label: Managing Projects
 ---
 
-Goose Projects automatically track your working directories and associated sessions, making it easy to resume work across multiple codebases with full context preservation.
+goose Projects automatically track your working directories and associated sessions, making it easy to resume work across multiple codebases with full context preservation.
 
-A **project** in Goose is a record of a working directory where you've used Goose. Every time you run Goose, it automatically tracks the current directory as a project, storing:
+A **project** in goose is a record of a working directory where you've used goose. Every time you run goose, it automatically tracks the current directory as a project, storing:
 
 - **Path**: The absolute path to the project directory
 - **Last accessed**: When you last worked on this project  
-- **Last instruction**: The most recent command you gave to Goose
+- **Last instruction**: The most recent command you gave to goose
 - **Session ID**: The associated session for context continuity
 
 Projects are stored in `~/.local/share/goose/projects.json`.
 
 :::info CLI Only Feature
-Projects are currently available only through the Goose CLI. Desktop support is planned for future releases.
+Projects are currently available only through the goose CLI. Desktop support is planned for future releases.
 :::
 
 ## Basic Usage
@@ -47,7 +47,7 @@ Let's follow Sarah, a developer working on multiple projects throughout her day:
 cd ~/projects/ecommerce-api
 goose session --name "api-auth-work"
 ```
-*Sarah asks Goose to help implement JWT token refresh logic*
+*Sarah asks goose to help implement JWT token refresh logic*
 
 ### Mid-Morning: Mobile App Bug Fix  
 ```bash
@@ -69,9 +69,9 @@ goose session --name "dashboard-ui"
 goose project
 ```
 
-Goose shows:
+goose shows:
 ```
-┌ Goose Project Manager
+┌ goose Project Manager
 │
 ◆ Choose an option:
 │  ○ Resume project with session: .../admin-dashboard
@@ -88,9 +88,9 @@ Goose shows:
 goose projects
 ```
 
-Goose displays:
+goose displays:
 ```
-┌ Goose Project Manager
+┌ goose Project Manager
 │
 ◆ Select a project:
 │  ○ 1  .../admin-dashboard (2025-01-07 09:15:30) [create user management interface]

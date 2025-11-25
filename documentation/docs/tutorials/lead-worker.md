@@ -7,7 +7,7 @@ import TabItem from '@theme/TabItem';
 
 # Lead/Worker Multi-Model Setup
 
-Goose supports a lead/worker model configuration that lets you pair two different AI models - one that's great at thinking and another that's fast at doing. This setup tackles a major pain point: premium models are powerful but expensive, while cheaper models are faster but can struggle with complex tasks. With lead/worker mode, you get the best of both worlds.
+goose supports a lead/worker model configuration that lets you pair two different AI models - one that's great at thinking and another that's fast at doing. This setup tackles a major pain point: premium models are powerful but expensive, while cheaper models are faster but can struggle with complex tasks. With lead/worker mode, you get the best of both worlds.
 
 <details>
   <summary>Lead/Worker Mode Walkthrough</summary>
@@ -21,13 +21,13 @@ Goose supports a lead/worker model configuration that lets you pair two differen
   ></iframe>
 </details>
 
-The lead/worker model is a smart hand-off system. The "lead" model (think: GPT-4 or Claude Opus) kicks things off, handling the early planning and big picture reasoning. Once the direction is set, Goose hands the task over to the "worker" model (like GPT-4o-mini or Claude Sonnet) to carry out the steps.
+The lead/worker model is a smart hand-off system. The "lead" model (think: GPT-4 or Claude Opus) kicks things off, handling the early planning and big picture reasoning. Once the direction is set, goose hands the task over to the "worker" model (like GPT-4o-mini or Claude Sonnet) to carry out the steps.
 
-If things go sideways (e.g. the worker model gets confused or keeps making mistakes), Goose notices and automatically pulls the lead model back in to recover. Once things are back on track, the worker takes over again.
+If things go sideways (e.g. the worker model gets confused or keeps making mistakes), goose notices and automatically pulls the lead model back in to recover. Once things are back on track, the worker takes over again.
 
 ## Turn-Based System
 
-A **turn** is one full interaction - your prompt and the model's response. Goose switches models based on turns:
+A **turn** is one full interaction - your prompt and the model's response. goose switches models based on turns:
 
 - **Initial turns** (default: 3) go to the lead model
 - **Subsequent turns** use the worker model
@@ -37,7 +37,7 @@ A **turn** is one full interaction - your prompt and the model's response. Goose
 
 ## Quick Example
 
-You might configure Goose like this:
+You might configure goose like this:
 
 ```bash
 export GOOSE_LEAD_MODEL="gpt-4o"          # strong reasoning
@@ -45,17 +45,17 @@ export GOOSE_MODEL="gpt-4o-mini"          # fast execution
 export GOOSE_PROVIDER="openai"
 ```
 
-Goose will start with `gpt-4o` for the first three turns, then hand off to `gpt-4o-mini`. If the worker gets tripped up twice in a row, Goose temporarily switches back to the lead model for two fallback turns before trying the worker again.
+goose will start with `gpt-4o` for the first three turns, then hand off to `gpt-4o-mini`. If the worker gets tripped up twice in a row, goose temporarily switches back to the lead model for two fallback turns before trying the worker again.
 
 ## Configuration
 
 :::tip
-Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
+Ensure you have [added the LLMs to goose](/docs/getting-started/providers)
 :::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-   1. Click the model name at the bottom of the Goose Desktop window
+   1. Click the model name at the bottom of the goose Desktop window
    2. Click **Lead/Worker Settings**
    3. Check the box to **Enable lead/worker mode**
    4. Select your **Lead Model** and **Worker Model** from the dropdown menus
@@ -67,7 +67,7 @@ Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
     ```bash
     export GOOSE_LEAD_MODEL="gpt-4o"
     ```
-    That's it. Goose treats your regular `GOOSE_MODEL` as the worker model by default.
+    That's it. goose treats your regular `GOOSE_MODEL` as the worker model by default.
 
     For more control, you can also set these optional environment variables:
 
@@ -83,13 +83,13 @@ Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
 
 ## What Counts as a Failure?
 
-Goose is smart about detecting actual task failures, not just API errors. The fallback kicks in when the worker:
+goose is smart about detecting actual task failures, not just API errors. The fallback kicks in when the worker:
 
 - Generates broken code (syntax errors, tool failures, missing files)
 - Hits permission issues
 - Gets corrected by the user ("that's wrong", "try again", etc.)
 
-Technical hiccups like timeouts, authentication issues, or service downtime don't trigger fallback mode. Goose retries those quietly.
+Technical hiccups like timeouts, authentication issues, or service downtime don't trigger fallback mode. goose retries those quietly.
 
 ## Reasons to Use Lead/Worker
 
@@ -103,7 +103,7 @@ Technical hiccups like timeouts, authentication issues, or service downtime don'
 If you're just getting started, the default settings will work fine. But here's how to tune things:
 
 - Bump up `GOOSE_LEAD_TURNS` to 5–7 for heavier planning upfront
-- Lower `GOOSE_LEAD_FAILURE_THRESHOLD` to 1 if you want Goose to correct issues quickly
+- Lower `GOOSE_LEAD_FAILURE_THRESHOLD` to 1 if you want goose to correct issues quickly
 - Choose a fast, lightweight worker model (Claude Haiku, GPT-4o-mini) for day-to-day tasks
 
 For debugging, you can see model switching behavior by turning on this log:
@@ -113,7 +113,7 @@ export RUST_LOG=goose::providers::lead_worker=info
 ```
 
 ## Planning Mode Compatibility
-The lead/worker model is an automatic alternative to the [Goose CLI's `/plan` command](/docs/guides/multi-model/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
+The lead/worker model is an automatic alternative to the [goose CLI's `/plan` command](/docs/guides/multi-model/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
 
 ```bash
 export GOOSE_PROVIDER="openai"

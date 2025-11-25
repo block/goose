@@ -1,6 +1,6 @@
 ---
 title: Google Maps Extension
-description: Add Google Maps MCP Server as a Goose Extension
+description: Add Google Maps MCP Server as a goose Extension
 unlisted: true
 ---
 
@@ -11,7 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server archived
 
-This tutorial covers how to add the [Google Maps MCP Server](https://www.pulsemcp.com/servers/google-maps-docs) as a Goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
+This tutorial covers how to add the [Google Maps MCP Server](https://www.pulsemcp.com/servers/google-maps-docs) as a goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -112,7 +112,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ``` 
 
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
    ```sh
     ┌   goose-configure 
     │
@@ -206,29 +206,29 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Goose acts as an autonomous agent that tracks a delivery driver’s location, updates the customer in real-time, and adjusts ETAs dynamically based on Google Maps traffic data.
+goose acts as an autonomous agent that tracks a delivery driver’s location, updates the customer in real-time, and adjusts ETAs dynamically based on Google Maps traffic data.
 
-Goose can:
+goose can:
 
 **Monitor Driver Location**
-* Goose gets the driver’s GPS coordinates every few seconds.
-* If the driver’s location is significantly behind schedule, Goose recalculates the ETA.
+* goose gets the driver’s GPS coordinates every few seconds.
+* If the driver’s location is significantly behind schedule, goose recalculates the ETA.
 
 **Traffic-Aware ETA Adjustments**
-* Goose queries Google Maps for live traffic conditions.
-* If delays are detected, Goose updates the customer’s tracker with a new estimated time.
+* goose queries Google Maps for live traffic conditions.
+* If delays are detected, goose updates the customer’s tracker with a new estimated time.
 
 **Dynamic Customer Notifications**
-* If the driver is stuck in traffic, Goose sends an alert to the customer: “Your driver is running late due to traffic. Updated ETA: 7:25 PM.”
-* If the driver is ahead of schedule, Goose notifies the restaurant to prepare the food earlier.
+* If the driver is stuck in traffic, goose sends an alert to the customer: “Your driver is running late due to traffic. Updated ETA: 7:25 PM.”
+* If the driver is ahead of schedule, goose notifies the restaurant to prepare the food earlier.
 
 
-### Goose Prompt
+### goose Prompt
 ```
 Track the live GPS location of driver ID #12345. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer’s live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.
 ```
 
-### Goose Output
+### goose Output
 
 :::note CLI
 Okay, I will track Driver #12345, query Google Maps for traffic data, adjust the ETA, and notify the customer.

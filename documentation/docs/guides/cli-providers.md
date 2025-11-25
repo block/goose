@@ -2,24 +2,24 @@
 sidebar_position: 45
 title: CLI Providers
 sidebar_label: CLI Providers
-description: Use Claude Code, Cursor Agent, or Gemini CLI subscriptions in Goose
+description: Use Claude Code, Cursor Agent, or Gemini CLI subscriptions in goose
 ---
 
 # CLI Providers
 
-Goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, Cursor, and Google. These providers allow you to use your existing Claude Code, Cursor Agent, and Google Gemini CLI subscriptions through Goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
+goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, Cursor, and Google. These providers allow you to use your existing Claude Code, Cursor Agent, and Google Gemini CLI subscriptions through goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
 
 :::warning Limitations
-These providers don’t fully support all Goose features, may have platform or capability limitations, and can sometimes require advanced debugging if issues arise. They’re included here purely as a convenience.
+These providers don’t fully support all goose features, may have platform or capability limitations, and can sometimes require advanced debugging if issues arise. They’re included here purely as a convenience.
 :::
 
 ## Why Use CLI Providers?
 
 CLI providers are useful if you:
 
-- already have a Claude Code, Cursor, or Google Gemini CLI subscription and want to use it through Goose instead of paying per token
+- already have a Claude Code, Cursor, or Google Gemini CLI subscription and want to use it through goose instead of paying per token
 - need session persistence to save, resume, and export conversation history
-- want to use Goose recipes and scheduled tasks to create repeatable workflows
+- want to use goose recipes and scheduled tasks to create repeatable workflows
 - prefer unified commands across different AI providers
 - want to [use multiple models together](#combining-with-other-models) in your tasks 
 
@@ -31,16 +31,16 @@ CLI providers are useful if you:
 - **Session organization**: Manage multiple conversation threads
 
 #### Workflow Integration  
-- **Recipe compatibility**: Use CLI providers in automated Goose recipes
+- **Recipe compatibility**: Use CLI providers in automated goose recipes
 - **Scheduling support**: Include in scheduled tasks and workflows
 - **Hybrid configurations**: Combine with LLM providers using lead/worker patterns
 
 #### Interface Consistency
 - **Unified commands**: Use the same `goose session` interface across all providers
-- **Consistent configuration**: Manage all providers through Goose's configuration system
+- **Consistent configuration**: Manage all providers through goose's configuration system
 
 :::warning Extensions
-CLI providers do **not** give you access to Goose's extension ecosystem (MCP servers, third-party integrations, etc.). They use their own built-in tools to prevent conflicts. If you need Goose's extensions, use standard [API providers](/docs/getting-started/providers#available-providers) instead.
+CLI providers do **not** give you access to goose's extension ecosystem (MCP servers, third-party integrations, etc.). They use their own built-in tools to prevent conflicts. If you need goose's extensions, use standard [API providers](/docs/getting-started/providers#available-providers) instead.
 :::
 
 
@@ -53,7 +53,7 @@ The Claude Code provider integrates with Anthropic's [Claude CLI tool](https://c
 **Features:**
 - Uses Claude's latest models
 - 200,000 token context limit
-- Automatic filtering of Goose extensions from system prompts (since Claude Code has its own tool ecosystem)
+- Automatic filtering of goose extensions from system prompts (since Claude Code has its own tool ecosystem)
 - JSON output parsing for structured responses
 
 **Requirements:**
@@ -98,14 +98,14 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    
    Ensure your Claude CLI is authenticated and working
 
-3. **Configure Goose**
+3. **Configure goose**
    
    Set the provider environment variable:
    ```bash
    export GOOSE_PROVIDER=claude-code
    ```
    
-   Or configure through the Goose CLI using `goose configure`:
+   Or configure through the goose CLI using `goose configure`:
 
    ```bash
    ┌   goose-configure 
@@ -139,7 +139,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    export goose_provider=cursor-agent
    ```
 
-   Or configure through the Goose CLI using `goose configure`:
+   Or configure through the goose CLI using `goose configure`:
 
    ```bash
    ┌   goose-configure
@@ -166,14 +166,14 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    
    Ensure your Gemini CLI is authenticated and working.
 
-3. **Configure Goose**
+3. **Configure goose**
    
    Set the provider environment variable:
    ```bash
    export GOOSE_PROVIDER=gemini-cli
    ```
    
-   Or configure through the Goose CLI using `goose configure`:
+   Or configure through the goose CLI using `goose configure`:
 
    ```bash
    ┌   goose-configure 
@@ -194,7 +194,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
 
 ### Basic Usage
 
-Once configured, you can start a Goose session using these providers just like any others:
+Once configured, you can start a goose session using these providers just like any others:
 
 ```bash
 goose session
@@ -202,7 +202,7 @@ goose session
 
 ### Combining with Other Models
 
-CLI providers work well in combination with other models using Goose's [lead/worker pattern](/docs/tutorials/lead-worker):
+CLI providers work well in combination with other models using goose's [lead/worker pattern](/docs/tutorials/lead-worker):
 
 ```bash
 # Use Claude Code as lead model, GPT-4o as worker
@@ -242,12 +242,12 @@ goose session
 
 ### System Prompt Filtering
 
-The CLI providers automatically filter out Goose's extension information from system prompts since these CLI tools have their own tool ecosystems. This prevents conflicts and ensures clean interaction with the underlying CLI tools.
+The CLI providers automatically filter out goose's extension information from system prompts since these CLI tools have their own tool ecosystems. This prevents conflicts and ensures clean interaction with the underlying CLI tools.
 
 ### Message Translation
 
-- **Claude Code**: Converts Goose messages to Claude's JSON message format, handling tool calls and responses appropriately
-- **Cursor Agent**: Converts Goose messages to Cursor's JSON message format, handling tool calls and responses appropriately
+- **Claude Code**: Converts goose messages to Claude's JSON message format, handling tool calls and responses appropriately
+- **Cursor Agent**: Converts goose messages to Cursor's JSON message format, handling tool calls and responses appropriately
 - **Gemini CLI**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:)
 
 ### Response Processing
@@ -267,4 +267,4 @@ CLI providers depend on external tools, so ensure:
 
 ---
 
-CLI providers offer a way to use existing AI tool subscriptions through Goose's interface, adding session management and workflow integration capabilities. They're particularly valuable for users with existing CLI subscriptions who want unified session management and recipe integration.
+CLI providers offer a way to use existing AI tool subscriptions through goose's interface, adding session management and workflow integration capabilities. They're particularly valuable for users with existing CLI subscriptions who want unified session management and recipe integration.

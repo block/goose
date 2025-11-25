@@ -3,6 +3,6 @@
   "position": 5,
   "link": {
     "type": "generated-index",
-    "description": "How to integrate and use MCP servers as Goose extensions"
+    "description": "How to integrate and use MCP servers as goose extensions"
   }
 }
