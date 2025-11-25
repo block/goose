@@ -135,6 +135,9 @@ impl<'a> App<'a> {
                     return None;
                 }
             }
+            if key.code == KeyCode::Char('l') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                return Some(Action::Refresh);
+            }
             if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
                 return Some(Action::ToggleTodo);
             }

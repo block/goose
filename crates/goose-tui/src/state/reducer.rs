@@ -16,7 +16,10 @@ pub fn update(state: &mut AppState, action: Action) {
                 }
             }
         }
-        Action::Quit | Action::Resize => {}
+        Action::Quit => {}
+        Action::Resize => {
+            state.needs_refresh = true;
+        }
         Action::ServerMessage(msg) => handle_server_message(state, msg),
         Action::ModelsLoaded { provider, models } => handle_models_loaded(state, provider, models),
         Action::ConfigLoaded(config) => handle_config_loaded(state, config),
@@ -162,6 +165,10 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
 
 fn handle_misc(state: &mut AppState, action: &Action) -> bool {
     match action {
+        Action::Refresh => {
+            state.needs_refresh = true;
+            true
+        }
         Action::ShowFlash(message) => {
             state.flash_message = Some((
                 message.clone(),

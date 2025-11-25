@@ -44,6 +44,7 @@ pub struct AppState {
     pub model_context_limit: usize,
     pub active_provider: Option<String>,
     pub active_model: Option<String>,
+    pub needs_refresh: bool,
 }
 
 impl AppState {
@@ -77,6 +78,7 @@ impl AppState {
             model_context_limit: 128_000,
             active_provider,
             active_model,
+            needs_refresh: false,
         }
     }
 }

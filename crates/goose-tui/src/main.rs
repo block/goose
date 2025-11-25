@@ -179,6 +179,11 @@ async fn run_event_loop(
     let mut reply_task: Option<tokio::task::JoinHandle<()>> = None;
 
     loop {
+        if state.needs_refresh {
+            terminal.clear()?;
+            state.needs_refresh = false;
+        }
+
         terminal.draw(|f| {
             app.render(f, f.area(), &state);
         })?;

@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub enum Action {
     Tick,
     Quit,
+    Refresh,
     Resize,
 
     ServerMessage(Arc<MessageEvent>),

@@ -26,6 +26,7 @@ pub struct ChatComponent {
     frame_count: usize,
     last_input_mode: InputMode,
     last_item_count: usize,
+    last_width: u16,
 }
 
 impl Default for ChatComponent {
@@ -46,6 +47,7 @@ impl ChatComponent {
             frame_count: 0,
             last_input_mode: InputMode::Normal,
             last_item_count: 0,
+            last_width: 0,
         }
     }
 
@@ -197,7 +199,8 @@ impl ChatComponent {
                 if let rmcp::model::Content {
                     raw: rmcp::model::RawContent::Text(text_content),
                     ..
-                } = content {
+                } = content
+                {
                     for line in text_content.text.lines() {
                         if line_count >= max_lines {
                             break;
@@ -509,6 +512,15 @@ impl Component for ChatComponent {
         self.last_input_mode = state.input_mode;
 
         // 1. Reconcile Cache
+        // If width changed, clear cache to force re-wrap
+        if area.width != self.last_width {
+            self.cached_items.clear();
+            self.cached_mapping.clear();
+            self.sealed_count = 0;
+            self.last_tool_context.clear();
+            self.last_width = area.width;
+        }
+
         // If state cleared (new session), clear cache
         if state.messages.len() < self.sealed_count {
             self.cached_items.clear();
