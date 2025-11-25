@@ -210,7 +210,6 @@ export default function RecipesView() {
         msg: `Recipe will run ${getReadableCron(scheduleCron)}`,
       });
 
-      // Navigate to scheduler page after creating a new schedule
       if (isCreating) {
         setView('schedules');
       }
@@ -310,7 +309,7 @@ export default function RecipesView() {
     }
   };
 
-  // Memoize the schedule object to prevent CronPicker from resetting on every render
+  // Memoize to prevent CronPicker from resetting on every render
   const memoizedSchedule = useMemo(() => {
     if (!scheduleRecipeManifest?.schedule_cron) return null;
     return {
