@@ -478,15 +478,17 @@ impl Agent {
         } else if tool_call.name == SUBAGENT_TOOL_NAME {
             let arguments = tool_call.arguments.clone().unwrap_or_default();
 
-            let loaded_extensions = self
-                .extension_manager
-                .list_extensions()
-                .await
-                .unwrap_or_default();
+            // Get extensions from the agent's runtime state rather than global config
+            // This ensures subagents inherit extensions that were dynamically enabled by the parent
+            let extensions = self.get_extension_configs().await;
+
+            // Get just the extension names for the recipe builder (for name resolution)
+            let loaded_extension_names: Vec<String> =
+                extensions.iter().map(|ext| ext.key()).collect();
 
             let recipe = match subagent_tools::task_params_to_inline_recipe(
                 &Value::Object(arguments.clone()),
-                &loaded_extensions,
+                &loaded_extension_names,
             ) {
                 Ok(r) => r,
                 Err(e) => {
@@ -515,12 +517,8 @@ impl Agent {
                 }
             };
 
-            let task_config = TaskConfig::new(
-                provider,
-                &session.id,
-                &session.working_dir,
-                self.get_extension_configs().await,
-            );
+            let task_config =
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
 
             let return_last_only = arguments
                 .get("return_last_only")
