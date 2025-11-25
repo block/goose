@@ -84,7 +84,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, ToSchema, schemars::JsonSchema)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,

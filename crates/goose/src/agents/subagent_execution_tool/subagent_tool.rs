@@ -20,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
-pub fn should_enabled_subagents(model_name: &str) -> bool {
+pub fn should_enable_subagents(model_name: &str) -> bool {
     let config = Config::global();
     let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
     if !is_autonomous {
@@ -120,10 +120,10 @@ pub fn create_subagent_tool() -> Tool {
 
     Tool::new(
         SUBAGENT_TOOL_NAME.to_string(),
-        "Delegate a task to an autonomous subagent. Returns the result immediately. 
-        Use this tool to offload complex work (research, coding, critique) to a specialized agent. 
-        Defaults to 'return_last_only=true' for concise results.
-        Accepts standard recipe parameters like 'extensions', 'settings', 'retry', etc.
+        "Delegate a task to an autonomous subagent. Returns the result immediately. \
+        Use this tool to offload complex work (research, coding, critique) to a specialized agent. \
+        Defaults to 'return_last_only=true' for concise results. \
+        Accepts standard recipe parameters like 'extensions', 'settings', 'retry', etc. \
         Can also be used to execute an existing task by providing 'task_id' (e.g. from a sub-recipe)."
             .to_string(),
         input_schema,
@@ -284,28 +284,31 @@ pub async fn run_subagent_tool(
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from(format!("Invalid parameters: {}", e)),
+                message: Cow::from(format!("Invalid subagent parameters: {}", e)),
                 data: None,
             }))
         }
     };
 
     let return_last_only = parsed_params.return_last_only;
+    let subagent_type = parsed_params
+        .subagent_type
+        .clone()
+        .unwrap_or(SubagentType::Default);
 
     // 2. Type-Safe Conversion
-    let mut recipe = match Recipe::try_from(parsed_params.clone()) {
+    let mut recipe = match Recipe::try_from(parsed_params) {
         Ok(r) => r,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from(format!("Failed to create recipe: {}", e)),
+                message: Cow::from(format!("Failed to build recipe from parameters: {}", e)),
                 data: None,
             }))
         }
     };
 
     // 3. Persona Application
-    // If settings.system_prompt is not explicitly set, use the persona's prompt
     let has_explicit_system_prompt = recipe
         .settings
         .as_ref()
@@ -313,11 +316,6 @@ pub async fn run_subagent_tool(
         .is_some();
 
     if !has_explicit_system_prompt {
-        let subagent_type = parsed_params
-            .subagent_type
-            .as_ref()
-            .unwrap_or(&SubagentType::Default);
-
         tracing::info!("Applying subagent type: {:?}", subagent_type);
 
         let task_instructions = recipe
@@ -336,7 +334,7 @@ pub async fn run_subagent_tool(
         // TODO: Extract max_turns from settings if available
 
         if let Some(system_prompt) = load_system_prompt(
-            subagent_type,
+            &subagent_type,
             max_turns,
             tool_count,
             available_tools,
@@ -351,12 +349,7 @@ pub async fn run_subagent_tool(
                 tracing::debug!("System prompt preview: {}", preview);
             }
 
-            let mut settings = recipe.settings.unwrap_or(Settings {
-                goose_provider: None,
-                goose_model: None,
-                temperature: None,
-                system_prompt: None,
-            });
+            let mut settings = recipe.settings.unwrap_or_default();
             settings.system_prompt = Some(system_prompt);
             recipe.settings = Some(settings);
         } else {
