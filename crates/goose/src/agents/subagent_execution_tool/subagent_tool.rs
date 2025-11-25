@@ -120,11 +120,9 @@ pub fn create_subagent_tool() -> Tool {
 
     Tool::new(
         SUBAGENT_TOOL_NAME.to_string(),
-        "Delegate a task to an autonomous subagent. Returns the result immediately. \
-        Use this tool to offload complex work (research, coding, critique) to a specialized agent. \
-        Defaults to 'return_last_only=true' for concise results. \
-        Accepts standard recipe parameters like 'extensions', 'settings', 'retry', etc. \
-        Can also be used to execute an existing task by providing 'task_id' (e.g. from a sub-recipe)."
+        "Delegate a task to an autonomous subagent. Provide 'instructions' describing what to do. \
+        Optional 'subagent_type': investigator (read-only research), critic (read-only review), default (full execution). \
+        Supports recipe parameters (extensions, settings, response, retry) and 'task_id' for existing tasks."
             .to_string(),
         input_schema,
     )
