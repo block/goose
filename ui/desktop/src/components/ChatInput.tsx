@@ -13,6 +13,7 @@ import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { AlertType, useAlerts } from './alerts';
+import { ChatSettingsPopover } from './ChatSettingsPopover';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
@@ -2314,52 +2315,19 @@ export default function ChatInput({
         )}
         <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Model selector, mode selector, alerts, summarize button */}
-        <div className="flex flex-row items-center min-w-0 flex-shrink overflow-hidden">
-          {/* Cost Tracker */}
-          {COST_TRACKING_ENABLED && (
-            <>
-              <CostTracker
-                inputTokens={inputTokens}
-                outputTokens={outputTokens}
-                sessionCosts={sessionCosts}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </>
-          )}
-          <Tooltip>
-            <div className="flex-shrink-0">
-              <ModelsBottomBar
-                sessionId={sessionId}
-                dropdownRef={dropdownRef}
-                setView={setView}
-                alerts={alerts}
-                recipeConfig={recipeConfig}
-                hasMessages={messages && Array.isArray(messages) && messages.length > 0}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </div>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <div className="flex-shrink-0">
-            <BottomMenuModeSelection shouldShowIconOnly={shouldShowIconOnly} />
-          </div>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => setIsGoosehintsModalOpen?.(true)}
-                variant="ghost"
-                size="sm"
-                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0 flex-shrink-0"
-              >
-                <FolderKey size={16} className={shouldShowIconOnly ? '' : 'mr-1'} />
-                {!shouldShowIconOnly && <span className="text-xs">Hints</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Configure goosehints</TooltipContent>
-          </Tooltip>
-        </div>
+        {/* Chat Settings Popover - consolidated settings */}
+        <ChatSettingsPopover
+          sessionId={sessionId}
+          setView={setView}
+          alerts={alerts}
+          recipeConfig={recipeConfig}
+          hasMessages={messages && Array.isArray(messages) && messages.length > 0}
+          shouldShowIconOnly={shouldShowIconOnly}
+          inputTokens={inputTokens}
+          outputTokens={outputTokens}
+          sessionCosts={sessionCosts}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
 
         <EnhancedMentionPopover
           ref={enhancedMentionPopoverRef}
