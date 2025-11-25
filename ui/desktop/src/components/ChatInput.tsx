@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText, Settings, ChefHat } from 'lucide-react';
+import { Bug, ScrollText, Settings, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -117,18 +117,15 @@ export default function ChatInput({
   toolCount,
   append: _append,
   isExtensionsLoading = false,
-  isEditingConversation: externalIsEditingConversation,
+  isEditingConversation: _externalIsEditingConversation,
   onEditingConversationChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
-  const [internalIsEditingConversation, setInternalIsEditingConversation] = useState(false);
+  const [_internalIsEditingConversation, setInternalIsEditingConversation] = useState(false);
   
-  // Use external state if provided, otherwise use internal state
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const isEditingConversation = externalIsEditingConversation ?? internalIsEditingConversation;
   const setIsEditingConversation = (value: boolean) => {
     if (onEditingConversationChange) {
       onEditingConversationChange(value);
@@ -136,8 +133,6 @@ export default function ChatInput({
       setInternalIsEditingConversation(value);
     }
   };
-  
-  // isEditingConversation is used by parent component to show/hide the edit banner
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;

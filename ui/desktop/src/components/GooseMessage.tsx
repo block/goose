@@ -40,7 +40,7 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   isStreaming = false,
-  isEditingConversation = false,
+  isEditingConversation: _isEditingConversation = false,
   messageCheckboxStates,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
