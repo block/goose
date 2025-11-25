@@ -72,7 +72,7 @@ pub fn get_input(
         if !has_meaningful_content {
             return get_regular_input(editor);
         }
-
+        editor.add_history_entry(message.as_str())?;
         return Ok(InputResult::Message(message));
     }
 
