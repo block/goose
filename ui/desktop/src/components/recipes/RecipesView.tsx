@@ -32,6 +32,7 @@ import { generateDeepLink, Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import cronstrue from 'cronstrue';
 
 export default function RecipesView() {
@@ -338,92 +339,136 @@ export default function RecipesView() {
           </div>
         </div>
 
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenSlashCommandDialog(recipeManifestResponse);
-          }}
-          variant={slash_command ? 'default' : 'outline'}
-          size="sm"
-          className="h-8 w-8 p-0"
-          title={slash_command ? 'Edit slash command' : 'Add slash command'}
-        >
-          <Terminal className="w-4 h-4" />
-        </Button>
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenSlashCommandDialog(recipeManifestResponse);
+                }}
+                variant={slash_command ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Terminal className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{slash_command ? 'Edit slash command' : 'Add slash command'}</p>
+            </TooltipContent>
+          </Tooltip>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStartRecipeChat(recipe, recipeManifestResponse.id);
-            }}
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Use recipe"
-          >
-            <Play className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Open in new window"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEditRecipe(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Edit recipe"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCopyDeeplink(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Copy deeplink"
-          >
-            <Link className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenScheduleDialog(recipeManifestResponse);
-            }}
-            variant={schedule_cron ? 'default' : 'outline'}
-            size="sm"
-            className="h-8 w-8 p-0"
-            title={schedule_cron ? 'Edit schedule' : 'Add schedule'}
-          >
-            <Clock className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteRecipe(recipeManifestResponse);
-            }}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-            title="Delete recipe"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartRecipeChat(recipe, recipeManifestResponse.id);
+                  }}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <Play className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Launch recipe</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Launch in new window</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditRecipe(recipeManifestResponse);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit recipe</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyDeeplink(recipeManifestResponse);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <Link className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy deeplink</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenScheduleDialog(recipeManifestResponse);
+                  }}
+                  variant={schedule_cron ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <Clock className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{schedule_cron ? 'Edit schedule' : 'Add schedule'}</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteRecipe(recipeManifestResponse);
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete recipe</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
     </Card>
   );
