@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText } from 'lucide-react';
+import { Bug, FolderKey, GitFork, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -28,6 +28,7 @@ import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
+import { useForkSession } from '../hooks/useForkSession';
 
 interface QueuedMessage {
   id: string;
@@ -140,6 +141,12 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const { forkAndOpenWindow, isForking } = useForkSession();
+
+  const handleForkSession = async () => {
+    if (!sessionId) return;
+    await forkAndOpenWindow(sessionId);
+  };
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1529,6 +1536,23 @@ export default function ChatInput({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Generate diagnostics bundle</TooltipContent>
+            </Tooltip>
+          )}
+          {sessionId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={handleForkSession}
+                  disabled={isForking}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                >
+                  <GitFork className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Fork session in new window</TooltipContent>
             </Tooltip>
           )}
         </div>

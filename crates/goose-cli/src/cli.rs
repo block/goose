@@ -88,8 +88,7 @@ async fn get_or_create_session_id(
             let source_session = sessions
                 .first()
                 .ok_or_else(|| anyhow::anyhow!("No session found to fork"))?;
-            let new_name = format!("{} (fork)", source_session.name);
-            let forked_session = SessionManager::copy_session(&source_session.id, new_name).await?;
+            let forked_session = SessionManager::fork_session(&source_session.id).await?;
             Ok(Some(forked_session.id))
         } else if resume {
             let sessions = SessionManager::list_sessions().await?;
@@ -111,9 +110,7 @@ async fn get_or_create_session_id(
 
     if let Some(session_id) = id.session_id {
         if fork {
-            let source_session = SessionManager::get_session(&session_id, false).await?;
-            let new_name = format!("{} (fork)", source_session.name);
-            let forked_session = SessionManager::copy_session(&session_id, new_name).await?;
+            let forked_session = SessionManager::fork_session(&session_id).await?;
             Ok(Some(forked_session.id))
         } else {
             Ok(Some(session_id))
@@ -125,8 +122,7 @@ async fn get_or_create_session_id(
                 .into_iter()
                 .find(|s| s.name == name || s.id == name)
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            let new_name = format!("{} (fork)", source_session.name);
-            let forked_session = SessionManager::copy_session(&source_session.id, new_name).await?;
+            let forked_session = SessionManager::fork_session(&source_session.id).await?;
             Ok(Some(forked_session.id))
         } else if resume {
             let sessions = SessionManager::list_sessions().await?;
@@ -158,9 +154,7 @@ async fn get_or_create_session_id(
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
         if fork {
-            let source_session = SessionManager::get_session(&session_id, false).await?;
-            let new_name = format!("{} (fork)", source_session.name);
-            let forked_session = SessionManager::copy_session(&session_id, new_name).await?;
+            let forked_session = SessionManager::fork_session(&session_id).await?;
             Ok(Some(forked_session.id))
         } else {
             Ok(Some(session_id))

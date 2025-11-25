@@ -404,19 +404,10 @@ async fn edit_message(
     tag = "Session Management"
 )]
 async fn fork_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
-    let original_session = SessionManager::get_session(&session_id, false)
+    let forked_session = SessionManager::fork_session(&session_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get session: {}", e);
-            StatusCode::NOT_FOUND
-        })?;
-
-    let new_name = format!("{} (fork)", original_session.name);
-
-    let forked_session = SessionManager::copy_session(&session_id, new_name)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to copy session: {}", e);
+            tracing::error!("Failed to fork session: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
