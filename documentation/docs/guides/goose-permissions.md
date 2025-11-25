@@ -15,7 +15,7 @@ goose’s permissions determine how much autonomy it has when modifying files, u
   <iframe
   class="aspect-ratio"
   src="https://www.youtube.com/embed/bMVFFnPS_Uk"
-  title="Goose Permission Modes Explained"
+  title="goose Permission Modes Explained"
   frameBorder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowFullScreen

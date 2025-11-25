@@ -1,6 +1,6 @@
 ---
 title: Google Drive Extension
-description: Add Google Drive MCP Server as a Goose Extension
+description: Add Google Drive MCP Server as a goose Extension
 unlisted: true
 ---
 
@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 Server archived 
 
-This tutorial covers how to add the [Google Drive MCP Server](https://www.pulsemcp.com/servers/modelcontextprotocol-gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
+This tutorial covers how to add the [Google Drive MCP Server](https://www.pulsemcp.com/servers/modelcontextprotocol-gdrive) as a goose extension, allowing you to list, read, and search files in Google Drive.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -175,7 +175,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ```  
 
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
    ```sh
     ┌   goose-configure 
     │
@@ -275,9 +275,9 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
 ## Example Usage
 
-In this example, I’ll use Goose to quickly gather and summarize important information for my upcoming marketing budget review meeting in 30 minutes. I’ll ask Goose to find relevant documents from my Google Drive, summarize Q1 performance, highlight critical decisions on marketing automation and video production, and identify any outstanding action items from our last meeting.
+In this example, I’ll use goose to quickly gather and summarize important information for my upcoming marketing budget review meeting in 30 minutes. I’ll ask goose to find relevant documents from my Google Drive, summarize Q1 performance, highlight critical decisions on marketing automation and video production, and identify any outstanding action items from our last meeting.
 
-### Goose Prompt
+### goose Prompt
 ```
 I have an important marketing budget review meeting in 30 minutes and I need your help getting prepared. I have several documents in my Google Drive from our previous meetings and planning sessions. Could you help me by:
 
@@ -289,7 +289,7 @@ I have an important marketing budget review meeting in 30 minutes and I need you
 I need a quick but comprehensive overview so I can walk into this meeting well-prepared.
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll help you prepare for your meeting. Let me first list available resources from Google Drive to make sure we access the correct files. 

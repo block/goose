@@ -302,7 +302,7 @@ When the keyring is disabled, secrets are stored here:
 
 ## Observability
 
-Beyond Goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
+Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
 
 ### OpenTelemetry Protocol (OTLP)
 

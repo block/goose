@@ -9,7 +9,7 @@ import { PanelLeft } from 'lucide-react';
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-Response Styles customize how tool interactions are displayed in the Goose Desktop chat window. 
+Response Styles customize how tool interactions are displayed in the goose Desktop chat window. 
 
 To change this setting:
 1. Click the <PanelLeft className="inline" size={16} /> button on the top-left to open the sidebar.
@@ -19,19 +19,19 @@ To change this setting:
 
 - **Concise** (Default)
     - Tool calls are collapsed by default
-    - Shows only which tool Goose used
+    - Shows only which tool goose used
     - Best for users focusing on results rather than technical details
 
 - **Detailed**
     - Tool calls are expanded by default
     - Shows the details of tool calls and their responses
-    - Best for debugging or learning how Goose works
+    - Best for debugging or learning how goose works
 
 This setting only affects the default state of tool calls in the conversation. You can always manually expand or collapse any tool call regardless of your chosen style.
 
 </TabItem>
   <TabItem value="cli" label="goose CLI">
-When working with the Goose CLI, you can control the verbosity of tool output.
+When working with the goose CLI, you can control the verbosity of tool output.
 
 To adjust the tool output, run:
 

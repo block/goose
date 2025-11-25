@@ -1,0 +1,258 @@
+---
+title: DataHub Extension
+description: Add DataHub MCP Server as a goose Extension
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VXRvHIZ3Eww?start=1878" />
+
+This tutorial covers how to add the [DataHub MCP Server](https://github.com/acryldata/mcp-server-datahub) as a goose extension to enable AI-powered data discovery, lineage exploration, and metadata querying across your data ecosystem.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-datahub%40latest&id=datahub-mcp&name=DataHub&description=Data%20discovery%20and%20metadata%20platform%20integration&env=DATAHUB_GMS_URL%3DDataHub%20GMS%20URL%20(e.g.%2C%20https%3A%2F%2Fyour-instance.acryl.io%20or%20http%3A%2F%2Flocalhost%3A8080)&env=DATAHUB_GMS_TOKEN%3DDataHub%20Personal%20Access%20Token)
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+  **Command**
+  ```sh
+  uvx mcp-server-datahub@latest
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variables**
+  ```
+  DATAHUB_GMS_URL: <your-datahub-url>
+  DATAHUB_GMS_TOKEN: <your-datahub-token>
+  ```
+:::
+
+## What is DataHub?
+
+[DataHub](https://datahub.com/) is an open-source metadata platform that provides a unified view of your data ecosystem, cataloging datasets, dashboards, pipelines, and more with rich metadata including ownership, lineage, usage statistics, and data quality information.
+
+The DataHub MCP Server enables AI agents to:
+- **Find trustworthy data** using natural language search with trust signals like popularity, quality, and lineage
+- **Explore data lineage** to understand upstream and downstream dependencies at table and column level
+- **Understand business context** through glossaries, domains, data products, and organizational metadata
+- **Generate SQL queries** with help from documentation, lineage, and popular query patterns
+
+Learn more: [DataHub MCP Server Guide](https://docs.datahub.com/docs/features/feature-guides/mcp) | [GitHub Repository](https://github.com/acryldata/mcp-server-datahub)
+
+## Prerequisites
+
+Before using the DataHub MCP Server, ensure you have:
+
+- **Python 3.10+** and **[uv](https://docs.astral.sh/uv/#installation)** package manager installed
+- A **DataHub instance**: [DataHub Cloud](https://www.datahub.com) or [self-hosted DataHub](https://docs.datahub.com/docs/quickstart)
+- A **[Personal Access Token](https://docs.datahub.com/docs/authentication/personal-access-tokens)** from your DataHub instance
+
+## Configuration
+
+:::info
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+:::
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+    <GooseDesktopInstaller
+      extensionId="datahub-mcp"
+      extensionName="DataHub"
+      description="Data discovery and metadata platform integration"
+      type="stdio"
+      command="uvx"
+      args={["mcp-server-datahub@latest"]}
+      timeout={300}
+      envVars={[
+        { name: "DATAHUB_GMS_URL", label: "DataHub GMS URL (e.g., https://your-instance.acryl.io or http://localhost:8080)" },
+        { name: "DATAHUB_GMS_TOKEN", label: "DataHub Personal Access Token" }
+      ]}
+      apiKeyLink="https://docs.datahub.com/docs/authentication/personal-access-tokens"
+      apiKeyLinkText="DataHub Personal Access Token"
+    />
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+    <CLIExtensionInstructions
+      name="DataHub"
+      description="Data discovery and metadata platform integration"
+      type="stdio"
+      command="uvx mcp-server-datahub@latest"
+      timeout={300}
+      envVars={[
+        { key: "DATAHUB_GMS_URL", value: "https://your-instance.acryl.io" },
+        { key: "DATAHUB_GMS_TOKEN", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Get your Personal Access Token from{" "}
+          <a href="https://docs.datahub.com/docs/authentication/personal-access-tokens" target="_blank" rel="noopener noreferrer">
+            DataHub documentation
+          </a>. Use your DataHub GMS URL (e.g., https://your-instance.acryl.io for DataHub Cloud or http://localhost:8080 for local instances).
+        </>
+      }
+    />
+
+  </TabItem>
+</Tabs>
+
+## Example Usage
+
+### Finding Trustworthy Data
+
+Find datasets related to your project by describing what you need in natural language.
+
+#### goose Prompt
+
+> _Find all datasets related to customer transactions that are owned by the analytics team_
+
+#### goose Output
+
+:::note Desktop
+
+The DataHub extension will search across your data catalog and return relevant datasets with their metadata, including:
+
+- Dataset names and descriptions
+- Column names, types, descriptions, and labels
+- Owners
+- Tags, properties, and glossary terms
+- Usage statistics
+- Data quality status
+
+:::
+
+### Exploring Data Lineage
+
+I want to remove the "timestamp_seconds" column from the customer_orders table. What will break?
+
+#### goose Prompt
+
+> _Show me the upstream lineage for the customer_orders table_
+
+#### goose Output
+
+:::note Desktop
+
+The extension will traverse the lineage graph and show any:
+
+- Source tables and datasets
+- Transformation pipelines
+- ETL jobs and workflows
+- Downstream columns
+
+That would be impacted by removing the column.
+
+:::
+
+### Generating SQL Queries
+
+How do I calculate the number of orders made in the USA last year?
+
+#### goose Prompt
+
+> _What are the most common queries run against the customer_orders dataset?_
+
+#### goose Output
+
+:::note Desktop
+
+The extension will retrieve SQL query history showing:
+
+- Frequently executed queries
+- Common join patterns
+- Filter conditions
+- Aggregation patterns
+
+In addition to column names, types, descriptions, and any labels. This will enable the agent to generate high quality SQL to answer the question.
+
+:::
+
+### Understanding Data Quality & Freshness
+
+Determine whether a dataset is trustworthy before using it.
+
+#### goose Prompt
+
+> _Is the customer_orders table fresh and free of data quality issues?_
+
+#### goose Output
+
+:::note Desktop
+
+The extension will fetch:
+
+- Latest data quality assertions and test results
+- Freshness / staleness metrics
+- Schema change history
+- SLA or SLO metadata
+- Owner-provided health status
+
+Allowing the agent to warn the user or confirm data trustworthiness.
+
+:::
+
+## Capabilities
+
+The DataHub MCP Server provides the following tools:
+
+**`search`**
+
+Search DataHub using structured keyword search (/q syntax) with boolean logic, filters, pagination, and optional sorting by usage metrics.
+
+**`get_lineage`**
+
+Retrieve upstream or downstream lineage for any entity (datasets, columns, dashboards, etc.) with filtering, query-within-lineage, pagination, and hop control.
+
+**`get_dataset_queries`**
+
+Fetch real SQL queries referencing a dataset or column—manual or system-generated—to understand usage patterns, joins, filters, and aggregation behavior.
+
+**`get_entities`**
+
+Fetch detailed metadata for one or more entities by URN; supports batch retrieval for efficient inspection of search results.
+
+**`list_schema_fields`**
+
+List schema fields for a dataset with keyword filtering and pagination, useful when search results truncate fields or when exploring large schemas.
+
+**`get_lineage_paths_between`**
+
+Retrieve the exact lineage paths between two assets or columns, including intermediate transformations and SQL query information.
+
+## Resources
+
+- [DataHub MCP Server GitHub](https://github.com/acryldata/mcp-server-datahub)
+- [DataHub Documentation](https://docs.datahub.com/docs/)
+- [DataHub MCP Server Guide](https://docs.datahub.com/docs/features/feature-guides/mcp)
+- [Demo Video](https://youtu.be/VXRvHIZ3Eww?t=1878)
+
+## Troubleshooting
+
+### Connection Issues
+
+If you're having trouble connecting to DataHub:
+
+1. Verify your `DATAHUB_GMS_URL` is correct:
+   - For DataHub Cloud: `https://your-tenant.acryl.io`
+   - For local instances: `http://localhost:8080`
+   - For on-premises: `https://datahub.your-company.com`
+
+2. Confirm your Personal Access Token is valid and has appropriate permissions
+
+3. Check network connectivity and firewall rules
+
+### Installation Issues
+
+If `uvx` is not found:
+
+1. Ensure `uv` is installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2. Restart your terminal or source your shell configuration
+3. Verify installation: `which uvx`
+
