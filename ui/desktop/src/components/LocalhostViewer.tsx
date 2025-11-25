@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
-import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
 interface LocalhostViewerProps {
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
+  onClose?: () => void; // Callback when close button is clicked
 }
 
 function isValidLocalhostUrl(url: string): boolean {
@@ -37,6 +38,7 @@ function formatUrl(input: string): string {
 export function LocalhostViewer({
   initialUrl = 'http://localhost:3000',
   onUrlChange,
+  onClose,
 }: LocalhostViewerProps) {
   // Initialize from localStorage or use initialUrl
   const [url, setUrl] = useState(() => {
@@ -275,7 +277,7 @@ export function LocalhostViewer({
   return (
     <div className="h-full flex flex-col bg-background-default">
       {/* URL Bar and Controls */}
-      <div className="flex items-center gap-2 p-3 border-b border-borderSubtle bg-background-muted">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-borderSubtle bg-background-muted">
         {/* Navigation buttons */}
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -338,15 +340,28 @@ export function LocalhostViewer({
           </Button>
         </div>
 
-        {/* External link button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={handleOpenInBrowser} className="p-1 h-8 w-8">
-              <ExternalLink size={14} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Open in Browser</TooltipContent>
-        </Tooltip>
+        {/* External link button and close button */}
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={handleOpenInBrowser} className="p-1 h-8 w-8">
+                <ExternalLink size={14} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Open in Browser</TooltipContent>
+          </Tooltip>
+
+          {onClose && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={onClose} className="p-1 h-8 w-8">
+                  <X size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}

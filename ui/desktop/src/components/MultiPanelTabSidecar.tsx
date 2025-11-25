@@ -95,16 +95,16 @@ const renderIcon = (iconType: string) => {
 };
 
 // Content renderer
-const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string, viewId: string) => {
+const renderContent = (contentType: string, contentProps: Record<string, any>, tabId: string, viewId: string, onClose?: () => void) => {
   const key = `${contentType}-${tabId}-${viewId}`;
   
   switch (contentType) {
     case 'diff':
       return <MonacoDiffViewer key={key} diffContent={contentProps.diffContent || ''} />;
     case 'localhost':
-      return <LocalhostViewer key={key} url={contentProps.url || 'http://localhost:3000'} title={contentProps.title || 'Localhost Viewer'} />;
+      return <LocalhostViewer key={key} initialUrl={contentProps.url || 'http://localhost:3000'} onClose={onClose} />;
     case 'web':
-      return <WebBrowser key={key} initialUrl={contentProps.url || 'https://google.com'} title={contentProps.title || 'Web Browser'} />;
+      return <WebViewer key={key} initialUrl={contentProps.url || 'https://google.com'} allowAllSites={true} onClose={onClose} />;
     case 'file':
       return <SimpleFileViewer key={key} path={contentProps.path || ''} />;
     case 'editor':
@@ -154,6 +154,7 @@ const Panel: React.FC<PanelProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   
   const isDiffViewer = view.contentType === 'diff';
+  const isWebViewer = view.contentType === 'web' || view.contentType === 'localhost';
 
   // Update the diff viewer when view mode changes
   React.useEffect(() => {
@@ -274,8 +275,9 @@ const Panel: React.FC<PanelProps> = ({
       style={style}
     >
       <div className="bg-background-default overflow-hidden flex flex-col h-full">
-        {/* Sidecar Header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
+        {/* Sidecar Header - Hidden for web viewers */}
+        {!isWebViewer && (
+          <div className="flex items-center justify-between px-4 py-2 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
             {/* Drag Handle */}
             <motion.div
@@ -358,10 +360,11 @@ const Panel: React.FC<PanelProps> = ({
             </Tooltip>
           </div>
         </div>
+        )}
 
         {/* Sidecar Content */}
         <div className="flex-1 overflow-hidden">
-          {renderContent(view.contentType, view.contentProps, tabId)}
+          {renderContent(view.contentType, view.contentProps, tabId, view.id, () => onHideView(view.id))}
         </div>
       </div>
     </motion.div>
