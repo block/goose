@@ -13,6 +13,8 @@ import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { AlertType, useAlerts } from './alerts';
+import { ChatSettingsPopover } from './ChatSettingsPopover';
+import { ChatActionsPopover } from './ChatActionsPopover';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
@@ -1930,7 +1932,7 @@ export default function ChatInput({
 
       {/* Chat input container with max width - floating card */}
       <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
-        <div className="bg-background-default rounded-2xl pt-2 px-2">
+        <div className="bg-background-default rounded-[32px] pt-3 px-3">
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue
@@ -2019,13 +2021,11 @@ export default function ChatInput({
                       <Button
                         type="button"
                         size="sm"
-                        shape="round"
-                        variant="outline"
-                        onClick={() => {}}
-                        disabled={true}
-                        className="bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default rounded-full px-6 py-2"
+                        variant="ghost"
+                        disabled
+                        className="w-8 h-8 rounded-full border border-white/60 dark:border-zinc-800 flex items-center justify-center bg-transparent text-[#3C3C43]/40 dark:text-white/30 cursor-not-allowed"
                       >
-                        <Microphone />
+                        <Microphone className="w-4 h-4" />
                       </Button>
                     </span>
                   </TooltipTrigger>
@@ -2054,25 +2054,22 @@ export default function ChatInput({
                 <Button
                   type="button"
                   size="sm"
-                  shape="round"
-                  variant="outline"
-                  onClick={() => {
-                    if (isRecording) {
-                      stopRecording();
-                    } else {
-                      startRecording();
-                    }
-                  }}
+                  variant="ghost"
                   disabled={isTranscribing}
-                  className={`rounded-full px-6 py-2 ${
+                  onClick={() => (isRecording ? stopRecording() : startRecording())}
+                  className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
                     isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                      : isTranscribing
-                        ? 'bg-text-default text-background-default cursor-not-allowed animate-pulse border-text-default'
-                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default'
+                      ? 'border-red-500 bg-red-500 text-white'
+                      : 'border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
                   }`}
                 >
-                  <Microphone />
+                  <div className="w-4 h-4 flex items-center justify-center">
+                    {isRecording ? (
+                      <div className="w-2 h-2 bg-white rounded-sm animate-pulse" />
+                    ) : (
+                      <Microphone className="w-4 h-4" />
+                    )}
+                  </div>
                 </Button>
               )}
             </>
@@ -2084,11 +2081,10 @@ export default function ChatInput({
               type="button"
               onClick={onStop}
               size="sm"
-              shape="round"
-              variant="outline"
-              className="bg-text-default text-background-default hover:bg-text-muted border-text-default rounded-full px-6 py-2"
+              variant="ghost"
+              className="rounded-full w-8 h-8 !p-0 bg-[#FF5F5F] text-white shadow-[0px_0px_25px_rgba(255,95,95,0.35)] flex items-center justify-center"
             >
-              <Stop />
+              <Stop className="w-3 h-3" />
             </Button>
           ) : (
             <Tooltip>
@@ -2097,17 +2093,15 @@ export default function ChatInput({
                   <Button
                     type="submit"
                     size="sm"
-                    shape="round"
-                    variant="outline"
+                    variant="ghost"
                     disabled={isSubmitButtonDisabled}
-                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                    className={`rounded-full w-8 h-8 !p-0 flex items-center justify-center shadow-lg transition-all ${
                       isSubmitButtonDisabled
-                        ? 'bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default'
-                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default hover:cursor-pointer'
+                        ? 'bg-zinc-100 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-600 cursor-not-allowed'
+                        : 'bg-neutral-900 text-white dark:bg-white dark:text-black hover:opacity-90'
                     }`}
                   >
                     <Send className="w-4 h-4" />
-                    <span className="text-sm">Send</span>
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -2264,46 +2258,13 @@ export default function ChatInput({
       )}
 
       {/* Secondary actions and controls row below input */}
-      <div ref={bottomControlsRef} className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher shouldShowIconOnly={shouldShowIconOnly} />
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Action button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleActionButtonClick}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Action className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Actions</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Quick Actions</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Attach button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleFileSelect}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Attach className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Attach</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+      <div ref={bottomControlsRef} className="flex flex-row items-center gap-2 p-2 relative">
+        {/* Chat Actions Popover - consolidated tools */}
+        <ChatActionsPopover
+          shouldShowIconOnly={shouldShowIconOnly}
+          onActionButtonClick={handleActionButtonClick}
+          onAttachClick={handleFileSelect}
+        />
 
         {/* Session Sharing Component - disabled for Matrix rooms */}
         {!isMatrixRoom && (
@@ -2312,54 +2273,20 @@ export default function ChatInput({
             shouldShowIconOnly={shouldShowIconOnly}
           />
         )}
-        <div className="w-px h-4 bg-border-default mx-2" />
 
-        {/* Model selector, mode selector, alerts, summarize button */}
-        <div className="flex flex-row items-center min-w-0 flex-shrink overflow-hidden">
-          {/* Cost Tracker */}
-          {COST_TRACKING_ENABLED && (
-            <>
-              <CostTracker
-                inputTokens={inputTokens}
-                outputTokens={outputTokens}
-                sessionCosts={sessionCosts}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </>
-          )}
-          <Tooltip>
-            <div className="flex-shrink-0">
-              <ModelsBottomBar
-                sessionId={sessionId}
-                dropdownRef={dropdownRef}
-                setView={setView}
-                alerts={alerts}
-                recipeConfig={recipeConfig}
-                hasMessages={messages && Array.isArray(messages) && messages.length > 0}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </div>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <div className="flex-shrink-0">
-            <BottomMenuModeSelection shouldShowIconOnly={shouldShowIconOnly} />
-          </div>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => setIsGoosehintsModalOpen?.(true)}
-                variant="ghost"
-                size="sm"
-                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0 flex-shrink-0"
-              >
-                <FolderKey size={16} className={shouldShowIconOnly ? '' : 'mr-1'} />
-                {!shouldShowIconOnly && <span className="text-xs">Hints</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Configure goosehints</TooltipContent>
-          </Tooltip>
-        </div>
+        {/* Chat Settings Popover - consolidated settings */}
+        <ChatSettingsPopover
+          sessionId={sessionId}
+          setView={setView}
+          alerts={alerts}
+          recipeConfig={recipeConfig}
+          hasMessages={messages && Array.isArray(messages) && messages.length > 0}
+          shouldShowIconOnly={shouldShowIconOnly}
+          inputTokens={inputTokens}
+          outputTokens={outputTokens}
+          sessionCosts={sessionCosts}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
 
         <EnhancedMentionPopover
           ref={enhancedMentionPopoverRef}
