@@ -275,7 +275,7 @@ const Panel: React.FC<PanelProps> = ({
     >
       <div className="bg-background-default overflow-hidden flex flex-col h-full">
         {/* Sidecar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
           <div className="flex items-center space-x-2">
             {/* Drag Handle */}
             <motion.div
