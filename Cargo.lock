@@ -2884,7 +2884,6 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_yaml",
- "sha2",
  "socket2 0.6.1",
  "tempfile",
  "thiserror 1.0.69",
