@@ -2266,14 +2266,13 @@ export default function ChatInput({
       )}
 
       {/* Secondary actions and controls row below input */}
-      <div ref={bottomControlsRef} className="flex flex-row items-center gap-1 p-2 relative">
+      <div ref={bottomControlsRef} className="flex flex-row items-center gap-2 p-2 relative">
         {/* Chat Actions Popover - consolidated tools */}
         <ChatActionsPopover
           shouldShowIconOnly={shouldShowIconOnly}
           onActionButtonClick={handleActionButtonClick}
           onAttachClick={handleFileSelect}
         />
-        <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Session Sharing Component - disabled for Matrix rooms */}
         {!isMatrixRoom && (
@@ -2282,7 +2281,6 @@ export default function ChatInput({
             shouldShowIconOnly={shouldShowIconOnly}
           />
         )}
-        <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Chat Settings Popover - consolidated settings */}
         <ChatSettingsPopover
