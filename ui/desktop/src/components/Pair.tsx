@@ -10,21 +10,14 @@ export interface PairRouteState {
 
 interface PairProps {
   setChat: (chat: ChatType) => void;
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   sessionId: string;
   initialMessage?: string;
 }
 
-export default function Pair({
-  setChat,
-  setIsGoosehintsModalOpen,
-  sessionId,
-  initialMessage,
-}: PairProps) {
+export default function Pair({ setChat, sessionId, initialMessage }: PairProps) {
   return (
     <BaseChat
       setChat={setChat}
-      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
       sessionId={sessionId}
       initialMessage={initialMessage}
       suppressEmptyState={false}
