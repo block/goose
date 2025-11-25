@@ -183,8 +183,8 @@ export const TabBar: React.FC<TabBarProps> = ({
               "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
               "w-[160px] group relative tab-item",
               "transition-none",
-              // Light theme: lighter gray background, Dark theme: very dark background
-              "bg-zinc-200/90 dark:bg-[#0E0E13]/90"
+              // Light theme: lighter gray background, Dark theme: medium-light gray background
+              "bg-zinc-200/90 dark:bg-zinc-700/90"
             )}
             onClick={() => onTabClick(tab.id)}
           >
@@ -195,8 +195,8 @@ export const TabBar: React.FC<TabBarProps> = ({
                 tab.isActive
                   // Light theme: dark text when active, Dark theme: white text when active
                   ? "text-zinc-900 dark:text-white"
-                  // Light theme: medium gray inactive, hover to dark. Dark theme: gray inactive, hover to white
-                  : "text-zinc-500 dark:text-neutral-700 group-hover:text-zinc-900 dark:group-hover:text-white"
+                  // Light theme: medium gray inactive, hover to dark. Dark theme: lighter gray inactive, hover to white
+                  : "text-zinc-500 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white"
               )}>
                 {getTabTitle(tab)}
               </span>
@@ -226,8 +226,8 @@ export const TabBar: React.FC<TabBarProps> = ({
         onClick={onNewTab}
         className={cn(
           "flex items-center justify-center w-8 h-8 rounded-2xl",
-          "bg-zinc-200/90 dark:bg-[#0E0E13]/90 hover:bg-zinc-300 dark:hover:bg-[#0E0E13] transition-all duration-200",
-          "text-zinc-700 dark:text-neutral-700 hover:text-zinc-900 dark:hover:text-neutral-600"
+          "bg-zinc-200/90 dark:bg-zinc-700/90 hover:bg-zinc-300 dark:hover:bg-zinc-600/90 transition-all duration-200",
+          "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
         )}
         title="New tab (Ctrl+T)"
       >
