@@ -39,7 +39,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
         )}
       >
         <ToolCallView
@@ -399,6 +399,12 @@ function ToolCallView({
 
       case 'computer_control':
         return `poking around...`;
+
+      case 'create_task':
+        return `create task`;
+
+      case 'execute_task':
+        return `execute task`;
 
       default: {
         // Generic fallback for unknown tools: ToolName + CompactArguments
