@@ -199,7 +199,7 @@ fn read_and_clear_shell_history(session_id: &str) -> Result<Vec<String>> {
     Ok(commands)
 }
 
-pub async fn handle_term_log(command: String) -> Result<()> {
+pub fn handle_term_log(command: String) -> Result<()> {
     let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
         anyhow!("GOOSE_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
     })?;

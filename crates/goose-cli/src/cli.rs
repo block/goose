@@ -1484,7 +1484,7 @@ pub async fn cli() -> anyhow::Result<()> {
                     handle_term_init(shell_str, default).await?;
                 }
                 TermCommand::Log { command } => {
-                    handle_term_log(command).await?;
+                    handle_term_log(command)?;
                 }
                 TermCommand::Run { prompt } => {
                     handle_term_run(prompt).await?;
