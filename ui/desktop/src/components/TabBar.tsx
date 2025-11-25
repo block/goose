@@ -183,7 +183,8 @@ export const TabBar: React.FC<TabBarProps> = ({
               "h-8 cursor-pointer no-drag border-0 rounded-2xl flex items-center",
               "w-[160px] group relative tab-item",
               "transition-none",
-              "bg-[#0E0E13]/90"
+              // Light theme: lighter gray background, Dark theme: very dark background
+              "bg-zinc-200/90 dark:bg-[#0E0E13]/90"
             )}
             onClick={() => onTabClick(tab.id)}
           >
@@ -192,8 +193,10 @@ export const TabBar: React.FC<TabBarProps> = ({
               <span className={cn(
                 "truncate text-xs font-normal block pointer-events-none text-left transition-colors duration-200",
                 tab.isActive
-                  ? "text-white"
-                  : "text-neutral-700 group-hover:text-white"
+                  // Light theme: dark text when active, Dark theme: white text when active
+                  ? "text-zinc-900 dark:text-white"
+                  // Light theme: medium gray inactive, hover to dark. Dark theme: gray inactive, hover to white
+                  : "text-zinc-500 dark:text-neutral-700 group-hover:text-zinc-900 dark:group-hover:text-white"
               )}>
                 {getTabTitle(tab)}
               </span>
@@ -210,7 +213,7 @@ export const TabBar: React.FC<TabBarProps> = ({
                   className="flex items-center justify-center tab-close-button pointer-events-auto"
                   title="Close tab"
                 >
-                  <X className="w-3 h-3 text-white" />
+                  <X className="w-3 h-3 text-zinc-900 dark:text-white" />
                 </button>
               )}
             </div>
@@ -223,8 +226,8 @@ export const TabBar: React.FC<TabBarProps> = ({
         onClick={onNewTab}
         className={cn(
           "flex items-center justify-center w-8 h-8 rounded-2xl",
-          "bg-[#0E0E13]/90 hover:bg-[#0E0E13] transition-all duration-200",
-          "text-neutral-700 hover:text-neutral-600"
+          "bg-zinc-200/90 dark:bg-[#0E0E13]/90 hover:bg-zinc-300 dark:hover:bg-[#0E0E13] transition-all duration-200",
+          "text-zinc-700 dark:text-neutral-700 hover:text-zinc-900 dark:hover:text-neutral-600"
         )}
         title="New tab (Ctrl+T)"
       >
