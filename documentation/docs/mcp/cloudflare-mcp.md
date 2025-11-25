@@ -1,13 +1,13 @@
 ---
 title: Cloudflare Extension
-description: Add Cloudflare MCP Servers as Goose Extensions
+description: Add Cloudflare MCP Servers as goose Extensions
 unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cloudflare/mcp-server-cloudflare) as Goose extensions to manage your Cloudflare infrastructure, debug applications, analyze traffic, and more using natural language.
+This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cloudflare/mcp-server-cloudflare) as goose extensions to manage your Cloudflare infrastructure, debug applications, analyze traffic, and more using natural language.
 
 Cloudflare provides multiple specialized MCP servers for different aspects of their platform, allowing you to interact with Workers, DNS, security features, analytics, and development tools.
 
@@ -72,7 +72,7 @@ Cloudflare provides multiple specialized MCP servers for different use cases:
    - **Workers:Read/Edit** - For Workers-related servers
    - **Logs:Read** - For observability and audit logs
 
-### Step 2: Add MCP Server to Goose
+### Step 2: Add MCP Server to goose
 
 Choose one or more servers based on your needs. Here are the most popular configurations:
 
@@ -135,7 +135,7 @@ Let's use the Observability server to debug performance issues with a Workers ap
 Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
-#### Goose Prompt
+#### goose Prompt
 ```
 I'm seeing high error rates on my Workers application "my-api-worker". Can you help me:
 1. Check the recent error logs
@@ -144,13 +144,13 @@ I'm seeing high error rates on my Workers application "my-api-worker". Can you h
 4. Suggest optimizations based on the data
 ```
 
-#### Expected Goose Output
+#### Expected goose Output
 ```
 I'll help you debug the issues with your "my-api-worker" application. Let me gather the observability data to identify the problems.
 
 First, let me check the recent error logs for your worker:
 
-[Goose uses the observability MCP server to fetch error logs]
+[goose uses the observability MCP server to fetch error logs]
 
 I found several issues with your worker:
 
@@ -182,7 +182,7 @@ Would you like me to help implement any of these fixes?
 
 Using the Workers Bindings server to set up storage and AI capabilities:
 
-#### Goose Prompt
+#### goose Prompt
 ```
 I need to set up a new Workers project with:
 1. KV storage for caching
@@ -197,7 +197,7 @@ Can you help me configure these bindings?
 
 Using the Radar server for security and traffic analysis:
 
-#### Goose Prompt
+#### goose Prompt
 ```
 Can you help me analyze the security posture of my domain example.com? I want to:
 1. Check for any security threats or malicious traffic
@@ -283,7 +283,7 @@ If you encounter issues:
 
 ## Next Steps
 
-With Cloudflare MCP servers enabled in Goose, you can:
+With Cloudflare MCP servers enabled in goose, you can:
 
 - **Monitor and debug** your applications with natural language queries
 - **Manage infrastructure** through conversational commands

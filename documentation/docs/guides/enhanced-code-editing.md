@@ -72,9 +72,9 @@ export GOOSE_EDITOR_MODEL="your-model"
 
 When the `str_replace` tool is used to edit code:
 
-1. **Configuration Check**: Goose checks if all three environment variables are properly set and non-empty.
+1. **Configuration Check**: goose checks if all three environment variables are properly set and non-empty.
 
-2. **With AI Enabled**: If configured, Goose sends the original code and your requested change to the configured AI model for processing.
+2. **With AI Enabled**: If configured, goose sends the original code and your requested change to the configured AI model for processing.
 
 3. **Fallback**: If the AI API is not configured or the API call fails, it falls back to simple string replacement.
 

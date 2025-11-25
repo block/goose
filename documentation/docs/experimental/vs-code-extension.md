@@ -9,14 +9,14 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 :::warning
-This is an experimental extension enables you to use Goose within VS Code. It is not to be confused with the [VS Code MCP Server](/docs/mcp/vs-code-mcp).
+This is an experimental extension enables you to use goose within VS Code. It is not to be confused with the [VS Code MCP Server](/docs/mcp/vs-code-mcp).
 :::
 
-This tutorial covers how to install and use the [Goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use Goose within VS Code.
+This tutorial covers how to install and use the [goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use goose within VS Code.
 
 :::info Prerequisite
 - [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher is required
-- [Goose Desktop](https://block.github.io/goose/) must be installed and **running**
+- [goose Desktop](https://block.github.io/goose/) must be installed and **running**
 :::
 
 ## Configuration
@@ -29,10 +29,10 @@ This tutorial covers how to install and use the [Goose VS Code Extension](https:
    - Windows/Linux: `Ctrl+Shift+X`
    - macOS: `Cmd+Shift+X`
    - Or use: View → Extensions
-3. Search for `VS Code Goose`
-4. Click Install on [VS Code Goose](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) by Block
+3. Search for `VS Code goose`
+4. Click Install on [VS Code goose](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) by Block
 5. Restart VS Code if prompted
-6. Open the Goose: Chat side panel to start a new conversation or view conversation history
+6. Open the goose: Chat side panel to start a new conversation or view conversation history
 
 </TabItem>
 <TabItem value="cli" label="goose CLI">
@@ -43,31 +43,31 @@ Not available via CLI.
 </Tabs>
 
 :::tip
-You can ask Goose about a particular file or code block by:
+You can ask goose about a particular file or code block by:
 - Selecting the code you want to discuss
-- Right-clicking and choosing "Ask Goose about this code"
+- Right-clicking and choosing "Ask goose about this code"
 - The code will appear as a reference chip above the chat input
 :::
 
 ## Example Usage
 
-The Goose VS Code Extension connects directly to your editor, letting you manage files, projects, and workflows with AI. It includes the following features:
+The goose VS Code Extension connects directly to your editor, letting you manage files, projects, and workflows with AI. It includes the following features:
 
 - Interactive chat UI
-- Access to Goose's AI capabilities directly within VS Code
+- Access to goose's AI capabilities directly within VS Code
 - Unified session switching
 - Code referencing with visual chips in the chat UI
 - Quick actions for common coding tasks
 - Clipboard tools to copy code snippets/responses for easy sharing
 
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Update the contributing guide at /goose/CONTRIBUTING.md with instructions on how to start docusaurus dev server
 ```
 
-### Goose Output
+### goose Output
 
 ```
 
