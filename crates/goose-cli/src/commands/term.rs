@@ -16,13 +16,11 @@ async fn get_or_create_terminal_session(working_dir: PathBuf) -> Result<String> 
         working_dir.to_string_lossy()
     );
 
-    // Find existing session by name
     let sessions = SessionManager::list_sessions().await?;
     if let Some(session) = sessions.iter().find(|s| s.name == session_name) {
         return Ok(session.id.clone());
     }
 
-    // Create new session
     let session =
         SessionManager::create_session(working_dir, session_name.clone(), Default::default())
             .await?;
