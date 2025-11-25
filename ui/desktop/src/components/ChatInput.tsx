@@ -2695,7 +2695,6 @@ export default function ChatInput({
         </div>
         </div>
       </div>
-      </div>
 
       <EnhancedMentionPopover
         ref={enhancedMentionPopoverRef}
