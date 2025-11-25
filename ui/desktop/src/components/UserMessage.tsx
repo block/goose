@@ -52,17 +52,21 @@ export default function UserMessage({ message, onMessageUpdate, isEditingConvers
       onMetadataUpdate(message.id, { agentVisible: checked });
       
       // Find all subsequent assistant messages until we hit another user message
+      // Note: Tool response messages have role='user' but should be treated as part of the assistant's turn
+      const hasOnlyToolResponses = (msg: Message) =>
+        msg.content.length > 0 && msg.content.every((c) => c.type === 'toolResponse');
+      
       if (messages.length > 0) {
         const currentIndex = messages.findIndex(m => m.id === message.id);
         if (currentIndex !== -1) {
           for (let i = currentIndex + 1; i < messages.length; i++) {
             const msg = messages[i];
-            // Stop when we hit another user message
-            if (msg.role === 'user') {
+            // Stop when we hit another user message that isn't just tool responses
+            if (msg.role === 'user' && !hasOnlyToolResponses(msg)) {
               break;
             }
-            // Update all assistant messages
-            if (msg.role === 'assistant' && msg.id) {
+            // Update all assistant messages and tool response messages
+            if (msg.id) {
               onMetadataUpdate(msg.id, { agentVisible: checked });
             }
           }

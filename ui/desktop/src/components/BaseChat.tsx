@@ -301,13 +301,17 @@ function BaseChatContent({
         const messageIndex = messages.findIndex((msg) => msg.id === messageId);
         if (messageIndex !== -1 && messages[messageIndex].role === 'user') {
           // Find all messages after this user message until the next user message
+          // Note: Tool response messages have role='user' but should be treated as part of the assistant's turn
+          const hasOnlyToolResponses = (msg: Message) =>
+            msg.content.length > 0 && msg.content.every((c) => c.type === 'toolResponse');
+          
           for (let i = messageIndex + 1; i < messages.length; i++) {
             const msg = messages[i];
-            if (msg.role === 'user') {
-              // Stop at next user message
+            // Stop at next user message that isn't just tool responses
+            if (msg.role === 'user' && !hasOnlyToolResponses(msg)) {
               break;
             }
-            // Update all assistant messages and tool calls to match the user message state
+            // Update all assistant messages and tool calls/responses to match the user message state
             if (msg.id) {
               newMap.set(msg.id, checked);
             }
