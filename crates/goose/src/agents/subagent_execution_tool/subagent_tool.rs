@@ -12,12 +12,25 @@ use crate::agents::subagent_execution_tool::task_types::{ExecutionMode, Task, Ta
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
+use crate::config::{Config, GooseMode};
 use crate::prompt_template;
 use crate::recipe::{Recipe, RecipeBuilder, RecipeParameter, Response, Settings, SubRecipe};
 use crate::session::SessionManager;
 use tokio_util::sync::CancellationToken;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
+
+pub fn should_enabled_subagents(model_name: &str) -> bool {
+    let config = Config::global();
+    let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
+    if !is_autonomous {
+        return false;
+    }
+    if model_name.starts_with("gemini") {
+        return false;
+    }
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SubagentParams {
@@ -177,54 +190,25 @@ fn load_system_prompt(
     }
 }
 
-fn apply_if_ok<T, F>(
-    builder: crate::recipe::RecipeBuilder,
-    val: Option<T>,
-    func: F,
-) -> crate::recipe::RecipeBuilder
+fn apply_if_some<T, F>(builder: RecipeBuilder, val: Option<T>, func: F) -> RecipeBuilder
 where
-    F: FnOnce(crate::recipe::RecipeBuilder, T) -> crate::recipe::RecipeBuilder,
+    F: FnOnce(RecipeBuilder, T) -> RecipeBuilder,
 {
-    if let Some(v) = val {
-        func(builder, v)
-    } else {
-        builder
+    match val {
+        Some(v) => func(builder, v),
+        None => builder,
     }
 }
 
-// Helper for retry which is still Value
-fn apply_value_if_ok<T, F>(
-    builder: crate::recipe::RecipeBuilder,
-    val: Option<&Value>,
-    func: F,
-) -> crate::recipe::RecipeBuilder
+fn apply_value<T, F>(builder: RecipeBuilder, val: Option<&Value>, func: F) -> RecipeBuilder
 where
     T: for<'de> Deserialize<'de>,
-    F: FnOnce(crate::recipe::RecipeBuilder, T) -> crate::recipe::RecipeBuilder,
+    F: FnOnce(RecipeBuilder, T) -> RecipeBuilder,
 {
-    if let Some(v) = val {
-        if let Ok(decoded) = serde_json::from_value::<T>(v.clone()) {
-            return func(builder, decoded);
-        } else {
-            tracing::warn!("Failed to deserialize optional field: {:?}", v);
-        }
+    match val.and_then(|v| serde_json::from_value::<T>(v.clone()).ok()) {
+        Some(decoded) => func(builder, decoded),
+        None => builder,
     }
-    builder
-}
-
-// Helper for author which is still Value
-fn apply_author_if_ok(
-    builder: crate::recipe::RecipeBuilder,
-    val: Option<Value>,
-) -> crate::recipe::RecipeBuilder {
-    if let Some(v) = val {
-        if let Ok(decoded) = serde_json::from_value::<crate::recipe::Author>(v.clone()) {
-            return builder.author(decoded);
-        } else {
-            tracing::warn!("Failed to deserialize optional field: {:?}", v);
-        }
-    }
-    builder
 }
 
 impl TryFrom<SubagentParams> for Recipe {
@@ -258,16 +242,14 @@ impl TryFrom<SubagentParams> for Recipe {
             builder = builder.prompt(p);
         }
 
-        builder = apply_if_ok(builder, params.extensions, RecipeBuilder::extensions);
-        builder = apply_if_ok(builder, params.settings, RecipeBuilder::settings);
-        builder = apply_if_ok(builder, params.activities, RecipeBuilder::activities);
-        builder = apply_author_if_ok(builder, params.author);
-        builder = apply_if_ok(builder, params.parameters, RecipeBuilder::parameters);
-        builder = apply_if_ok(builder, params.response, RecipeBuilder::response);
-        builder = apply_if_ok(builder, params.sub_recipes, RecipeBuilder::sub_recipes);
-
-        // retry is still Value in SubagentParams
-        builder = apply_value_if_ok(builder, params.retry.as_ref(), RecipeBuilder::retry);
+        builder = apply_if_some(builder, params.extensions, RecipeBuilder::extensions);
+        builder = apply_if_some(builder, params.settings, RecipeBuilder::settings);
+        builder = apply_if_some(builder, params.activities, RecipeBuilder::activities);
+        builder = apply_value(builder, params.author.as_ref(), RecipeBuilder::author);
+        builder = apply_if_some(builder, params.parameters, RecipeBuilder::parameters);
+        builder = apply_if_some(builder, params.response, RecipeBuilder::response);
+        builder = apply_if_some(builder, params.sub_recipes, RecipeBuilder::sub_recipes);
+        builder = apply_value(builder, params.retry.as_ref(), RecipeBuilder::retry);
 
         let recipe = builder
             .build()
@@ -364,12 +346,10 @@ pub async fn run_subagent_tool(
                 "Applied custom system prompt for subagent type: {:?}",
                 subagent_type
             );
-            let preview_len = system_prompt
-                .char_indices()
-                .nth(200)
-                .map(|(i, _)| i)
-                .unwrap_or(system_prompt.len());
-            tracing::debug!("System prompt preview: {}", &system_prompt[..preview_len]);
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                let preview: String = system_prompt.chars().take(200).collect();
+                tracing::debug!("System prompt preview: {}", preview);
+            }
 
             let mut settings = recipe.settings.unwrap_or(Settings {
                 goose_provider: None,

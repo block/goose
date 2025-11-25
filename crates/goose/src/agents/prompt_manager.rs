@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tools::llm_search_tool_prompt;
+use crate::agents::subagent_execution_tool::subagent_tool::should_enabled_subagents;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
     config::{Config, GooseMode},
@@ -46,7 +47,7 @@ struct SystemPromptContext {
 }
 
 pub struct SystemPromptBuilder<'a, M> {
-    _model_name: String,
+    model_name: String,
     manager: &'a M,
 
     extensions_info: Vec<ExtensionInfo>,
@@ -151,7 +152,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: true, // TODO: Re-evaluate should_enabled_subagents logic if needed
+            enable_subagents: should_enabled_subagents(&self.model_name),
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
         };
@@ -228,7 +229,7 @@ impl PromptManager {
 
     pub fn builder(&self, model_name: impl Into<String>) -> SystemPromptBuilder<'_, PromptManager> {
         SystemPromptBuilder {
-            _model_name: model_name.into(),
+            model_name: model_name.into(),
             manager: self,
             extensions_info: Vec::new(),
             frontend_instructions: None,

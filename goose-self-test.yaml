@@ -205,6 +205,25 @@ prompt: |
   ### Return Last Only Test
   Create subagents with return_last_only=true and verify condensed output.
   
+  ### Persona System Test
+  Test the three subagent personas:
+
+  1. **Investigator Persona**: Create a subagent with subagent_type="investigator"
+     - Task: "Investigate the structure of this goose-self-test.yaml file"
+     - Verify it provides thorough analysis without making changes
+     - Check that it identifies patterns and provides recommendations
+
+  2. **Critic Persona**: Create a subagent with subagent_type="critic"
+     - Task: "Critique the code in crates/goose/src/agents/subagent_execution_tool/subagent_tool.rs"
+     - Verify it identifies issues and suggests improvements without modifying code
+     - Check that it provides constructive feedback
+
+  3. **Default Persona**: Create a subagent with subagent_type="default" (or omit)
+     - Task: "Create a simple test file and verify it exists"
+     - Verify it can perform actions (not read-only like investigator/critic)
+
+  Document which personas are read-only vs action-capable.
+
   Log results to: {{ workspace_dir }}/phase3_subagents.md
   {% endif %}
   
