@@ -2141,7 +2141,8 @@ export default function ChatInput({
     >
       <div id="mention-popover-zone" className="absolute -top-24 left-0 right-0 z-50 h-24 bg-transparent pointer-events-none" />
 
-      <div className="max-w-4xl mx-auto w-full space-y-4 px-6">
+      <div className="px-6">
+        <div className="max-w-4xl mx-auto w-full space-y-4">
         {!gooseEnabled && (
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-2 flex items-center gap-2">
             <span className="inline-flex w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
@@ -2692,6 +2693,8 @@ export default function ChatInput({
         <div className="text-xs text-[#3C3C43]/70 dark:text-zinc-400 flex items-center gap-2 px-1">
           {/* Workspace removed as per request - moved to Tab tooltip */}
         </div>
+        </div>
+      </div>
       </div>
 
       <EnhancedMentionPopover
