@@ -1,10 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderKey, ScrollText } from 'lucide-react';
+import { FolderKey, ScrollText, Plus, MoreHorizontal, Mic, ArrowUp, Zap, FileText, Code, Settings, Search, Play, Hash, Edit, Monitor, Terminal, Folder } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone, Action } from './icons';
+import { Attach, Close, Action } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -34,14 +34,21 @@ import { detectInterruption } from '../utils/interruptionDetector';
 import { getApiUrl } from '../config';
 import { useCustomCommands } from '../hooks/useCustomCommands';
 import { AddCustomCommandModal } from './AddCustomCommandModal';
-import { CustomCommand } from '../types/customCommands';
+import { CustomCommand, BUILT_IN_COMMANDS } from '../types/customCommands';
 import { useSessionSharing } from '../hooks/useSessionSharing';
 import SessionSharing from './collaborative/SessionSharing';
-import { CollaborativeButton } from './collaborative';
 import EnhancedMentionPopover from './EnhancedMentionPopover';
 import { useMatrix } from '../contexts/MatrixContext';
 import { sessionMappingService } from '../services/SessionMappingService';
 import { useTabContext } from '../contexts/TabContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from './ui/dropdown-menu';
 
 // Force rebuild timestamp: 2025-01-15T01:00:00Z - All .length errors fixed
 
@@ -315,8 +322,38 @@ export default function ChatInput({
     selectItem: (index: number) => void;
   }>(null);
 
-  // Ref for the bottom controls area (where app icons are)
-  const bottomControlsRef = useRef<HTMLDivElement>(null);
+  const plusButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const readWorkingDirectory = useCallback(() => {
+    try {
+      return String(window.appConfig.get('GOOSE_WORKING_DIR') ?? '');
+    } catch (error) {
+      console.warn('Unable to read working directory from appConfig:', error);
+      return '';
+    }
+  }, []);
+
+  const [workingDirectory, setWorkingDirectory] = useState<string>(() => readWorkingDirectory());
+
+  useEffect(() => {
+    setWorkingDirectory(readWorkingDirectory());
+  }, [readWorkingDirectory, sessionId]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
+      if (customEvent.detail?.path) {
+        setWorkingDirectory(customEvent.detail.path);
+      } else {
+        setWorkingDirectory(readWorkingDirectory());
+      }
+    };
+
+    window.addEventListener('goose-working-dir-changed', handler as EventListener);
+    return () => {
+      window.removeEventListener('goose-working-dir-changed', handler as EventListener);
+    };
+  }, [readWorkingDirectory]);
 
   // Whisper hook for voice dictation
   const {
@@ -360,21 +397,107 @@ export default function ChatInput({
   // Add Custom Command Modal state
   const [isAddCommandModalOpen, setIsAddCommandModalOpen] = useState(false);
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+  const [allCommands, setAllCommands] = useState<CustomCommand[]>([]);
 
-  // BACKEND-CENTRIC APPROACH: Matrix detection based on tab properties AND backend state
+  // Load commands (both built-in and custom)
+  useEffect(() => {
+    const loadAllCommands = () => {
+      try {
+        // Load user commands
+        const userStored = localStorage.getItem('goose-custom-commands');
+        let userCommands: CustomCommand[] = [];
+        if (userStored) {
+          const parsed = JSON.parse(userStored);
+          userCommands = parsed
+            .filter((cmd: any) => !cmd.isBuiltIn) // Only user commands
+            .map((cmd: any) => ({
+              ...cmd,
+              createdAt: new Date(cmd.createdAt),
+              updatedAt: new Date(cmd.updatedAt)
+            }));
+        }
+        setCustomCommands(userCommands);
+
+        // Load built-in command favorites/usage
+        const builtInStored = localStorage.getItem('goose-builtin-commands');
+        let builtInCommands = [...BUILT_IN_COMMANDS];
+        if (builtInStored) {
+          const builtInData = JSON.parse(builtInStored);
+          builtInCommands = BUILT_IN_COMMANDS.map(cmd => ({
+            ...cmd,
+            isFavorite: builtInData[cmd.id]?.isFavorite || false,
+            usageCount: builtInData[cmd.id]?.usageCount || 0,
+          }));
+        }
+
+        // Combine all commands and sort
+        const combined = [...builtInCommands, ...userCommands].sort((a, b) => {
+          if (a.isFavorite && !b.isFavorite) return -1;
+          if (!a.isFavorite && b.isFavorite) return 1;
+          if (a.usageCount !== b.usageCount) return b.usageCount - a.usageCount;
+          return a.label.localeCompare(b.label);
+        });
+        
+        setAllCommands(combined);
+      } catch (error) {
+        console.error('Failed to load commands:', error);
+      }
+    };
+
+    loadAllCommands();
+    
+    // Listen for storage events to sync updates
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'goose-custom-commands' || e.key === 'goose-builtin-commands') {
+        loadAllCommands();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Icon mapping for custom commands
+  const getCustomCommandIcon = (iconName?: string) => {
+    const iconMap: Record<string, React.ReactNode> = {
+      'Zap': <Zap size={14} />,
+      'Code': <Code size={14} />,
+      'FileText': <FileText size={14} />,
+      'Search': <Search size={14} />,
+      'Play': <Play size={14} />,
+      'Settings': <Settings size={14} />,
+      'Hash': <Hash size={14} />,
+    };
+    return iconMap[iconName || 'Zap'] || <Zap size={14} />;
+  };
+
+  // Handle command selection from menu
+  const handleCommandSelect = (command: CustomCommand) => {
+    const actionText = `[${command.label}]`;
+    const newValue = displayValue.trim() ? `${displayValue.trim()} ${actionText}` : actionText;
+    
+    setDisplayValue(newValue);
+    setValue(newValue);
+    
+    // Increment usage
+    if (incrementUsage) {
+      incrementUsage(command.id);
+    }
+    
+    textAreaRef.current?.focus();
+  };
   const tabContext = useTabContext();
   
   // Get Matrix room info from TabContext (primary source)
-  let tabMatrixRoomId = null;
-  let tabMatrixRecipientId = null;
+  let tabMatrixRoomId: string | undefined = undefined;
+  let tabMatrixRecipientId: string | undefined = undefined;
   let isExplicitMatrixTab = false;
   
   if (tabContext) {
     try {
       const activeTabState = tabContext.getActiveTabState();
       if (activeTabState?.tab.type === 'matrix') {
-        tabMatrixRoomId = activeTabState.tab.matrixRoomId || null;
-        tabMatrixRecipientId = activeTabState.tab.matrixRecipientId || null;
+        tabMatrixRoomId = activeTabState.tab.matrixRoomId || undefined;
+        tabMatrixRecipientId = activeTabState.tab.matrixRecipientId || undefined;
         isExplicitMatrixTab = true;
       }
     } catch (error) {
@@ -390,7 +513,7 @@ export default function ChatInput({
   const isMatrixRoom = isExplicitMatrixTab && hasTabMatrixRoom;
   
   // Get the actual Matrix room ID for useSessionSharing - ONLY for explicit Matrix tabs
-  let actualMatrixRoomId = null;
+  let actualMatrixRoomId: string | undefined = undefined;
   if (isExplicitMatrixTab && tabMatrixRoomId) {
     // CRITICAL: Only set Matrix room ID if this is explicitly a Matrix tab
     // This prevents solo tabs from accidentally getting Matrix room IDs
@@ -437,10 +560,27 @@ export default function ChatInput({
     // This prevents non-Matrix tabs from receiving Matrix messages through the append function
     onMessageSync: isMatrixRoom && actualMatrixRoomId ? (message) => {
       console.log('💬 ChatInput: *** RECEIVED MESSAGE FROM useSessionSharing (MATRIX TAB ONLY) ***', message);
+      
+      // Extract text content safely
+      const firstContent = message.content && message.content.length > 0 ? message.content[0] : null;
+      let contentPreview = 'N/A';
+      
+      if (firstContent) {
+        if (firstContent.type === 'text') {
+          contentPreview = firstContent.text.substring(0, 50) + '...';
+        } else if (firstContent.type === 'image') {
+          contentPreview = '[Image]';
+        } else if (firstContent.type === 'toolRequest') {
+          contentPreview = `[Tool: ${firstContent.toolCall.value?.name}]`;
+        } else {
+          contentPreview = `[${firstContent.type}]`;
+        }
+      }
+
       console.log('💬 ChatInput: Message details:', {
         id: message.id,
         role: message.role,
-        content: Array.isArray(message.content) ? message.content[0]?.text?.substring(0, 50) + '...' : 'N/A',
+        content: contentPreview,
         sender: message.sender?.displayName || message.sender?.userId || 'unknown',
         hasAppendFunction: !!append,
         appendFunctionType: typeof append,
@@ -512,7 +652,7 @@ export default function ChatInput({
       }
       
       // CRITICAL: Check if we've already sent this message to Matrix
-      if (sentToMatrixRef.current.has(lastMessage.id)) {
+      if (lastMessage.id && sentToMatrixRef.current.has(lastMessage.id)) {
         console.log('🚫 Skipping Matrix sync - message already sent:', lastMessage.id);
         return;
       }
@@ -535,7 +675,9 @@ export default function ChatInput({
         console.log('🤖 Sending COMPLETE AI response to Matrix room:', actualMatrixRoomId, '(chatState:', chatState, ', messageId:', lastMessage.id, ')');
         
         // Mark as sent BEFORE sending to prevent race conditions
-        sentToMatrixRef.current.add(lastMessage.id);
+        if (lastMessage.id) {
+          sentToMatrixRef.current.add(lastMessage.id);
+        }
         
         // Format as goose-session-message so it can be properly parsed by other clients
         const sessionMessage = {
@@ -546,13 +688,18 @@ export default function ChatInput({
         };
         const formattedMessage = `goose-session-message:${JSON.stringify(sessionMessage)}`;
         
-        sendMessage(actualMatrixRoomId, formattedMessage).then(() => {
-          console.log('✅ Successfully sent COMPLETE AI response to Matrix room (messageId:', lastMessage.id, ')');
-        }).catch((error) => {
-          console.error('❌ Failed to send AI response to Matrix room:', error);
-          // Remove from sent set if it failed so we can retry
-          sentToMatrixRef.current.delete(lastMessage.id);
-        });
+        // Only send if we have a room ID
+        if (actualMatrixRoomId) {
+          sendMessage(actualMatrixRoomId, formattedMessage).then(() => {
+            console.log('✅ Successfully sent COMPLETE AI response to Matrix room (messageId:', lastMessage.id, ')');
+          }).catch((error) => {
+            console.error('❌ Failed to send AI response to Matrix room:', error);
+            // Remove from sent set if it failed so we can retry
+            if (lastMessage.id) {
+              sentToMatrixRef.current.delete(lastMessage.id);
+            }
+          });
+        }
       }
       // Handle non-Matrix collaborative sessions: sync through sessionSharing
       else if (sessionSharing.isSessionActive && !isMatrixRoom) {
@@ -571,23 +718,7 @@ export default function ChatInput({
 
   // Load custom commands on mount
   useEffect(() => {
-    const loadCustomCommands = () => {
-      try {
-        const stored = localStorage.getItem('goose-custom-commands');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setCustomCommands(parsed.map((cmd: any) => ({
-            ...cmd,
-            createdAt: new Date(cmd.createdAt),
-            updatedAt: new Date(cmd.updatedAt)
-          })));
-        }
-      } catch (error) {
-        console.error('Failed to load custom commands:', error);
-      }
-    };
-
-    loadCustomCommands();
+    // Original loadCustomCommands logic removed as it's now handled by the main loading effect
   }, []);
 
   // Handle modal save
@@ -597,7 +728,10 @@ export default function ChatInput({
     
     try {
       localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
+      // State updates will be handled by the storage event listener or re-render
       setCustomCommands(updatedCommands);
+      // Manually trigger reload for current window
+      window.dispatchEvent(new StorageEvent('storage', { key: 'goose-custom-commands' }));
     } catch (error) {
       console.error('Failed to save custom commands:', error);
     }
@@ -1352,7 +1486,7 @@ export default function ChatInput({
     // Replace each action pill with its corresponding prompt
     expandedText = expandedText.replace(actionPillRegex, (match, label) => {
       // First check if it's a custom command by looking for a command with this label
-      const customCommand = getCommand ? (() => {
+      const customCommand = (() => {
         try {
           // We need to find the command by label since that's what's stored in the pill
           // This is a bit inefficient but necessary given our current architecture
@@ -1365,7 +1499,7 @@ export default function ChatInput({
           console.error('Error finding custom command:', error);
         }
         return null;
-      })() : null;
+      })();
       
       if (customCommand) {
         // Increment usage count for the custom command
@@ -1634,6 +1768,94 @@ export default function ChatInput({
     }
   };
 
+  // Sidecar action handlers
+  const handleNewDocument = () => {
+    console.log('🔵 handleNewDocument called, tabContext:', !!tabContext);
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      console.log('🔵 Active tab ID:', tabId);
+      if (tabId) {
+        console.log('🔵 Calling showDocumentEditor...');
+        tabContext.showDocumentEditor(tabId, undefined, 'Start writing your document...', 'new-doc');
+      } else {
+        console.warn('🔵 No active tab found');
+      }
+    } else {
+      console.warn('🔵 Missing tabContext');
+    }
+  };
+
+  const handleEditFile = async () => {
+    console.log('🟣 handleEditFile called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const filePath = await window.electron.selectFileOrDirectory();
+        console.log('🟣 Selected file:', filePath);
+        if (filePath) {
+          tabContext.showDocumentEditor(tabId, filePath, undefined, 'edit-file');
+        }
+      }
+    }
+  };
+
+  const handleBrowseWeb = () => {
+    console.log('🌐 handleBrowseWeb called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        tabContext.showWebViewer(tabId, 'https://google.com', 'Web Browser', 'web-viewer');
+      }
+    }
+  };
+
+  const handleViewLocalhost = () => {
+    console.log('⚫ handleViewLocalhost called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        tabContext.showLocalhostViewer(tabId, 'http://localhost:3000', 'Localhost Viewer');
+      }
+    }
+  };
+
+  const handleBrowseFiles = async () => {
+    console.log('📁 handleBrowseFiles called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const filePath = await window.electron.selectFileOrDirectory();
+        if (filePath) {
+          tabContext.showFileViewer(tabId, filePath);
+        }
+      }
+    }
+  };
+
+  const handleViewDiff = () => {
+    console.log('📄 handleViewDiff called');
+    if (tabContext) {
+      const activeTabState = tabContext.getActiveTabState();
+      const tabId = activeTabState?.tab.id;
+      if (tabId) {
+        const sampleDiff = `--- a/example.js
++++ b/example.js
+@@ -1,3 +1,4 @@
+ function hello() {
++  console.log("Hello world!");
+   return "Hello";
+ }`;
+        tabContext.showDiffViewer(tabId, sampleDiff, 'example.js', 'sample-diff');
+      }
+    }
+  };
+
+
   const handleMentionFileSelect = (filePath: string) => {
     console.log('📁 handleMentionFileSelect called with:', filePath);
     
@@ -1742,22 +1964,28 @@ export default function ChatInput({
     }
   };
 
-  const handleActionButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const buttonRect = event.currentTarget.getBoundingClientRect();
-    
-    // Get the current cursor position from the RichChatInput
-    const currentCursorPosition = textAreaRef.current?.getBoundingClientRect ? displayValue.length : 0;
-    
-    setActionPopover({
-      isOpen: true,
-      position: {
-        x: buttonRect.left,
-        y: buttonRect.top,
-      },
-      selectedIndex: 0,
-      cursorPosition: currentCursorPosition,
-    });
-  };
+  const openActionPopoverAt = useCallback(
+    (anchorRect?: DOMRect | null) => {
+      const referenceRect = anchorRect ?? plusButtonRef.current?.getBoundingClientRect();
+      if (!referenceRect) {
+        return;
+      }
+
+      const currentCursorPosition = textAreaRef.current?.getBoundingClientRect ? displayValue.length : 0;
+
+      setActionPopover({
+        isOpen: true,
+        position: {
+          x: referenceRect.left,
+          y: referenceRect.top,
+        },
+        selectedIndex: 0,
+        cursorPosition: currentCursorPosition,
+      });
+    },
+    [displayValue]
+  );
+
 
 
 
@@ -1906,501 +2134,604 @@ export default function ChatInput({
       ref={chatInputRef}
       className={`flex flex-col relative h-auto transition-colors ${
         disableAnimation ? '' : 'page-transition'
-      } z-10 pt-6 px-6 pb-4`}
+      } z-10 pt-4 pb-6 px-4 sm:px-6`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      {/* Popover Zone - Absolute positioned above chat input, doesn't affect layout */}
-      <div id="mention-popover-zone" className="absolute -top-24 left-0 right-0 z-50 h-24 bg-transparent pointer-events-none">
-        {/* This space is reserved for mention popovers to render above the chat input */}
-      </div>
+      <div id="mention-popover-zone" className="absolute -top-24 left-0 right-0 z-50 h-24 bg-transparent pointer-events-none" />
 
-      {/* Goose Off Indicator */}
-      {!gooseEnabled && (
-        <div className="max-w-4xl mx-auto w-full mb-2">
+      <div className="px-6">
+        <div className="max-w-4xl mx-auto w-full space-y-4">
+        {!gooseEnabled && (
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-2 flex items-center gap-2">
-            <div className="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            <span className="inline-flex w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
             <span className="text-yellow-600 dark:text-yellow-400 text-sm font-medium">
-              Goose is OFF - Type <code className="px-1.5 py-0.5 bg-yellow-500/20 rounded text-xs">@goose</code> to reactivate
+              Goose is OFF — type <code className="px-1.5 py-0.5 bg-yellow-500/20 rounded text-xs">@goose</code> to reactivate
             </span>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Chat input container with max width - floating card */}
-      <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
-        <div className="bg-background-default rounded-2xl pt-2 px-2">
-      {/* Message Queue Display */}
-      {queuedMessages.length > 0 && (
-        <MessageQueue
-          queuedMessages={queuedMessages}
-          onRemoveMessage={handleRemoveQueuedMessage}
-          onClearQueue={handleClearQueue}
-          onStopAndSend={handleStopAndSend}
-          onReorderMessages={handleReorderMessages}
-          onEditMessage={handleEditMessage}
-          onTriggerQueueProcessing={handleResumeQueue}
-          editingMessageIdRef={editingMessageIdRef}
-          isPaused={queuePausedRef.current}
-          className="border-b border-borderSubtle"
-        />
-      )}
-
-
-
-      {/* Input row with inline action buttons wrapped in form */}
-      <form onSubmit={onFormSubmit} className="relative flex items-end">
-        <div className="relative flex-1">
-                  
-
-        <RichChatInput
-            data-testid="chat-input"
-            autoFocus
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
-            value={displayValue}
-            onChange={(newValue, cursorPos) => {
-              console.log('🔄 ChatInput onChange called:', { newValue: newValue.substring(0, 20) + '...', cursorPos, hasCursorPos: cursorPos !== undefined });
-              setDisplayValue(newValue);
-              updateValue(newValue);
-              debouncedSaveDraft(newValue);
-              setHasUserTyped(true);
-              
-              // Check for @ mention and / action triggers
-              if (cursorPos !== undefined) {
-                console.log('🔄 ChatInput calling checkForMention with cursorPos:', cursorPos);
-                const syntheticTarget = {
-                  getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
-                  selectionStart: cursorPos,
-                  selectionEnd: cursorPos,
-                  value: newValue,
-                };
-                checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
-              } else {
-                console.log('🔄 ChatInput skipping checkForMention - cursorPos is undefined');
-              }
-            }}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            ref={textAreaRef}
-            rows={1}
-            disabled={isUserInputDisabled}
-            style={{
-              maxHeight: `${maxHeight}px`,
-              overflowY: 'auto',
-              opacity: isRecording ? 0 : 1,
-            }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-          />
-          {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
-            </div>
+        <div className="chat-composer-container rounded-3xl overflow-hidden transform-gpu">
+          {queuedMessages.length > 0 && (
+            <MessageQueue
+              queuedMessages={queuedMessages}
+              onRemoveMessage={handleRemoveQueuedMessage}
+              onClearQueue={handleClearQueue}
+              onStopAndSend={handleStopAndSend}
+              onReorderMessages={handleReorderMessages}
+              onEditMessage={handleEditMessage}
+              onTriggerQueueProcessing={handleResumeQueue}
+              editingMessageIdRef={editingMessageIdRef}
+              isPaused={queuePausedRef.current}
+              className="border-b border-white/50 dark:border-white/10"
+            />
           )}
-        </div>
 
-        {/* Inline action buttons on the right */}
-        <div className="flex items-center gap-1 px-2 relative self-center">
-          {/* Microphone button - show only if dictation is enabled */}
-          {dictationSettings?.enabled && (
-            <>
-              {!canUseDictation ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
+          <div className="flex flex-col gap-2 p-3 sm:p-3.5">
+            <form onSubmit={onFormSubmit} className="space-y-1.5">
+              <div className="relative flex-1 min-w-[200px] rounded-xl border border-transparent">
+                <RichChatInput
+                  data-testid="chat-input"
+                  autoFocus
+                  placeholder={isRecording ? '' : 'I want to...'}
+                  value={displayValue}
+                  onChange={(newValue, cursorPos) => {
+                    console.log('🔄 ChatInput onChange called:', { newValue: newValue.substring(0, 20) + '...', cursorPos, hasCursorPos: cursorPos !== undefined });
+                    setDisplayValue(newValue);
+                    updateValue(newValue);
+                    debouncedSaveDraft(newValue);
+                    setHasUserTyped(true);
+
+                    if (cursorPos !== undefined) {
+                      const syntheticTarget = {
+                        getBoundingClientRect: () => textAreaRef.current?.getBoundingClientRect?.() || new DOMRect(),
+                        selectionStart: cursorPos,
+                        selectionEnd: cursorPos,
+                        value: newValue,
+                      };
+                      checkForMention(newValue, cursorPos, syntheticTarget as HTMLTextAreaElement);
+                    }
+                  }}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  ref={textAreaRef}
+                  rows={1}
+                  disabled={isUserInputDisabled}
+                  style={{
+                    maxHeight: `${maxHeight}px`,
+                    overflowY: 'auto',
+                    opacity: isRecording ? 0 : 1,
+                  }}
+                  className="w-full outline-none border-none focus:ring-0 bg-transparent px-0 py-0 text-base leading-6 resize-none text-[#050506] dark:text-white placeholder:text-[#8E8E93]"
+                />
+                {isRecording && (
+                  <div className="absolute inset-0 flex items-center pr-4">
+                    <WaveformVisualizer audioContext={audioContext} analyser={analyser} isRecording={isRecording} />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        ref={plusButtonRef}
+                        type="button"
+                        className="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-800 flex items-center justify-center bg-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={12}
+                      className="w-56 rounded-2xl border border-white/60 dark:border-zinc-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl p-2 space-y-1"
+                    >
+                      <DropdownMenuItem
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          handleFileSelect();
+                        }}
+                        className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                      >
+                        <Attach className="w-4 h-4" />
+                        Attach file or folder
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuSeparator className="bg-white/50 dark:bg-white/10" />
+                      
+                      {/* Sidecar Actions */}
+                      {tabContext && (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleNewDocument();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                              <Edit className="w-3 h-3 text-white" />
+                            </div>
+                            <span>New document</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleEditFile();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                              <Code className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Edit file</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleBrowseWeb();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                              <Monitor className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Browse web</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleViewLocalhost();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                              <Terminal className="w-3 h-3 text-white" />
+                            </div>
+                            <span>View localhost</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleBrowseFiles();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                              <Folder className="w-3 h-3 text-white" />
+                            </div>
+                            <span>Browse files</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleViewDiff();
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                          >
+                            <div className="w-4 h-4 rounded bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                              <FileText className="w-3 h-3 text-white" />
+                            </div>
+                            <span>View code diff</span>
+                          </DropdownMenuItem>
+                          
+                          <DropdownMenuSeparator className="bg-white/50 dark:bg-white/10" />
+                        </>
+                      )}
+                      
+                      <DropdownMenuItem
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          openActionPopoverAt();
+                        }}
+                        className="flex items-center gap-2 text-sm text-[#050506] dark:text-white"
+                      >
+                        <Action className="w-4 h-4" />
+                        View all actions...
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {(isRecording || isTranscribing) && (
+                    <div className="text-[11px] text-[#3C3C43]/70 dark:text-zinc-400 flex items-center gap-1.5">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full animate-pulse ${
+                          isTranscribing ? 'bg-blue-500' : 'bg-red-500'
+                        }`}
+                      />
+                      {isTranscribing
+                        ? 'Transcribing…'
+                        : `${Math.floor(recordingDuration)}s • ~${estimatedSize.toFixed(1)}MB`}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {/* Model Selector Pill */}
+                  <div className="relative" ref={dropdownRef}>
+                    <div className="hidden md:inline-flex h-8 px-2 rounded-2xl border border-black/10 dark:border-white/10 items-center justify-center bg-transparent transition-colors hover:bg-black/5 dark:hover:bg-white/5">
+                       <ModelsBottomBar
+                          sessionId={sessionId}
+                          dropdownRef={dropdownRef}
+                          setView={setView}
+                          alerts={alerts}
+                          recipeConfig={recipeConfig}
+                          hasMessages={messages && Array.isArray(messages) && messages.length > 0}
+                          shouldShowIconOnly={false}
+                        />
+                    </div>
+                    {/* For mobile or icon-only mode, ModelsBottomBar handles its own internal logic or we can conditionally render. 
+                        However, based on the user's request, they want the "Auto" pill style. 
+                        ModelsBottomBar uses a DropdownMenu internally. 
+                        We need to check if we need to customize the TRIGGER of ModelsBottomBar to match the pill style.
+                        Wait, I can't easily customize the trigger inside ModelsBottomBar without editing that file.
+                        But the user wants THIS specific styling.
+                        
+                        The ModelsBottomBar component renders a DropdownMenuTrigger with a specific style.
+                        I should probably rely on the fact that I can pass children or styles to it? No, looking at the file, the trigger is hardcoded.
+                        
+                        Actually, looking at ModelsBottomBar.tsx content I read earlier:
+                         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] ...">
+                           ... <Bot ... /> {displayModel} ...
+                         </DropdownMenuTrigger>
+                        
+                        It doesn't perfectly match the user's "pill" design (outline, rounded-2xl, specific padding).
+                        
+                        Since I cannot edit ModelsBottomBar in this turn (I am editing ChatInput), 
+                        I will wrap it or style it via CSS if possible, OR I should have edited ModelsBottomBar.
+                        
+                        Actually, I can just render it here. The user said "make the selection of models where you have the gpt.51 instead of from the more context menu".
+                        Moving it here is the first step.
+                        The styling inside ModelsBottomBar is "flex items-center...".
+                        
+                        To achieve the specific pill look: 
+                        "w-14 h-6 px-1.5 rounded-2xl outline outline-1 ... outline-zinc-800 inline-flex flex-col justify-start items-start gap-2"
+                        
+                        I might need to wrap it in a div that enforces these styles, but the inner trigger might conflict.
+                        Ideally, I would update ModelsBottomBar to accept a custom trigger or className.
+                        
+                        For now, I will wrap it in a div that approximates the look:
+                        border, rounded-2xl, padding.
+                    */}
+                    <div className="hidden md:flex">
+                        {/* We'll use a wrapper to apply the pill styles, but ModelsBottomBar's trigger has its own padding/styles.
+                            Let's try to make it look decent with a wrapper.
+                        */}
+                    </div>
+                  </div>
+
+                  {dictationSettings?.enabled && (
+                    !canUseDictation ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled
+                              className="w-8 h-8 rounded-full border border-white/60 dark:border-zinc-800 flex items-center justify-center bg-transparent text-[#3C3C43]/40 dark:text-white/30 cursor-not-allowed"
+                            >
+                              <Mic className="w-4 h-4" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {dictationSettings.provider === 'openai'
+                            ? 'Configure an OpenAI API key in Settings → Models.'
+                            : dictationSettings.provider === 'elevenlabs'
+                              ? 'Configure an ElevenLabs API key in Settings → Chat → Voice Dictation.'
+                              : 'Dictation provider is not fully configured.'}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
                       <Button
                         type="button"
                         size="sm"
-                        shape="round"
-                        variant="outline"
-                        onClick={() => {}}
-                        disabled={true}
-                        className="bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default rounded-full px-6 py-2"
+                        variant="ghost"
+                        disabled={isTranscribing}
+                        onClick={() => (isRecording ? stopRecording() : startRecording())}
+                        className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
+                          isRecording
+                            ? 'border-red-500 bg-red-500 text-white'
+                            : 'border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                        }`}
                       >
-                        <Microphone />
+                        {/* Using Mic icon instead of waveform to match the "simple icon" aesthetic of the snippet, although snippet had a waveform-ish icon */}
+                         <div className="w-4 h-4 flex items-center justify-center">
+                            {isRecording ? (
+                                <div className="w-2 h-2 bg-white rounded-sm animate-pulse" />
+                            ) : (
+                                <Mic className="w-4 h-4" />
+                            )}
+                         </div>
                       </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {dictationSettings.provider === 'openai' ? (
-                      <p>
-                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Models.</b>
-                      </p>
-                    ) : dictationSettings.provider === 'elevenlabs' ? (
-                      <p>
-                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                      </p>
-                    ) : dictationSettings.provider === null ? (
-                      <p>
-                        Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
-                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                      </p>
-                    ) : (
-                      <p>Dictation provider is not properly configured.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  shape="round"
-                  variant="outline"
-                  onClick={() => {
-                    if (isRecording) {
-                      stopRecording();
-                    } else {
-                      startRecording();
-                    }
-                  }}
-                  disabled={isTranscribing}
-                  className={`rounded-full px-6 py-2 ${
-                    isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                      : isTranscribing
-                        ? 'bg-text-default text-background-default cursor-not-allowed animate-pulse border-text-default'
-                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default'
-                  }`}
-                >
-                  <Microphone />
-                </Button>
-              )}
-            </>
-          )}
+                    )
+                  )}
 
-          {/* Send/Stop button */}
-          {isLoading ? (
-            <Button
-              type="button"
-              onClick={onStop}
-              size="sm"
-              shape="round"
-              variant="outline"
-              className="bg-text-default text-background-default hover:bg-text-muted border-text-default rounded-full px-6 py-2"
-            >
-              <Stop />
-            </Button>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    shape="round"
-                    variant="outline"
-                    disabled={isSubmitButtonDisabled}
-                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                      isSubmitButtonDisabled
-                        ? 'bg-text-default text-background-default cursor-not-allowed opacity-50 border-text-default'
-                        : 'bg-text-default text-background-default hover:bg-text-muted border-text-default hover:cursor-pointer'
-                    }`}
-                  >
-                    <Send className="w-4 h-4" />
-                    <span className="text-sm">Send</span>
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isCompacting
-                      ? 'Compacting conversation...'
-                      : isAnyImageLoading
-                        ? 'Waiting for images to save...'
-                        : isAnyDroppedFileLoading
-                          ? 'Processing dropped files...'
-                          : isRecording
-                            ? 'Recording...'
-                            : isTranscribing
-                              ? 'Transcribing...'
-                              : (chatContext?.agentWaitingMessage ?? 'Send')}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center justify-center transition-colors"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      sideOffset={12}
+                      className="w-80 rounded-3xl border border-white/60 dark:border-zinc-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl p-2 shadow-xl"
+                    >
+                      <div className="px-3 py-2 space-y-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-medium">Workspace</span>
+                          <div className="flex flex-col gap-0.5">
+                            <div 
+                              className="text-sm text-zinc-900 dark:text-zinc-100 truncate font-medium" 
+                              title={workingDirectory}
+                            >
+                              {workingDirectory ? workingDirectory.split('/').pop() : 'Not set'}
+                            </div>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate font-mono opacity-80">
+                              {workingDirectory || ''}
+                            </p>
+                          </div>
+                        </div>
+                        <DirSwitcher className="w-full justify-between text-sm text-zinc-900 dark:text-zinc-100" />
+                      </div>
 
-          {/* Recording/transcribing status indicator - positioned above the button row */}
-          {(isRecording || isTranscribing) && (
-            <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-              {isTranscribing ? (
-                <span className="text-blue-500 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  Transcribing...
-                </span>
-              ) : (
-                <span
-                  className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                >
-                  <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                  {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </form>
+                      <DropdownMenuSeparator className="bg-zinc-200 dark:bg-zinc-800 my-1" />
 
-      {/* Combined files and images preview */}
-      {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
-          {/* Render pasted images first */}
-          {pastedImages.map((img) => (
-            <div key={img.id} className="relative group w-20 h-20">
-              {img.dataUrl && (
-                <img
-                  src={img.dataUrl}
-                  alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                />
-              )}
-              {img.isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                </div>
-              )}
-              {img.error && !img.isLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                  <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
-                    {img.error.substring(0, 50)}
-                  </p>
-                  {img.dataUrl && (
+                      <div className="space-y-1 p-1">
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            setIsGoosehintsModalOpen?.(true);
+                          }}
+                          className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/50 outline-none transition-colors"
+                        >
+                          <FolderKey className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+                          <span className="font-medium text-zinc-900 dark:text-zinc-100">Goose hints</span>
+                        </DropdownMenuItem>
+
+                        {COST_TRACKING_ENABLED && (
+                          <div className="px-1">
+                            <CostTracker
+                              inputTokens={inputTokens}
+                              outputTokens={outputTokens}
+                              sessionCosts={sessionCosts}
+                              shouldShowIconOnly={false}
+                            />
+                          </div>
+                        )}
+
+                        <div className="px-1">
+                          <BottomMenuModeSelection shouldShowIconOnly={false} />
+                        </div>
+
+                        {!isMatrixRoom && (
+                          <div className="px-1">
+                            <SessionSharing
+                              sessionId={sessionId || ''}
+                              sessionTitle={sessionId || 'Chat'}
+                              messages={messages}
+                              sessionSharing={sessionSharing}
+                              shouldShowIconOnly={false}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {isLoading ? (
                     <Button
                       type="button"
-                      onClick={() => handleRetryImageSave(img.id)}
-                      title="Retry saving image"
-                      variant="outline"
-                      size="xs"
+                      onClick={onStop}
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full w-8 h-8 !p-0 bg-[#FF5F5F] text-white shadow-[0px_0px_25px_rgba(255,95,95,0.35)] flex items-center justify-center"
                     >
-                      Retry
+                      <Stop className="w-3 h-3" />
                     </Button>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            type="submit"
+                            size="sm"
+                            variant="ghost"
+                            disabled={isSubmitButtonDisabled}
+                            className={`rounded-full w-8 h-8 !p-0 flex items-center justify-center shadow-lg transition-all ${
+                              isSubmitButtonDisabled
+                                ? 'bg-zinc-100 text-zinc-300 dark:bg-zinc-800 dark:text-zinc-600 cursor-not-allowed'
+                                : 'bg-neutral-900 text-white dark:bg-white dark:text-black hover:opacity-90'
+                            }`}
+                          >
+                            {/* Send arrow icon similar to design */}
+                             <ArrowUp className="w-4 h-4" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          {isExtensionsLoading
+                            ? 'Loading extensions...'
+                            : isCompacting
+                              ? 'Compacting conversation...'
+                              : isAnyImageLoading
+                                ? 'Waiting for images to save...'
+                                : isAnyDroppedFileLoading
+                                  ? 'Processing dropped files...'
+                                  : isRecording
+                                    ? 'Recording...'
+                                    : isTranscribing
+                                      ? 'Transcribing...'
+                                      : (chatContext?.agentWaitingMessage ?? 'Send')}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
-              )}
-              {!img.isLoading && (
-                <Button
-                  type="button"
-                  shape="round"
-                  onClick={() => handleRemovePastedImage(img.id)}
-                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove image"
-                  variant="outline"
-                  size="xs"
-                >
-                  <Close />
-                </Button>
-              )}
-            </div>
-          ))}
+              </div>
 
-          {/* Render dropped files after pasted images */}
-          {allDroppedFiles.map((file) => (
-            <div key={file.id} className="relative group">
-              {file.isImage ? (
-                // Image preview
-                <div className="w-20 h-20">
-                  {file.dataUrl && (
-                    <img
-                      src={file.dataUrl}
-                      alt={file.name}
-                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
-                    />
-                  )}
-                  {file.isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                    </div>
-                  )}
-                  {file.error && !file.isLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                      <p className="text-red-400 text-[10px] leading-tight break-all">
-                        {file.error.substring(0, 30)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
-                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
-                    {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-textStandard truncate" title={file.name}>
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
-                  </div>
-                </div>
-              )}
-              {!file.isLoading && (
-                <Button
-                  type="button"
-                  shape="round"
-                  onClick={() => handleRemoveDroppedFile(file.id)}
-                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove file"
-                  variant="outline"
-                  size="xs"
-                >
-                  <Close />
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Secondary actions and controls row below input */}
-      <div ref={bottomControlsRef} className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher shouldShowIconOnly={shouldShowIconOnly} />
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Action button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleActionButtonClick}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Action className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Actions</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Quick Actions</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Attach button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleFileSelect}
-              variant="ghost"
-              size="sm"
-              className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors !px-0"
-            >
-              <Attach className={`w-4 h-4 ${shouldShowIconOnly ? '' : 'mr-1'}`} />
-              {!shouldShowIconOnly && <span className="text-xs">Attach</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Session Sharing Component - disabled for Matrix rooms */}
-        {!isMatrixRoom && (
-          <SessionSharing
-            sessionSharing={sessionSharing}
-            shouldShowIconOnly={shouldShowIconOnly}
-          />
-        )}
-        <div className="w-px h-4 bg-border-default mx-2" />
-
-        {/* Model selector, mode selector, alerts, summarize button */}
-        <div className="flex flex-row items-center min-w-0 flex-shrink overflow-hidden">
-          {/* Cost Tracker */}
-          {COST_TRACKING_ENABLED && (
-            <>
-              <CostTracker
-                inputTokens={inputTokens}
-                outputTokens={outputTokens}
-                sessionCosts={sessionCosts}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </>
-          )}
-          <Tooltip>
-            <div className="flex-shrink-0">
-              <ModelsBottomBar
-                sessionId={sessionId}
-                dropdownRef={dropdownRef}
-                setView={setView}
-                alerts={alerts}
-                recipeConfig={recipeConfig}
-                hasMessages={messages && Array.isArray(messages) && messages.length > 0}
-                shouldShowIconOnly={shouldShowIconOnly}
-              />
-            </div>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <div className="flex-shrink-0">
-            <BottomMenuModeSelection shouldShowIconOnly={shouldShowIconOnly} />
+            </form>
           </div>
-          <div className="w-px h-4 bg-border-default mx-2 flex-shrink-0" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => setIsGoosehintsModalOpen?.(true)}
-                variant="ghost"
-                size="sm"
-                className="flex items-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors px-0 flex-shrink-0"
-              >
-                <FolderKey size={16} className={shouldShowIconOnly ? '' : 'mr-1'} />
-                {!shouldShowIconOnly && <span className="text-xs">Hints</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Configure goosehints</TooltipContent>
-          </Tooltip>
+
+          {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
+            <div className="px-4 sm:px-6 pb-4">
+              <div className="flex flex-wrap gap-3 border-t border-white/50 dark:border-white/10 pt-4">
+                {pastedImages.map((img) => (
+                  <div key={img.id} className="relative group w-20 h-20">
+                    {img.dataUrl && (
+                      <img
+                        src={img.dataUrl}
+                        alt={`Pasted image ${img.id}`}
+                        className={`w-full h-full object-cover rounded-xl border ${img.error ? 'border-red-500' : 'border-white/70 dark:border-white/10'}`}
+                      />
+                    )}
+                    {img.isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white" />
+                      </div>
+                    )}
+                    {img.error && !img.isLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-xl p-2 text-center">
+                        <p className="text-red-400 text-[10px] leading-tight mb-1">{img.error.substring(0, 50)}</p>
+                        {img.dataUrl && (
+                          <Button type="button" onClick={() => handleRetryImageSave(img.id)} title="Retry saving image" variant="outline" size="xs">
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {!img.isLoading && (
+                      <Button
+                        type="button"
+                        shape="round"
+                        onClick={() => handleRemovePastedImage(img.id)}
+                        className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                        aria-label="Remove image"
+                        variant="outline"
+                        size="xs"
+                      >
+                        <Close />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+
+                {allDroppedFiles.map((file) => (
+                  <div key={file.id} className="relative group">
+                    {file.isImage ? (
+                      <div className="w-20 h-20">
+                        {file.dataUrl && (
+                          <img
+                            src={file.dataUrl}
+                            alt={file.name}
+                            className={`w-full h-full object-cover rounded-xl border ${file.error ? 'border-red-500' : 'border-white/70 dark:border-white/10'}`}
+                          />
+                        )}
+                        {file.isLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white" />
+                          </div>
+                        )}
+                        {file.error && !file.isLoading && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-xl p-2 text-center">
+                            <p className="text-red-400 text-[10px] leading-tight">{file.error.substring(0, 30)}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-white/80 dark:bg-white/10 border border-white/70 dark:border-white/10 rounded-2xl min-w-[140px] max-w-[220px]">
+                        <div className="flex-shrink-0 w-9 h-9 bg-white text-[#3C3C43] dark:text-[#E8E8FB] border border-white/70 dark:border-white/10 rounded-xl flex items-center justify-center text-xs font-semibold">
+                          {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[#050506] dark:text-white truncate" title={file.name}>
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-[#3C3C43]/70 dark:text-white/70">{file.type || 'Unknown type'}</p>
+                        </div>
+                      </div>
+                    )}
+                    {!file.isLoading && (
+                      <Button
+                        type="button"
+                        shape="round"
+                        onClick={() => handleRemoveDroppedFile(file.id)}
+                        className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                        aria-label="Remove file"
+                        variant="outline"
+                        size="xs"
+                      >
+                        <Close />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <EnhancedMentionPopover
-          ref={enhancedMentionPopoverRef}
-          isOpen={mentionPopover.isOpen}
-          onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
-          onSelectFile={handleMentionFileSelect}
-          onInviteFriend={handleFriendInvite}
-          position={mentionPopover.position}
-          query={mentionPopover.query}
-          selectedIndex={mentionPopover.selectedIndex}
-          onSelectedIndexChange={(index) =>
-            setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
-          }
-        />
-
-        <ActionPopover
-          ref={actionPopoverRef}
-          isOpen={actionPopover.isOpen}
-          onClose={() => setActionPopover((prev) => ({ ...prev, isOpen: false }))}
-          onSelect={handleActionSelect}
-          position={actionPopover.position}
-          selectedIndex={actionPopover.selectedIndex}
-          onSelectedIndexChange={(index) =>
-            setActionPopover((prev) => ({ ...prev, selectedIndex: index }))
-          }
-          query={actionPopover.query}
-          onCreateCommand={() => {
-            setIsAddCommandModalOpen(true);
-            setActionPopover((prev) => ({ ...prev, isOpen: false }));
-          }}
-        />
+        <div className="text-xs text-[#3C3C43]/70 dark:text-zinc-400 flex items-center gap-2 px-1">
+          {/* Workspace removed as per request - moved to Tab tooltip */}
+        </div>
+        </div>
       </div>
 
-      {/* Add Custom Command Modal */}
+      <EnhancedMentionPopover
+        ref={enhancedMentionPopoverRef}
+        isOpen={mentionPopover.isOpen}
+        onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
+        onSelectFile={handleMentionFileSelect}
+        onInviteFriend={handleFriendInvite}
+        position={mentionPopover.position}
+        query={mentionPopover.query}
+        selectedIndex={mentionPopover.selectedIndex}
+        onSelectedIndexChange={(index) =>
+          setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
+        }
+      />
+
+      <ActionPopover
+        ref={actionPopoverRef}
+        isOpen={actionPopover.isOpen}
+        onClose={() => setActionPopover((prev) => ({ ...prev, isOpen: false }))}
+        onSelect={handleActionSelect}
+        position={actionPopover.position}
+        selectedIndex={actionPopover.selectedIndex}
+        onSelectedIndexChange={(index) =>
+          setActionPopover((prev) => ({ ...prev, selectedIndex: index }))
+        }
+        query={actionPopover.query}
+        onCreateCommand={() => {
+          setIsAddCommandModalOpen(true);
+          setActionPopover((prev) => ({ ...prev, isOpen: false }));
+        }}
+      />
+
       <AddCustomCommandModal
         isOpen={isAddCommandModalOpen}
         onClose={() => setIsAddCommandModalOpen(false)}
         onSave={handleModalSave}
       />
-        </div>
-      </div>
     </div>
   );
 }

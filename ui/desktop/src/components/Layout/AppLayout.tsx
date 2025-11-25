@@ -270,7 +270,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
 
   return (
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded }}>
-      <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
+      <div className="flex flex-col flex-1 w-full h-full">
         {/* Top Navigation Bar */}
         <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
         

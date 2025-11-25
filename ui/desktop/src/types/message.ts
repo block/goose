@@ -114,6 +114,8 @@ export interface Message {
     displayName?: string;
     avatarUrl?: string;
   };
+  // Optional metadata for extension features (Matrix, collaboration, etc.)
+  metadata?: Record<string, any>;
 }
 
 // Helper functions to create messages

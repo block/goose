@@ -6,6 +6,7 @@ import MarkdownContent from './MarkdownContent';
 import CommentableMarkdown from './CommentableMarkdown';
 import MessageComments from './MessageComments';
 import ToolCallWithResponse from './ToolCallWithResponse';
+import CompactToolCall from './CompactToolCall';
 import ToolCallChain from './ToolCallChain';
 import { useCommentDisplayMode } from '../hooks/useCommentDisplayMode';
 import {
@@ -27,6 +28,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { MessageComment, TextSelection } from '../types/comment';
 import { cn } from '../utils';
 import AvatarImage from './AvatarImage';
+import { Goose } from './icons/Goose';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -41,6 +43,7 @@ interface GooseMessageProps {
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  tabId?: string; // Tab ID for opening sidecars
   // Comment-related props
   comments?: MessageComment[];
   activeSelection?: TextSelection | null;
@@ -67,6 +70,7 @@ export default function GooseMessage({
   append,
   appendMessage,
   isStreaming = false,
+  tabId,
   // Comment props
   comments = [],
   activeSelection,
@@ -277,9 +281,9 @@ export default function GooseMessage({
     >
       {/* Goose Avatar on the left side with optional user badge */}
       <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
-        {/* Main Goose dot avatar */}
-        <div className="w-8 h-8 flex items-center justify-center">
-          <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+        {/* Main Goose avatar */}
+        <div className="w-8 h-8 rounded-full bg-gray-900 dark:bg-white flex items-center justify-center">
+          <Goose className="w-5 h-5 text-white dark:text-gray-900" />
         </div>
         
         {/* Small user badge for collaborator messages - positioned to the left */}
@@ -370,26 +374,24 @@ export default function GooseMessage({
                 toolResponsesMap={toolResponsesMap}
                 messageHistoryIndex={messageHistoryIndex}
                 isStreaming={isStreaming}
+                tabId={tabId}
               />
             ) : !messageChain ? (
-              <div className="relative flex flex-col w-full">
-                <div className="flex flex-col gap-3">
-                  {toolRequests.map((toolRequest) => (
-                    <div className="goose-message-tool" key={toolRequest.id}>
-                      <ToolCallWithResponse
-                        isCancelledMessage={
-                          messageIndex < messageHistoryIndex &&
-                          toolResponsesMap.get(toolRequest.id) == undefined
-                        }
-                        toolRequest={toolRequest}
-                        toolResponse={toolResponsesMap.get(toolRequest.id)}
-                        notifications={toolCallNotifications.get(toolRequest.id)}
-                        isStreamingMessage={isStreaming}
-                        append={append}
-                      />
-                    </div>
-                  ))}
-                </div>
+              <div className="relative flex flex-wrap gap-2 w-full">
+                {toolRequests.map((toolRequest) => (
+                  <CompactToolCall
+                    key={toolRequest.id}
+                    tabId={tabId || sessionId}
+                    toolRequest={toolRequest}
+                    toolResponse={toolResponsesMap.get(toolRequest.id)}
+                    notifications={toolCallNotifications.get(toolRequest.id)}
+                    isStreamingMessage={isStreaming}
+                    isCancelledMessage={
+                      messageIndex < messageHistoryIndex &&
+                      toolResponsesMap.get(toolRequest.id) == undefined
+                    }
+                  />
+                ))}
               </div>
             ) : null}
           </div>

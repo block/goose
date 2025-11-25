@@ -184,10 +184,40 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   const sidecarState = activeTabState ? getSidecarState(activeTabState.tab.id) : undefined;
   const hasSidecar = sidecarState && sidecarState.activeViews.length > 0;
 
+  // Track working directory for TabBar tooltip
+  const [workingDirectory, setWorkingDirectory] = useState<string>('');
+
+  // Read working directory from appConfig
+  useEffect(() => {
+    const readWorkingDirectory = () => {
+      try {
+        return window.appConfig.get('GOOSE_WORKING_DIR') as string;
+      } catch (error) {
+        return '';
+      }
+    };
+
+    setWorkingDirectory(readWorkingDirectory());
+
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
+      if (customEvent.detail?.path) {
+        setWorkingDirectory(customEvent.detail.path);
+      } else {
+        setWorkingDirectory(readWorkingDirectory());
+      }
+    };
+
+    window.addEventListener('goose-working-dir-changed', handler as EventListener);
+    return () => {
+      window.removeEventListener('goose-working-dir-changed', handler as EventListener);
+    };
+  }, []);
+
   return (
-    <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
+    <div className={`flex flex-col h-full ${className || ''}`}>
       {/* Tab Bar - Fixed at top */}
-      <div className="flex-shrink-0 relative z-10">
+      <div className="flex-shrink-0 relative z-[60]">
         <TabBar
           tabs={tabStates.map(ts => ts.tab)}
           activeTabId={activeTabId}
@@ -195,11 +225,12 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
           onTabClose={handleTabClose}
           onNewTab={handleNewTab}
           sidebarCollapsed={sidebarCollapsed}
+          workingDirectory={workingDirectory}
         />
       </div>
 
       {/* Main Content Area - Chat and Sidecar */}
-      <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
+      <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg">
         {/* Render all tabs but only show the active one - this prevents unmounting */}
         {tabStates.map((tabState) => {
           const isActive = tabState.tab.id === activeTabId;
@@ -241,16 +272,16 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                     tabSidecarState && tabSidecarState.activeViews.length > 1 ? (
                       <MultiPanelTabSidecar
                         sidecarState={tabSidecarState}
-                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : undefined}
+                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : () => {}}
                         tabId={tabState.tab.id}
                       />
-                    ) : (
+                    ) : tabSidecarState && tabSidecarState.activeViews.length === 1 ? (
                       <TabSidecar
                         sidecarState={tabSidecarState}
-                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : undefined}
+                        onHideView={isActive ? (viewId) => hideSidecarView(tabState.tab.id, viewId) : () => {}}
                         tabId={tabState.tab.id}
                       />
-                    )
+                    ) : null
                   }
                   initialLeftWidth={chatWidth}
                   minLeftWidth={30}

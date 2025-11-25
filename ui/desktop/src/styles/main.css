@@ -112,7 +112,7 @@
   --text-on-accent: var(--color-black);
 
   /* semantic */
-  --background-app: var(--color-neutral-950);
+  --background-app: radial-gradient(ellipse 50% 50% at 50% 50%, #111116 0%, #070708 100%);
   --background-default: var(--color-neutral-950);
   --background-card: var(--color-neutral-950);
   --background-muted: var(--color-neutral-800);
@@ -505,7 +505,7 @@
 }
 
 body {
-  background-color: var(--background-app);
+  background: var(--background-app);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -550,8 +550,15 @@ pre:has(> code.bg-inline-code) {
 
 li > code.bg-inline-code,
 p > code.bg-inline-code {
-  color: var(--color-block-orange);
+  color: var(--color-neutral-900);
+  font-weight: 600;
   padding: 2px 4px;
+}
+
+.dark li > code.bg-inline-code,
+.dark p > code.bg-inline-code {
+  color: var(--color-white);
+  font-weight: 600;
 }
 
 .bg-inline-code:after {
@@ -800,5 +807,41 @@ p > code.bg-inline-code {
 
 .rich-text-input textarea {
   mix-blend-mode: multiply; /* Blend with background for better visibility */
+}
+
+/* Chat composer with proper backdrop blur - Force rebuild */
+.chat-composer-container {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(60, 60, 67, 0.18);
+  box-shadow: 0px 30px 70px rgba(4, 5, 45, 0.18);
+  will-change: backdrop-filter;
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
+}
+
+.dark .chat-composer-container {
+  background-color: rgba(15, 15, 16, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0px 30px 70px rgba(0, 0, 0, 0.5);
+}
+
+/* ParticipantsBar with same styling as chat composer */
+.participants-bar-container {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.18);
+  will-change: backdrop-filter;
+  isolation: isolate;
+  position: relative;
+  z-index: 50;
+}
+
+.dark .participants-bar-container {
+  background-color: rgba(15, 15, 16, 0.9) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
