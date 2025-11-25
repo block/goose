@@ -3,6 +3,7 @@ import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSel
 import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
+import { GoosehintsSection } from './GoosehintsSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function ChatSettingsSection() {
@@ -37,6 +38,12 @@ export default function ChatSettingsSection() {
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardContent className="px-2">
+          <GoosehintsSection />
         </CardContent>
       </Card>
 

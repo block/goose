@@ -1,6 +1,6 @@
 ---
 title: GitHub Extension
-description: Add GitHub MCP Server as a Goose Extension
+description: Add GitHub MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
-This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a Goose extension to enable file operations, repository management, search functionality, and more.
+This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a goose extension to enable file operations, repository management, search functionality, and more.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -108,7 +108,7 @@ repo: goose-demo
 ─── create_or_update_file | github ──────────────────────────
 branch: hello-world
 content: this was written by goose
-message: Update README.md with Goose message
+message: Update README.md with goose message
 owner: angiejones
 path: README.md
 repo: goose-demo

@@ -1,5 +1,7 @@
 import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from './components/ui/Tooltip';
+import Copy from './components/icons/Copy';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';
 import {
@@ -173,19 +175,41 @@ function ToastErrorContent({
 }: Omit<ToastErrorProps, 'setView'>) {
   const setView = useNavigation();
   const showRecovery = recoverHints && setView;
+  const hasBoth = traceback && showRecovery;
+
+  const handleCopyError = async () => {
+    if (traceback) {
+      try {
+        await navigator.clipboard.writeText(traceback);
+      } catch (error) {
+        console.error('Failed to copy error:', error);
+      }
+    }
+  };
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-4 pr-8">
       <div className="flex-grow">
         {title && <strong className="font-medium">{title}</strong>}
         {msg && <div>{msg}</div>}
       </div>
       <div className="flex-none flex items-center gap-2">
-        {showRecovery ? (
-          <Button onClick={() => startNewSession(recoverHints, null, setView)}>Ask goose</Button>
-        ) : traceback ? (
-          <Button onClick={() => navigator.clipboard.writeText(traceback)}>Copy error</Button>
-        ) : null}
+        {showRecovery && (
+          <Button onClick={() => startNewSession(recoverHints, setView)}>Ask goose</Button>
+        )}
+        {hasBoth && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleCopyError} shape="round" aria-label="Copy error">
+                <Copy className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="z-[10000]">
+              Copy error
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {traceback && !hasBoth && <Button onClick={handleCopyError}>Copy error</Button>}
       </div>
     </div>
   );

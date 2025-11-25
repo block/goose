@@ -67,7 +67,7 @@ Anthropic's Claude 4 Sonnet was used for this task.
   </TabItem>
   <TabItem value="cli" label="goose CLI">
 
-  1. Open a terminal and start a new Goose session:
+  1. Open a terminal and start a new goose session:
 
   ```sh
   goose session

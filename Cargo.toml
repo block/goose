@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.14.0"
+version = "1.15.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.9.0", features = ["schemars", "auth"] }
+rmcp = { version = "0.9.1", features = ["schemars", "auth"] }
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]

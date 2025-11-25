@@ -39,7 +39,11 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "m
 tokio-util = "0.7.15"
 uuid = { version = "1.11", features = ["v4"] }
 serde_path_to_error = "0.1.20"
-winreg = { version = "0.55.0", optional = true }
+tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
+url = "2.5.7"
+rand = "0.9.2"
+hex = "0.4.3"
+socket2 = "0.6.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
