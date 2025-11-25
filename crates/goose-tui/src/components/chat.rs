@@ -13,6 +13,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
+use std::collections::HashMap;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 pub struct ChatComponent {
@@ -20,7 +21,7 @@ pub struct ChatComponent {
     cached_items: Vec<ListItem<'static>>,
     cached_mapping: Vec<usize>,
     sealed_count: usize,
-    last_tool_context: Option<(String, String)>, // Name, Args
+    last_tool_context: HashMap<String, (String, String)>, // ID -> (Name, Args)
     stick_to_bottom: bool,
     frame_count: usize,
     last_input_mode: InputMode,
@@ -40,7 +41,7 @@ impl ChatComponent {
             cached_items: Vec::new(),
             cached_mapping: Vec::new(),
             sealed_count: 0,
-            last_tool_context: None,
+            last_tool_context: HashMap::new(),
             stick_to_bottom: true,
             frame_count: 0,
             last_input_mode: InputMode::Normal,
@@ -60,7 +61,7 @@ impl ChatComponent {
         message: &goose::conversation::message::Message,
         width: usize,
         theme: &Theme,
-        last_tool_context: &mut Option<(String, String)>,
+        last_tool_context: &mut HashMap<String, (String, String)>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         match message.role {
             rmcp::model::Role::User => {
@@ -77,7 +78,7 @@ impl ChatComponent {
         message: &goose::conversation::message::Message,
         width: usize,
         theme: &Theme,
-        last_tool_context: &mut Option<(String, String)>,
+        last_tool_context: &mut HashMap<String, (String, String)>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
@@ -138,12 +139,13 @@ impl ChatComponent {
         msg_idx: usize,
         width: usize,
         theme: &Theme,
-        last_tool_context: &mut Option<(String, String)>,
+        last_tool_context: &mut HashMap<String, (String, String)>,
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
     ) {
         let (tool_name, tool_args) = last_tool_context
-            .clone()
+            .get(&resp.id)
+            .cloned()
             .unwrap_or(("Unknown".to_string(), "".to_string()));
         let is_success = resp.tool_result.is_ok();
         let color = if is_success {
@@ -195,8 +197,7 @@ impl ChatComponent {
                 if let rmcp::model::Content {
                     raw: rmcp::model::RawContent::Text(text_content),
                     ..
-                } = content
-                {
+                } = content {
                     for line in text_content.text.lines() {
                         if line_count >= max_lines {
                             break;
@@ -256,7 +257,7 @@ impl ChatComponent {
         message: &goose::conversation::message::Message,
         width: usize,
         theme: &Theme,
-        last_tool_context: &mut Option<(String, String)>,
+        last_tool_context: &mut HashMap<String, (String, String)>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
@@ -279,7 +280,7 @@ impl ChatComponent {
                         } else {
                             "".to_string()
                         };
-                        *last_tool_context = Some((name.to_string(), args));
+                        last_tool_context.insert(req.id.clone(), (name.to_string(), args));
 
                         let line = Line::from(vec![
                             Span::styled("▶ Tool: ", Style::default().fg(theme.status.warning)),
@@ -513,7 +514,7 @@ impl Component for ChatComponent {
             self.cached_items.clear();
             self.cached_mapping.clear();
             self.sealed_count = 0;
-            self.last_tool_context = None;
+            self.last_tool_context.clear();
         }
 
         // Determine how many messages are "sealed"
