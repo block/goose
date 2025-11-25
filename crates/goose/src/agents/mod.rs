@@ -16,6 +16,7 @@ pub mod retry;
 pub mod router_tool_selector;
 pub mod router_tools;
 mod schedule_tool;
+pub(crate) mod skills_extension;
 pub mod sub_recipe_manager;
 pub mod subagent_execution_tool;
 pub mod subagent_handler;
@@ -26,7 +27,7 @@ pub mod tool_route_manager;
 pub mod tool_router_index_manager;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGER};
+pub use agent::{Agent, AgentEvent, MANUAL_COMPACT_TRIGGERS};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;

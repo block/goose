@@ -17,6 +17,8 @@ use crate::providers::toolshim::{
 };
 
 use crate::session::SessionManager;
+#[cfg(test)]
+use crate::session::SessionType;
 use rmcp::model::Tool;
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
@@ -429,9 +431,16 @@ mod tests {
     ) -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-prepare-tools".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
         let model_config = ModelConfig::new("test-model").unwrap();
         let provider = std::sync::Arc::new(MockProvider { model_config });
-        agent.update_provider(provider).await?;
+        agent.update_provider(provider, &session.id).await?;
 
         // Disable the router to trigger sorting
         agent.disable_router_for_recipe().await;

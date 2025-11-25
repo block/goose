@@ -553,6 +553,73 @@ class ErrorProxy:
             )
 
 
+def parse_command(command: str) -> tuple[Optional[ErrorMode], int, float, Optional[str]]:
+    """
+    Parse a command string and return the error mode, count, and percentage.
+
+    Args:
+        command: Command string (e.g., "c", "c 3", "r 30%", "u *")
+
+    Returns:
+        Tuple of (mode, count, percentage, error_message)
+        If error_message is not None, parsing failed
+    """
+    # Parse command - remove all whitespace and parse
+    command_no_space = command.strip().replace(" ", "")
+    if not command_no_space:
+        return (None, 0, 0.0, "Empty command")
+
+    # Get the first character (error type letter)
+    error_letter = command_no_space[0].lower()
+
+    # Map letter to ErrorMode
+    mode_map = {
+        'n': ErrorMode.NO_ERROR,
+        'c': ErrorMode.CONTEXT_LENGTH,
+        'r': ErrorMode.RATE_LIMIT,
+        'u': ErrorMode.SERVER_ERROR
+    }
+
+    if error_letter not in mode_map:
+        return (None, 0, 0.0, f"Invalid command: '{error_letter}'. Use n, c, r, or u")
+
+    mode = mode_map[error_letter]
+
+    # Parse the rest as count or percentage
+    count = 1
+    percentage = 0.0
+
+    if len(command_no_space) > 1:
+        value_str = command_no_space[1:]
+
+        try:
+            # Check for * (100%)
+            if value_str == '*':
+                percentage = 1.0
+                count = 0  # Percentage mode
+            # Check for percentage with % sign (e.g., "30%")
+            elif value_str.endswith('%'):
+                percentage = float(value_str[:-1]) / 100.0
+                if percentage < 0.0 or percentage > 1.0:
+                    return (None, 0, 0.0, f"Invalid percentage: {percentage*100:.0f}%. Must be between 0% and 100%")
+                count = 0  # Percentage mode
+            # Check if it's a decimal (percentage as 0.0-1.0)
+            elif '.' in value_str:
+                percentage = float(value_str)
+                if percentage < 0.0 or percentage > 1.0:
+                    return (None, 0, 0.0, f"Invalid percentage: {percentage}. Must be between 0.0 and 1.0")
+                count = 0  # Percentage mode
+            else:
+                # It's an integer count
+                count = int(value_str)
+                if count < 0:
+                    return (None, 0, 0.0, f"Invalid count: {count}. Must be >= 0")
+        except ValueError:
+            return (None, 0, 0.0, f"Invalid value: '{value_str}'. Must be an integer, decimal, percentage (30%), or * (100%)")
+
+    return (mode, count, percentage, None)
+
+
 def print_status(proxy: ErrorProxy):
     """Print the current proxy status."""
     mode, count, percentage = proxy.get_error_config()
@@ -562,7 +629,7 @@ def print_status(proxy: ErrorProxy):
         ErrorMode.RATE_LIMIT: "⏱️  Rate limit exceeded",
         ErrorMode.SERVER_ERROR: "💥 Server error (500)"
     }
-    
+
     print("\n" + "=" * 60)
     mode_str = mode_names.get(mode, 'Unknown')
     if mode != ErrorMode.NO_ERROR:
@@ -589,79 +656,28 @@ def print_status(proxy: ErrorProxy):
 def stdin_reader(proxy: ErrorProxy, loop):
     """Read commands from stdin in a separate thread."""
     print_status(proxy)
-    
+
     while True:
         try:
             command = input("Enter command: ").strip()
-            
+
             if command.lower() == 'q':
                 print("\n🛑 Shutting down proxy...")
                 # Schedule the shutdown in the event loop
                 asyncio.run_coroutine_threadsafe(shutdown_server(loop), loop)
                 break
-            
-            # Parse command - remove all whitespace and parse
-            command_no_space = command.replace(" ", "")
-            if not command_no_space:
+
+            # Parse the command using the shared parser
+            mode, count, percentage, error_msg = parse_command(command)
+
+            if error_msg:
+                print(f"❌ {error_msg}")
                 continue
-            
-            # Get the first character (error type letter)
-            error_letter = command_no_space[0].lower()
-            
-            # Map letter to ErrorMode
-            mode_map = {
-                'n': ErrorMode.NO_ERROR,
-                'c': ErrorMode.CONTEXT_LENGTH,
-                'r': ErrorMode.RATE_LIMIT,
-                'u': ErrorMode.SERVER_ERROR
-            }
-            
-            if error_letter not in mode_map:
-                print(f"❌ Invalid command: '{error_letter}'. Use n, c, r, u, or q")
-                continue
-            
-            mode = mode_map[error_letter]
-            
-            # Parse the rest as count or percentage
-            count = 1
-            percentage = 0.0
-            
-            if len(command_no_space) > 1:
-                value_str = command_no_space[1:]
-                
-                try:
-                    # Check for * (100%)
-                    if value_str == '*':
-                        percentage = 1.0
-                        count = 0  # Percentage mode
-                    # Check for percentage with % sign (e.g., "30%")
-                    elif value_str.endswith('%'):
-                        percentage = float(value_str[:-1]) / 100.0
-                        if percentage < 0.0 or percentage > 1.0:
-                            print(f"❌ Invalid percentage: {percentage*100:.0f}%. Must be between 0% and 100%")
-                            continue
-                        count = 0  # Percentage mode
-                    # Check if it's a decimal (percentage as 0.0-1.0)
-                    elif '.' in value_str:
-                        percentage = float(value_str)
-                        if percentage < 0.0 or percentage > 1.0:
-                            print(f"❌ Invalid percentage: {percentage}. Must be between 0.0 and 1.0")
-                            continue
-                        count = 0  # Percentage mode
-                    else:
-                        # It's an integer count
-                        count = int(value_str)
-                        if count < 0:
-                            print(f"❌ Invalid count: {count}. Must be >= 0")
-                            continue
-                except ValueError:
-                    print(f"❌ Invalid value: '{value_str}'. Must be an integer, decimal, percentage (30%), or * (100%)")
-                    continue
-            
+
             # Set the error mode
             proxy.set_error_mode(mode, count, percentage)
             print_status(proxy)
-                
+
         except EOFError:
             # Handle Ctrl+D
             print("\n🛑 Shutting down proxy...")
@@ -716,7 +732,17 @@ def main():
         default=8888,
         help='Port to listen on (default: 8888)'
     )
-    
+    parser.add_argument(
+        '--mode',
+        type=str,
+        help='Error mode command (e.g., "c 3", "r 30%%", "u *", "n")'
+    )
+    parser.add_argument(
+        '--no-stdin',
+        action='store_true',
+        help='Disable stdin reader (for background/automated mode)'
+    )
+
     args = parser.parse_args()
     
     print("=" * 60)
@@ -735,14 +761,38 @@ def main():
     
     # Create proxy instance
     proxy = ErrorProxy()
-    
+
+    # Set initial error mode from command-line arguments
+    if args.mode:
+        mode, count, percentage, error_msg = parse_command(args.mode)
+
+        if error_msg:
+            print(f"❌ Error parsing --mode argument: {error_msg}")
+            print(f"   Example usage: --mode \"c 3\" or --mode \"r 30%\"")
+            return
+
+        proxy.set_error_mode(mode, count, percentage)
+        print()
+        print(f"Initial mode set from command-line arguments:")
+        print(f"  Mode: {mode.name}")
+        if percentage > 0.0:
+            print(f"  Percentage: {percentage*100:.0f}%")
+        elif count > 0:
+            print(f"  Count: {count}")
+        print()
+
     # Create event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    # Start stdin reader thread
-    stdin_thread = threading.Thread(target=stdin_reader, args=(proxy, loop), daemon=True)
-    stdin_thread.start()
+
+    # Start stdin reader thread only if not disabled
+    if not args.no_stdin:
+        stdin_thread = threading.Thread(target=stdin_reader, args=(proxy, loop), daemon=True)
+        stdin_thread.start()
+    else:
+        print("Running in no-stdin mode (background/automated)")
+        print("Use SIGINT (Ctrl+C) or SIGTERM to stop the proxy")
+        print()
     
     # Create and run the app
     app = loop.run_until_complete(create_app(proxy))

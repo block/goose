@@ -94,7 +94,7 @@ pub async fn handle_schedule_add(
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.add_scheduled_job(job).await {
+    match scheduler.add_scheduled_job(job, true).await {
         Ok(_) => {
             // The scheduler has copied the recipe to its internal directory.
             // We can reconstruct the likely path for display if needed, or adjust success message.
@@ -175,7 +175,7 @@ pub async fn handle_schedule_remove(schedule_id: String) -> Result<()> {
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.remove_scheduled_job(&schedule_id).await {
+    match scheduler.remove_scheduled_job(&schedule_id, true).await {
         Ok(_) => {
             println!(
                 "Scheduled job '{}' and its associated recipe removed.",

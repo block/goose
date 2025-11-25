@@ -128,15 +128,18 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-      - name: Cache npm dependencies
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: |
-            ui/desktop/node_modules
-            .hermit/node/cache
-          key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
-          restore-keys: |
-            ci-npm-cache-v1-${{ runner.os }}-
+      # Temporarily disabled due to GitHub Actions bug on macOS runners
+      # https://github.com/actions/runner-images/issues/13341
+      # https://github.com/actions/runner/issues/4134
+      # - name: Cache npm dependencies
+      #   uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+      #   with:
+      #     path: |
+      #       ui/desktop/node_modules
+      #       .hermit/node/cache
+      #     key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+      #     restore-keys: |
+      #       ci-npm-cache-v1-${{ runner.os }}-
 
       - name: Install Dependencies
         run: source ../../bin/activate-hermit && npm ci

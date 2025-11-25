@@ -1,10 +1,10 @@
 ---
-description: Learn how to create and use Goose recipes with this comprehensive tutorial covering prompts, parameters, and MCP servers
+description: Learn how to create and use goose recipes with this comprehensive tutorial covering prompts, parameters, and MCP servers
 ---
 
-# Goose Recipes
+# goose Recipes
 
-Goose Recipes are files that contain all the details to allow Goose to do one specific task. Since they are contained in just one file, they are easy to share through all the normal ways we share files, including version management systems like git. Let's get started with the simplest recipe possible.
+goose recipes are files that contain all the details to allow goose to do one specific task. Since they are contained in just one file, they are easy to share through all the normal ways we share files, including version management systems like git. Let's get started with the simplest recipe possible.
 
 ## The Simplest Recipe
 
@@ -32,9 +32,9 @@ goose run --recipe trip.yaml
 
 ## Extensions
 
-Goose recipes have a section where you can specify which [extensions](/docs/guides/recipes/recipe-reference#extensions) Goose can use during execution. Goose will only use the ones you specify. 
+goose recipes have a section where you can specify which [extensions](/docs/guides/recipes/recipe-reference#extensions) goose can use during execution. goose will only use the ones you specify. 
 
-Let's say we want to make sure we have good weather during our Europe trip. We can just add a weather extension (this example uses the [weather-mcp-server](https://github.com/TuanKiri/weather-mcp-server) by TuanKiri under the MIT License) to our recipe, modify the prompt a bit and now Goose will check the weather before adding a city to our trip.
+Let's say we want to make sure we have good weather during our Europe trip. We can just add a weather extension (this example uses the [weather-mcp-server](https://github.com/TuanKiri/weather-mcp-server) by TuanKiri under the MIT License) to our recipe, modify the prompt a bit and now goose will check the weather before adding a city to our trip.
 
 ```yaml
 title: Trip planner
@@ -82,7 +82,7 @@ goose run --recipe trip.yaml --params destination=Africa --params duration=14
 
 ## Settings
 
-By default, Goose uses the `temperature` and `model` you've already chosen, which usually works just fine. But sometimes you might want more control. For example, when performing a subjective task like planning a trip, it can help to turn up the `temperature` setting. Think of temperature like a creativity dial - the higher it is, the more varied and unexpected the results. If the first suggestion isn't quite right, the user can just run the recipe again to get a new one.
+By default, goose uses the `temperature` and `model` you've already chosen, which usually works just fine. But sometimes you might want more control. For example, when performing a subjective task like planning a trip, it can help to turn up the `temperature` setting. Think of temperature like a creativity dial - the higher it is, the more varied and unexpected the results. If the first suggestion isn't quite right, the user can just run the recipe again to get a new one.
 
 You can also specify which AI provider and model to use for a specific recipe:
 
@@ -98,7 +98,7 @@ The available settings are:
 - `goose_model`: The specific model name
 - `temperature`: Controls creativity/randomness (0.0-1.0, higher = more creative)
 
-These settings will override your default Goose configuration when this recipe runs.
+These settings will override your default goose configuration when this recipe runs.
 
 ## External Files
 
@@ -282,4 +282,4 @@ This itinerary offers a perfect blend of history, culture, and cuisine across th
 :::
 
 ## Learn More
-Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
+Check out the [Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master goose recipes.
