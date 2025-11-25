@@ -2756,7 +2756,6 @@ dependencies = [
  "clap",
  "cliclack",
  "console",
- "dirs 6.0.0",
  "dotenvy",
  "etcetera",
  "futures",
