@@ -393,6 +393,9 @@ async fn edit_message(
 #[utoipa::path(
     post,
     path = "/sessions/{session_id}/fork",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
     responses(
         (status = 200, description = "Session forked successfully", body = Session),
         (status = 404, description = "Session not found"),
@@ -408,7 +411,11 @@ async fn fork_session(Path(session_id): Path<String>) -> Result<Json<Session>, S
         .await
         .map_err(|e| {
             tracing::error!("Failed to fork session: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         })?;
 
     Ok(Json(forked_session))

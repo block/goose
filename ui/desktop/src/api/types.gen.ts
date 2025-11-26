@@ -2649,6 +2649,9 @@ export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionRe
 export type ForkSessionData = {
     body?: never;
     path: {
+        /**
+         * Unique identifier for the session
+         */
         session_id: string;
     };
     query?: never;

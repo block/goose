@@ -2134,6 +2134,7 @@
           {
             "name": "session_id",
             "in": "path",
+            "description": "Unique identifier for the session",
             "required": true,
             "schema": {
               "type": "string"
