@@ -62,19 +62,7 @@ impl MlDetector {
     }
 
     pub async fn scan(&self, text: &str) -> Result<f32> {
-        tracing::debug!(
-            text_length = text.len(),
-            text_preview = %text.chars().take(100).collect::<String>(),
-            "ML detection scanning text"
-        );
-
         let score = self.client.classify(text).await?;
-
-        tracing::info!(
-            score = %score,
-            "ML detection result"
-        );
-
         Ok(score)
     }
 }
