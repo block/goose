@@ -25,16 +25,16 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
       <div className="flex items-start gap-2">
         {/* Root node */}
         <div className="flex flex-col items-center">
-          <div className="w-2 h-2 rounded-full bg-border-subtle" />
-          <div className="w-0.5 h-4 bg-border-subtle" />
+          <div className="w-2 h-2 rounded-full bg-borderSubtle" />
+          <div className="w-0.5 h-4 bg-borderSubtle" />
         </div>
         
         {/* Parallel branches */}
         <div className="flex flex-col gap-1">
           {Array.from({ length: taskCount }).map((_, index) => (
             <div key={index} className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-border-subtle" />
-              <div className="w-4 h-4 rounded-sm border border-border-subtle bg-background-default flex items-center justify-center">
+              <div className="w-3 h-0.5 bg-borderSubtle" />
+              <div className="w-4 h-4 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
                 <span className="text-[8px] font-sans text-textSubtle">{index + 1}</span>
               </div>
             </div>
@@ -49,11 +49,11 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
     <div className="flex items-center gap-1">
       {Array.from({ length: taskCount }).map((_, index) => (
         <div key={index} className="flex items-center">
-          <div className="w-4 h-4 rounded-sm border border-border-subtle bg-background-default flex items-center justify-center">
+          <div className="w-4 h-4 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
             <span className="text-[8px] font-sans text-textSubtle">{index + 1}</span>
           </div>
           {index < taskCount - 1 && (
-            <div className="w-2 h-0.5 bg-border-subtle mx-0.5" />
+            <div className="w-2 h-0.5 bg-borderSubtle mx-0.5" />
           )}
         </div>
       ))}
@@ -74,18 +74,18 @@ function TaskParametersTimeline({ tasks }: { tasks: any[] }) {
           <div key={index} className="flex gap-3">
             {/* Timeline indicator */}
             <div className="flex flex-col items-center">
-              <div className="w-6 h-6 rounded-full border-2 border-border-subtle bg-background-default flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded-full border-2 border-borderSubtle bg-background-default flex items-center justify-center flex-shrink-0">
                 <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
               </div>
               {index < tasks.length - 1 && (
-                <div className="w-0.5 h-full bg-border-subtle flex-grow mt-1" />
+                <div className="w-0.5 h-full bg-borderSubtle flex-grow mt-1" />
               )}
             </div>
             
             {/* Task content */}
             <div className="flex-1 pb-3">
               {title !== `Task ${index + 1}` && (
-                <div className="font-sans text-xs font-medium text-text-prominent mb-1">
+                <div className="font-sans text-xs font-medium text-textProminent mb-1">
                   {title}
                 </div>
               )}
