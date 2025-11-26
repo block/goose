@@ -580,47 +580,37 @@ function ToolResultView({ result, isStartExpanded, tabId, resultIndex }: ToolRes
   const canOpenInSidecar = tabId && result.type === 'text' && result.text;
 
   return (
-    <div className="border-t border-borderSubtle">
-      <div className="flex items-center justify-between pr-2">
+    <div className="border-t border-borderSubtle p-4">
+      {result.type === 'text' && result.text && canOpenInSidecar ? (
+        // Show button to open in sidecar for text content
         <Button
-          onClick={canOpenInSidecar ? handleOpenInSidecar : undefined}
-          className={cn(
-            "group w-full flex justify-between items-center pr-2 transition-colors rounded-none",
-            canOpenInSidecar && "cursor-pointer hover:bg-background-muted"
-          )}
-          variant="ghost"
-          disabled={!canOpenInSidecar}
+          onClick={handleOpenInSidecar}
+          className="flex items-center gap-2 text-sm"
+          variant="outline"
+          size="sm"
         >
-          <span className="pl-4 py-1 font-sans text-sm flex items-center gap-2">
-            Output
-            {canOpenInSidecar && (
-              <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-            )}
-          </span>
+          <ExternalLink className="w-4 h-4" />
+          View Output
         </Button>
-      </div>
-      <div className="pl-4 pr-4 py-4">
-        {result.type === 'text' && result.text && (
-          <MarkdownContent
-            content={result.text}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
-        )}
-        {result.type === 'image' && (
-          <img
-            src={`data:${result.mimeType};base64,${result.data}`}
-            alt="Tool result"
-            className="max-w-full h-auto rounded-md my-2"
-            onError={(e) => {
-              console.error('Failed to load image');
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        )}
-        {result.type === 'resource' && (
-          <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
-        )}
-      </div>
+      ) : result.type === 'text' && result.text ? (
+        // Fallback: show inline if no tabId available
+        <MarkdownContent
+          content={result.text}
+          className="whitespace-pre-wrap max-w-full overflow-x-auto"
+        />
+      ) : result.type === 'image' ? (
+        <img
+          src={`data:${result.mimeType};base64,${result.data}`}
+          alt="Tool result"
+          className="max-w-full h-auto rounded-md my-2"
+          onError={(e) => {
+            console.error('Failed to load image');
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : result.type === 'resource' ? (
+        <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
+      ) : null}
     </div>
   );
 }
