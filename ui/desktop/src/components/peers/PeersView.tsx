@@ -868,14 +868,16 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       // Mark messages as read when opening chat
       markMessagesAsRead(friend.userId);
       
-      // Navigate to the pair view (regular chat session) with Matrix integration using URL search parameters
-      console.log('🧭 Navigating to pair view for Matrix collaboration:', roomId);
-      const searchParams = new URLSearchParams({
-        matrixMode: 'true',
-        matrixRoomId: roomId,
-        matrixRecipientId: friend.userId
-      });
-      navigate(`/pair?${searchParams.toString()}`);
+      // Open a new tab/chat session with Matrix room parameters
+      console.log('🧭 Opening new tab for Matrix collaboration:', roomId);
+      
+      // Dispatch custom event to create a new Matrix tab
+      window.dispatchEvent(new CustomEvent('create-matrix-tab', {
+        detail: {
+          roomId: roomId,
+          senderId: friend.userId
+        }
+      }));
     } catch (error) {
       console.error('Failed to create/get DM room:', error);
     }
