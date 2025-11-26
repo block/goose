@@ -473,11 +473,6 @@ impl Agent {
             let extensions = self.get_extension_configs().await;
             let task_config =
                 TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-            let loaded_extensions = self
-                .extension_manager
-                .list_extensions()
-                .await
-                .unwrap_or_default();
             let sub_recipes = self.sub_recipes.lock().await.clone();
 
             let arguments = tool_call
@@ -486,14 +481,7 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
-            handle_subagent_tool(
-                arguments,
-                task_config,
-                &sub_recipes,
-                &loaded_extensions,
-                &session.working_dir,
-            )
-            .await
+            handle_subagent_tool(arguments, task_config, &sub_recipes, &session.working_dir).await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(

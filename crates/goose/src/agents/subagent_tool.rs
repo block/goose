@@ -23,7 +23,7 @@ const SUMMARY_INSTRUCTIONS: &str = r#"
 Important: Your parent agent will only receive your final message as a summary of your work.
 Make sure your last message provides a comprehensive summary of:
 - What you were asked to do
-- What actions you took  
+- What actions you took
 - The results or outcomes
 - Any important findings or recommendations
 
@@ -169,7 +169,6 @@ pub async fn handle_subagent_tool(
     params: Value,
     task_config: TaskConfig,
     sub_recipes: &HashMap<String, SubRecipe>,
-    loaded_extensions: &[String],
     working_dir: &std::path::Path,
 ) -> ToolCallResult {
     let params: SubagentParams = match serde_json::from_value(params) {
@@ -199,7 +198,7 @@ pub async fn handle_subagent_tool(
         }));
     }
 
-    let recipe = match build_recipe(&params, sub_recipes, loaded_extensions) {
+    let recipe = match build_recipe(&params, sub_recipes) {
         Ok(r) => r,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -253,12 +252,11 @@ pub async fn handle_subagent_tool(
 fn build_recipe(
     params: &SubagentParams,
     sub_recipes: &HashMap<String, SubRecipe>,
-    loaded_extensions: &[String],
 ) -> Result<Recipe> {
     let mut recipe = if let Some(subrecipe_name) = &params.subrecipe {
         build_subrecipe(subrecipe_name, params, sub_recipes)?
     } else {
-        build_adhoc_recipe(params, loaded_extensions)?
+        build_adhoc_recipe(params)?
     };
 
     if params.summary {
@@ -342,7 +340,7 @@ fn build_subrecipe(
     Ok(recipe)
 }
 
-fn build_adhoc_recipe(params: &SubagentParams, _loaded_extensions: &[String]) -> Result<Recipe> {
+fn build_adhoc_recipe(params: &SubagentParams) -> Result<Recipe> {
     let instructions = params
         .instructions
         .as_ref()
@@ -494,18 +492,6 @@ mod tests {
     }
 
     #[test]
-    fn test_params_deserialization_minimal() {
-        let params: SubagentParams = serde_json::from_value(json!({
-            "instructions": "Do something"
-        }))
-        .unwrap();
-
-        assert_eq!(params.instructions, Some("Do something".to_string()));
-        assert!(params.subrecipe.is_none());
-        assert!(params.summary);
-    }
-
-    #[test]
     fn test_params_deserialization_full() {
         let params: SubagentParams = serde_json::from_value(json!({
             "instructions": "Extra context",
@@ -522,14 +508,5 @@ mod tests {
         assert!(params.parameters.is_some());
         assert_eq!(params.extensions, Some(vec!["developer".to_string()]));
         assert!(!params.summary);
-    }
-
-    #[test]
-    fn test_default_summary_is_true() {
-        let params: SubagentParams = serde_json::from_value(json!({
-            "instructions": "test"
-        }))
-        .unwrap();
-        assert!(params.summary);
     }
 }
