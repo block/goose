@@ -21,6 +21,7 @@ import MatrixAuth from './MatrixAuth';
 import GooseChat from '../GooseChat';
 import MatrixChat from '../MatrixChat';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTabContext } from '../../contexts/TabContext';
 
 // Helper function to handle avatar URLs (now handled by MatrixService)
 const convertMxcToHttp = (avatarUrl: string): string => {
@@ -702,6 +703,8 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     onGooseMessage
   } = useMatrix();
   
+  const { openMatrixChat } = useTabContext();
+  
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -868,14 +871,13 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       // Mark messages as read when opening chat
       markMessagesAsRead(friend.userId);
       
-      // Navigate to the pair view (regular chat session) with Matrix integration using URL search parameters
-      console.log('🧭 Navigating to pair view for Matrix collaboration:', roomId);
-      const searchParams = new URLSearchParams({
-        matrixMode: 'true',
-        matrixRoomId: roomId,
-        matrixRecipientId: friend.userId
-      });
-      navigate(`/pair?${searchParams.toString()}`);
+      // Open a new tab/chat session with Matrix room parameters using TabContext
+      console.log('🧭 Opening new Matrix tab:', roomId);
+      openMatrixChat(roomId, friend.userId);
+      
+      // Navigate to the pair view where the tabs are displayed
+      console.log('🧭 Navigating to pair view');
+      navigate('/pair');
     } catch (error) {
       console.error('Failed to create/get DM room:', error);
     }
