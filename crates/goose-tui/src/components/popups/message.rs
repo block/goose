@@ -21,6 +21,8 @@ pub struct MessagePopup {
     last_scroll_time: Option<Instant>,
     content_height: u16,
     viewport_height: u16,
+    cached_message_idx: Option<usize>,
+    cached_plain_text: String,
 }
 
 impl Default for MessagePopup {
@@ -36,6 +38,8 @@ impl MessagePopup {
             last_scroll_time: None,
             content_height: 0,
             viewport_height: 0,
+            cached_message_idx: None,
+            cached_plain_text: String::new(),
         }
     }
 
@@ -45,6 +49,55 @@ impl MessagePopup {
         } else {
             self.content_height.saturating_sub(1)
         }
+    }
+
+    fn content_as_plain_text(message: &goose::conversation::message::Message) -> String {
+        let mut lines = Vec::new();
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(t) => {
+                    lines.push(t.text.clone());
+                }
+                MessageContent::ToolRequest(req) => {
+                    lines.push("Tool Request:".to_string());
+                    if let Ok(call) = &req.tool_call {
+                        lines.push(format!("Name: {}", call.name));
+                        if let Some(args) = &call.arguments {
+                            if let Ok(json_str) = serde_json::to_string_pretty(args) {
+                                lines.push(json_str);
+                            }
+                        }
+                    }
+                }
+                MessageContent::ToolResponse(resp) => {
+                    lines.push("Tool Output:".to_string());
+                    if let Ok(contents) = &resp.tool_result {
+                        for content in contents {
+                            if let rmcp::model::Content {
+                                raw: rmcp::model::RawContent::Text(text_content),
+                                ..
+                            } = content
+                            {
+                                let text = &text_content.text;
+                                let display_string = if let Ok(v) =
+                                    serde_json::from_str::<serde_json::Value>(text)
+                                {
+                                    serde_json::to_string_pretty(&v)
+                                        .unwrap_or_else(|_| text.to_string())
+                                } else {
+                                    text.to_string()
+                                };
+                                lines.push(display_string);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            lines.push(String::new());
+        }
+        lines.join("\n")
     }
 
     fn render_content(
@@ -113,6 +166,14 @@ impl MessagePopup {
         }
         lines
     }
+
+    fn copy_to_clipboard(&self) -> Result<(), String> {
+        let mut clipboard =
+            arboard::Clipboard::new().map_err(|e| format!("Clipboard error: {e}"))?;
+        clipboard
+            .set_text(&self.cached_plain_text)
+            .map_err(|e| format!("Clipboard error: {e}"))
+    }
 }
 
 impl Component for MessagePopup {
@@ -120,6 +181,12 @@ impl Component for MessagePopup {
         match event {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('c') => {
+                    return match self.copy_to_clipboard() {
+                        Ok(()) => Ok(Some(Action::ShowFlash("Copied to clipboard".to_string()))),
+                        Err(e) => Ok(Some(Action::ShowFlash(e))),
+                    };
+                }
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
@@ -157,18 +224,23 @@ impl Component for MessagePopup {
             None => return,
         };
 
+        if self.cached_message_idx != Some(msg_idx) {
+            self.cached_message_idx = Some(msg_idx);
+            self.cached_plain_text = Self::content_as_plain_text(message);
+            self.scroll = 0;
+        }
+
         let area = centered_rect(80, 80, area);
         f.render_widget(Clear, area);
 
         let lines = self.render_content(message);
 
         let block = Block::default()
-            .title("Message Details (Esc to Close)")
+            .title("Message Details (Esc to close, c to copy)")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .style(Style::default().bg(state.config.theme.base.background));
 
-        // Calculate height with wrapping estimation
         let inner_width = area.width.saturating_sub(2).max(1);
         let mut wrapped_height = 0;
         for line in &lines {
