@@ -30,6 +30,7 @@ pub enum SessionType {
     Scheduled,
     SubAgent,
     Hidden,
+    Terminal,
 }
 
 impl Default for SessionType {
@@ -45,6 +46,7 @@ impl std::fmt::Display for SessionType {
             SessionType::SubAgent => write!(f, "sub_agent"),
             SessionType::Hidden => write!(f, "hidden"),
             SessionType::Scheduled => write!(f, "scheduled"),
+            SessionType::Terminal => write!(f, "terminal"),
         }
     }
 }
@@ -58,6 +60,7 @@ impl std::str::FromStr for SessionType {
             "sub_agent" => Ok(SessionType::SubAgent),
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
+            "terminal" => Ok(SessionType::Terminal),
             _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
         }
     }

@@ -1,42 +1,20 @@
 use anyhow::{anyhow, Result};
-use goose::config::paths::Paths;
 use goose::session::SessionManager;
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
+use goose::session::SessionType;
+use goose::conversation::message::{Message, MessageContent, MessageMetadata};
+use rmcp::model::Role;
+use chrono;
 
 use crate::session::{build_session, SessionBuilderConfig};
 
-const TERMINAL_SESSION_PREFIX: &str = "term:";
-
-async fn get_or_create_terminal_session(working_dir: PathBuf) -> Result<String> {
-    let session_name = format!(
-        "{}{}",
-        TERMINAL_SESSION_PREFIX,
-        working_dir.to_string_lossy()
-    );
-
-    let sessions = SessionManager::list_sessions().await?;
-    if let Some(session) = sessions.iter().find(|s| s.name == session_name) {
-        return Ok(session.id.clone());
-    }
-
-    let session =
-        SessionManager::create_session(working_dir, session_name.clone(), Default::default())
-            .await?;
-
-    SessionManager::update_session(&session.id)
-        .user_provided_name(session_name)
-        .apply()
-        .await?;
-
-    Ok(session.id)
-}
 
 /// Handle `goose term init <shell>` - print shell initialization script
 pub async fn handle_term_init(shell: &str, with_command_not_found: bool) -> Result<()> {
     let working_dir = std::env::current_dir()?;
-    let session_id = get_or_create_terminal_session(working_dir).await?;
+    let session = SessionManager::create_session(working_dir,
+                                                    "Goose Term Session".to_string(),
+                                                    SessionType::Terminal).await?;
+    let session_id = session.id;
 
     let goose_bin = std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
@@ -162,47 +140,21 @@ Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
     Ok(())
 }
 
-fn shell_history_path(session_id: &str) -> Result<PathBuf> {
-    let history_dir = Paths::config_dir().join("shell-history");
-    fs::create_dir_all(&history_dir)?;
-    Ok(history_dir.join(format!("{}.txt", session_id)))
-}
 
-fn append_shell_command(session_id: &str, command: &str) -> Result<()> {
-    let path = shell_history_path(session_id)?;
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)?;
-    writeln!(file, "{}", command)?;
-    Ok(())
-}
 
-fn read_and_clear_shell_history(session_id: &str) -> Result<Vec<String>> {
-    let path = shell_history_path(session_id)?;
-
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let content = fs::read_to_string(&path)?;
-    let commands: Vec<String> = content
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|s| s.to_string())
-        .collect();
-
-    fs::write(&path, "")?;
-
-    Ok(commands)
-}
-
-pub fn handle_term_log(command: String) -> Result<()> {
+pub async fn handle_term_log(command: String) -> Result<()> {
     let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
         anyhow!("GOOSE_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
     })?;
 
-    append_shell_command(&session_id, &command)?;
+    let message = Message::new(
+        Role::User,
+        chrono::Utc::now().timestamp_millis(),
+        vec![MessageContent::text(command)],
+    )
+    .with_metadata(MessageMetadata::user_only());
+
+    SessionManager::add_message(&session_id, &message).await?;
 
     Ok(())
 }
@@ -225,13 +177,34 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         .apply()
         .await?;
 
-    let commands = read_and_clear_shell_history(&session_id)?;
-    let prompt_with_context = if commands.is_empty() {
+    let session = SessionManager::get_session(&session_id, true).await?;
+    let user_messages_after_last_assistant: Vec<&Message> = if let Some(conv) = &session.conversation {
+        conv.messages()
+            .iter()
+            .rev()
+            .take_while(|m| m.role != Role::Assistant)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    if let Some(oldest_user) = user_messages_after_last_assistant.last() {
+        SessionManager::truncate_conversation(&session_id, oldest_user.created).await?;
+    }
+
+    let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
         prompt
     } else {
+        let history = user_messages_after_last_assistant
+            .iter()
+            .rev() // back to chronological order
+            .map(|m| m.as_concat_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
         format!(
             "<shell_history>\n{}\n</shell_history>\n\n{}",
-            commands.join("\n"),
+            history,
             prompt
         )
     };
