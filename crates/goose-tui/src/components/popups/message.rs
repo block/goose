@@ -74,6 +74,11 @@ impl MessagePopup {
                     lines.push("Tool Output:".to_string());
                     if let Ok(contents) = &resp.tool_result {
                         for content in contents {
+                            if let Some(audience) = content.audience() {
+                                if !audience.contains(&rmcp::model::Role::User) {
+                                    continue;
+                                }
+                            }
                             if let rmcp::model::Content {
                                 raw: rmcp::model::RawContent::Text(text_content),
                                 ..
@@ -139,6 +144,11 @@ impl MessagePopup {
                     )));
                     if let Ok(contents) = &resp.tool_result {
                         for content in contents {
+                            if let Some(audience) = content.audience() {
+                                if !audience.contains(&rmcp::model::Role::User) {
+                                    continue;
+                                }
+                            }
                             if let rmcp::model::Content {
                                 raw: rmcp::model::RawContent::Text(text_content),
                                 ..
