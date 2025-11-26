@@ -24,37 +24,31 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 log "Starting node setup (common)."
 
 # One-time cleanup for existing Linux users to fix locking issues
-if [[ "$(uname -s)" == "Linux" ]]; then
-    if grep -q "Fedora" /etc/os-release; then
-        CLEANUP_MARKER=~/.config/goose/.mcp-hermit-cleanup-v1
-    else
-        CLEANUP_MARKER="~/.config/goose/.mcp-hermit-cleanup-v1"
-    fi    
-    if [ ! -f "$CLEANUP_MARKER" ]; then
-        log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
-        if [ -d ~/.config/goose/mcp-hermit ]; then
-            rm -rf ~/.config/goose/mcp-hermit
-            log "Removed old mcp-hermit directory."
-        fi
-        touch "$CLEANUP_MARKER"
-        log "Cleanup completed. Marker file created."
+CLEANUP_MARKER="${HOME}/.config/goose/.mcp-hermit-cleanup-v1"
+if [[ "$(uname -s)" == "Linux" ]] && [ ! -f "$CLEANUP_MARKER" ]; then
+    log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
+    if [ -d ${HOME}/.config/goose/mcp-hermit ]; then
+        rm -rf ${HOME}/.config/goose/mcp-hermit
+        log "Removed old mcp-hermit directory."
     fi
+    touch "$CLEANUP_MARKER"
+    log "Cleanup completed. Marker file created."
 fi
 
-# Ensure ~/.config/goose/mcp-hermit/bin exists
-log "Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist."
-mkdir -p ~/.config/goose/mcp-hermit/bin
+# Ensure ${HOME}/.config/goose/mcp-hermit/bin exists
+log "Creating directory ${HOME}/.config/goose/mcp-hermit/bin if it does not exist."
+mkdir -p ${HOME}/.config/goose/mcp-hermit/bin
 
-# Change to the ~/.config/goose/mcp-hermit directory
-log "Changing to directory ~/.config/goose/mcp-hermit."
-cd ~/.config/goose/mcp-hermit
+# Change to the ${HOME}/.config/goose/mcp-hermit directory
+log "Changing to directory ${HOME}/.config/goose/mcp-hermit."
+cd ${HOME}/.config/goose/mcp-hermit
 
 
 # Check if hermit binary exists and download if not
-if [ ! -f ~/.config/goose/mcp-hermit/bin/hermit ]; then
+if [ ! -f ${HOME}/.config/goose/mcp-hermit/bin/hermit ]; then
     log "Hermit binary not found. Downloading hermit binary."
     curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
-        | gzip -dc > ~/.config/goose/mcp-hermit/bin/hermit && chmod +x ~/.config/goose/mcp-hermit/bin/hermit
+        | gzip -dc > ${HOME}/.config/goose/mcp-hermit/bin/hermit && chmod +x ${HOME}/.config/goose/mcp-hermit/bin/hermit
     log "Hermit binary downloaded and made executable."
 else
     log "Hermit binary already exists. Skipping download."
@@ -62,13 +56,13 @@ fi
 
 
 log "setting hermit cache to be local for MCP servers"
-mkdir -p ~/.config/goose/mcp-hermit/cache
-export HERMIT_STATE_DIR=~/.config/goose/mcp-hermit/cache
+mkdir -p ${HOME}/.config/goose/mcp-hermit/cache
+export HERMIT_STATE_DIR=${HOME}/.config/goose/mcp-hermit/cache
 
 
 # Update PATH
-export PATH=~/.config/goose/mcp-hermit/bin:$PATH
-log "Updated PATH to include ~/.config/goose/mcp-hermit/bin."
+export PATH=${HOME}/.config/goose/mcp-hermit/bin:$PATH
+log "Updated PATH to include ${HOME}/.config/goose/mcp-hermit/bin."
 
 
 # Verify hermit installation
@@ -84,7 +78,7 @@ if [ ! -f bin/activate-hermit ]; then
         log "Creating temp dir with bin subdirectory for hermit copy to avoid self-update locks."
         HERMIT_TMP_DIR="/tmp/hermit_tmp_$$/bin"
         mkdir -p "$HERMIT_TMP_DIR"
-        cp ~/.config/goose/mcp-hermit/bin/hermit "$HERMIT_TMP_DIR/hermit"
+        cp ${HOME}/.config/goose/mcp-hermit/bin/hermit "$HERMIT_TMP_DIR/hermit"
         chmod +x "$HERMIT_TMP_DIR/hermit"
         export PATH="$HERMIT_TMP_DIR:$PATH"
         HERMIT_CLEANUP_DIR="/tmp/hermit_tmp_$$"
@@ -130,10 +124,10 @@ if [ -n "${GOOSE_NPM_REGISTRY:-}" ] && curl -s --head --fail "$GOOSE_NPM_REGISTR
     # Check if GOOSE_NPM_CERT is set and accessible
     if [ -n "${GOOSE_NPM_CERT:-}" ] && curl -s --head --fail "$GOOSE_NPM_CERT" > /dev/null; then
         log "Downloading certificate from: $GOOSE_NPM_CERT"
-        curl -sSL -o ~/.config/goose/mcp-hermit/cert.pem "$GOOSE_NPM_CERT"
+        curl -sSL -o ${HOME}/.config/goose/mcp-hermit/cert.pem "$GOOSE_NPM_CERT"
         if [ $? -eq 0 ]; then
             log "Certificate downloaded successfully."
-            export NODE_EXTRA_CA_CERTS=~/.config/goose/mcp-hermit/cert.pem
+            export NODE_EXTRA_CA_CERTS=${HOME}/.config/goose/mcp-hermit/cert.pem
         else
             log "Unable to download the certificate. Skipping certificate setup."
         fi
