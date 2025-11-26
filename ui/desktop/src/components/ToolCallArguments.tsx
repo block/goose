@@ -63,6 +63,8 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
 
 // Timeline component for task parameters
 function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; executionMode?: string }) {
+  const isParallel = executionMode === 'parallel';
+  
   return (
     <div className="space-y-3">
       {/* Execution mode indicator as a pill badge */}
@@ -91,7 +93,7 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
             </div>
             
             {/* Task content */}
-            <div className="flex-1 pb-3">
+            <div className="flex-1 pb-3 relative">
               {title !== `Task ${index + 1}` && (
                 <div className="font-sans text-xs font-medium text-textProminent mb-1">
                   {title}
@@ -104,6 +106,13 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
               {task.description && (
                 <div className="font-sans text-xs text-textSubtle mt-1 italic">
                   {task.description}
+                </div>
+              )}
+              
+              {/* Parallel execution indicator - small numbered box at bottom right */}
+              {isParallel && (
+                <div className="absolute bottom-0 right-0 w-4 h-4 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
+                  <span className="text-[8px] font-sans text-textSubtle">1</span>
                 </div>
               )}
             </div>
