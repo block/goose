@@ -567,8 +567,10 @@ interface ToolResultViewProps {
 
 function ToolResultView({ result, isStartExpanded, tabId, resultIndex }: ToolResultViewProps) {
   const { showDocumentEditor } = useTabContext();
+  const [isExpanded, setIsExpanded] = React.useState(isStartExpanded);
   
-  const handleOpenInSidecar = () => {
+  const handleOpenInSidecar = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the expand/collapse
     if (!tabId || result.type !== 'text' || !result.text) return;
     
     // Open the output in a document editor sidecar
@@ -580,37 +582,55 @@ function ToolResultView({ result, isStartExpanded, tabId, resultIndex }: ToolRes
   const canOpenInSidecar = tabId && result.type === 'text' && result.text;
 
   return (
-    <div className="border-t border-borderSubtle p-4">
-      {result.type === 'text' && result.text && canOpenInSidecar ? (
-        // Show button to open in sidecar for text content
-        <Button
-          onClick={handleOpenInSidecar}
-          className="flex items-center gap-2 text-sm"
-          variant="outline"
-          size="sm"
-        >
-          <ExternalLink className="w-4 h-4" />
-          View Output
-        </Button>
-      ) : result.type === 'text' && result.text ? (
-        // Fallback: show inline if no tabId available
-        <MarkdownContent
-          content={result.text}
-          className="whitespace-pre-wrap max-w-full overflow-x-auto"
+    <div className="border-t border-borderSubtle">
+      <Button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
+        variant="ghost"
+      >
+        <span className="pl-4 py-1 font-sans text-sm flex items-center gap-2">
+          Output
+          {canOpenInSidecar && (
+            <button
+              onClick={handleOpenInSidecar}
+              className="p-1 hover:bg-background-muted rounded transition-colors"
+              title="Open in sidecar"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
+        </span>
+        <ChevronRight
+          className={cn(
+            'group-hover:opacity-100 transition-transform opacity-70',
+            isExpanded && 'rotate-90'
+          )}
         />
-      ) : result.type === 'image' ? (
-        <img
-          src={`data:${result.mimeType};base64,${result.data}`}
-          alt="Tool result"
-          className="max-w-full h-auto rounded-md my-2"
-          onError={(e) => {
-            console.error('Failed to load image');
-            e.currentTarget.style.display = 'none';
-          }}
-        />
-      ) : result.type === 'resource' ? (
-        <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
-      ) : null}
+      </Button>
+      {isExpanded && (
+        <div className="pl-4 pr-4 py-4">
+          {result.type === 'text' && result.text && (
+            <MarkdownContent
+              content={result.text}
+              className="whitespace-pre-wrap max-w-full overflow-x-auto"
+            />
+          )}
+          {result.type === 'image' && (
+            <img
+              src={`data:${result.mimeType};base64,${result.data}`}
+              alt="Tool result"
+              className="max-w-full h-auto rounded-md my-2"
+              onError={(e) => {
+                console.error('Failed to load image');
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          )}
+          {result.type === 'resource' && (
+            <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }
