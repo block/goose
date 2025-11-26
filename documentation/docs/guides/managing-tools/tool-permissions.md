@@ -8,14 +8,14 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Tornado, Settings } from 'lucide-react';
 
-Tool permissions provide fine-grained control over how Goose uses different tools within extensions. This guide will help you understand and configure these permissions effectively.
+Tool permissions provide fine-grained control over how goose uses different tools within extensions. This guide will help you understand and configure these permissions effectively.
 
 ## Understanding Tools and Extensions
 
 Before diving into permissions, let's clarify the key components:
 
-- **Extensions** are packages that add functionality to Goose (like Developer, Google Drive, etc.)
-- **Tools** are specific functions within each extension that Goose can use
+- **Extensions** are packages that add functionality to goose (like Developer, Google Drive, etc.)
+- **Tools** are specific functions within each extension that goose can use
 
 For example, the Developer extension includes multiple tools like:
 
@@ -23,12 +23,12 @@ For example, the Developer extension includes multiple tools like:
 - Shell tool for running commands
 - Screen capture tool for taking screenshots
 :::warning Performance Optimization
-Goose performs best with fewer than 25 total tools enabled across all extensions. Consider enabling only the extensions you need for your current task.
+goose performs best with fewer than 25 total tools enabled across all extensions. Consider enabling only the extensions you need for your current task.
 :::
 
 ## Permission Levels
 
-Tool permissions work alongside [Goose permission modes](/docs/guides/goose-permissions). The mode sets the default behavior, while tool permissions let you override the behavior of specific tools.
+Tool permissions work alongside [goose permission modes](/docs/guides/goose-permissions). The mode sets the default behavior, while tool permissions let you override the behavior of specific tools.
 
 Each tool can be set to one of three permission levels:
 
@@ -71,7 +71,7 @@ Each tool can be set to one of three permission levels:
     goose configure
     ```
 
-    2. Select `Goose Settings` from the menu
+    2. Select `goose settings` from the menu
     ```sh
     ┌ goose-configure
     │
@@ -81,7 +81,7 @@ Each tool can be set to one of three permission levels:
     | ○ Toggle Extensions
     | ○ Remove Extension
     // highlight-start
-    | ● Goose Settings
+    | ● goose settings
     // highlight-end
     └
     ```
@@ -91,10 +91,10 @@ Each tool can be set to one of three permission levels:
     ┌   goose-configure
     │
     ◇  What would you like to configure?
-    │  Goose Settings
+    │  goose settings
     │
     ◆  What setting would you like to configure?
-    │  ○ Goose Mode
+    │  ○ goose mode
     // highlight-start
     │  ● Tool Permission
     // highlight-end
@@ -147,7 +147,7 @@ There are several reasons to configure tool permissions:
 
 3. **Task Focus**
    - Enable only tools needed for current task
-   - Help Goose make better tool choices
+   - Help goose make better tool choices
    - Reduce noise in responses
 
 ## Example Permission Configuration

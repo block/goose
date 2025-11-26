@@ -469,6 +469,10 @@ function sendStatusToWindow(event: string, data?: unknown) {
 function updateTrayIcon(hasUpdate: boolean) {
   if (!trayRef) return;
 
+  if (process.env.GOOSE_VERSION) {
+    hasUpdate = false;
+  }
+
   const isDev = !app.isPackaged;
   let iconPath: string;
 

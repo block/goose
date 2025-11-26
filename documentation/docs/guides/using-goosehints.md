@@ -1,21 +1,21 @@
 ---
-title: Providing Hints to Goose
+title: Providing Hints to goose
 sidebar_position: 40
-sidebar_label: Using Goosehints
+sidebar_label: Using goosehints
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { FolderKey } from 'lucide-react';
 
-`.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
+`.goosehints` is a text file used to provide additional context about your project and improve the communication with goose. The use of `.goosehints` ensures that goose understands your requirements better and can execute tasks more effectively.
 
 <details>
-  <summary>Goose Hints Video Walkthrough</summary>
+  <summary>goose Hints Video Walkthrough</summary>
   <iframe
   class="aspect-ratio"
   src="https://www.youtube.com/embed/kWXJC5p0608"
-  title="Goose Hints"
+  title="goose Hints"
   frameBorder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowFullScreen
@@ -32,14 +32,14 @@ To make use of the hints file, you need to have the `Developer` extension [enabl
 
 ## Creating Your Hints File
 
-Goose supports two types of hint files:
-- **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory. Global hints are stored in `~/.config/goose/.goosehints`.
+goose supports two types of hint files:
+- **Global hints file** - These hints will apply to all your sessions with goose, regardless of directory. Global hints are stored in `~/.config/goose/.goosehints`.
 - **Local hints files** -  These hints will only apply when working in a specific directory or directory hierarchy.
 
-You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
+You can use both global and local hints at the same time. When both exist, goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, goose will prioritize the local hints.
 
 :::tip Custom Context Files
-You can use other agent rule files with Goose by using the [`CONTEXT_FILE_NAMES` environment variable](#custom-context-files).
+You can use other agent rule files with goose by using the [`CONTEXT_FILE_NAMES` environment variable](#custom-context-files).
 :::
 
 <Tabs groupId="interface">
@@ -50,11 +50,11 @@ You can use other agent rule files with Goose by using the [`CONTEXT_FILE_NAMES`
 
     #### Local hints file
 
-    1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path on the bottom of the Goose window.
-    2. Click the <FolderKey size={16} /> icon on the bottom right of the Goose window.
+    1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path on the bottom of the goose window.
+    2. Click the <FolderKey size={16} /> icon on the bottom right of the goose window.
     4. Enter your local tips into the text area.
     5. Click `Save`.
-    6. Restart your session so Goose can read the updated `.goosehints`.
+    6. Restart your session so goose can read the updated `.goosehints`.
 
     If a `.goosehints` file already exists in the given directory, you can edit or add to it from this screen.
 
@@ -75,9 +75,9 @@ The `.goosehints` file can include any instructions or contextual details releva
 
 ## Setting Up Hints
 
-The `.goosehints` file supports natural language. Write clear, specific instructions using direct language that Goose can easily understand and follow. Include relevant context about your project and workflow preferences, and prioritize your most important guidelines first.
+The `.goosehints` file supports natural language. Write clear, specific instructions using direct language that goose can easily understand and follow. Include relevant context about your project and workflow preferences, and prioritize your most important guidelines first.
 
-Goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
+goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
 
 ### Example Global `.goosehints` File
 
@@ -107,12 +107,12 @@ Run tests with `npm run test` ideally after each change.
 ```
 
 These examples show two ways to reference other files:
-- **`@` syntax**: Automatically includes the file content in Goose's immediate context
-- **Plain reference**: Points Goose to files to review when needed (use for optional or very large files)
+- **`@` syntax**: Automatically includes the file content in goose's immediate context
+- **Plain reference**: Points goose to files to review when needed (use for optional or very large files)
 
 ### Nested `.goosehints` Files
 
-Goose supports hierarchical local hints in  git repositories. All `.goosehints` files from your current directory up to the root directory are automatically loaded and combined. If you're not working in a git repository, Goose only loads the `.goosehints` file from the current directory.
+goose supports hierarchical local hints in  git repositories. All `.goosehints` files from your current directory up to the root directory are automatically loaded and combined. If you're not working in a git repository, goose only loads the `.goosehints` file from the current directory.
 
 As a best practice, `.goosehints` at each level should only include hints relevant to that scope:
 - **Root level**: Include project-wide standards, build processes, and general guidelines
@@ -135,7 +135,7 @@ my-project/
         └── routes.py
 ```
 
-When working in `frontend/components/` in this example project, Goose loads hints from directories higher up the hierarchy in the following order:
+When working in `frontend/components/` in this example project, goose loads hints from directories higher up the hierarchy in the following order:
 1. <details>
      <summary>`my-project/.goosehints` (project root)</summary>
         ```
@@ -191,17 +191,17 @@ When working in `frontend/components/` in this example project, Goose loads hint
    </details>
 
 ## Common Use Cases
-Here are some ways people have used hints to provide additional context to Goose:
+Here are some ways people have used hints to provide additional context to goose:
 
-- **Decision-Making**: Specify if Goose should autonomously make changes or confirm actions with you first.
+- **Decision-Making**: Specify if goose should autonomously make changes or confirm actions with you first.
 
-- **Validation Routines**: Provide test cases or validation methods that Goose should perform to ensure changes meet project specifications.
+- **Validation Routines**: Provide test cases or validation methods that goose should perform to ensure changes meet project specifications.
 
-- **Feedback Loop**: Include steps that allow Goose to receive feedback and iteratively improve its suggestions.
+- **Feedback Loop**: Include steps that allow goose to receive feedback and iteratively improve its suggestions.
 
-- **Point to more detailed documentation**: Indicate important files like `README.md`, `docs/setup-guide.md`, or others that Goose should consult for detailed explanations.
+- **Point to more detailed documentation**: Indicate important files like `README.md`, `docs/setup-guide.md`, or others that goose should consult for detailed explanations.
 
-- **Organize with @-mentions**: For frequently-needed documentation, use `@filename.md` or `@relative/path/testing.md` to automatically include file content in your current context instead of just referencing it. This ensures Goose has immediate access to important information. 
+- **Organize with @-mentions**: For frequently-needed documentation, use `@filename.md` or `@relative/path/testing.md` to automatically include file content in your current context instead of just referencing it. This ensures goose has immediate access to important information. 
 Include core documentation (like API schemas or coding standards) with @-mentions for immediate context, but use plain references (without `@`) for optional or very large files.
 
 Like prompts, this is not an extensive list to shape your `.goosehints` file. You can include as much context as you need.
@@ -209,20 +209,20 @@ Like prompts, this is not an extensive list to shape your `.goosehints` file. Yo
 ## Best Practices
 
 - **Keep files updated**: Regularly update the `.goosehints` files to reflect any changes in project protocols or priorities.
-- **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
-- **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
-- **Reference other files**: Point Goose to relevant files like /docs/style.md or /scripts/validation.js to reduce repetition and keep instructions lightweight.
+- **Be concise**: Make sure the content is straightforward and to the point, ensuring goose can quickly parse and act on the information.
+- **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how goose interprets and applies your instructions.
+- **Reference other files**: Point goose to relevant files like /docs/style.md or /scripts/validation.js to reduce repetition and keep instructions lightweight.
 
 ## Custom Context Files
 
-Goose looks for `AGENTS.md` then `.goosehints` files by default, but you can configure a different filename or multiple context files using the `CONTEXT_FILE_NAMES` environment variable. This is useful for:
+goose looks for `AGENTS.md` then `.goosehints` files by default, but you can configure a different filename or multiple context files using the `CONTEXT_FILE_NAMES` environment variable. This is useful for:
 
 - **Tool compatibility**: Use conventions from other AI tools (e.g. `CLAUDE.md`)
 - **Organization**: Separate frequently-used rules into multiple files that load automatically
 - **Project conventions**: Use context files from your project's established toolchain (`.cursorrules`)
 
 Here's how it works:
-1. Goose looks for each configured filename in both global (~/.config/goose/) and local (current directory) locations
+1. goose looks for each configured filename in both global (~/.config/goose/) and local (current directory) locations
 2. All found files are loaded and combined into the context
 
 ### Configuration

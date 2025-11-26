@@ -164,7 +164,7 @@ impl Agent {
             process_start_time: None,
         };
 
-        match scheduler.add_scheduled_job(job).await {
+        match scheduler.add_scheduled_job(job, true).await {
             Ok(()) => Ok(vec![Content::text(format!(
                 "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}' in {} mode",
                 job_id, recipe_path, cron_expression, execution_mode
@@ -284,7 +284,7 @@ impl Agent {
                 )
             })?;
 
-        match scheduler.remove_scheduled_job(job_id).await {
+        match scheduler.remove_scheduled_job(job_id, true).await {
             Ok(()) => Ok(vec![Content::text(format!(
                 "Successfully deleted job '{}'",
                 job_id

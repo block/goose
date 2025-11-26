@@ -1,232 +1,187 @@
-/**
- * BaseChat Component
- *
- * BaseChat is the foundational chat component that provides the core conversational interface
- * for the Goose Desktop application. It serves as the shared base for both Hub and Pair components,
- * offering a flexible and extensible chat experience.
- *
- * Key Responsibilities:
- * - Manages the complete chat lifecycle (messages, input, submission, responses)
- * - Handles file drag-and-drop functionality with preview generation
- * - Integrates with multiple specialized hooks for chat engine, recipes, sessions, etc.
- * - Provides context management and session summarization capabilities
- * - Supports both user and assistant message rendering with tool call integration
- * - Manages loading states, error handling, and retry functionality
- * - Offers customization points through render props and configuration options
- *
- * Architecture:
- * - Uses a provider pattern (ChatContextManagerProvider) for state management
- * - Leverages composition through render props for flexible UI customization
- * - Integrates with multiple custom hooks for separation of concerns:
- *   - useChatEngine: Core chat functionality and API integration
- *   - useRecipeManager: Recipe/agent configuration management
- *   - useFileDrop: Drag-and-drop file handling with previews
- *   - useCostTracking: Token usage and cost calculation
- *
- * Customization Points:
- * - renderHeader(): Custom header content (used by Hub for insights/recipe controls)
- * - renderBeforeMessages(): Content before message list (used by Hub for SessionInsights)
- * - renderAfterMessages(): Content after message list
- * - customChatInputProps: Props passed to ChatInput for specialized behavior
- * - customMainLayoutProps: Props passed to MainPanelLayout
- * - contentClassName: Custom CSS classes for the content area
- *
- * File Handling:
- * - Supports drag-and-drop of files with visual feedback
- * - Generates image previews for supported file types
- * - Integrates dropped files with chat input for seamless attachment
- * - Uses data-drop-zone="true" to designate safe drop areas
- *
- * The component is designed to be the single source of truth for chat functionality
- * while remaining flexible enough to support different UI contexts (Hub vs Pair).
- */
-
-import React, { createContext, useContext, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
-import { RecipeHeader } from './RecipeHeader';
 import LoadingGoose from './LoadingGoose';
-import { getThinkingMessage } from '../types/message';
-import RecipeActivities from './recipes/RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import { View, ViewOptions } from '../utils/navigationUtils';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
-import { RecipeWarningModal } from './ui/RecipeWarningModal';
-import ParameterInputModal from './ParameterInputModal';
-import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
-import { useChatEngine } from '../hooks/useChatEngine';
-import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { useCostTracking } from '../hooks/useCostTracking';
+import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
+import { useIsMobile } from '../hooks/use-mobile';
+import { useSidebar } from './ui/sidebar';
+import { cn } from '../utils';
+import { useChatStream } from '../hooks/useChatStream';
+import { useNavigation } from '../hooks/useNavigation';
+import { RecipeHeader } from './RecipeHeader';
+import { RecipeWarningModal } from './ui/RecipeWarningModal';
+import { scanRecipe } from '../recipe';
+import { useCostTracking } from '../hooks/useCostTracking';
+import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
-import { Message } from '../api';
+import { getThinkingMessage, getTextContent } from '../types/message';
+import ParameterInputModal from './ParameterInputModal';
+import { substituteParameters } from '../utils/providerUtils';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import { toastSuccess } from '../toasts';
+import { Recipe } from '../recipe';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
 interface BaseChatProps {
-  chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: ViewOptions) => void;
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
-  onMessageStreamFinish?: () => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
-  renderBeforeMessages?: () => React.ReactNode;
-  renderAfterMessages?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
   contentClassName?: string;
   disableSearch?: boolean;
   showPopularTopics?: boolean;
-  suppressEmptyState?: boolean;
-  autoSubmit?: boolean;
-  loadingChat: boolean;
+  suppressEmptyState: boolean;
+  sessionId: string;
+  initialMessage?: string;
 }
 
 function BaseChatContent({
-  chat,
-  setChat,
-  setView,
-  setIsGoosehintsModalOpen,
-  onMessageStreamFinish,
-  onMessageSubmit,
   renderHeader,
-  renderBeforeMessages,
-  renderAfterMessages,
   customChatInputProps = {},
   customMainLayoutProps = {},
-  contentClassName = '',
-  disableSearch = false,
-  showPopularTopics = false,
-  suppressEmptyState = false,
-  autoSubmit = false,
-  loadingChat = false,
+  sessionId,
+  initialMessage,
 }: BaseChatProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
+  const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
-  // Use shared chat engine
-  const {
-    messages,
-    filteredMessages,
-    append,
-    chatState,
-    error,
-    setMessages,
-    input,
-    handleSubmit: engineHandleSubmit,
-    onStopGoose,
-    sessionTokenCount,
-    sessionInputTokens,
-    sessionOutputTokens,
-    localInputTokens,
-    localOutputTokens,
-    tokenState,
-    commandHistory,
-    toolCallNotifications,
-    sessionMetadata,
-    isUserMessage,
-    clearError,
-    onMessageUpdate,
-  } = useChatEngine({
-    chat,
-    setChat,
-    onMessageStreamFinish: () => {
-      // Call the original callback if provided
-      onMessageStreamFinish?.();
-    },
-    onMessageSent: () => {
-      // Mark that user has started using the recipe
-      if (recipe) {
-        setHasStartedUsingRecipe(true);
-      }
-    },
-  });
+  const isMobile = useIsMobile();
+  const { state: sidebarState } = useSidebar();
+  const setView = useNavigation();
 
-  // Use shared recipe manager
-  const {
-    recipe,
-    recipeId,
-    recipeParameterValues,
-    filteredParameters,
-    initialPrompt,
-    isParameterModalOpen,
-    setIsParameterModalOpen,
-    handleParameterSubmit,
-    handleAutoExecution,
-    isRecipeWarningModalOpen,
-    recipeAccepted,
-    handleRecipeAccept,
-    handleRecipeCancel,
-    hasSecurityWarnings,
-    isCreateRecipeModalOpen,
-    setIsCreateRecipeModalOpen,
-    handleRecipeCreated,
-  } = useRecipeManager(chat, location.state?.recipe);
-
-  // Reset recipe usage tracking when recipe changes
-  useEffect(() => {
-    const previousTitle = currentRecipeTitle;
-    const newTitle = recipe?.title || null;
-    const hasRecipeChanged = newTitle !== currentRecipeTitle;
-
-    if (hasRecipeChanged) {
-      setCurrentRecipeTitle(newTitle);
-
-      const isSwitchingBetweenRecipes = previousTitle && newTitle;
-      const isInitialRecipeLoad = !previousTitle && newTitle && messages.length === 0;
-      const hasExistingConversation = newTitle && messages.length > 0;
-
-      if (isSwitchingBetweenRecipes) {
-        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
-        setHasStartedUsingRecipe(false);
-        setMessages([]);
-      } else if (isInitialRecipeLoad) {
-        setHasStartedUsingRecipe(false);
-      } else if (hasExistingConversation) {
-        setHasStartedUsingRecipe(true);
-      }
-    }
-  }, [recipe?.title, currentRecipeTitle, messages.length, setMessages]);
-
-  // Handle recipe auto-execution
-  useEffect(() => {
-    const isProcessingResponse =
-      chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput;
-    handleAutoExecution(append, isProcessingResponse, () => {
-      setHasStartedUsingRecipe(true);
-    });
-  }, [handleAutoExecution, append, chatState]);
+  const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
-  // Use shared cost tracking
-  const { sessionCosts } = useCostTracking({
-    sessionInputTokens,
-    sessionOutputTokens,
-    localInputTokens,
-    localOutputTokens,
-    session: sessionMetadata,
+  const onStreamFinish = useCallback(() => {}, []);
+
+  const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
+  const hasAutoSubmittedRef = useRef(false);
+
+  // Reset auto-submit flag when session changes
+  useEffect(() => {
+    hasAutoSubmittedRef.current = false;
+  }, [sessionId]);
+
+  const {
+    session,
+    messages,
+    chatState,
+    handleSubmit,
+    stopStreaming,
+    sessionLoadError,
+    setRecipeUserParams,
+    tokenState,
+    notifications: toolCallNotifications,
+    onMessageUpdate,
+  } = useChatStream({
+    sessionId,
+    onStreamFinish,
   });
 
+  // Generate command history from user messages (most recent first)
+  const commandHistory = useMemo(() => {
+    return messages
+      .reduce<string[]>((history, message) => {
+        if (message.role === 'user') {
+          const text = getTextContent(message).trim();
+          if (text) {
+            history.push(text);
+          }
+        }
+        return history;
+      }, [])
+      .reverse();
+  }, [messages]);
+
   useEffect(() => {
-    window.electron.logInfo(
-      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!session || hasAutoSubmittedRef.current) {
+      return;
+    }
+
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+
+    if (initialMessage) {
+      // Submit the initial message (e.g., from fork)
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+    } else if (shouldStartAgent) {
+      // Trigger agent to continue with existing conversation
+      hasAutoSubmittedRef.current = true;
+      handleSubmit('');
+    }
+  }, [session, initialMessage, searchParams, handleSubmit]);
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    const customEvent = e as unknown as CustomEvent;
+    const textValue = customEvent.detail?.value || '';
+
+    if (recipe && textValue.trim()) {
+      setHasStartedUsingRecipe(true);
+    }
+    handleSubmit(textValue);
+  };
+
+  const { sessionCosts } = useCostTracking({
+    sessionInputTokens: session?.accumulated_input_tokens || 0,
+    sessionOutputTokens: session?.accumulated_output_tokens || 0,
+    localInputTokens: 0,
+    localOutputTokens: 0,
+    session,
+  });
+
+  const recipe = session?.recipe;
+
+  useEffect(() => {
+    if (!recipe) return;
+
+    (async () => {
+      const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
+      setHasNotAcceptedRecipe(!accepted);
+
+      if (!accepted) {
+        const scanResult = await scanRecipe(recipe);
+        setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
+      }
+    })();
+  }, [recipe]);
+
+  const handleRecipeAccept = async (accept: boolean) => {
+    if (recipe && accept) {
+      await window.electron.recordRecipeHash(recipe);
+      setHasNotAcceptedRecipe(false);
+    } else {
+      setView('chat');
+    }
+  };
 
   // Track if this is the initial render for session resuming
   const initialRenderRef = useRef(true);
@@ -246,34 +201,7 @@ function BaseChatContent({
     }
   }, [messages.length]);
 
-  // Handle submit
-  const handleSubmit = (e: React.FormEvent) => {
-    const customEvent = e as unknown as CustomEvent;
-    const combinedTextFromInput = customEvent.detail?.value || '';
-
-    // Mark that user has started using the recipe when they submit a message
-    if (recipe && combinedTextFromInput.trim()) {
-      setHasStartedUsingRecipe(true);
-    }
-
-    // Call the callback if provided (for Hub to handle navigation)
-    if (onMessageSubmit && combinedTextFromInput.trim()) {
-      onMessageSubmit(combinedTextFromInput);
-    }
-
-    engineHandleSubmit(combinedTextFromInput);
-  };
-
-  const toolCount = useToolCount(chat.sessionId);
-
-  // Wrapper for append that tracks recipe usage
-  const appendWithTracking = (text: string | Message) => {
-    // Mark that user has started using the recipe when they use append
-    if (recipe) {
-      setHasStartedUsingRecipe(true);
-    }
-    append(text);
-  };
+  const toolCount = useToolCount(sessionId);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -289,6 +217,121 @@ function BaseChatContent({
     window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
     return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
   }, []);
+
+  useEffect(() => {
+    const handleMakeAgent = () => {
+      setIsCreateRecipeModalOpen(true);
+    };
+
+    window.addEventListener('make-agent-from-chat', handleMakeAgent);
+    return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionForked = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        newSessionId: string;
+        shouldStartAgent?: boolean;
+        editedMessage?: string;
+      }>;
+      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+
+      const params = new URLSearchParams();
+      params.set('resumeSessionId', newSessionId);
+      if (shouldStartAgent) {
+        params.set('shouldStartAgent', 'true');
+      }
+
+      navigate(`/pair?${params.toString()}`, {
+        state: {
+          disableAnimation: true,
+          initialMessage: editedMessage,
+        },
+      });
+    };
+
+    window.addEventListener('session-forked', handleSessionForked);
+
+    return () => {
+      window.removeEventListener('session-forked', handleSessionForked);
+    };
+  }, [location.pathname, navigate]);
+
+  const handleRecipeCreated = (recipe: Recipe) => {
+    toastSuccess({
+      title: 'Recipe created successfully!',
+      msg: `"${recipe.title}" has been saved and is ready to use.`,
+    });
+  };
+
+  const renderProgressiveMessageList = (chat: ChatType) => (
+    <>
+      <ProgressiveMessageList
+        messages={messages}
+        chat={chat}
+        toolCallNotifications={toolCallNotifications}
+        isUserMessage={(m: Message) => m.role === 'user'}
+        isStreamingMessage={chatState !== ChatState.Idle}
+        onRenderingComplete={handleRenderingComplete}
+        onMessageUpdate={onMessageUpdate}
+      />
+    </>
+  );
+
+  const showPopularTopics =
+    messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
+
+  const chat: ChatType = {
+    messageHistoryIndex: 0,
+    messages,
+    recipe,
+    sessionId,
+    name: session?.name || 'No Session',
+  };
+
+  // Only use initialMessage for the prompt if it hasn't been submitted yet
+  // If we have a recipe prompt and user recipe values, substitute parameters
+  let recipePrompt = '';
+  if (messages.length === 0 && recipe?.prompt) {
+    recipePrompt = session?.user_recipe_values
+      ? substituteParameters(recipe.prompt, session.user_recipe_values)
+      : recipe.prompt;
+  }
+
+  const initialPrompt =
+    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
+
+  if (sessionLoadError) {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        <MainPanelLayout
+          backgroundColor={'bg-background-muted'}
+          removeTopPadding={true}
+          {...customMainLayoutProps}
+        >
+          {renderHeader && renderHeader()}
+          <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+            <div className="flex-1 bg-background-default rounded-b-2xl flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center p-8">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
+                  <h3 className="font-semibold mb-2">Failed to Load Session</h3>
+                  <p className="text-sm">{sessionLoadError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setView('chat');
+                  }}
+                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                >
+                  Go home
+                </button>
+              </div>
+            </div>
+          </div>
+        </MainPanelLayout>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -312,121 +355,44 @@ function BaseChatContent({
             paddingX={6}
             paddingY={0}
           >
-            {/* Recipe agent header - sticky at top of chat container */}
             {recipe?.title && (
               <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
                 <RecipeHeader title={recipe.title} />
               </div>
             )}
 
-            {/* Custom content before messages */}
-            {renderBeforeMessages && renderBeforeMessages()}
-
-            {/* Recipe Activities - always show when recipe is active and accepted */}
-            {recipe && recipeAccepted && !suppressEmptyState && (
+            {recipe && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
-                  append={(text: string) => appendWithTracking(text)}
+                  append={(text: string) => handleSubmit(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  parameterValues={recipeParameterValues || {}}
+                  //parameterValues={recipeParameters || {}}
                 />
               </div>
             )}
 
             {/* Messages or Popular Topics */}
-            {
-              loadingChat ? null : filteredMessages.length > 0 ||
-                (recipe && recipeAccepted && hasStartedUsingRecipe) ? (
-                <>
-                  {disableSearch ? (
-                    // Render messages without SearchView wrapper when search is disabled
-                    <ProgressiveMessageList
-                      messages={filteredMessages}
-                      chat={chat}
-                      toolCallNotifications={toolCallNotifications}
-                      append={append}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
-                      }}
-                      isUserMessage={isUserMessage}
-                      isStreamingMessage={chatState !== ChatState.Idle}
-                      onMessageUpdate={onMessageUpdate}
-                      onRenderingComplete={handleRenderingComplete}
-                    />
-                  ) : (
-                    // Render messages with SearchView wrapper when search is enabled
-                    <SearchView placeholder="Search conversation...">
-                      <ProgressiveMessageList
-                        messages={filteredMessages}
-                        chat={chat}
-                        toolCallNotifications={toolCallNotifications}
-                        append={append}
-                        appendMessage={(newMessage) => {
-                          const updatedMessages = [...messages, newMessage];
-                          setMessages(updatedMessages);
-                        }}
-                        isUserMessage={isUserMessage}
-                        isStreamingMessage={chatState !== ChatState.Idle}
-                        onMessageUpdate={onMessageUpdate}
-                        onRenderingComplete={handleRenderingComplete}
-                      />
-                    </SearchView>
-                  )}
+            {messages.length > 0 || recipe ? (
+              <>
+                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
 
-                  {error && (
-                    <>
-                      <div className="flex flex-col items-center justify-center p-4">
-                        <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                          {error.message || 'Honk! Goose experienced an error while responding'}
-                        </div>
-
-                        {/* Action button to retry last message */}
-                        <div className="flex gap-2 mt-2">
-                          <div
-                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                            onClick={async () => {
-                              clearError();
-                              // Find the last user message
-                              const lastUserMessage = messages.reduceRight(
-                                (found, m) => found || (m.role === 'user' ? m : null),
-                                null as Message | null
-                              );
-                              if (lastUserMessage) {
-                                await append(lastUserMessage);
-                              }
-                            }}
-                          >
-                            Retry Last Message
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="block h-8" />
-                </>
-              ) : !recipe && showPopularTopics ? (
-                /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
-                <PopularChatTopics append={(text: string) => append(text)} />
-              ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
-            }
-
-            {/* Custom content after messages */}
-            {renderAfterMessages && renderAfterMessages()}
+                <div className="block h-8" />
+              </>
+            ) : !recipe && showPopularTopics ? (
+              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
+            ) : null}
           </ScrollArea>
 
-          {/* Fixed loading indicator at bottom left of chat container */}
-          {(chatState !== ChatState.Idle || loadingChat) && (
+          {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={
-                  loadingChat
-                    ? 'loading conversation...'
-                    : getThinkingMessage(messages[messages.length - 1])
-                }
                 chatState={chatState}
+                message={
+                  messages.length > 0
+                    ? getThinkingMessage(messages[messages.length - 1])
+                    : undefined
+                }
               />
             </div>
           )}
@@ -436,61 +402,56 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
-            sessionId={chat.sessionId}
-            handleSubmit={handleSubmit}
+            sessionId={sessionId}
+            handleSubmit={handleFormSubmit}
             chatState={chatState}
-            onStop={onStopGoose}
+            onStop={stopStreaming}
             commandHistory={commandHistory}
-            initialValue={input || ''}
+            initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.totalTokens || sessionTokenCount}
+            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
             accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens || sessionInputTokens || localInputTokens
+              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
             }
             accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens || sessionOutputTokens || localOutputTokens
+              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
             }
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
             disableAnimation={disableAnimation}
             sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipe={recipe}
-            recipeId={recipeId}
-            recipeAccepted={recipeAccepted}
+            recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
-            autoSubmit={autoSubmit}
-            append={append}
             {...customChatInputProps}
           />
         </div>
       </MainPanelLayout>
 
-      {/* Recipe Warning Modal */}
-      <RecipeWarningModal
-        isOpen={isRecipeWarningModalOpen}
-        onConfirm={handleRecipeAccept}
-        onCancel={handleRecipeCancel}
-        recipeDetails={{
-          title: recipe?.title,
-          description: recipe?.description,
-          instructions: recipe?.instructions || undefined,
-        }}
-        hasSecurityWarnings={hasSecurityWarnings}
-      />
-
-      {/* Recipe Parameter Modal */}
-      {isParameterModalOpen && filteredParameters.length > 0 && (
-        <ParameterInputModal
-          parameters={filteredParameters}
-          onSubmit={handleParameterSubmit}
-          onClose={() => setIsParameterModalOpen(false)}
+      {recipe && (
+        <RecipeWarningModal
+          isOpen={!!hasNotAcceptedRecipe}
+          onConfirm={() => handleRecipeAccept(true)}
+          onCancel={() => handleRecipeAccept(false)}
+          recipeDetails={{
+            title: recipe.title,
+            description: recipe.description,
+            instructions: recipe.instructions || undefined,
+          }}
+          hasSecurityWarnings={hasRecipeSecurityWarnings}
         />
       )}
 
-      {/* Create Recipe from Session Modal */}
+      {recipe?.parameters && recipe.parameters.length > 0 && !session?.user_recipe_values && (
+        <ParameterInputModal
+          parameters={recipe.parameters}
+          onSubmit={setRecipeUserParams}
+          onClose={() => setView('chat')}
+        />
+      )}
+
       <CreateRecipeFromSessionModal
         isOpen={isCreateRecipeModalOpen}
         onClose={() => setIsCreateRecipeModalOpen(false)}

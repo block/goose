@@ -122,6 +122,7 @@ If a Core Maintainer leaves for any reason:
 
 * The remaining Core Maintainers should appoint a replacement within 30 days.
 * If Core Maintainer count falls below three, appointment of new Core Maintainers becomes a priority and appointment must happen within 15 days. No major decisions will be made until a new Core Maintainer is appointed.
+* If there is no qualified developer available who is willing to serve as a Core Maintainer, the remaining Core Maintainer(s) shall instead create and adopt a plan for recruiting and mentoring a new Core Maintainer.
 * Until a replacement is appointed, remaining Core Maintainers continue governance responsibilities
 
 ## Communication
