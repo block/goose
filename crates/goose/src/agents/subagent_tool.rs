@@ -312,16 +312,31 @@ fn build_subrecipe(
     )
     .map_err(|e| anyhow!("Failed to build subrecipe: {}", e))?;
 
+    // Merge prompt into instructions so the subagent gets the actual task.
+    // The subagent handler uses `instructions` as the user message.
+    let mut combined = String::new();
+
+    if let Some(instructions) = &recipe.instructions {
+        combined.push_str(instructions);
+    }
+
+    if let Some(prompt) = &recipe.prompt {
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str(prompt);
+    }
+
     if let Some(extra_instructions) = &params.instructions {
-        let current = recipe
-            .instructions
-            .clone()
-            .or(recipe.prompt.clone())
-            .unwrap_or_default();
-        recipe.instructions = Some(format!(
-            "{}\n\nAdditional context from parent agent:\n{}",
-            current, extra_instructions
-        ));
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str("Additional context from parent agent:\n");
+        combined.push_str(extra_instructions);
+    }
+
+    if !combined.is_empty() {
+        recipe.instructions = Some(combined);
     }
 
     Ok(recipe)
@@ -451,11 +466,7 @@ mod tests {
     fn test_create_tool_without_subrecipes() {
         let tool = create_subagent_tool(&[]);
         assert_eq!(tool.name, "subagent");
-        assert!(tool
-            .description
-            .as_ref()
-            .unwrap()
-            .contains("Ad-hoc"));
+        assert!(tool.description.as_ref().unwrap().contains("Ad-hoc"));
         assert!(!tool
             .description
             .as_ref()
@@ -479,11 +490,7 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("Available subrecipes"));
-        assert!(tool
-            .description
-            .as_ref()
-            .unwrap()
-            .contains("test_recipe"));
+        assert!(tool.description.as_ref().unwrap().contains("test_recipe"));
     }
 
     #[test]
