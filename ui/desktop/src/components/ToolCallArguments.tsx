@@ -61,6 +61,51 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
   );
 }
 
+// Timeline component for task IDs (execute_task)
+function TaskIdsTimeline({ taskIds, executionMode }: { taskIds: string[]; executionMode?: string }) {
+  const isParallel = executionMode === 'parallel';
+  
+  return (
+    <div className="space-y-3">
+      {/* Execution mode indicator as a simple pill badge */}
+      {executionMode && (
+        <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-background-muted border border-borderSubtle mb-3">
+          <span className="text-textSubtle font-sans text-xs font-medium">{executionMode}</span>
+        </div>
+      )}
+      
+      {taskIds.map((taskId, index) => {
+        return (
+          <div key={index} className="flex gap-3">
+            {/* Timeline indicator */}
+            <div className="flex flex-col items-center">
+              <div className="w-6 h-6 rounded-full border-2 border-borderSubtle bg-background-default flex items-center justify-center flex-shrink-0 relative">
+                <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
+                {/* Parallel execution indicator - small numbered box overlaid on circle */}
+                {isParallel && (
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-muted flex items-center justify-center">
+                    <span className="text-[8px] font-sans text-textSubtle">1</span>
+                  </div>
+                )}
+              </div>
+              {index < taskIds.length - 1 && (
+                <div className="w-0.5 h-full bg-borderSubtle flex-grow mt-1" />
+              )}
+            </div>
+            
+            {/* Task ID content */}
+            <div className="flex-1 pb-3">
+              <div className="font-sans text-xs text-textPlaceholder font-mono">
+                {taskId}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Timeline component for task parameters
 function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; executionMode?: string }) {
   const isParallel = executionMode === 'parallel';
@@ -141,6 +186,16 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       return (
         <div className="mb-2">
           <TaskParametersTimeline tasks={value as any[]} executionMode={executionMode} />
+        </div>
+      );
+    }
+
+    // Special handling for task_ids - render as timeline with execution mode
+    if (key === 'task_ids' && Array.isArray(value)) {
+      const taskIds = value.map(id => typeof id === 'string' ? id : String(id));
+      return (
+        <div className="mb-2">
+          <TaskIdsTimeline taskIds={taskIds} executionMode={executionMode} />
         </div>
       );
     }
