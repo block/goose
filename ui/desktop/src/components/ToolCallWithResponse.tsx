@@ -467,6 +467,24 @@ function ToolCallView({
 
   const toolCallStatus = getToolCallStatus(loadingStatus);
 
+  // Check if we have output that can be opened in sidecar
+  const hasTextOutput = toolResults.some(result => result.result.type === 'text' && result.result.text);
+  const canOpenInSidecar = tabId && hasTextOutput;
+
+  const { showDocumentEditor } = useTabContext();
+  
+  const handleOpenOutputInSidecar = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the expand/collapse
+    if (!canOpenInSidecar) return;
+    
+    // Get the first text result
+    const textResult = toolResults.find(r => r.result.type === 'text' && r.result.text);
+    if (textResult && textResult.result.type === 'text' && textResult.result.text) {
+      const instanceId = `tool-output-${Date.now()}`;
+      showDocumentEditor(tabId!, undefined, textResult.result.text, instanceId);
+    }
+  };
+
   const toolLabel = (
     <span
       className={cn(
@@ -476,6 +494,15 @@ function ToolCallView({
     >
       <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
       <span>{getToolLabelContent()}</span>
+      {canOpenInSidecar && (
+        <button
+          onClick={handleOpenOutputInSidecar}
+          className="p-1 hover:bg-background-muted rounded transition-colors"
+          title="Open output in sidecar"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </button>
+      )}
     </span>
   );
   return (
@@ -518,24 +545,6 @@ function ToolCallView({
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
-
-      {/* Tool Output */}
-      {!isCancelledMessage && (
-        <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            return (
-              <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView 
-                  result={result} 
-                  isStartExpanded={isExpandToolResults}
-                  tabId={tabId}
-                  resultIndex={index}
-                />
-              </div>
-            );
-          })}
-        </>
-      )}
     </ToolCallExpandable>
   );
 }
@@ -553,83 +562,6 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
     <div className="pr-4 pl-4 py-2">
       {toolCall.arguments && (
         <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
-      )}
-    </div>
-  );
-}
-
-interface ToolResultViewProps {
-  result: Content;
-  isStartExpanded: boolean;
-  tabId?: string;
-  resultIndex: number;
-}
-
-function ToolResultView({ result, isStartExpanded, tabId, resultIndex }: ToolResultViewProps) {
-  const { showDocumentEditor } = useTabContext();
-  const [isExpanded, setIsExpanded] = React.useState(isStartExpanded);
-  
-  const handleOpenInSidecar = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the expand/collapse
-    if (!tabId || result.type !== 'text' || !result.text) return;
-    
-    // Open the output in a document editor sidecar
-    const instanceId = `tool-output-${Date.now()}-${resultIndex}`;
-    showDocumentEditor(tabId, undefined, result.text, instanceId);
-  };
-
-  // Check if we can open this result in a sidecar
-  const canOpenInSidecar = tabId && result.type === 'text' && result.text;
-
-  return (
-    <div className="border-t border-borderSubtle">
-      <Button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
-        variant="ghost"
-      >
-        <span className="pl-4 py-1 font-sans text-sm flex items-center gap-2">
-          Output
-          {canOpenInSidecar && (
-            <button
-              onClick={handleOpenInSidecar}
-              className="p-1 hover:bg-background-muted rounded transition-colors"
-              title="Open in sidecar"
-            >
-              <ExternalLink className="w-3 h-3" />
-            </button>
-          )}
-        </span>
-        <ChevronRight
-          className={cn(
-            'group-hover:opacity-100 transition-transform opacity-70',
-            isExpanded && 'rotate-90'
-          )}
-        />
-      </Button>
-      {isExpanded && (
-        <div className="pl-4 pr-4 py-4">
-          {result.type === 'text' && result.text && (
-            <MarkdownContent
-              content={result.text}
-              className="whitespace-pre-wrap max-w-full overflow-x-auto"
-            />
-          )}
-          {result.type === 'image' && (
-            <img
-              src={`data:${result.mimeType};base64,${result.data}`}
-              alt="Tool result"
-              className="max-w-full h-auto rounded-md my-2"
-              onError={(e) => {
-                console.error('Failed to load image');
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          )}
-          {result.type === 'resource' && (
-            <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
-          )}
-        </div>
       )}
     </div>
   );
