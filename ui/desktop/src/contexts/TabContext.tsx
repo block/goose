@@ -920,7 +920,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         messages: [],
         messageHistoryIndex: 0,
         recipeConfig: null,
-        aiEnabled: true,
+        aiEnabled: false, // Disable AI for Matrix chats by default
       },
       loadingChat: false // No need for loading state since we have the real session ID
     };
