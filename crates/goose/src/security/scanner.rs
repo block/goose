@@ -2,9 +2,11 @@ use crate::conversation::message::Message;
 use crate::security::patterns::{PatternMatch, PatternMatcher};
 use crate::security::prompt_ml_detector::MlDetector;
 use anyhow::Result;
+use futures::stream::{self, StreamExt};
 use rmcp::model::CallToolRequestParam;
 
 const USER_SCAN_LIMIT: usize = 10;
+const ML_SCAN_CONCURRENCY: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct ScanResult {
@@ -107,17 +109,19 @@ impl PromptInjectionScanner {
         }
 
         tracing::debug!(
-            "Scanning {} user messages ({} chars)",
+            "Scanning {} user messages ({} chars) with concurrency limit of {}",
             user_messages.len(),
-            user_messages.iter().map(|m| m.len()).sum::<usize>()
+            user_messages.iter().map(|m| m.len()).sum::<usize>(),
+            ML_SCAN_CONCURRENCY
         );
 
-        let scan_futures: Vec<_> = user_messages
-            .iter()
-            .map(|msg| self.scan_with_ml(msg))
-            .collect();
-        let results = futures::future::join_all(scan_futures).await;
-        let max_confidence = results.into_iter().flatten().fold(0.0, f32::max);
+        let max_confidence = stream::iter(user_messages)
+            .map(|msg| async move { self.scan_with_ml(&msg).await })
+            .buffer_unordered(ML_SCAN_CONCURRENCY)
+            .fold(0.0_f32, |acc, result| async move {
+                result.unwrap_or(0.0).max(acc)
+            })
+            .await;
 
         Ok(DetailedScanResult {
             confidence: max_confidence,
