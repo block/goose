@@ -163,7 +163,10 @@ function TaskParametersTimeline({
                 <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
                 {/* Parallel execution indicator - small numbered box overlaid on circle */}
                 {isParallel && (
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-muted flex items-center justify-center">
+                  <div 
+                    className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-muted flex items-center justify-center group"
+                    title={taskId || `task-${index}`}
+                  >
                     <span className="text-[8px] font-sans text-textSubtle">1</span>
                   </div>
                 )}
@@ -209,9 +212,9 @@ function TaskParametersTimeline({
                   {task.description}
                 </div>
               )}
-              {/* Task ID indicator - shown when status is not pending */}
-              {taskId && status !== 'pending' && (
-                <div className="mt-1 flex items-center gap-2">
+              {/* Status label */}
+              {status !== 'pending' && (
+                <div className="mt-1">
                   <span className={`font-sans text-[10px] font-medium ${
                     status === 'running' ? 'text-blue-500' :
                     status === 'completed' ? 'text-green-500' :
@@ -220,9 +223,6 @@ function TaskParametersTimeline({
                     {status === 'running' ? 'Running...' : 
                      status === 'completed' ? 'Completed' : 
                      'Error'}
-                  </span>
-                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background-muted border border-borderSubtle text-textSubtle">
-                    {taskId}
                   </span>
                 </div>
               )}
