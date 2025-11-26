@@ -197,6 +197,11 @@ impl Component for MessagePopup {
                         Err(e) => Ok(Some(Action::ShowFlash(e))),
                     };
                 }
+                KeyCode::Char('f') => {
+                    if let Some(idx) = self.cached_message_idx {
+                        return Ok(Some(Action::ForkFromMessage(idx)));
+                    }
+                }
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
                     self.last_scroll_time = Some(Instant::now());
@@ -246,7 +251,7 @@ impl Component for MessagePopup {
         let lines = self.render_content(message);
 
         let block = Block::default()
-            .title("Message Details (Esc to close, c to copy)")
+            .title("Message Details (Esc close, c copy, f fork)")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .style(Style::default().bg(state.config.theme.base.background));

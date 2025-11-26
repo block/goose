@@ -96,10 +96,7 @@ impl Component for ThemePopup {
                     Style::default().fg(theme.base.foreground)
                 };
                 let suffix = if is_current { " ✓" } else { "" };
-                ListItem::new(Line::from(Span::styled(
-                    format!("{name}{suffix}"),
-                    style,
-                )))
+                ListItem::new(Line::from(Span::styled(format!("{name}{suffix}"), style)))
             })
             .collect();
 

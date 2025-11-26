@@ -57,4 +57,5 @@ pub enum Action {
     SubmitCommandBuilder(CustomCommand),
 
     ToggleCopyMode,
+    ForkFromMessage(usize),
 }

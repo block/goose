@@ -72,7 +72,11 @@ impl Component for HelpPopup {
                 Style::default().add_modifier(Modifier::UNDERLINED),
             )),
             Line::from("  Press Enter on a message to view details,"),
-            Line::from("  then 'c' to copy the full content."),
+            Line::from("  then 'c' to copy, or 'f' to fork session."),
+            Line::from(""),
+            Line::from("  Forking creates a new session with messages"),
+            Line::from("  up to the selected point, letting you explore"),
+            Line::from("  a different path. Original session is unchanged."),
         ];
 
         let block = Block::default()

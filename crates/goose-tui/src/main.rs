@@ -486,6 +486,83 @@ fn handle_action(
                 });
             }
         }
+        Action::ForkFromMessage(msg_idx) => {
+            let client = client.clone();
+            let tx = tx.clone();
+            let session_id = state.session_id.clone();
+            let msg_idx = *msg_idx;
+
+            tokio::spawn(async move {
+                let exported = match client.export_session(&session_id).await {
+                    Ok(json) => json,
+                    Err(e) => {
+                        let _ = tx.send(Event::Error(format!("Export failed: {e}")));
+                        return;
+                    }
+                };
+
+                let mut session: serde_json::Value = match serde_json::from_str(&exported) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = tx.send(Event::Error(format!("Parse failed: {e}")));
+                        return;
+                    }
+                };
+
+                let original_count = session
+                    .get("conversation")
+                    .and_then(|c| c.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
+
+                if let Some(conv) = session.get_mut("conversation") {
+                    if let Some(messages) = conv.as_array_mut() {
+                        messages.truncate(msg_idx + 1);
+                    }
+                }
+
+                let new_count = session
+                    .get("conversation")
+                    .and_then(|c| c.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
+
+                tracing::info!(
+                    "Fork: truncating from {} to {} messages (up to index {})",
+                    original_count,
+                    new_count,
+                    msg_idx
+                );
+
+                if let Some(name) = session.get("name").and_then(|n| n.as_str()) {
+                    session["name"] = serde_json::json!(format!("Fork: {}", name));
+                }
+
+                let modified_json = serde_json::to_string(&session).unwrap_or_default();
+                let forked = match client.import_session(&modified_json).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let _ = tx.send(Event::Error(format!("Import failed: {e}")));
+                        return;
+                    }
+                };
+
+                tracing::info!(
+                    "Fork: imported session {} with {} messages",
+                    forked.id,
+                    forked.conversation.as_ref().map(|c| c.messages().len()).unwrap_or(0)
+                );
+
+                match client.resume_agent(&forked.id).await {
+                    Ok(s) => {
+                        let _ = tx.send(Event::SessionResumed(Box::new(s)));
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Event::Error(format!("Resume failed: {e}")));
+                    }
+                }
+            });
+        }
         Action::Quit => {
             return true;
         }

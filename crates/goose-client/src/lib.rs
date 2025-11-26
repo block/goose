@@ -403,6 +403,47 @@ impl Client {
             .context("Failed to parse tools list")
     }
 
+    pub async fn export_session(&self, session_id: &str) -> Result<String> {
+        let response = self
+            .http_client
+            .get(format!("{}/sessions/{}/export", self.base_url, session_id))
+            .header("X-Secret-Key", &self.secret_key)
+            .send()
+            .await
+            .context("Failed to export session")?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to export session: {}", error_text);
+        }
+
+        response
+            .json::<String>()
+            .await
+            .context("Failed to parse export")
+    }
+
+    pub async fn import_session(&self, json: &str) -> Result<Session> {
+        let response = self
+            .http_client
+            .post(format!("{}/sessions/import", self.base_url))
+            .header("X-Secret-Key", &self.secret_key)
+            .json(&serde_json::json!({ "json": json }))
+            .send()
+            .await
+            .context("Failed to import session")?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to import session: {}", error_text);
+        }
+
+        response
+            .json::<Session>()
+            .await
+            .context("Failed to parse imported session")
+    }
+
     pub async fn reply(
         &self,
         messages: Vec<Message>,
