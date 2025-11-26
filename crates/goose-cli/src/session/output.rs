@@ -438,12 +438,10 @@ fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
-        // Show subrecipe if present
         if let Some(Value::String(subrecipe)) = args.get("subrecipe") {
             println!("{}: {}", style("subrecipe").dim(), style(subrecipe).cyan());
         }
 
-        // Show instructions if present
         if let Some(Value::String(instructions)) = args.get("instructions") {
             let display = if instructions.len() > 100 && !debug {
                 safe_truncate(instructions, 100)
@@ -457,13 +455,11 @@ fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
             );
         }
 
-        // Show parameters if present
         if let Some(Value::Object(params)) = args.get("parameters") {
             println!("{}:", style("parameters").dim());
             print_params(&Some(params.clone()), 1, debug);
         }
 
-        // Show other args (extensions, settings, summary)
         let skip_keys = ["subrecipe", "instructions", "parameters"];
         let mut other_args = serde_json::Map::new();
         for (k, v) in args {
