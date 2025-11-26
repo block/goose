@@ -874,6 +874,10 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       // Open a new tab/chat session with Matrix room parameters using TabContext
       console.log('🧭 Opening new Matrix tab:', roomId);
       openMatrixChat(roomId, friend.userId);
+      
+      // Navigate to the Hub view where the tabs are displayed
+      console.log('🧭 Navigating to Hub view');
+      navigate('/hub');
     } catch (error) {
       console.error('Failed to create/get DM room:', error);
     }
