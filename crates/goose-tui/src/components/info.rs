@@ -60,7 +60,7 @@ impl Component for InfoComponent {
     fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
         if let Event::Tick = event {
             self.frame_count = self.frame_count.wrapping_add(1);
-            if self.frame_count % 300 == 0 {
+            if self.frame_count % 90 == 0 {
                 self.pun_index = self.pun_index.wrapping_add(1);
             }
         }
@@ -73,7 +73,7 @@ impl Component for InfoComponent {
 
         if state.is_working {
             let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-            let spinner = spinner_frames[(self.frame_count / 4) % spinner_frames.len()];
+            let spinner = spinner_frames[self.frame_count % spinner_frames.len()];
 
             spans.push(Span::styled(
                 format!("{spinner} "),

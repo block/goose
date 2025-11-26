@@ -47,7 +47,7 @@ impl EventHandler {
 
         tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
-            let mut tick = tokio::time::interval(Duration::from_millis(30));
+            let mut tick = tokio::time::interval(Duration::from_millis(100));
 
             loop {
                 let tick_delay = tick.tick();

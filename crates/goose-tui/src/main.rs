@@ -275,6 +275,13 @@ async fn run_interactive_mode(
     result
 }
 
+fn needs_redraw(event: &Event, state: &AppState) -> bool {
+    match event {
+        Event::Tick => state.is_working,
+        _ => true,
+    }
+}
+
 async fn run_event_loop(
     mut terminal: tui::Tui,
     mut app: App<'_>,
@@ -294,26 +301,39 @@ async fn run_event_loop(
     });
 
     let mut reply_task: Option<tokio::task::JoinHandle<()>> = None;
+    let mut should_redraw = true;
 
     loop {
         if state.needs_refresh {
             terminal.clear()?;
             state.needs_refresh = false;
+            should_redraw = true;
         }
 
-        terminal.draw(|f| {
-            app.render(f, f.area(), &state);
-        })?;
+        if should_redraw {
+            terminal.draw(|f| {
+                app.render(f, f.area(), &state);
+            })?;
+            should_redraw = false;
+        }
 
         let Some(event) = event_handler.next().await else {
             break;
         };
+
+        if needs_redraw(&event, &state) {
+            should_redraw = true;
+        }
+
         if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
             break;
         }
 
         let mut quit = false;
         while let Some(event) = event_handler.try_next() {
+            if needs_redraw(&event, &state) {
+                should_redraw = true;
+            }
             if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
                 quit = true;
                 break;
