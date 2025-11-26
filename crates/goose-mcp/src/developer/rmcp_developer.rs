@@ -325,6 +325,8 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
+
+            If fetching web content, consider adding Accept: text/markdown header
         "#};
 
         let windows_specific = indoc! {r#"

@@ -1017,80 +1017,109 @@ impl Agent {
                 .record_tool_requests(&requests_to_record)
                 .await;
 
-            yield AgentEvent::Message(filtered_response.clone());
-            tokio::task::yield_now().await;
+                            if let Some(response) = response {
+                                let ToolCategorizeResult {
+                                    frontend_requests,
+                                    remaining_requests,
+                                    filtered_response,
+                                } = self.categorize_tools(&response, &tools).await;
+                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
+                                self.tool_route_manager
+                                    .record_tool_requests(&requests_to_record)
+                                    .await;
 
-            let num_tool_requests = frontend_requests.len() + remaining_requests.len();
-            if num_tool_requests == 0 {
-                messages_to_add.push(response.clone());
-                continue;
-            }
+                                yield AgentEvent::Message(filtered_response.clone());
+                                tokio::task::yield_now().await;
 
-            let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
-                .map(|_| Arc::new(Mutex::new(Message::user().with_id(
-                    format!("msg_{}", Uuid::new_v4())
-                ))))
-                .collect();
+                                let num_tool_requests = frontend_requests.len() + remaining_requests.len();
+                                if num_tool_requests == 0 {
+                                    messages_to_add.push(response.clone());
+                                    continue;
+                                }
 
-            let mut request_to_response_map = HashMap::new();
-            for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
-                request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
-            }
+                                let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
+                                        format!("msg_{}", Uuid::new_v4())
+                                    ))))
+                                    .collect();
 
-            for (idx, request) in frontend_requests.iter().enumerate() {
-                let mut frontend_tool_stream = self.handle_frontend_tool_request(
-                    request,
-                    tool_response_messages[idx].clone(),
-                );
+                                let mut request_to_response_map = HashMap::new();
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
+                                }
 
-                while let Some(msg) = frontend_tool_stream.try_next().await? {
-                    yield AgentEvent::Message(msg);
-                }
-            }
-            if goose_mode == GooseMode::Chat {
-                // Skip all remaining tool calls in chat mode
-                for request in remaining_requests.iter() {
-                    if let Some(response_msg) = request_to_response_map.get(&request.id) {
-                        let mut response = response_msg.lock().await;
-                        *response = response.clone().with_tool_response(
-                            request.id.clone(),
-                            Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                        );
-                    }
-                }
-            } else {
-                // Run all tool inspectors
-                let inspection_results = self.tool_inspection_manager
-                    .inspect_tools(
-                        &remaining_requests,
-                        conversation.messages(),
-                    )
-                    .await?;
+                                for (idx, request) in frontend_requests.iter().enumerate() {
+                                    let mut frontend_tool_stream = self.handle_frontend_tool_request(
+                                        request,
+                                        tool_response_messages[idx].clone(),
+                                    );
 
-                let permission_check_result = self.tool_inspection_manager
-                    .process_inspection_results_with_permission_inspector(
-                        &remaining_requests,
-                        &inspection_results,
-                    )
-                    .unwrap_or_else(|| {
-                        let mut result = PermissionCheckResult {
-                            approved: vec![],
-                            needs_approval: vec![],
-                            denied: vec![],
-                        };
-                        result.needs_approval.extend(remaining_requests.iter().cloned());
-                        result
-                    });
+                                    while let Some(msg) = frontend_tool_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
+                                    }
+                                }
+                                if goose_mode == GooseMode::Chat {
+                                    // Skip all remaining tool calls in chat mode
+                                    for request in remaining_requests.iter() {
+                                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                            let mut response = response_msg.lock().await;
+                                            *response = response.clone().with_tool_response(
+                                                request.id.clone(),
+                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    // Run all tool inspectors
+                                    let inspection_results = self.tool_inspection_manager
+                                        .inspect_tools(
+                                            &remaining_requests,
+                                            conversation.messages(),
+                                        )
+                                        .await?;
 
-                // Track extension requests
-                let mut enable_extension_request_ids = vec![];
-                for request in &remaining_requests {
-                    if let Ok(tool_call) = &request.tool_call {
-                        if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
-                            enable_extension_request_ids.push(request.id.clone());
-                        }
-                    }
-                }
+                                    let permission_check_result = self.tool_inspection_manager
+                                        .process_inspection_results_with_permission_inspector(
+                                            &remaining_requests,
+                                            &inspection_results,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            let mut result = PermissionCheckResult {
+                                                approved: vec![],
+                                                needs_approval: vec![],
+                                                denied: vec![],
+                                            };
+                                            result.needs_approval.extend(remaining_requests.iter().cloned());
+                                            result
+                                        });
+
+                                    // Track extension requests
+                                    let mut enable_extension_request_ids = vec![];
+                                    for request in &remaining_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
+                                                enable_extension_request_ids.push(request.id.clone());
+                                            }
+                                        }
+                                    }
+
+                                    let mut tool_futures = self.handle_approved_and_denied_tools(
+                                        &permission_check_result,
+                                        &request_to_response_map,
+                                        cancel_token.clone(),
+                                        &session,
+                                    ).await?;
+
+                                    let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+
+                                    let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                        &permission_check_result.needs_approval,
+                                        tool_futures_arc.clone(),
+                                        &request_to_response_map,
+                                        cancel_token.clone(),
+                                        &session,
+                                        &inspection_results,
+                                    );
 
                 let mut tool_futures = self.handle_approved_and_denied_tools(
                     &permission_check_result,
@@ -1114,10 +1143,27 @@ impl Agent {
                     yield AgentEvent::Message(msg);
                 }
 
-                tool_futures = {
-                    let mut futures_lock = tool_futures_arc.lock().await;
-                    futures_lock.drain(..).collect::<Vec<_>>()
-                };
+                                    while let Some((request_id, item)) = combined.next().await {
+                                        if is_token_cancelled(&cancel_token) {
+                                            break;
+                                        }
+                                        match item {
+                                            ToolStreamItem::Result(output) => {
+                                                if enable_extension_request_ids.contains(&request_id)
+                                                    && output.is_err()
+                                                {
+                                                    all_install_successful = false;
+                                                }
+                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let mut response = response_msg.lock().await;
+                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                }
+                                            }
+                                            ToolStreamItem::Message(msg) => {
+                                                yield AgentEvent::McpNotification((request_id, msg));
+                                            }
+                                        }
+                                    }
 
                 let with_id = tool_futures
                     .into_iter()
@@ -1126,23 +1172,20 @@ impl Agent {
                     })
                     .collect::<Vec<_>>();
 
-                let mut combined = stream::select_all(with_id);
-                let mut all_install_successful = true;
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    if request.tool_call.is_ok() {
+                                        let request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                        messages_to_add.push(request_msg);
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
+                                    }
+                                }
 
-                while let Some((request_id, item)) = combined.next().await {
-                    if is_token_cancelled(&cancel_token) {
-                        break;
-                    }
-                    match item {
-                        ToolStreamItem::Result(output) => {
-                            if enable_extension_request_ids.contains(&request_id)
-                                && output.is_err()
-                            {
-                                all_install_successful = false;
-                            }
-                            if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                let mut response = response_msg.lock().await;
-                                *response = response.clone().with_tool_response(request_id, output);
+                                no_tools_called = false;
                             }
                         }
                         ToolStreamItem::Message(msg) => {
