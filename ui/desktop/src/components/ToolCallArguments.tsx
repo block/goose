@@ -87,7 +87,7 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
                 <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
                 {/* Parallel execution indicator - small numbered box overlaid on circle */}
                 {isParallel && (
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-muted flex items-center justify-center">
                     <span className="text-[8px] font-sans text-textSubtle">1</span>
                   </div>
                 )}
