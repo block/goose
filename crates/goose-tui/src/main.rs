@@ -1,5 +1,6 @@
 mod app;
 mod components;
+mod headless;
 mod services;
 mod state;
 mod tui;
@@ -15,6 +16,8 @@ use services::events::{Event, EventHandler};
 use state::action::Action;
 use state::AppState;
 use std::fs;
+use std::io::IsTerminal;
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -24,21 +27,25 @@ use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about = "A terminal user interface for Goose")]
 struct Cli {
+    #[arg(long, help = "Resume an existing session by ID")]
+    session: Option<String>,
+
+    #[arg(long, value_name = "FILE", help = "Run a recipe file")]
+    recipe: Option<PathBuf>,
+
+    #[arg(long, help = "Run in headless mode (plain text output, no TUI)")]
+    headless: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    Tui {
-        #[arg(long)]
-        session: Option<String>,
-    },
-    Mcp {
-        name: String,
-    },
+    #[command(hide = true)]
+    Mcp { name: String },
 }
 
 fn setup_tui_logging() -> Result<WorkerGuard> {
@@ -65,27 +72,40 @@ fn setup_tui_logging() -> Result<WorkerGuard> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command.unwrap_or(Commands::Tui { session: None }) {
-        Commands::Tui { session } => {
-            let secret_key = Uuid::new_v4().to_string();
-            std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
-            std::env::set_var("GOOSE_PORT", "0");
-
-            tokio::runtime::Runtime::new()?.block_on(run_tui(session, secret_key))
-        }
-        Commands::Mcp { name } => tokio::runtime::Runtime::new()?.block_on(async {
+    if let Some(Commands::Mcp { name }) = cli.command {
+        return tokio::runtime::Runtime::new()?.block_on(async {
             goose_server::logging::setup_logging(Some(&format!("mcp-{name}")))?;
             goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
             Ok(())
-        }),
+        });
     }
+
+    let secret_key = Uuid::new_v4().to_string();
+    std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
+    std::env::set_var("GOOSE_PORT", "0");
+
+    tokio::runtime::Runtime::new()?.block_on(run_tui(
+        cli.session,
+        cli.recipe,
+        cli.headless,
+        secret_key,
+    ))
 }
 
-async fn run_tui(session: Option<String>, secret_key: String) -> Result<()> {
+fn load_recipe(path: &PathBuf) -> Result<goose::recipe::Recipe> {
+    let content = fs::read_to_string(path)?;
+    let recipe_dir = path.parent().map(|p| p.to_string_lossy().to_string());
+    goose::recipe::validate_recipe::validate_recipe_template_from_content(&content, recipe_dir)
+}
+
+async fn run_tui(
+    session: Option<String>,
+    recipe: Option<PathBuf>,
+    headless: bool,
+    secret_key: String,
+) -> Result<()> {
     let _guard = setup_tui_logging()?;
     info!("Starting Goose TUI...");
-
-    info!("Initializing embedded server...");
 
     let (server_app, listener) = goose_server::commands::agent::build_app().await?;
     let port = listener.local_addr()?.port();
@@ -106,6 +126,92 @@ async fn run_tui(session: Option<String>, secret_key: String) -> Result<()> {
     let client = Client::new(port, secret_key);
     let cwd = std::env::current_dir()?;
 
+    let result = if let Some(recipe_path) = recipe {
+        run_recipe_mode(client, cwd, recipe_path, headless).await
+    } else {
+        run_interactive_mode(client, cwd, session).await
+    };
+
+    shutdown_token.cancel();
+    let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+
+    result
+}
+
+async fn run_recipe_mode(
+    client: Client,
+    cwd: std::path::PathBuf,
+    recipe_path: PathBuf,
+    headless: bool,
+) -> Result<()> {
+    let recipe = load_recipe(&recipe_path)?;
+    let prompt = recipe
+        .prompt
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("Recipe has no prompt"))?;
+
+    info!("Running recipe: {}", recipe.title);
+
+    let initial_session = client
+        .start_agent_with_recipe(cwd.to_string_lossy().to_string(), recipe)
+        .await?;
+
+    let global_config = goose::config::Config::global();
+    let provider = global_config
+        .get_goose_provider()
+        .unwrap_or_else(|_| "openai".to_string());
+    let model = global_config.get_goose_model().ok();
+
+    if let Err(e) = client
+        .update_provider(&initial_session.id, provider, model)
+        .await
+    {
+        tracing::error!("Failed to update provider: {e}");
+    }
+
+    for ext in goose::config::get_enabled_extensions() {
+        if let Err(e) = client.add_extension(&initial_session.id, ext.clone()).await {
+            tracing::error!("Failed to add extension {}: {}", ext.name(), e);
+        }
+    }
+
+    let use_headless = headless || !std::io::stdout().is_terminal();
+
+    if use_headless {
+        headless::run_headless(client, initial_session.id, prompt).await
+    } else {
+        run_recipe_tui_mode(client, initial_session, prompt).await
+    }
+}
+
+async fn run_recipe_tui_mode(
+    client: Client,
+    initial_session: goose::session::Session,
+    prompt: String,
+) -> Result<()> {
+    let config = TuiConfig::load()?;
+    let mut state = AppState::new(initial_session.id.clone(), config, None, None);
+
+    state.messages = initial_session
+        .conversation
+        .map(|c| c.messages().clone())
+        .unwrap_or_default();
+
+    let terminal = tui::init()?;
+    let app = App::new();
+    let event_handler = EventHandler::new();
+
+    let result = run_recipe_event_loop(terminal, app, event_handler, state, client, prompt).await;
+
+    tui::restore()?;
+    result
+}
+
+async fn run_interactive_mode(
+    client: Client,
+    cwd: std::path::PathBuf,
+    session: Option<String>,
+) -> Result<()> {
     let initial_session = if let Some(id) = session {
         info!("Resuming agent session: {}", id);
         client.resume_agent(&id).await?
@@ -138,8 +244,8 @@ async fn run_tui(session: Option<String>, secret_key: String) -> Result<()> {
     let mut state = AppState::new(
         initial_session.id.clone(),
         config,
-        Some(provider.clone()), // Pass the active provider
-        model.clone(),          // Pass the active model
+        Some(provider.clone()),
+        model.clone(),
     );
 
     if let Some(ref model_name) = model {
@@ -165,9 +271,7 @@ async fn run_tui(session: Option<String>, secret_key: String) -> Result<()> {
 
     let result = run_event_loop(terminal, app, event_handler, state, client).await;
 
-    shutdown_token.cancel();
-    let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
-
+    tui::restore()?;
     result
 }
 
@@ -220,7 +324,105 @@ async fn run_event_loop(
         }
     }
 
-    tui::restore()?;
+    Ok(())
+}
+
+async fn run_recipe_event_loop(
+    mut terminal: tui::Tui,
+    mut app: App<'_>,
+    mut event_handler: EventHandler,
+    mut state: AppState,
+    client: Client,
+    prompt: String,
+) -> Result<()> {
+    let tx = event_handler.sender();
+
+    let user_message = goose::conversation::message::Message::user().with_text(&prompt);
+    state.messages.push(user_message.clone());
+    state.is_working = true;
+
+    let client_clone = client.clone();
+    let tx_clone = tx.clone();
+    let session_id = state.session_id.clone();
+    let messages_snapshot = state.messages.clone();
+
+    tokio::spawn(async move {
+        match client_clone.reply(messages_snapshot, session_id).await {
+            Ok(mut stream) => {
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(msg) => {
+                            let _ = tx_clone.send(Event::Server(std::sync::Arc::new(msg)));
+                        }
+                        Err(e) => {
+                            let _ = tx_clone.send(Event::Error(e.to_string()));
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = tx_clone.send(Event::Error(e.to_string()));
+            }
+        }
+    });
+
+    let mut reply_task: Option<tokio::task::JoinHandle<()>> = None;
+
+    loop {
+        if state.needs_refresh {
+            terminal.clear()?;
+            state.needs_refresh = false;
+        }
+
+        terminal.draw(|f| {
+            app.render(f, f.area(), &state);
+        })?;
+
+        let Some(event) = event_handler.next().await else {
+            break;
+        };
+
+        if let Event::Input(key) = &event {
+            if key.code == crossterm::event::KeyCode::Char('c')
+                && key
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+            {
+                break;
+            }
+        }
+
+        if let Event::Server(msg) = &event {
+            if let goose_server::routes::reply::MessageEvent::Finish { .. } = msg.as_ref() {
+                state::reducer::update(&mut state, Action::ServerMessage(msg.clone()));
+                terminal.draw(|f| {
+                    app.render(f, f.area(), &state);
+                })?;
+                break;
+            }
+        }
+
+        if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
+            break;
+        }
+
+        while let Some(event) = event_handler.try_next() {
+            if let Event::Server(msg) = &event {
+                if let goose_server::routes::reply::MessageEvent::Finish { .. } = msg.as_ref() {
+                    state::reducer::update(&mut state, Action::ServerMessage(msg.clone()));
+                    terminal.draw(|f| {
+                        app.render(f, f.area(), &state);
+                    })?;
+                    return Ok(());
+                }
+            }
+
+            if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
+                break;
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -550,7 +752,11 @@ fn handle_action(
                 tracing::info!(
                     "Fork: imported session {} with {} messages",
                     forked.id,
-                    forked.conversation.as_ref().map(|c| c.messages().len()).unwrap_or(0)
+                    forked
+                        .conversation
+                        .as_ref()
+                        .map(|c| c.messages().len())
+                        .unwrap_or(0)
                 );
 
                 match client.resume_agent(&forked.id).await {

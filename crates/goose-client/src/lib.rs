@@ -285,13 +285,29 @@ impl Client {
     }
 
     pub async fn start_agent(&self, working_dir: String) -> Result<Session> {
+        self.start_agent_inner(working_dir, None).await
+    }
+
+    pub async fn start_agent_with_recipe(
+        &self,
+        working_dir: String,
+        recipe: goose::recipe::Recipe,
+    ) -> Result<Session> {
+        self.start_agent_inner(working_dir, Some(recipe)).await
+    }
+
+    async fn start_agent_inner(
+        &self,
+        working_dir: String,
+        recipe: Option<goose::recipe::Recipe>,
+    ) -> Result<Session> {
         let response = self
             .http_client
             .post(format!("{}/agent/start", self.base_url))
             .header("X-Secret-Key", &self.secret_key)
             .json(&StartAgentRequest {
                 working_dir,
-                recipe: None,
+                recipe,
                 recipe_id: None,
                 recipe_deeplink: None,
             })
