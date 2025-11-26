@@ -40,6 +40,7 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  tabId?: string; // Tab ID for opening sidecars
   // Comment-related props
   comments?: Map<string, MessageComment[]>;
   activeSelection?: TextSelection | null;
@@ -70,6 +71,7 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  tabId,
   // Comment props
   comments = new Map(),
   activeSelection,
@@ -252,6 +254,7 @@ export default function ProgressiveMessageList({
                       index === messagesToRender.length - 1 &&
                       message.role === 'assistant'
                     }
+                    tabId={tabId}
                     // Comment props - use same unique ID logic as GooseMessage
                     comments={(() => {
                       // Generate the same unique ID that GooseMessage uses
@@ -295,6 +298,7 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     hasCompactionMarker,
+    tabId,
     // Comment dependencies
     comments,
     activeSelection,

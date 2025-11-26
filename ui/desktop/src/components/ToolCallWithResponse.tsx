@@ -8,10 +8,11 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, FlaskConical } from 'lucide-react';
+import { ChevronRight, FlaskConical, ExternalLink } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
+import { useTabContext } from '../contexts/TabContext';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -30,6 +31,7 @@ export default function ToolCallWithResponse({
   notifications,
   isStreamingMessage = false,
   append,
+  tabId,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -50,6 +52,7 @@ export default function ToolCallWithResponse({
             toolResponse,
             notifications,
             isStreamingMessage,
+            tabId,
           }}
         />
       </div>
@@ -127,6 +130,7 @@ interface ToolCallViewProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  tabId?: string;
 }
 
 interface Progress {
@@ -173,6 +177,7 @@ function ToolCallView({
   toolResponse,
   notifications,
   isStreamingMessage = false,
+  tabId,
 }: ToolCallViewProps) {
   const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
 
@@ -520,7 +525,12 @@ function ToolCallView({
           {toolResults.map(({ result, isExpandToolResults }, index) => {
             return (
               <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
+                <ToolResultView 
+                  result={result} 
+                  isStartExpanded={isExpandToolResults}
+                  tabId={tabId}
+                  resultIndex={index}
+                />
               </div>
             );
           })}
@@ -551,14 +561,44 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
 interface ToolResultViewProps {
   result: Content;
   isStartExpanded: boolean;
+  tabId?: string;
+  resultIndex: number;
 }
 
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ result, isStartExpanded, tabId, resultIndex }: ToolResultViewProps) {
+  const { showDocumentEditor } = useTabContext();
+  
+  const handleOpenInSidecar = () => {
+    if (!tabId || result.type !== 'text' || !result.text) return;
+    
+    // Open the output in a document editor sidecar
+    const instanceId = `tool-output-${Date.now()}-${resultIndex}`;
+    showDocumentEditor(tabId, undefined, result.text, instanceId);
+  };
+
+  // Check if we can open this result in a sidecar
+  const canOpenInSidecar = tabId && result.type === 'text' && result.text;
+
   return (
-    <ToolCallExpandable
-      label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
-      isStartExpanded={isStartExpanded}
-    >
+    <div className="border-t border-borderSubtle">
+      <div className="flex items-center justify-between pr-2">
+        <Button
+          onClick={canOpenInSidecar ? handleOpenInSidecar : undefined}
+          className={cn(
+            "group w-full flex justify-between items-center pr-2 transition-colors rounded-none",
+            canOpenInSidecar && "cursor-pointer hover:bg-background-muted"
+          )}
+          variant="ghost"
+          disabled={!canOpenInSidecar}
+        >
+          <span className="pl-4 py-1 font-sans text-sm flex items-center gap-2">
+            Output
+            {canOpenInSidecar && (
+              <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+            )}
+          </span>
+        </Button>
+      </div>
       <div className="pl-4 pr-4 py-4">
         {result.type === 'text' && result.text && (
           <MarkdownContent
@@ -581,7 +621,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
           <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
         )}
       </div>
-    </ToolCallExpandable>
+    </div>
   );
 }
 
