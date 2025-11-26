@@ -45,6 +45,7 @@ pub struct AppState {
     pub active_provider: Option<String>,
     pub active_model: Option<String>,
     pub needs_refresh: bool,
+    pub copy_mode: bool,
 }
 
 impl AppState {
@@ -79,6 +80,7 @@ impl AppState {
             active_provider,
             active_model,
             needs_refresh: false,
+            copy_mode: false,
         }
     }
 }

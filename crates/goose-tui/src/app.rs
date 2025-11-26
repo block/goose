@@ -141,6 +141,9 @@ impl<'a> App<'a> {
             if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
                 return Some(Action::ToggleTodo);
             }
+            if key.code == KeyCode::Char('s') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                return Some(Action::ToggleCopyMode);
+            }
         }
         None
     }

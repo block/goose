@@ -159,6 +159,10 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
             state.showing_command_builder = true;
             true
         }
+        Action::ToggleCopyMode => {
+            state.copy_mode = !state.copy_mode;
+            true
+        }
         _ => false,
     }
 }

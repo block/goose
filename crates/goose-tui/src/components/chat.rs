@@ -398,14 +398,18 @@ impl ChatComponent {
         display_items: Vec<ListItem<'static>>,
     ) {
         let theme = &state.config.theme;
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(if state.is_working {
-                theme.status.thinking
-            } else {
-                theme.base.border
-            }));
+        let block = if state.copy_mode {
+            Block::default()
+        } else {
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(if state.is_working {
+                    theme.status.thinking
+                } else {
+                    theme.base.border
+                }))
+        };
 
         let items_len = display_items.len();
 
@@ -424,8 +428,7 @@ impl ChatComponent {
 
         f.render_stateful_widget(list, area, &mut self.list_state);
 
-        // Render scrollbar
-        if !self.stick_to_bottom && items_len > 0 {
+        if !state.copy_mode && !self.stick_to_bottom && items_len > 0 {
             use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
             let mut scroll_state = ScrollbarState::default()
                 .content_length(items_len)

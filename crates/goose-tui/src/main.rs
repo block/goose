@@ -237,7 +237,11 @@ fn process_event(
             state::reducer::update(state, action);
             return true;
         }
+        let was_copy_mode = state.copy_mode;
         state::reducer::update(state, action);
+        if state.copy_mode != was_copy_mode {
+            let _ = tui::set_mouse_capture(!state.copy_mode);
+        }
     }
     false
 }

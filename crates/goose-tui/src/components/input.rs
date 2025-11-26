@@ -73,6 +73,7 @@ impl<'a> InputComponent<'a> {
             "/session" => Some(Action::OpenSessionPicker),
             "/alias" => Some(Action::StartCommandBuilder),
             "/clear" => Some(Action::ClearChat),
+            "/copy" | "/copymode" => Some(Action::ToggleCopyMode),
             "/theme" => parts
                 .get(1)
                 .map(|theme_name| Action::ChangeTheme(theme_name.to_string())),
@@ -147,8 +148,15 @@ impl<'a> Component for InputComponent<'a> {
                                 if trimmed.starts_with('/') {
                                     let cmd = trimmed.split_whitespace().next().unwrap_or("");
                                     let safe_commands = [
-                                        "/config", "/help", "/todos", "/theme", "/exit", "/quit",
+                                        "/config",
+                                        "/help",
+                                        "/todos",
+                                        "/theme",
+                                        "/exit",
+                                        "/quit",
                                         "/alias",
+                                        "/copy",
+                                        "/copymode",
                                     ];
 
                                     if safe_commands.contains(&cmd) {
@@ -249,8 +257,17 @@ impl<'a> Component for InputComponent<'a> {
             if let Some(first_line) = self.textarea.lines().first() {
                 if first_line.starts_with('/') {
                     let mut commands = vec![
-                        "/exit", "/quit", "/help", "/todos", "/config", "/session", "/alias",
-                        "/clear", "/theme",
+                        "/exit",
+                        "/quit",
+                        "/help",
+                        "/todos",
+                        "/config",
+                        "/session",
+                        "/alias",
+                        "/clear",
+                        "/theme",
+                        "/copy",
+                        "/copymode",
                     ];
                     let custom: Vec<String> = state
                         .config

@@ -54,4 +54,6 @@ pub enum Action {
     DeleteCustomCommand(String),
     StartCommandBuilder,
     SubmitCommandBuilder(CustomCommand),
+
+    ToggleCopyMode,
 }

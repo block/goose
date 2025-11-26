@@ -45,3 +45,12 @@ pub fn restore() -> Result<()> {
     )?;
     Ok(())
 }
+
+pub fn set_mouse_capture(enabled: bool) -> Result<()> {
+    if enabled {
+        crossterm::execute!(io::stdout(), EnableMouseCapture)?;
+    } else {
+        crossterm::execute!(io::stdout(), DisableMouseCapture)?;
+    }
+    Ok(())
+}

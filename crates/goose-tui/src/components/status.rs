@@ -24,6 +24,18 @@ impl Component for StatusComponent {
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
         let mut spans = self.get_mode_spans(state, theme);
+
+        if state.copy_mode {
+            spans.push(Span::styled(
+                " COPY ",
+                Style::default()
+                    .bg(theme.status.success)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            spans.push(Span::raw(" "));
+        }
+
         spans.extend(self.get_info_spans(state, theme));
 
         let hints = self.get_hints(state, theme);
