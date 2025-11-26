@@ -1,6 +1,10 @@
 use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
-use rmcp::model::{Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode, JsonObject};
+use rmcp::model::{
+    Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction,
+    ElicitationSchema, EnumSchema, ErrorCode, IntegerSchema, JsonObject, NumberSchema,
+    PrimitiveSchema, StringFormat, StringSchema,
+};
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
@@ -21,9 +25,8 @@ use rmcp::{
     transport::IntoTransport,
     ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::{sync::Arc, time::Duration};
-use std::future::Future;
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
@@ -82,6 +85,78 @@ pub trait McpClientTrait: Send + Sync {
     async fn get_moim(&self) -> Option<String> {
         None
     }
+}
+
+/// Generate mock data that conforms to the given elicitation schema
+fn generate_mock_data(schema: &ElicitationSchema) -> Value {
+    use rand::Rng;
+
+    let mut rng = rand::thread_rng();
+    let mut result = Map::new();
+
+    for (key, primitive_schema) in &schema.properties {
+        let value = match primitive_schema {
+            PrimitiveSchema::String(string_schema) => generate_mock_string(string_schema, &mut rng),
+            PrimitiveSchema::Number(number_schema) => generate_mock_number(number_schema, &mut rng),
+            PrimitiveSchema::Integer(integer_schema) => {
+                generate_mock_integer(integer_schema, &mut rng)
+            }
+            PrimitiveSchema::Boolean(_) => Value::Bool(rng.gen_bool(0.5)),
+            PrimitiveSchema::Enum(enum_schema) => generate_mock_enum(enum_schema, &mut rng),
+        };
+
+        result.insert(key.clone(), value);
+    }
+
+    Value::Object(result)
+}
+
+fn generate_mock_string(schema: &StringSchema, rng: &mut impl rand::Rng) -> Value {
+    let mock_value = match schema.format {
+        Some(StringFormat::Email) => "user@example.com".to_string(),
+        Some(StringFormat::Uri) => "https://example.com".to_string(),
+        Some(StringFormat::Date) => "2025-01-15".to_string(),
+        Some(StringFormat::DateTime) => "2025-01-15T10:30:00Z".to_string(),
+        None => {
+            let length = schema.min_length.unwrap_or(8).max(8);
+            generate_random_string(length as usize, rng)
+        }
+    };
+
+    Value::String(mock_value)
+}
+
+fn generate_mock_number(schema: &NumberSchema, rng: &mut impl rand::Rng) -> Value {
+    let min = schema.minimum.unwrap_or(0.0);
+    let max = schema.maximum.unwrap_or(100.0);
+    let value = rng.gen_range(min..=max);
+    json!(value)
+}
+
+fn generate_mock_integer(schema: &IntegerSchema, rng: &mut impl rand::Rng) -> Value {
+    let min = schema.minimum.unwrap_or(0);
+    let max = schema.maximum.unwrap_or(100);
+    let value = rng.gen_range(min..=max);
+    json!(value)
+}
+
+fn generate_mock_enum(schema: &EnumSchema, rng: &mut impl rand::Rng) -> Value {
+    if schema.enum_values.is_empty() {
+        return Value::Null;
+    }
+
+    let idx = rng.gen_range(0..schema.enum_values.len());
+    Value::String(schema.enum_values[idx].clone())
+}
+
+fn generate_random_string(length: usize, rng: &mut impl rand::Rng) -> String {
+    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    (0..length)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
 }
 
 pub struct GooseClient {
@@ -220,28 +295,23 @@ impl ClientHandler for GooseClient {
         })
     }
 
-    fn create_elicitation(
+    async fn create_elicitation(
         &self,
         request: CreateElicitationRequestParam,
-        context: RequestContext<RoleClient>,
-    ) -> impl Future<Output = Result<CreateElicitationResult, ErrorData>> + Send + '_ {
-        async move {
-            info!("Server requests: {}", request.message);
-            info!("Expected format: {:?}", &request.requested_schema);
-            info!("Sending mock response");
+        _context: RequestContext<RoleClient>,
+    ) -> Result<CreateElicitationResult, ErrorData> {
+        info!("Server requests: {}", request.message);
+        info!("Expected format: {:?}", &request.requested_schema);
+        info!("Sending mock response");
 
-            // TODO - send ActionRequiredMessage and wait for approval
+        // TODO - send ActionRequiredMessage and wait for approval
 
-            let user_data = json!({
-                "confirmation": true,
-                "user_input": "some value"
-            });
+        let mock_data = generate_mock_data(&request.requested_schema);
 
-            Ok(CreateElicitationResult {
-                action: ElicitationAction::Accept,
-                content: Some(user_data),
-            })
-        }
+        Ok(CreateElicitationResult {
+            action: ElicitationAction::Accept,
+            content: Some(mock_data),
+        })
     }
 
     fn get_info(&self) -> ClientInfo {
