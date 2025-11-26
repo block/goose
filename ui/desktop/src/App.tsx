@@ -363,37 +363,28 @@ export function AppInner() {
     }
   }, [chat.messages.length, setSearchParams, resetChat]);
 
+  const { openMatrixChat } = useTabContext();
+
   // Handle opening chat from message notifications
   const handleOpenChat = useCallback((roomId: string, senderId: string) => {
     console.log('📱 App: Opening chat for room:', roomId, 'sender:', senderId);
     
-    // For Matrix rooms (starting with !), navigate to pair view and let the tabbed system handle it
+    // For Matrix rooms (starting with !), use TabContext to open the chat
     if (roomId.startsWith('!')) {
       console.log('📱 App: Opening Matrix chat for room:', roomId);
       
       // Check if we're already on the /pair route
       const isOnPairRoute = location.pathname === '/pair' || location.pathname === '/tabs';
       
-      if (isOnPairRoute) {
-        // Already on pair route - just dispatch the event immediately
-        console.log('📱 App: Already on pair route, dispatching create-matrix-tab event immediately');
-        const event = new CustomEvent('create-matrix-tab', {
-          detail: { roomId, senderId }
-        });
-        window.dispatchEvent(event);
-      } else {
-        // Navigate to pair view first, then dispatch event
-        console.log('📱 App: Navigating to /pair first, then will dispatch event');
+      if (!isOnPairRoute) {
+        // Navigate to pair view first
+        console.log('📱 App: Navigating to /pair first');
         navigate('/pair');
-        
-        // Dispatch event after navigation completes
-        setTimeout(() => {
-          const event = new CustomEvent('create-matrix-tab', {
-            detail: { roomId, senderId }
-          });
-          window.dispatchEvent(event);
-        }, 100);
       }
+      
+      // Open the Matrix chat using TabContext (works whether we're already on /pair or not)
+      console.log('📱 App: Opening Matrix chat via TabContext');
+      openMatrixChat(roomId, senderId);
     } else {
       // For non-Matrix rooms, navigate to peers view
       navigate('/peers', { 
@@ -404,7 +395,7 @@ export function AppInner() {
         } 
       });
     }
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, openMatrixChat]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
