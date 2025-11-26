@@ -1918,17 +1918,7 @@ export default function ChatInput({
         {/* This space is reserved for mention popovers to render above the chat input */}
       </div>
 
-      {/* Goose Off Indicator */}
-      {!gooseEnabled && (
-        <div className="max-w-4xl mx-auto w-full mb-2">
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-2 flex items-center gap-2">
-            <div className="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-            <span className="text-yellow-600 dark:text-yellow-400 text-sm font-medium">
-              Goose is OFF - Type <code className="px-1.5 py-0.5 bg-yellow-500/20 rounded text-xs">@goose</code> to reactivate
-            </span>
-          </div>
-        </div>
-      )}
+
 
       {/* Chat input container with max width - floating card */}
       <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
@@ -2259,6 +2249,34 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div ref={bottomControlsRef} className="flex flex-row items-center gap-2 p-2 relative">
+        {/* Goose Off Indicator - Pause icon */}
+        {!gooseEnabled && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-500/10 border border-yellow-500/30">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-yellow-500"
+                >
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Type @goose to reactivate</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        
         {/* Chat Actions Popover - consolidated tools */}
         <ChatActionsPopover
           shouldShowIconOnly={shouldShowIconOnly}
