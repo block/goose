@@ -2021,6 +2021,54 @@
         ]
       }
     },
+    "/sessions/{session_id}/conversation": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_conversation",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/edit_message": {
       "post": {
         "tags": [
@@ -5251,6 +5299,20 @@
           "error",
           "disabled"
         ]
+      },
+      "UpdateConversationRequest": {
+        "type": "object",
+        "required": [
+          "conversation"
+        ],
+        "properties": {
+          "conversation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
       },
       "UpdateCustomProviderRequest": {
         "type": "object",

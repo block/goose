@@ -930,6 +930,10 @@ export type TunnelInfo = {
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
+export type UpdateConversationRequest = {
+    conversation: Array<Message>;
+};
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -2569,6 +2573,40 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type UpdateConversationData = {
+    body: UpdateConversationRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/conversation';
+};
+
+export type UpdateConversationErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateConversationResponses = {
+    /**
+     * Conversation updated successfully
+     */
+    200: unknown;
+};
 
 export type EditMessageData = {
     body: EditMessageRequest;

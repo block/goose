@@ -9,8 +9,8 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use goose::conversation::Conversation;
 use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{Session, SessionManager};
