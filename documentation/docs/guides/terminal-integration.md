@@ -103,7 +103,9 @@ You won't notice any delay. The logging happens asynchronously after your comman
 3. Installs a preexec hook that calls `goose term log` for each command
 4. Optionally installs a command-not-found handler (with `--default`)
 
-The hook runs `goose term log <command> &` in the background, which appends to a local history file. When you run `@goose`, goose reads commands from this file that were logged since your last message.
+The hook runs `goose term log <command> &` in the background, which appends to the goose session.
+When you run `@goose`, goose reads commands from goose session any commands that happened since it 
+was last called and incorporates them in the next call.
 
 ## Session Management
 
