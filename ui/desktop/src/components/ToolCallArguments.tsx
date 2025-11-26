@@ -2,6 +2,7 @@ import { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
 import { Circle } from 'lucide-react';
+import { useTaskExecution, TaskStatus } from '../contexts/TaskExecutionContext';
 
 export type ToolCallArgumentValue =
   | string
@@ -13,6 +14,8 @@ export type ToolCallArgumentValue =
 
 interface ToolCallArgumentsProps {
   args: Record<string, ToolCallArgumentValue>;
+  toolCallId?: string; // ID of the tool call to track execution status
+  toolName?: string; // Name of the tool (e.g., 'create_task', 'execute_task')
 }
 
 // Tree visualization for execution mode
@@ -106,8 +109,19 @@ function TaskIdsTimeline({ taskIds, executionMode }: { taskIds: string[]; execut
   );
 }
 
+// Task status type
+type TaskStatus = 'pending' | 'running' | 'completed' | 'error';
+
 // Timeline component for task parameters
-function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; executionMode?: string }) {
+function TaskParametersTimeline({ 
+  tasks, 
+  executionMode,
+  taskStatuses 
+}: { 
+  tasks: any[]; 
+  executionMode?: string;
+  taskStatuses?: Map<number, TaskStatus>;
+}) {
   const isParallel = executionMode === 'parallel';
   
   return (
@@ -123,17 +137,52 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
         // Extract task details
         const instructions = task.instructions || task.prompt || 'No instructions provided';
         const title = task.title || `Task ${index + 1}`;
+        const status = taskStatuses?.get(index) || 'pending';
+        
+        // Determine circle styling based on status
+        const getCircleStyle = () => {
+          switch (status) {
+            case 'running':
+              return 'border-blue-500 bg-blue-50';
+            case 'completed':
+              return 'border-green-500 bg-green-50';
+            case 'error':
+              return 'border-red-500 bg-red-50';
+            default:
+              return 'border-borderSubtle bg-background-default';
+          }
+        };
         
         return (
           <div key={index} className="flex gap-3">
             {/* Timeline indicator */}
             <div className="flex flex-col items-center">
-              <div className="w-6 h-6 rounded-full border-2 border-borderSubtle bg-background-default flex items-center justify-center flex-shrink-0 relative">
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 relative ${getCircleStyle()}`}>
                 <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
                 {/* Parallel execution indicator - small numbered box overlaid on circle */}
                 {isParallel && (
                   <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-muted flex items-center justify-center">
                     <span className="text-[8px] font-sans text-textSubtle">1</span>
+                  </div>
+                )}
+                {/* Status indicator - small spinner or checkmark */}
+                {status === 'running' && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                {status === 'completed' && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+                {status === 'error' && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </div>
                 )}
               </div>
@@ -149,13 +198,27 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
                   {title}
                 </div>
               )}
-              <div className="font-sans text-xs text-textPlaceholder">
+              <div className={`font-sans text-xs ${status === 'completed' ? 'text-textSubtle line-through' : 'text-textPlaceholder'}`}>
                 {instructions}
               </div>
               {/* Show other task properties if they exist */}
               {task.description && (
                 <div className="font-sans text-xs text-textSubtle mt-1 italic">
                   {task.description}
+                </div>
+              )}
+              {/* Status label */}
+              {status !== 'pending' && (
+                <div className="mt-1">
+                  <span className={`font-sans text-[10px] font-medium ${
+                    status === 'running' ? 'text-blue-500' :
+                    status === 'completed' ? 'text-green-500' :
+                    'text-red-500'
+                  }`}>
+                    {status === 'running' ? 'Running...' : 
+                     status === 'completed' ? 'Completed' : 
+                     'Error'}
+                  </span>
                 </div>
               )}
             </div>
@@ -166,8 +229,9 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
   );
 }
 
-export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
+export function ToolCallArguments({ args, toolCallId, toolName }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const { getTaskStatuses, registerCreateTask } = useTaskExecution();
 
   const toggleKey = (key: string) => {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -175,17 +239,31 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
   // Extract execution_mode if it exists
   const executionMode = typeof args.execution_mode === 'string' ? args.execution_mode : undefined;
+  
+  // Get task statuses if this is a create_task
+  const taskStatuses = toolCallId && toolName === 'create_task' ? getTaskStatuses(toolCallId) : undefined;
 
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     // Determine if this parameter should use smaller text
     const useSmallText = ['command', 'path', 'file_text', 'task_parameters', 'execution_mode', 'task_ids'].includes(key);
     const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
 
-    // Special handling for task_parameters - render as timeline with execution mode
+    // Special handling for task_parameters - render as timeline with execution mode and statuses
     if (key === 'task_parameters' && Array.isArray(value)) {
+      // Register this create_task if we have an ID
+      if (toolCallId && toolName === 'create_task' && !taskStatuses) {
+        // Generate task IDs based on the task count (format: "task-0", "task-1", etc.)
+        const taskIds = Array.from({ length: value.length }, (_, i) => `task-${i}`);
+        registerCreateTask(toolCallId, taskIds);
+      }
+      
       return (
         <div className="mb-2">
-          <TaskParametersTimeline tasks={value as any[]} executionMode={executionMode} />
+          <TaskParametersTimeline 
+            tasks={value as any[]} 
+            executionMode={executionMode}
+            taskStatuses={taskStatuses}
+          />
         </div>
       );
     }

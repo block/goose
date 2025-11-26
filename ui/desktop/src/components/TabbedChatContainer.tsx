@@ -5,6 +5,7 @@ import { TabSidecar } from './TabSidecar';
 import MultiPanelTabSidecar from './MultiPanelTabSidecar';
 import { useTabContext } from '../contexts/TabContext';
 import { ResizableSplitter } from './Layout/ResizableSplitter';
+import { TaskExecutionProvider } from '../contexts/TaskExecutionContext';
 
 interface TabbedChatContainerProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -185,21 +186,22 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   const hasSidecar = sidecarState && sidecarState.activeViews.length > 0;
 
   return (
-    <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
-      {/* Tab Bar - Fixed at top */}
-      <div className="flex-shrink-0 relative z-10">
-        <TabBar
-          tabs={tabStates.map(ts => ts.tab)}
-          activeTabId={activeTabId}
-          onTabClick={handleTabClick}
-          onTabClose={handleTabClose}
-          onNewTab={handleNewTab}
-          sidebarCollapsed={sidebarCollapsed}
-        />
-      </div>
+    <TaskExecutionProvider>
+      <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
+        {/* Tab Bar - Fixed at top */}
+        <div className="flex-shrink-0 relative z-10">
+          <TabBar
+            tabs={tabStates.map(ts => ts.tab)}
+            activeTabId={activeTabId}
+            onTabClick={handleTabClick}
+            onTabClose={handleTabClose}
+            onNewTab={handleNewTab}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        </div>
 
-      {/* Main Content Area - Chat and Sidecar */}
-      <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
+        {/* Main Content Area - Chat and Sidecar */}
+        <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">
         {/* Render all tabs but only show the active one - this prevents unmounting */}
         {tabStates.map((tabState) => {
           const isActive = tabState.tab.id === activeTabId;
@@ -283,6 +285,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
           );
         })}
       </div>
-    </div>
+      </div>
+    </TaskExecutionProvider>
   );
 };

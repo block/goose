@@ -13,6 +13,7 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { useTabContext } from '../contexts/TabContext';
+import { useTaskExecution } from '../contexts/TaskExecutionContext';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -53,6 +54,7 @@ export default function ToolCallWithResponse({
             notifications,
             isStreamingMessage,
             tabId,
+            toolCallId: toolRequest.id,
           }}
         />
       </div>
@@ -131,6 +133,7 @@ interface ToolCallViewProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   tabId?: string;
+  toolCallId?: string;
 }
 
 interface Progress {
@@ -178,8 +181,10 @@ function ToolCallView({
   notifications,
   isStreamingMessage = false,
   tabId,
+  toolCallId,
 }: ToolCallViewProps) {
   const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+  const { updateTaskStatus, updateMultipleTaskStatuses, getCreateTaskIdFromTaskId } = useTaskExecution();
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -195,6 +200,44 @@ function ToolCallView({
       window.removeEventListener('responseStyleChanged', handleStorageChange);
     };
   }, []);
+
+  // Handle execute_task status updates
+  useEffect(() => {
+    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    
+    if (toolName === 'execute_task') {
+      const args = toolCall.arguments as Record<string, unknown>;
+      const taskIds = args.task_ids as string[] | undefined;
+      
+      if (!taskIds || taskIds.length === 0) return;
+      
+      // For each task_id, find the corresponding create_task and update its status
+      taskIds.forEach((taskId) => {
+        // Extract the task index from the task_id (format: "task-0", "task-1", etc.)
+        const match = taskId.match(/task-(\d+)/);
+        if (!match) return;
+        
+        const taskIndex = parseInt(match[1], 10);
+        
+        // Get the create_task ID from the task ID mapping
+        const createTaskId = getCreateTaskIdFromTaskId(taskId);
+        if (!createTaskId) {
+          console.warn('⚠️ No create_task found for task ID:', taskId);
+          return;
+        }
+        
+        // Update status based on tool response
+        if (!toolResponse) {
+          // Still loading
+          updateTaskStatus(createTaskId, taskIndex, 'running');
+        } else if (toolResponse.toolResult.status === 'success') {
+          updateTaskStatus(createTaskId, taskIndex, 'completed');
+        } else if (toolResponse.toolResult.status === 'error') {
+          updateTaskStatus(createTaskId, taskIndex, 'error');
+        }
+      });
+    }
+  }, [toolCall, toolResponse, updateTaskStatus, getCreateTaskIdFromTaskId]);
 
   const isExpandToolDetails = (() => {
     switch (responseStyle) {
@@ -407,7 +450,7 @@ function ToolCallView({
         return `poking around...`;
 
       case 'create_task':
-        return `create task`;
+        return `Tasks`;
 
       case 'execute_task':
         return `execute task`;
@@ -550,7 +593,7 @@ function ToolCallView({
       {/* Tool Details */}
       {isToolDetails && (
         <div className="border-t border-borderSubtle">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} toolCallId={toolCallId} />
         </div>
       )}
 
@@ -585,11 +628,18 @@ interface ToolDetailsViewProps {
   isStartExpanded: boolean;
 }
 
-function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
+function ToolDetailsView({ toolCall, isStartExpanded, toolCallId }: ToolDetailsViewProps & { toolCallId?: string }) {
+  // Extract tool name from the full tool call name
+  const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+  
   return (
     <div className="pr-4 pl-4 py-2">
       {toolCall.arguments && (
-        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+        <ToolCallArguments 
+          args={toolCall.arguments as Record<string, ToolCallArgumentValue>}
+          toolCallId={toolCallId}
+          toolName={toolName}
+        />
       )}
     </div>
   );
