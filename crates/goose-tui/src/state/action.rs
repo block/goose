@@ -36,6 +36,7 @@ pub enum Action {
     ResumeSession(String),
     CreateNewSession,
     ChangeTheme(String),
+    OpenThemePicker,
     ClearChat,
     ClosePopup,
     OpenMessageInfo(usize),

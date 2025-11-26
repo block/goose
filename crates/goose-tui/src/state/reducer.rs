@@ -149,6 +149,11 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
             state.showing_command_builder = false;
             state.showing_message_info = None;
             state.showing_config = false;
+            state.showing_theme_picker = false;
+            true
+        }
+        Action::OpenThemePicker => {
+            state.showing_theme_picker = true;
             true
         }
         Action::OpenMessageInfo(idx) => {
@@ -183,6 +188,8 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
         }
         Action::ChangeTheme(name) => {
             state.config.theme = crate::utils::styles::Theme::from_name(name);
+            state.showing_theme_picker = false;
+            state.needs_refresh = true;
             true
         }
         Action::SetInputEmpty(is_empty) => {

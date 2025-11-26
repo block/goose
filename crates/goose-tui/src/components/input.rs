@@ -79,9 +79,13 @@ impl<'a> InputComponent<'a> {
                     .with_text(goose::agents::MANUAL_COMPACT_TRIGGER);
                 Some(Action::SendMessage(message))
             }
-            "/theme" => parts
-                .get(1)
-                .map(|theme_name| Action::ChangeTheme(theme_name.to_string())),
+            "/theme" => {
+                if let Some(theme_name) = parts.get(1) {
+                    Some(Action::ChangeTheme(theme_name.to_string()))
+                } else {
+                    Some(Action::OpenThemePicker)
+                }
+            }
             // Custom Commands
             _ => {
                 let cmd_name = cmd.strip_prefix('/').unwrap_or(cmd);

@@ -6,6 +6,7 @@ use crate::components::popups::config::ConfigPopup;
 use crate::components::popups::help::HelpPopup;
 use crate::components::popups::message::MessagePopup;
 use crate::components::popups::session::SessionPopup;
+use crate::components::popups::theme::ThemePopup;
 use crate::components::popups::todo::TodoPopup;
 use crate::components::status::StatusComponent;
 use crate::components::Component;
@@ -29,6 +30,7 @@ pub struct App<'a> {
     builder_popup: BuilderPopup<'a>,
     message_popup: MessagePopup,
     config_popup: ConfigPopup,
+    theme_popup: ThemePopup,
 
     pub last_popup_close_time: Option<Instant>,
 }
@@ -52,6 +54,7 @@ impl<'a> App<'a> {
             builder_popup: BuilderPopup::new(),
             message_popup: MessagePopup::new(),
             config_popup: ConfigPopup::new(),
+            theme_popup: ThemePopup::new(),
 
             last_popup_close_time: None,
         }
@@ -114,6 +117,15 @@ impl<'a> App<'a> {
         if state.showing_config {
             if let Some(action) = self.config_popup.handle_event(event, state)? {
                 if matches!(action, Action::ClosePopup) {
+                    self.last_popup_close_time = Some(std::time::Instant::now());
+                }
+                return Ok(Some(action));
+            }
+            return Ok(None);
+        }
+        if state.showing_theme_picker {
+            if let Some(action) = self.theme_popup.handle_event(event, state)? {
+                if matches!(action, Action::ClosePopup | Action::ChangeTheme(_)) {
                     self.last_popup_close_time = Some(std::time::Instant::now());
                 }
                 return Ok(Some(action));
@@ -191,7 +203,8 @@ impl<'a> Component for App<'a> {
             || state.showing_session_picker
             || state.showing_command_builder
             || state.showing_message_info.is_some()
-            || state.showing_config;
+            || state.showing_config
+            || state.showing_theme_picker;
 
         if popup_active {
             if let Some(action) = self.handle_popups(event, state)? {
@@ -238,6 +251,11 @@ impl<'a> Component for App<'a> {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+        let theme = &state.config.theme;
+        let bg_block = ratatui::widgets::Block::default()
+            .style(ratatui::style::Style::default().bg(theme.base.background));
+        f.render_widget(bg_block, f.area());
+
         let max_input_height = (f.area().height / 2).max(3);
         let input_height = self.input.height(max_input_height);
 
@@ -264,5 +282,6 @@ impl<'a> Component for App<'a> {
             self.message_popup.render(f, f.area(), state);
         }
         self.config_popup.render(f, f.area(), state);
+        self.theme_popup.render(f, f.area(), state);
     }
 }
