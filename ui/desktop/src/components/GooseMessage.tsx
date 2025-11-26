@@ -41,6 +41,7 @@ interface GooseMessageProps {
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  tabId?: string; // Tab ID for opening sidecars
   // Comment-related props
   comments?: MessageComment[];
   activeSelection?: TextSelection | null;
@@ -67,6 +68,7 @@ export default function GooseMessage({
   append,
   appendMessage,
   isStreaming = false,
+  tabId,
   // Comment props
   comments = [],
   activeSelection,
@@ -386,6 +388,7 @@ export default function GooseMessage({
                         notifications={toolCallNotifications.get(toolRequest.id)}
                         isStreamingMessage={isStreaming}
                         append={append}
+                        tabId={tabId}
                       />
                     </div>
                   ))}

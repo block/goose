@@ -8,10 +8,12 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, FlaskConical } from 'lucide-react';
+import { ChevronRight, FlaskConical, ExternalLink } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
+import { useTabContext } from '../contexts/TabContext';
+import { useTaskExecution } from '../contexts/TaskExecutionContext';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -20,6 +22,7 @@ interface ToolCallWithResponseProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   append?: (value: string) => void; // Function to append messages to the chat
+  tabId?: string; // Tab ID for opening sidecars
 }
 
 export default function ToolCallWithResponse({
@@ -29,9 +32,58 @@ export default function ToolCallWithResponse({
   notifications,
   isStreamingMessage = false,
   append,
+  tabId,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
+  const { updateTaskStatus, getCreateTaskIdFromTaskId } = useTaskExecution();
+  
+  // Handle execute_task status updates (even if we don't render the component)
+  useEffect(() => {
+    if (!toolCall) return;
+    
+    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    
+    if (toolName === 'execute_task') {
+      const args = toolCall.arguments as Record<string, unknown>;
+      const taskIds = args.task_ids as string[] | undefined;
+      
+      if (!taskIds || taskIds.length === 0) return;
+      
+      // For each task_id, find the corresponding create_task and update its status
+      taskIds.forEach((taskId) => {
+        // Extract the task index from the task_id (format: "task-0", "task-1", etc.)
+        const match = taskId.match(/task-(\d+)/);
+        if (!match) return;
+        
+        const taskIndex = parseInt(match[1], 10);
+        
+        // Get the create_task ID from the task ID mapping
+        const createTaskId = getCreateTaskIdFromTaskId(taskId);
+        if (!createTaskId) {
+          console.warn('⚠️ No create_task found for task ID:', taskId);
+          return;
+        }
+        
+        // Update status based on tool response
+        if (!toolResponse) {
+          // Still loading
+          updateTaskStatus(createTaskId, taskIndex, 'running');
+        } else if (toolResponse.toolResult.status === 'success') {
+          updateTaskStatus(createTaskId, taskIndex, 'completed');
+        } else if (toolResponse.toolResult.status === 'error') {
+          updateTaskStatus(createTaskId, taskIndex, 'error');
+        }
+      });
+    }
+  }, [toolCall, toolResponse, updateTaskStatus, getCreateTaskIdFromTaskId]);
+  
   if (!toolCall) {
+    return null;
+  }
+
+  // Hide execute_task tool calls - they only update create_task statuses
+  const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+  if (toolName === 'execute_task') {
     return null;
   }
 
@@ -39,7 +91,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
+          'w-full text-xs font-sans rounded-lg overflow-hidden border-borderSubtle border'
         )}
       >
         <ToolCallView
@@ -49,6 +101,8 @@ export default function ToolCallWithResponse({
             toolResponse,
             notifications,
             isStreamingMessage,
+            tabId,
+            toolCallId: toolRequest.id,
           }}
         />
       </div>
@@ -104,7 +158,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-sans text-sm">{label}</span>
+        <span className="flex items-center font-sans text-xs">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
@@ -126,6 +180,8 @@ interface ToolCallViewProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  tabId?: string;
+  toolCallId?: string;
 }
 
 interface Progress {
@@ -172,6 +228,8 @@ function ToolCallView({
   toolResponse,
   notifications,
   isStreamingMessage = false,
+  tabId,
+  toolCallId,
 }: ToolCallViewProps) {
   const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
 
@@ -401,7 +459,7 @@ function ToolCallView({
         return `poking around...`;
 
       case 'create_task':
-        return `create task`;
+        return `Tasks`;
 
       case 'execute_task':
         return `execute task`;
@@ -461,16 +519,71 @@ function ToolCallView({
 
   const toolCallStatus = getToolCallStatus(loadingStatus);
 
+  // Check if we have output that can be opened in sidecar
+  const hasTextOutput = toolResults.some(result => result.result.type === 'text' && result.result.text);
+  const canOpenInSidecar = tabId && hasTextOutput;
+
+  const { showDocumentEditor } = useTabContext();
+  
+  const handleOpenOutputInSidecar = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the expand/collapse
+    if (!canOpenInSidecar) return;
+    
+    // Get the first text result
+    const textResult = toolResults.find(r => r.result.type === 'text' && r.result.text);
+    if (textResult && textResult.result.type === 'text' && textResult.result.text) {
+      const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+      const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+      
+      // Build a descriptive file path/name based on the tool and its arguments
+      let filePath: string | undefined;
+      
+      // Extract path information from common tool arguments
+      if (args.path && typeof args.path === 'string') {
+        filePath = args.path;
+      } else if (args.file_path && typeof args.file_path === 'string') {
+        filePath = args.file_path;
+      } else if (args.filePath && typeof args.filePath === 'string') {
+        filePath = args.filePath;
+      } else if (args.uri && typeof args.uri === 'string') {
+        filePath = args.uri;
+      } else if (args.url && typeof args.url === 'string') {
+        filePath = args.url;
+      } else if (args.command && typeof args.command === 'string') {
+        // For shell commands, use the command as the "file name"
+        filePath = `${toolName}: ${args.command}`;
+      } else {
+        // Fallback: use tool name and description
+        const description = getToolDescription();
+        filePath = description || `${toolName} output`;
+      }
+      
+      const instanceId = `tool-output-${Date.now()}`;
+      showDocumentEditor(tabId!, filePath, textResult.result.text, instanceId);
+    }
+  };
+
   const toolLabel = (
-    <span
-      className={cn(
-        'flex items-center gap-2',
-        extensionTooltip && 'cursor-pointer hover:opacity-80'
+    <div className="flex items-center justify-between w-full">
+      <span
+        className={cn(
+          'flex items-center gap-2',
+          extensionTooltip && 'cursor-pointer hover:opacity-80'
+        )}
+      >
+        <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
+        <span>{getToolLabelContent()}</span>
+      </span>
+      {canOpenInSidecar && (
+        <button
+          onClick={handleOpenOutputInSidecar}
+          className="p-1 hover:bg-background-muted rounded transition-colors mr-2"
+          title="Open output in sidecar"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </button>
       )}
-    >
-      <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
-      <span>{getToolLabelContent()}</span>
-    </span>
+    </div>
   );
   return (
     <ToolCallExpandable
@@ -489,7 +602,7 @@ function ToolCallView({
       {/* Tool Details */}
       {isToolDetails && (
         <div className="border-t border-borderSubtle">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} toolCallId={toolCallId} />
         </div>
       )}
 
@@ -512,19 +625,6 @@ function ToolCallView({
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
-
-      {/* Tool Output */}
-      {!isCancelledMessage && (
-        <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            return (
-              <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-              </div>
-            );
-          })}
-        </>
-      )}
     </ToolCallExpandable>
   );
 }
@@ -537,55 +637,20 @@ interface ToolDetailsViewProps {
   isStartExpanded: boolean;
 }
 
-function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
+function ToolDetailsView({ toolCall, isStartExpanded, toolCallId }: ToolDetailsViewProps & { toolCallId?: string }) {
+  // Extract tool name from the full tool call name
+  const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+  
   return (
-    <ToolCallExpandable
-      label={<span className="pl-4 font-sans text-sm">Tool Details</span>}
-      isStartExpanded={isStartExpanded}
-    >
-      <div className="pr-4 pl-8">
-        {toolCall.arguments && (
-          <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
-        )}
-      </div>
-    </ToolCallExpandable>
-  );
-}
-
-interface ToolResultViewProps {
-  result: Content;
-  isStartExpanded: boolean;
-}
-
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
-  return (
-    <ToolCallExpandable
-      label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
-      isStartExpanded={isStartExpanded}
-    >
-      <div className="pl-4 pr-4 py-4">
-        {result.type === 'text' && result.text && (
-          <MarkdownContent
-            content={result.text}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
-        )}
-        {result.type === 'image' && (
-          <img
-            src={`data:${result.mimeType};base64,${result.data}`}
-            alt="Tool result"
-            className="max-w-full h-auto rounded-md my-2"
-            onError={(e) => {
-              console.error('Failed to load image');
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        )}
-        {result.type === 'resource' && (
-          <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
-        )}
-      </div>
-    </ToolCallExpandable>
+    <div className="pr-4 pl-4 py-2">
+      {toolCall.arguments && (
+        <ToolCallArguments 
+          args={toolCall.arguments as Record<string, ToolCallArgumentValue>}
+          toolCallId={toolCallId}
+          toolName={toolName}
+        />
+      )}
+    </div>
   );
 }
 
@@ -616,7 +681,7 @@ function ToolLogsView({
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-4 py-1 font-sans text-sm flex items-center">
+        <span className="pl-4 py-1 font-sans text-xs flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -637,7 +702,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
+          <span key={i} className="font-sans text-xs text-textSubtle">
             {log}
           </span>
         ))}
@@ -652,7 +717,7 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-xs text-textSubtle">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

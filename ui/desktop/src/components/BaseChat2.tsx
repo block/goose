@@ -394,6 +394,7 @@ function BaseChatContent({
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
                       onRenderingComplete={handleRenderingComplete}
+                      tabId={tabId}
                       // Comment props
                       comments={commentState.comments}
                       activeSelection={commentState.activeSelection}
@@ -425,6 +426,7 @@ function BaseChatContent({
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
                         onRenderingComplete={handleRenderingComplete}
+                        tabId={tabId}
                         // Comment props
                         comments={commentState.comments}
                         activeSelection={commentState.activeSelection}
