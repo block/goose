@@ -537,11 +537,13 @@ impl Component for ChatComponent {
             current_len
         };
 
-        // Update Cache
         if new_sealed_count > self.sealed_count {
             let theme = &state.config.theme;
             let width = area.width.saturating_sub(2) as usize;
             for i in self.sealed_count..new_sealed_count {
+                if !state.messages[i].is_user_visible() {
+                    continue;
+                }
                 let (items, map) = Self::render_message(
                     i,
                     &state.messages[i],
@@ -559,17 +561,22 @@ impl Component for ChatComponent {
         let mut display_items = self.cached_items.clone();
         let mut display_map = self.cached_mapping.clone();
 
-        // Render Dynamic (Last message if working)
         if state.is_working && !state.messages.is_empty() {
-            let theme = &state.config.theme;
-            let width = area.width.saturating_sub(2) as usize;
             let last_idx = state.messages.len() - 1;
-            // Context clone for dynamic render
-            let mut ctx = self.last_tool_context.clone();
-            let (items, map) =
-                Self::render_message(last_idx, &state.messages[last_idx], width, theme, &mut ctx);
-            display_items.extend(items);
-            display_map.extend(map);
+            if state.messages[last_idx].is_user_visible() {
+                let theme = &state.config.theme;
+                let width = area.width.saturating_sub(2) as usize;
+                let mut ctx = self.last_tool_context.clone();
+                let (items, map) = Self::render_message(
+                    last_idx,
+                    &state.messages[last_idx],
+                    width,
+                    theme,
+                    &mut ctx,
+                );
+                display_items.extend(items);
+                display_map.extend(map);
+            }
         }
 
         // Auto-scroll logic
