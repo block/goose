@@ -294,6 +294,10 @@ impl SessionManager {
         Self::instance().await?.list_sessions().await
     }
 
+    pub async fn list_sessions_by_types(types: &[SessionType]) -> Result<Vec<Session>> {
+        Self::instance().await?.list_sessions_by_types(types).await
+    }
+
     pub async fn delete_session(id: &str) -> Result<()> {
         Self::instance().await?.delete_session(id).await
     }
@@ -1124,25 +1128,40 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
+        if types.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let query = format!(
             r#"
-        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
-               s.total_tokens, s.input_tokens, s.output_tokens,
-               s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
-               s.provider_name, s.model_config_json,
-               COUNT(m.id) as message_count
-        FROM sessions s
-        INNER JOIN messages m ON s.id = m.session_id
-        WHERE s.session_type = 'user' OR s.session_type = 'scheduled'
-        GROUP BY s.id
-        ORDER BY s.updated_at DESC
-    "#,
-        )
-            .fetch_all(&self.pool)
+            SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+                   s.provider_name, s.model_config_json,
+                   COUNT(m.id) as message_count
+            FROM sessions s
+            INNER JOIN messages m ON s.id = m.session_id
+            WHERE s.session_type IN ({})
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+            "#,
+            placeholders
+        );
+
+        let mut q = sqlx::query_as::<_, Session>(&query);
+        for t in types {
+            q = q.bind(t.to_string());
+        }
+
+        q.fetch_all(&self.pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<Session>> {
+        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
             .await
-            .map_err(Into::into)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {

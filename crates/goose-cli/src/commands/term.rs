@@ -1,123 +1,116 @@
 use anyhow::{anyhow, Result};
+use chrono;
+use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use goose::session::SessionManager;
 use goose::session::SessionType;
-use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use rmcp::model::Role;
-use chrono;
 
 use crate::session::{build_session, SessionBuilderConfig};
 
+use clap::ValueEnum;
 
-/// Handle `goose term init <shell>` - print shell initialization script
-pub async fn handle_term_init(shell: &str, with_command_not_found: bool) -> Result<()> {
-    let working_dir = std::env::current_dir()?;
-    let session = SessionManager::create_session(working_dir,
-                                                    "Goose Term Session".to_string(),
-                                                    SessionType::Terminal).await?;
-    let session_id = session.id;
+#[derive(ValueEnum, Clone, Debug)]
+pub enum Shell {
+    Bash,
+    Zsh,
+    Fish,
+    #[value(alias = "pwsh")]
+    Powershell,
+}
 
-    let goose_bin = std::env::current_exe()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "goose".to_string());
+struct ShellConfig {
+    script_template: &'static str,
+    command_not_found: Option<&'static str>,
+}
 
-    let command_not_found_handler = if with_command_not_found {
-        match shell.to_lowercase().as_str() {
-            "bash" => format!(
-                r#"
+impl Shell {
+    fn config(&self) -> &'static ShellConfig {
+        match self {
+            Shell::Bash => &BASH_CONFIG,
+            Shell::Zsh => &ZSH_CONFIG,
+            Shell::Fish => &FISH_CONFIG,
+            Shell::Powershell => &POWERSHELL_CONFIG,
+        }
+    }
+}
 
-# Command not found handler - sends unknown commands to goose
+static BASH_CONFIG: ShellConfig = ShellConfig {
+    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+alias gt='{goose_bin} term run'
+alias @goose='{goose_bin} term run'
+alias @g='{goose_bin} term run'
+
+goose_preexec() {{
+    [[ "$1" =~ ^goose\ term ]] && return
+    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
+    ('{goose_bin}' term log "$1" &) 2>/dev/null
+}}
+
+if [[ -z "$goose_preexec_installed" ]]; then
+    goose_preexec_installed=1
+    trap 'goose_preexec "$BASH_COMMAND"' DEBUG
+fi{command_not_found_handler}"#,
+    command_not_found: Some(
+        r#"
+
 command_not_found_handle() {{
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#
-            ),
-            "zsh" => format!(
-                r#"
+}}"#,
+    ),
+};
 
-# Command not found handler - sends unknown commands to goose
+static ZSH_CONFIG: ShellConfig = ShellConfig {
+    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+alias gt='{goose_bin} term run'
+alias @goose='{goose_bin} term run'
+alias @g='{goose_bin} term run'
+
+goose_preexec() {{
+    [[ "$1" =~ ^goose\ term ]] && return
+    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
+    ('{goose_bin}' term log "$1" &) 2>/dev/null
+}}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec goose_preexec
+
+if [[ -z "$GOOSE_PROMPT_INSTALLED" ]]; then
+    export GOOSE_PROMPT_INSTALLED=1
+    PROMPT='%F{{cyan}}🪿%f '$PROMPT
+fi{command_not_found_handler}"#,
+    command_not_found: Some(
+        r#"
+
 command_not_found_handler() {{
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#
-            ),
-            _ => String::new(),
-        }
-    } else {
-        String::new()
-    };
+}}"#,
+    ),
+};
 
-    let script = match shell.to_lowercase().as_str() {
-        "bash" => {
-            format!(
-                r#"export GOOSE_SESSION_ID="{session_id}"
-alias gt='{goose_bin} term run'
-alias @goose='{goose_bin} term run'
-alias @g='{goose_bin} term run'
-
-# Log commands to goose (runs silently in background)
-goose_preexec() {{
-    [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
-    ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
-
-# Install preexec hook for bash
-if [[ -z "$goose_preexec_installed" ]]; then
-    goose_preexec_installed=1
-    trap 'goose_preexec "$BASH_COMMAND"' DEBUG
-fi{command_not_found_handler}"#
-            )
-        }
-        "zsh" => {
-            format!(
-                r#"export GOOSE_SESSION_ID="{session_id}"
-alias gt='{goose_bin} term run'
-alias @goose='{goose_bin} term run'
-alias @g='{goose_bin} term run'
-
-# Log commands to goose (runs silently in background)
-goose_preexec() {{
-    [[ "$1" =~ ^goose\ term ]] && return
-    [[ "$1" =~ ^(gt|@goose|@g)($|[[:space:]]) ]] && return
-    ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
-
-# Install preexec hook for zsh
-autoload -Uz add-zsh-hook
-add-zsh-hook preexec goose_preexec
-
-# Add goose indicator to prompt
-if [[ -z "$GOOSE_PROMPT_INSTALLED" ]]; then
-    export GOOSE_PROMPT_INSTALLED=1
-    PROMPT='%F{{cyan}}🪿%f '$PROMPT
-fi{command_not_found_handler}"#
-            )
-        }
-        "fish" => {
-            format!(
-                r#"set -gx GOOSE_SESSION_ID "{session_id}"
+static FISH_CONFIG: ShellConfig = ShellConfig {
+    script_template: r#"set -gx GOOSE_SESSION_ID "{session_id}"
 function gt; {goose_bin} term run $argv; end
 function @goose; {goose_bin} term run $argv; end
 function @g; {goose_bin} term run $argv; end
 
-# Log commands to goose
 function goose_preexec --on-event fish_preexec
     string match -q -r '^goose term' -- $argv[1]; and return
     string match -q -r '^(gt|@goose|@g)($|\s)' -- $argv[1]; and return
     {goose_bin} term log "$argv[1]" 2>/dev/null &
-end"#
-            )
-        }
-        "powershell" | "pwsh" => {
-            format!(
-                r#"$env:GOOSE_SESSION_ID = "{session_id}"
+end"#,
+    command_not_found: None,
+};
+
+static POWERSHELL_CONFIG: ShellConfig = ShellConfig {
+    script_template: r#"$env:GOOSE_SESSION_ID = "{session_id}"
 function gt {{ & '{goose_bin}' term run @args }}
 function @goose {{ & '{goose_bin}' term run @args }}
 function @g {{ & '{goose_bin}' term run @args }}
 
-# Log commands to goose
 Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
     $line = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$null)
@@ -125,22 +118,68 @@ Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
         Start-Job -ScriptBlock {{ & '{goose_bin}' term log $using:line }} | Out-Null
     }}
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-}}"#
+}}"#,
+    command_not_found: None,
+};
+
+pub async fn handle_term_init(
+    shell: Shell,
+    name: Option<String>,
+    with_command_not_found: bool,
+) -> Result<()> {
+    let config = shell.config();
+
+    let working_dir = std::env::current_dir()?;
+    let named_session = if let Some(ref name) = name {
+        let sessions = SessionManager::list_sessions_by_types(&[SessionType::Terminal]).await?;
+        sessions.into_iter().find(|s| s.name == *name)
+    } else {
+        None
+    };
+
+    let session = match named_session {
+        Some(s) => s,
+        None => {
+            let session = SessionManager::create_session(
+                working_dir,
+                "Goose Term Session".to_string(),
+                SessionType::Terminal,
             )
-        }
-        _ => {
-            return Err(anyhow!(
-                "Unsupported shell: {}. Supported shells: bash, zsh, fish, powershell",
-                shell
-            ));
+            .await?;
+
+            if let Some(name) = name {
+                SessionManager::update_session(&session.id)
+                    .user_provided_name(name)
+                    .apply()
+                    .await?;
+            }
+
+            session
         }
     };
+
+    let goose_bin = std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "goose".to_string());
+
+    let command_not_found_handler = if with_command_not_found {
+        config
+            .command_not_found
+            .map(|s| s.replace("{goose_bin}", &goose_bin))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let script = config
+        .script_template
+        .replace("{session_id}", &session.id)
+        .replace("{goose_bin}", &goose_bin)
+        .replace("{command_not_found_handler}", &command_not_found_handler);
 
     println!("{}", script);
     Ok(())
 }
-
-
 
 pub async fn handle_term_log(command: String) -> Result<()> {
     let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
@@ -178,15 +217,16 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         .await?;
 
     let session = SessionManager::get_session(&session_id, true).await?;
-    let user_messages_after_last_assistant: Vec<&Message> = if let Some(conv) = &session.conversation {
-        conv.messages()
-            .iter()
-            .rev()
-            .take_while(|m| m.role != Role::Assistant)
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let user_messages_after_last_assistant: Vec<&Message> =
+        if let Some(conv) = &session.conversation {
+            conv.messages()
+                .iter()
+                .rev()
+                .take_while(|m| m.role != Role::Assistant)
+                .collect()
+        } else {
+            Vec::new()
+        };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
         SessionManager::truncate_conversation(&session_id, oldest_user.created).await?;
@@ -204,8 +244,7 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
 
         format!(
             "<shell_history>\n{}\n</shell_history>\n\n{}",
-            history,
-            prompt
+            history, prompt
         )
     };
 

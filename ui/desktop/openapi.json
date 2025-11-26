@@ -4756,7 +4756,8 @@
           "user",
           "scheduled",
           "sub_agent",
-          "hidden"
+          "hidden",
+          "terminal"
         ]
       },
       "SessionsQuery": {

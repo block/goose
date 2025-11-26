@@ -13,7 +13,9 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
-use crate::commands::term::{handle_term_info, handle_term_init, handle_term_log, handle_term_run};
+use crate::commands::term::{
+    handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
+};
 
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -867,6 +869,9 @@ enum TermCommand {
         #[arg(value_enum)]
         shell: Shell,
 
+        #[arg(short, long, help = "Name for the terminal session")]
+        name: Option<String>,
+
         /// Make goose the default handler for unknown commands
         #[arg(
             long = "default",
@@ -912,14 +917,6 @@ enum CliProviderVariant {
     OpenAi,
     Databricks,
     Ollama,
-}
-
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum Shell {
-    Bash,
-    Zsh,
-    Fish,
-    Powershell,
 }
 
 #[derive(Debug)]
@@ -1474,14 +1471,12 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Term { command }) => {
             match command {
-                TermCommand::Init { shell, default } => {
-                    let shell_str = match shell {
-                        Shell::Bash => "bash",
-                        Shell::Zsh => "zsh",
-                        Shell::Fish => "fish",
-                        Shell::Powershell => "powershell",
-                    };
-                    handle_term_init(shell_str, default).await?;
+                TermCommand::Init {
+                    shell,
+                    name,
+                    default,
+                } => {
+                    handle_term_init(shell, name, default).await?;
                 }
                 TermCommand::Log { command } => {
                     handle_term_log(command).await?;
