@@ -4,6 +4,7 @@ pub mod prompt_ml_detector;
 pub mod scanner;
 pub mod security_inspector;
 
+use crate::config::Config;
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
@@ -33,7 +34,6 @@ impl SecurityManager {
     }
 
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
-        use crate::config::Config;
         let config = Config::global();
 
         config
@@ -42,7 +42,6 @@ impl SecurityManager {
     }
 
     fn is_ml_scanning_enabled(&self) -> bool {
-        use crate::config::Config;
         let config = Config::global();
 
         config
