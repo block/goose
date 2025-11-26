@@ -1,6 +1,6 @@
 use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
-use rmcp::model::{Content, ErrorCode, JsonObject};
+use rmcp::model::{Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode, JsonObject};
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
@@ -21,13 +21,15 @@ use rmcp::{
     transport::IntoTransport,
     ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{sync::Arc, time::Duration};
+use std::future::Future;
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
@@ -218,10 +220,37 @@ impl ClientHandler for GooseClient {
         })
     }
 
+    fn create_elicitation(
+        &self,
+        request: CreateElicitationRequestParam,
+        context: RequestContext<RoleClient>,
+    ) -> impl Future<Output = Result<CreateElicitationResult, ErrorData>> + Send + '_ {
+        async move {
+            info!("Server requests: {}", request.message);
+            info!("Expected format: {:?}", &request.requested_schema);
+            info!("Sending mock response");
+
+            // TODO - send ActionRequiredMessage and wait for approval
+
+            let user_data = json!({
+                "confirmation": true,
+                "user_input": "some value"
+            });
+
+            Ok(CreateElicitationResult {
+                action: ElicitationAction::Accept,
+                content: Some(user_data),
+            })
+        }
+    }
+
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().enable_sampling().build(),
+            capabilities: ClientCapabilities::builder()
+                .enable_sampling()
+                .enable_elicitation()
+                .build(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
