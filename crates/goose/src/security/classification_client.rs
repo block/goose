@@ -121,7 +121,8 @@ impl ClassificationClient {
         let parameters = self
             .extra_params
             .as_ref()
-            .map(|params| serde_json::to_value(params).unwrap_or(serde_json::Value::Null));
+            .map(|params| serde_json::to_value(params))
+            .transpose();
 
         let request = ClassificationRequest {
             inputs: text.to_string(),
