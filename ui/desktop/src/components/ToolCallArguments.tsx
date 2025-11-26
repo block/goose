@@ -65,11 +65,11 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
 function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; executionMode?: string }) {
   return (
     <div className="space-y-3">
-      {/* Execution mode indicator at the top */}
+      {/* Execution mode indicator as a pill badge */}
       {executionMode && (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background-muted border border-borderSubtle mb-3">
           <ExecutionModeTree mode={executionMode} taskCount={tasks.length} />
-          <span className="text-textSubtle font-sans text-xs">{executionMode}</span>
+          <span className="text-textSubtle font-sans text-xs font-medium">{executionMode}</span>
         </div>
       )}
       
