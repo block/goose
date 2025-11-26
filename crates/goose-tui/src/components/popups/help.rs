@@ -66,6 +66,13 @@ impl Component for HelpPopup {
             Line::from("  /alias      Create custom command"),
             Line::from(""),
             Line::from("  Custom commands can be defined in config."),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Tips:",
+                Style::default().add_modifier(Modifier::UNDERLINED),
+            )),
+            Line::from("  Press Enter on a message to view details,"),
+            Line::from("  then 'c' to copy the full content."),
         ];
 
         let block = Block::default()
