@@ -118,6 +118,30 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     const useSmallText = ['command', 'path', 'file_text', 'task_parameters', 'execution_mode', 'task_ids'].includes(key);
     const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
 
+    // Special handling for task_parameters - render as timeline
+    if (key === 'task_parameters' && Array.isArray(value)) {
+      return (
+        <div className="mb-2">
+          <TaskParametersTimeline tasks={value as any[]} />
+        </div>
+      );
+    }
+
+    // Special handling for execution_mode - render as tree visualization
+    if (key === 'execution_mode' && typeof value === 'string') {
+      return (
+        <div className="mb-2">
+          <div className="flex items-center gap-3">
+            <span className="text-textSubtle font-sans text-xs min-w-[140px]">{key}</span>
+            <div className="flex items-center gap-2">
+              <ExecutionModeTree mode={value} />
+              <span className="text-textPlaceholder font-sans text-xs">{value}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (typeof value === 'string') {
       const needsExpansion = value.length > 60;
       const isExpanded = expandedKeys[key];
@@ -162,30 +186,6 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <div className="min-w-2 grow" />
                 <Expand size={5} isExpanded={isExpanded} />
               </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Special handling for task_parameters - render as timeline
-    if (key === 'task_parameters' && Array.isArray(value)) {
-      return (
-        <div className="mb-2">
-          <TaskParametersTimeline tasks={value as any[]} />
-        </div>
-      );
-    }
-
-    // Special handling for execution_mode - render as tree visualization
-    if (key === 'execution_mode' && typeof value === 'string') {
-      return (
-        <div className="mb-2">
-          <div className="flex items-center gap-3">
-            <span className="text-textSubtle font-sans text-xs min-w-[140px]">{key}</span>
-            <div className="flex items-center gap-2">
-              <ExecutionModeTree mode={value} />
-              <span className="text-textPlaceholder font-sans text-xs">{value}</span>
             </div>
           </div>
         </div>
