@@ -20,7 +20,7 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
   const isParallel = mode === 'parallel';
   
   if (isParallel) {
-    // Parallel: vertical tree with branches
+    // Parallel: vertical tree with branches - all labeled "1" since they run simultaneously
     return (
       <div className="flex items-start gap-2">
         {/* Root node */}
@@ -35,7 +35,7 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
             <div key={index} className="flex items-center gap-1">
               <div className="w-3 h-0.5 bg-borderSubtle" />
               <div className="w-4 h-4 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
-                <span className="text-[8px] font-sans text-textSubtle">{index + 1}</span>
+                <span className="text-[8px] font-sans text-textSubtle">1</span>
               </div>
             </div>
           ))}
