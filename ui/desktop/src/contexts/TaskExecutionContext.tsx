@@ -3,17 +3,23 @@ import React, { createContext, useContext, useState, useCallback, ReactNode } fr
 // Task status type
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'error';
 
-// Map of task indices to their status
-export type TaskStatusMap = Map<number, TaskStatus>;
+// Task info including status and ID
+export type TaskInfo = {
+  status: TaskStatus;
+  taskId: string;
+};
 
-// Map of create_task tool call IDs to their task status maps
-type TaskExecutionState = Map<string, TaskStatusMap>;
+// Map of task indices to their info
+export type TaskInfoMap = Map<number, TaskInfo>;
+
+// Map of create_task tool call IDs to their task info maps
+type TaskExecutionState = Map<string, TaskInfoMap>;
 
 // Map of task IDs (e.g., "task-0") to their parent create_task tool call ID
 type TaskIdToCreateTaskMap = Map<string, string>;
 
 interface TaskExecutionContextType {
-  getTaskStatuses: (createTaskId: string) => TaskStatusMap | undefined;
+  getTaskInfos: (createTaskId: string) => TaskInfoMap | undefined;
   updateTaskStatus: (createTaskId: string, taskIndex: number, status: TaskStatus) => void;
   updateMultipleTaskStatuses: (createTaskId: string, statuses: Array<{ index: number; status: TaskStatus }>) => void;
   clearTaskStatuses: (createTaskId: string) => void;
@@ -35,14 +41,17 @@ export const TaskExecutionProvider: React.FC<TaskExecutionProviderProps> = ({ ch
   const registerCreateTask = useCallback((createTaskId: string, taskIds: string[]) => {
     setTaskExecutionState((prev) => {
       const newState = new Map(prev);
-      const taskStatuses = new Map<number, TaskStatus>();
+      const taskInfos = new Map<number, TaskInfo>();
       
-      // Initialize all tasks as pending
+      // Initialize all tasks as pending with their task IDs
       for (let i = 0; i < taskIds.length; i++) {
-        taskStatuses.set(i, 'pending');
+        taskInfos.set(i, {
+          status: 'pending',
+          taskId: taskIds[i]
+        });
       }
       
-      newState.set(createTaskId, taskStatuses);
+      newState.set(createTaskId, taskInfos);
       console.log('📋 Registered create_task:', createTaskId, 'with', taskIds.length, 'tasks');
       return newState;
     });
@@ -58,8 +67,8 @@ export const TaskExecutionProvider: React.FC<TaskExecutionProviderProps> = ({ ch
     });
   }, []);
 
-  // Get task statuses for a specific create_task
-  const getTaskStatuses = useCallback((createTaskId: string): TaskStatusMap | undefined => {
+  // Get task infos for a specific create_task
+  const getTaskInfos = useCallback((createTaskId: string): TaskInfoMap | undefined => {
     return taskExecutionState.get(createTaskId);
   }, [taskExecutionState]);
 
@@ -67,11 +76,18 @@ export const TaskExecutionProvider: React.FC<TaskExecutionProviderProps> = ({ ch
   const updateTaskStatus = useCallback((createTaskId: string, taskIndex: number, status: TaskStatus) => {
     setTaskExecutionState((prev) => {
       const newState = new Map(prev);
-      const taskStatuses = newState.get(createTaskId) || new Map();
-      const updatedStatuses = new Map(taskStatuses);
+      const taskInfos = newState.get(createTaskId) || new Map();
+      const updatedInfos = new Map(taskInfos);
       
-      updatedStatuses.set(taskIndex, status);
-      newState.set(createTaskId, updatedStatuses);
+      const existingInfo = updatedInfos.get(taskIndex);
+      if (existingInfo) {
+        updatedInfos.set(taskIndex, {
+          ...existingInfo,
+          status
+        });
+      }
+      
+      newState.set(createTaskId, updatedInfos);
       
       console.log('✅ Updated task status:', createTaskId, 'task', taskIndex, '→', status);
       return newState;
@@ -115,7 +131,7 @@ export const TaskExecutionProvider: React.FC<TaskExecutionProviderProps> = ({ ch
   }, [taskIdMapping]);
 
   const contextValue: TaskExecutionContextType = {
-    getTaskStatuses,
+    getTaskInfos,
     updateTaskStatus,
     updateMultipleTaskStatuses,
     clearTaskStatuses,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
 import { Circle } from 'lucide-react';
-import { useTaskExecution, TaskStatus } from '../contexts/TaskExecutionContext';
+import { useTaskExecution, TaskStatus, TaskInfo } from '../contexts/TaskExecutionContext';
 
 export type ToolCallArgumentValue =
   | string
@@ -116,11 +116,11 @@ type TaskStatus = 'pending' | 'running' | 'completed' | 'error';
 function TaskParametersTimeline({ 
   tasks, 
   executionMode,
-  taskStatuses 
+  taskInfos 
 }: { 
   tasks: any[]; 
   executionMode?: string;
-  taskStatuses?: Map<number, TaskStatus>;
+  taskInfos?: Map<number, TaskInfo>;
 }) {
   const isParallel = executionMode === 'parallel';
   
@@ -137,7 +137,9 @@ function TaskParametersTimeline({
         // Extract task details
         const instructions = task.instructions || task.prompt || 'No instructions provided';
         const title = task.title || `Task ${index + 1}`;
-        const status = taskStatuses?.get(index) || 'pending';
+        const taskInfo = taskInfos?.get(index);
+        const status = taskInfo?.status || 'pending';
+        const taskId = taskInfo?.taskId;
         
         // Determine circle styling based on status
         const getCircleStyle = () => {
@@ -207,9 +209,9 @@ function TaskParametersTimeline({
                   {task.description}
                 </div>
               )}
-              {/* Status label */}
-              {status !== 'pending' && (
-                <div className="mt-1">
+              {/* Task ID indicator - shown when status is not pending */}
+              {taskId && status !== 'pending' && (
+                <div className="mt-1 flex items-center gap-2">
                   <span className={`font-sans text-[10px] font-medium ${
                     status === 'running' ? 'text-blue-500' :
                     status === 'completed' ? 'text-green-500' :
@@ -218,6 +220,9 @@ function TaskParametersTimeline({
                     {status === 'running' ? 'Running...' : 
                      status === 'completed' ? 'Completed' : 
                      'Error'}
+                  </span>
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background-muted border border-borderSubtle text-textSubtle">
+                    {taskId}
                   </span>
                 </div>
               )}
@@ -231,7 +236,7 @@ function TaskParametersTimeline({
 
 export function ToolCallArguments({ args, toolCallId, toolName }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
-  const { getTaskStatuses, registerCreateTask } = useTaskExecution();
+  const { getTaskInfos, registerCreateTask } = useTaskExecution();
 
   const toggleKey = (key: string) => {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -240,18 +245,18 @@ export function ToolCallArguments({ args, toolCallId, toolName }: ToolCallArgume
   // Extract execution_mode if it exists
   const executionMode = typeof args.execution_mode === 'string' ? args.execution_mode : undefined;
   
-  // Get task statuses if this is a create_task
-  const taskStatuses = toolCallId && toolName === 'create_task' ? getTaskStatuses(toolCallId) : undefined;
+  // Get task infos if this is a create_task
+  const taskInfos = toolCallId && toolName === 'create_task' ? getTaskInfos(toolCallId) : undefined;
 
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     // Determine if this parameter should use smaller text
     const useSmallText = ['command', 'path', 'file_text', 'task_parameters', 'execution_mode', 'task_ids'].includes(key);
     const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
 
-    // Special handling for task_parameters - render as timeline with execution mode and statuses
+    // Special handling for task_parameters - render as timeline with execution mode and task infos
     if (key === 'task_parameters' && Array.isArray(value)) {
       // Register this create_task if we have an ID
-      if (toolCallId && toolName === 'create_task' && !taskStatuses) {
+      if (toolCallId && toolName === 'create_task' && !taskInfos) {
         // Generate task IDs based on the task count (format: "task-0", "task-1", etc.)
         const taskIds = Array.from({ length: value.length }, (_, i) => `task-${i}`);
         registerCreateTask(toolCallId, taskIds);
@@ -262,7 +267,7 @@ export function ToolCallArguments({ args, toolCallId, toolName }: ToolCallArgume
           <TaskParametersTimeline 
             tasks={value as any[]} 
             executionMode={executionMode}
-            taskStatuses={taskStatuses}
+            taskInfos={taskInfos}
           />
         </div>
       );
