@@ -117,6 +117,17 @@ function BaseChatContent({
     tabId, // Pass tabId for sidecar filtering
   });
 
+  // Auto-send @goose off for Matrix chats on initial load
+  const hasAutoDisabledGoose = useRef(false);
+  useEffect(() => {
+    if (matrixRoomId && !hasAutoDisabledGoose.current && messages.length === 0 && chatState === ChatState.Idle) {
+      console.log('📱 Auto-sending @goose off for Matrix chat');
+      hasAutoDisabledGoose.current = true;
+      // Send @goose off command automatically
+      streamHandleSubmit('@goose off');
+    }
+  }, [matrixRoomId, messages.length, chatState, streamHandleSubmit]);
+
   // Create append function for adding messages programmatically
   const append = useCallback((textOrMessage: string | Message) => {
     if (typeof textOrMessage === 'string') {
