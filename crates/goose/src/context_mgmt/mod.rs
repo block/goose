@@ -382,6 +382,17 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 } => {
                     format!("action_required(tool_confirmation): {}", tool_name)
                 }
+                crate::conversation::message::ActionRequiredData::Elicitation {
+                    message, ..
+                } => {
+                    format!("action_required(elicitation): {}", message)
+                }
+                crate::conversation::message::ActionRequiredData::ElicitationResponse {
+                    id,
+                    ..
+                } => {
+                    format!("action_required(elicitation_response): {}", id)
+                }
             },
             MessageContent::FrontendToolRequest(req) => {
                 if let Ok(call) = &req.tool_call {

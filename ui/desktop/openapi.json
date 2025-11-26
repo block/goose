@@ -2395,6 +2395,50 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "requested_schema",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitation"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requested_schema": {}
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "user_data",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitationResponse"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "user_data": {}
+            }
           }
         ],
         "discriminator": {

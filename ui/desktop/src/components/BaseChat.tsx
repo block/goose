@@ -96,6 +96,7 @@ function BaseChatContent({
     messages,
     chatState,
     handleSubmit,
+    submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
@@ -274,6 +275,7 @@ function BaseChatContent({
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}
         onMessageUpdate={onMessageUpdate}
+        submitElicitationResponse={submitElicitationResponse}
       />
     </>
   );

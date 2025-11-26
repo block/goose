@@ -9,10 +9,12 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  getElicitationContent,
   NotificationEvent,
 } from '../types/message';
 import { Message, confirmToolAction } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
+import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
@@ -28,6 +30,10 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  submitElicitationResponse?: (
+    elicitationId: string,
+    userData: Record<string, unknown>
+  ) => Promise<void>;
 }
 
 export default function GooseMessage({
@@ -38,6 +44,7 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   isStreaming = false,
+  submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const handledToolConfirmations = useRef<Set<string>>(new Set());
@@ -69,12 +76,14 @@ export default function GooseMessage({
   const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
+  const elicitationContent = getElicitationContent(message);
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
   const hideTimestamp = useMemo(
     () => shouldHideTimestamp(messageIndex, toolCallChains),
     [messageIndex, toolCallChains]
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
+  const hasElicitation = elicitationContent !== undefined;
 
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
@@ -217,6 +226,16 @@ export default function GooseMessage({
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
             actionRequiredContent={toolConfirmationContent}
+          />
+        )}
+
+        {hasElicitation && submitElicitationResponse && (
+          <ElicitationRequest
+            sessionId={sessionId}
+            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex}
+            actionRequiredContent={elicitationContent}
+            onSubmit={submitElicitationResponse}
           />
         )}
       </div>

@@ -33,7 +33,14 @@ export default function ToolConfirmation({
   isClicked,
   actionRequiredContent,
 }: ToolConfirmationProps) {
-  const { id: toolConfirmationId, toolName, prompt } = actionRequiredContent.data;
+  // Extract data - we need to handle the union type
+  const data = actionRequiredContent.data;
+  const isToolConfirmation = data.actionType === 'toolConfirmation';
+
+  // Extract data only if it's a tool confirmation, otherwise use placeholder values
+  const toolConfirmationId = data.id;
+  const toolName = isToolConfirmation ? data.toolName : '';
+  const prompt = isToolConfirmation ? data.prompt : undefined;
 
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
@@ -46,6 +53,8 @@ export default function ToolConfirmation({
 
   // Sync internal state with stored state and props
   useEffect(() => {
+    if (!isToolConfirmation) return;
+
     const currentStoredState = toolConfirmationState.get(toolConfirmationId);
 
     // If we have stored state, use it
@@ -68,7 +77,12 @@ export default function ToolConfirmation({
         });
       }
     }
-  }, [isClicked, clicked, status, toolName, toolConfirmationId]);
+  }, [isClicked, clicked, status, toolName, toolConfirmationId, isToolConfirmation]);
+
+  // Early return after hooks
+  if (!isToolConfirmation) {
+    return null;
+  }
 
   const handleButtonClick = async (newStatus: string) => {
     let newActionDisplay;
