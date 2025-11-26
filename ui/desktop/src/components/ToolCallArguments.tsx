@@ -67,10 +67,9 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
   
   return (
     <div className="space-y-3">
-      {/* Execution mode indicator as a pill badge */}
+      {/* Execution mode indicator as a simple pill badge */}
       {executionMode && (
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background-muted border border-borderSubtle mb-3">
-          <ExecutionModeTree mode={executionMode} taskCount={tasks.length} />
+        <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-background-muted border border-borderSubtle mb-3">
           <span className="text-textSubtle font-sans text-xs font-medium">{executionMode}</span>
         </div>
       )}
@@ -84,8 +83,14 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
           <div key={index} className="flex gap-3">
             {/* Timeline indicator */}
             <div className="flex flex-col items-center">
-              <div className="w-6 h-6 rounded-full border-2 border-borderSubtle bg-background-default flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded-full border-2 border-borderSubtle bg-background-default flex items-center justify-center flex-shrink-0 relative">
                 <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
+                {/* Parallel execution indicator - small numbered box overlaid on circle */}
+                {isParallel && (
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
+                    <span className="text-[8px] font-sans text-textSubtle">1</span>
+                  </div>
+                )}
               </div>
               {index < tasks.length - 1 && (
                 <div className="w-0.5 h-full bg-borderSubtle flex-grow mt-1" />
@@ -93,7 +98,7 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
             </div>
             
             {/* Task content */}
-            <div className="flex-1 pb-3 relative">
+            <div className="flex-1 pb-3">
               {title !== `Task ${index + 1}` && (
                 <div className="font-sans text-xs font-medium text-textProminent mb-1">
                   {title}
@@ -106,13 +111,6 @@ function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; execut
               {task.description && (
                 <div className="font-sans text-xs text-textSubtle mt-1 italic">
                   {task.description}
-                </div>
-              )}
-              
-              {/* Parallel execution indicator - small numbered box at bottom right */}
-              {isParallel && (
-                <div className="absolute bottom-0 right-0 w-4 h-4 rounded-sm border border-borderSubtle bg-background-default flex items-center justify-center">
-                  <span className="text-[8px] font-sans text-textSubtle">1</span>
                 </div>
               )}
             </div>
