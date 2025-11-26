@@ -157,7 +157,7 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   return (
     <div className={cn(
-      "flex items-center bg-background-default border-b border-border-subtle",
+      "flex items-center bg-background-default",
       "min-h-[44px] gap-1 overflow-x-auto tab-bar-container",
       "shadow-sm transition-all duration-200", // Add subtle shadow for depth and smooth transitions
       // Adjust padding based on sidebar state - extra left padding when sidebar is collapsed for macOS stoplight buttons
@@ -173,7 +173,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               "min-w-[120px] max-w-[180px] group relative tab-item",
               "transition-all duration-200 ease-out", // Smoother, longer transition
               tab.isActive
-                ? "bg-background-muted text-text-prominent shadow-sm active"
+                ? "bg-background-muted text-text-prominent shadow-sm active rounded-full"
                 : "bg-transparent text-text-muted hover:bg-background-subtle hover:text-text-standard"
             )}
             onClick={() => onTabClick(tab.id)}
@@ -193,19 +193,22 @@ export const TabBar: React.FC<TabBarProps> = ({
               <div className="w-2 h-2 bg-accent-warning rounded-full flex-shrink-0 unsaved-indicator" />
             )}
 
-            {/* Close Button - Only show for active tab */}
+            {/* Close Button - Only show for active tab, hide (but keep space) when it's the last tab */}
             {tab.isActive && (
               <button
                 onClick={(e) => {
-                  e.stopPropagation();
-                  onTabClose(tab.id);
+                  if (tabs.length > 1) {
+                    e.stopPropagation();
+                    onTabClose(tab.id);
+                  }
                 }}
                 className={cn(
                   "flex-shrink-0 p-1.5 rounded-md tab-close-button",
                   "text-text-muted hover:text-text-standard transition-all duration-200",
-                  "ml-1 -mr-1" // Add some margin for better spacing and extend clickable area
+                  "ml-1 -mr-1", // Add some margin for better spacing and extend clickable area
+                  tabs.length === 1 && "invisible pointer-events-none" // Hide but keep space when last tab
                 )}
-                title="Close tab"
+                title={tabs.length > 1 ? "Close tab" : ""}
               >
                 <X className="w-4 h-4" />
               </button>

@@ -265,6 +265,12 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, []);
 
   const handleTabClose = useCallback(async (tabId: string) => {
+    // Prevent closing the last tab
+    if (tabStates.length === 1) {
+      console.log('🚫 Cannot close the last tab');
+      return;
+    }
+
     // Get the tab being closed for cleanup logic
     const closingTab = tabStates.find(ts => ts.tab.id === tabId);
     
@@ -307,16 +313,9 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         setActiveTabId(newStates[nextActiveIndex].tab.id);
       }
       
-      // If this was the last tab, create a new one with immediate backend session
-      if (newStates.length === 0) {
-        // Create a new tab immediately - this will trigger handleNewTab logic
-        handleNewTab();
-        return prev; // Return current state, handleNewTab will update it
-      }
-      
       return newStates;
     });
-  }, [activeTabId, tabStates, handleNewTab]);
+  }, [activeTabId, tabStates]);
 
   const handleChatUpdate = useCallback((tabId: string, chat: ChatType) => {
     setTabStates(prev => prev.map(ts => 
