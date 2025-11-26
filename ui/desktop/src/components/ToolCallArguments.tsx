@@ -22,13 +22,17 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   };
 
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
+    // Determine if this parameter should use smaller text
+    const useSmallText = ['command', 'path', 'file_text'].includes(key);
+    const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
+
     if (typeof value === 'string') {
       const needsExpansion = value.length > 60;
       const isExpanded = expandedKeys[key];
 
       if (!needsExpansion) {
         return (
-          <div className="font-sans text-sm mb-2">
+          <div className={`font-sans ${textSizeClass} mb-2`}>
             <div className="flex flex-row">
               <span className="text-textSubtle min-w-[140px]">{key}</span>
               <span className="text-textPlaceholder">{value}</span>
@@ -38,7 +42,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       }
 
       return (
-        <div className="font-sans text-sm mb-2">
+        <div className={`font-sans ${textSizeClass} mb-2`}>
           <div className="flex flex-row items-stretch">
             <button
               onClick={() => toggleKey(key)}
@@ -51,7 +55,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <div>
                   <MarkdownContent
                     content={value}
-                    className="font-sans text-sm text-textPlaceholder"
+                    className={`font-sans ${textSizeClass} text-textPlaceholder`}
                   />
                 </div>
               ) : (
@@ -81,7 +85,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
     return (
       <div className="mb-2">
-        <div className="flex flex-row font-sans text-sm">
+        <div className={`flex flex-row font-sans ${textSizeClass}`}>
           <span className="text-textSubtle min-w-[140px]">{key}</span>
           <pre className="whitespace-pre-wrap text-textPlaceholder overflow-x-auto max-w-full">
             {content}

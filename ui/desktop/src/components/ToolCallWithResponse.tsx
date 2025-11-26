@@ -20,6 +20,7 @@ interface ToolCallWithResponseProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   append?: (value: string) => void; // Function to append messages to the chat
+  tabId?: string; // Tab ID for opening sidecars
 }
 
 export default function ToolCallWithResponse({
@@ -539,16 +540,11 @@ interface ToolDetailsViewProps {
 
 function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   return (
-    <ToolCallExpandable
-      label={<span className="pl-4 font-sans text-sm">Tool Details</span>}
-      isStartExpanded={isStartExpanded}
-    >
-      <div className="pr-4 pl-8">
-        {toolCall.arguments && (
-          <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
-        )}
-      </div>
-    </ToolCallExpandable>
+    <div className="pr-4 pl-4 py-2">
+      {toolCall.arguments && (
+        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+      )}
+    </div>
   );
 }
 
