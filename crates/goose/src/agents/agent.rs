@@ -14,17 +14,11 @@ use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMP
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::recipe_tools::dynamic_task_tools::{
-    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
-};
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
-use crate::agents::sub_recipe_manager::SubRecipeManager;
-use crate::agents::subagent_execution_tool::lib::ExecutionMode;
-use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
-    self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
+use crate::agents::subagent_tool::{
+    create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
@@ -90,8 +84,7 @@ pub struct Agent {
     pub(super) provider: SharedProvider,
 
     pub extension_manager: Arc<ExtensionManager>,
-    pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
-    pub(super) tasks_manager: TasksManager,
+    pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -165,8 +158,7 @@ impl Agent {
         Self {
             provider: provider.clone(),
             extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
-            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
-            tasks_manager: TasksManager::new(),
+            sub_recipes: Mutex::new(HashMap::new()),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -388,9 +380,11 @@ impl Agent {
         self.extend_system_prompt(final_output_system_prompt).await;
     }
 
-    pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
-        let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
+    pub async fn add_sub_recipes(&self, sub_recipes_to_add: Vec<SubRecipe>) {
+        let mut sub_recipes = self.sub_recipes.lock().await;
+        for sr in sub_recipes_to_add {
+            sub_recipes.insert(sr.name.clone(), sr);
+        }
     }
 
     pub async fn apply_recipe_components(
@@ -419,9 +413,9 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        // Prevent subagents from creating other subagents
         if session.session_type == crate::session::SessionType::SubAgent
-            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
-                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+            && tool_call.name == SUBAGENT_TOOL_NAME
         {
             return (
                 request_id,
@@ -461,27 +455,7 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if self
-            .sub_recipe_manager
-            .lock()
-            .await
-            .is_sub_recipe_tool(&tool_call.name)
-        {
-            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(
-                    &tool_call.name,
-                    arguments,
-                    &self.tasks_manager,
-                    &session.working_dir,
-                )
-                .await
-        } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
+        let result: ToolCallResult = if tool_call.name == SUBAGENT_TOOL_NAME {
             let provider = match self.provider().await {
                 Ok(p) => p,
                 Err(_) => {
@@ -496,81 +470,27 @@ impl Agent {
                 }
             };
 
-            // Get extensions from the agent's runtime state rather than global config
-            // This ensures subagents inherit extensions that were dynamically enabled by the parent
             let extensions = self.get_extension_configs().await;
-
             let task_config =
                 TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-
-            let arguments = match tool_call.arguments.clone() {
-                Some(args) => Value::Object(args),
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Tool call arguments are required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-            let task_ids: Vec<String> = match arguments.get("task_ids") {
-                Some(v) => match serde_json::from_value(v.clone()) {
-                    Ok(ids) => ids,
-                    Err(_) => {
-                        return (
-                            request_id,
-                            Err(ErrorData::new(
-                                ErrorCode::INVALID_PARAMS,
-                                "Invalid task_ids format".to_string(),
-                                None,
-                            )),
-                        );
-                    }
-                },
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "task_ids parameter is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let execution_mode = arguments
-                .get("execution_mode")
-                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
-                .unwrap_or(ExecutionMode::Sequential);
-
-            subagent_execute_task_tool::run_tasks(
-                task_ids,
-                execution_mode,
-                task_config,
-                &self.tasks_manager,
-                cancellation_token,
-            )
-            .await
-        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            // Get loaded extensions for shortname resolution
             let loaded_extensions = self
                 .extension_manager
                 .list_extensions()
                 .await
                 .unwrap_or_default();
+            let sub_recipes = self.sub_recipes.lock().await.clone();
+
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(
+
+            handle_subagent_tool(
                 arguments,
-                &self.tasks_manager,
-                loaded_extensions,
+                task_config,
+                &sub_recipes,
+                &loaded_extensions,
                 &session.working_dir,
             )
             .await
@@ -709,21 +629,18 @@ impl Agent {
             .unwrap_or_default();
 
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
-            // Add platform tools
-            // TODO: migrate the manage schedule tool as well
             prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
-            // Dynamic task tool
-            prefixed_tools.push(create_dynamic_task_tool());
         }
 
         if extension_name.is_none() {
-            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-            prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
-
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+
+            // Add the unified subagent tool
+            let sub_recipes = self.sub_recipes.lock().await;
+            let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
+            prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
         }
 
         prefixed_tools

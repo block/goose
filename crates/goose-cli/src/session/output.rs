@@ -261,6 +261,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
+            "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
@@ -496,6 +497,51 @@ fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
                     }
                 }
             }
+        }
+    }
+
+    println!();
+}
+
+fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
+    print_tool_header(call);
+
+    if let Some(args) = &call.arguments {
+        // Show subrecipe if present
+        if let Some(Value::String(subrecipe)) = args.get("subrecipe") {
+            println!("{}: {}", style("subrecipe").dim(), style(subrecipe).cyan());
+        }
+
+        // Show instructions if present
+        if let Some(Value::String(instructions)) = args.get("instructions") {
+            let display = if instructions.len() > 100 && !debug {
+                format!("{}...", &instructions[..100])
+            } else {
+                instructions.clone()
+            };
+            println!(
+                "{}: {}",
+                style("instructions").dim(),
+                style(display).green()
+            );
+        }
+
+        // Show parameters if present
+        if let Some(Value::Object(params)) = args.get("parameters") {
+            println!("{}:", style("parameters").dim());
+            print_params(&Some(params.clone()), 1, debug);
+        }
+
+        // Show other args (extensions, settings, summary)
+        let skip_keys = ["subrecipe", "instructions", "parameters"];
+        let mut other_args = serde_json::Map::new();
+        for (k, v) in args {
+            if !skip_keys.contains(&k.as_str()) {
+                other_args.insert(k.clone(), v.clone());
+            }
+        }
+        if !other_args.is_empty() {
+            print_params(&Some(other_args), 0, debug);
         }
     }
 

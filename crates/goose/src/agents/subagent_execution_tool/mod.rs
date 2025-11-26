@@ -1,10 +1,12 @@
-mod executor;
-pub mod lib;
+//! Subagent execution notification types.
+//!
+//! This module contains types used for task execution notifications in the CLI.
+//! The actual subagent execution is now handled by the unified `subagent` tool
+//! in `crate::agents::subagent_tool`.
+
 pub mod notification_events;
-pub mod subagent_execute_task_tool;
-pub mod task_execution_tracker;
-pub mod task_types;
-pub mod tasks;
-pub mod tasks_manager;
-pub mod utils;
-pub mod workers;
+
+// Re-export commonly used types for backward compatibility
+pub mod lib {
+    pub use super::notification_events::TaskStatus;
+}
