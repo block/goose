@@ -74,6 +74,11 @@ impl<'a> InputComponent<'a> {
             "/alias" => Some(Action::StartCommandBuilder),
             "/clear" => Some(Action::ClearChat),
             "/copy" | "/copymode" => Some(Action::ToggleCopyMode),
+            "/compact" => {
+                let message = goose::conversation::message::Message::user()
+                    .with_text(goose::agents::MANUAL_COMPACT_TRIGGER);
+                Some(Action::SendMessage(message))
+            }
             "/theme" => parts
                 .get(1)
                 .map(|theme_name| Action::ChangeTheme(theme_name.to_string())),
@@ -265,6 +270,7 @@ impl<'a> Component for InputComponent<'a> {
                         "/session",
                         "/alias",
                         "/clear",
+                        "/compact",
                         "/theme",
                         "/copy",
                         "/copymode",

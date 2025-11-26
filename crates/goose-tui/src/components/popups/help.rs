@@ -59,6 +59,7 @@ impl Component for HelpPopup {
             )),
             Line::from("  /help       Show this help"),
             Line::from("  /copy       Toggle copy mode"),
+            Line::from("  /compact    Compact conversation history"),
             Line::from("  /config     Open configuration"),
             Line::from("  /session    Open session picker"),
             Line::from("  /theme      Change theme (e.g. /theme light)"),

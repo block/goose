@@ -319,6 +319,10 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
         }
         MessageEvent::UpdateConversation { conversation } => {
             state.messages = conversation.messages().clone();
+            state.flash_message = Some((
+                "Context compaction complete".to_string(),
+                Instant::now() + std::time::Duration::from_secs(5),
+            ));
         }
         MessageEvent::Error { error } => {
             state.flash_message = Some((
