@@ -38,11 +38,12 @@ export const SecurityToggle = () => {
     SECURITY_PROMPT_ENABLED: enabled = false,
     SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
     SECURITY_PROMPT_BERT_ENABLED: mlEnabled = false,
-    SECURITY_PROMPT_BERT_MODEL: mlModel = availableModels[0]?.value || '',
+    SECURITY_PROMPT_BERT_MODEL: mlModel = '',
     SECURITY_PROMPT_BERT_ENDPOINT: mlEndpoint = '',
     SECURITY_PROMPT_BERT_TOKEN: mlToken = '',
   } = (config as SecurityConfig) ?? {};
 
+  const effectiveModel = mlModel || availableModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
   const [endpointInput, setEndpointInput] = useState(mlEndpoint);
   const [tokenInput, setTokenInput] = useState(mlToken);
@@ -195,7 +196,7 @@ export const SecurityToggle = () => {
                         Select which ML model to use for prompt injection detection
                       </p>
                       <select
-                        value={mlModel}
+                        value={effectiveModel}
                         onChange={(e) => handleModelChange(e.target.value)}
                         disabled={!enabled || !mlEnabled}
                         className={`w-full px-3 py-2 text-sm border rounded ${
