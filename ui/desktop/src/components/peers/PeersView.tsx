@@ -21,6 +21,7 @@ import MatrixAuth from './MatrixAuth';
 import GooseChat from '../GooseChat';
 import MatrixChat from '../MatrixChat';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTabContext } from '../../contexts/TabContext';
 
 // Helper function to handle avatar URLs (now handled by MatrixService)
 const convertMxcToHttp = (avatarUrl: string): string => {
@@ -702,6 +703,8 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
     onGooseMessage
   } = useMatrix();
   
+  const { openMatrixChat } = useTabContext();
+  
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -868,16 +871,9 @@ const PeersView: React.FC<PeersViewProps> = ({ onClose }) => {
       // Mark messages as read when opening chat
       markMessagesAsRead(friend.userId);
       
-      // Open a new tab/chat session with Matrix room parameters
-      console.log('🧭 Opening new tab for Matrix collaboration:', roomId);
-      
-      // Dispatch custom event to create a new Matrix tab
-      window.dispatchEvent(new CustomEvent('create-matrix-tab', {
-        detail: {
-          roomId: roomId,
-          senderId: friend.userId
-        }
-      }));
+      // Open a new tab/chat session with Matrix room parameters using TabContext
+      console.log('🧭 Opening new Matrix tab:', roomId);
+      openMatrixChat(roomId, friend.userId);
     } catch (error) {
       console.error('Failed to create/get DM room:', error);
     }
