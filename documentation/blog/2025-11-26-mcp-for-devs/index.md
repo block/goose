@@ -38,16 +38,25 @@ Here's a real example from our team:
 
 > Slack thread. Real developers in realtime.
 >
-> Dev 1: I think there's a bug with xyz
-> Dev 2: Let me check... yep, I think you're right.
-> Dev 3: `@goose` is there a bug here?
-> goose: Yep. It's in these lines...[code snippet]
-> Dev 3: Okay `@goose`, open an issue with the details. What solutions would you suggest?
-> goose: Here are 3. [code snippets with rationale]
-> Dev 1: I like Option 1
-> Dev 2: me too
-> Dev 3: `@goose`, implement Option 1
-> goose: Done. Here's the PR.
+> **Dev 1:** I think there's a bug with xyz
+>
+> **Dev 2:** Let me check... yep, I think you're right.
+>
+> **Dev 3:** `@goose` is there a bug here?
+>
+> **goose:** Yep. It's in these lines...[code snippet]
+>
+> **Dev 3:** Okay `@goose`, open an issue with the details. What solutions would you suggest?
+>
+> **goose:** Here are 3 suggestions: [code snippets with rationale]
+>
+> **Dev 1:** I like Option 1
+>
+> **Dev 2:** me too
+>
+> **Dev 3:** `@goose`, implement Option 1
+>
+> **goose:** Done. Here's the PR.
 
 All of that happened *in Slack*. No one opened a browser or a terminal. No one context switched. Issue tracking, triaging, discussing fixes, implementing code in one thread in a 5-minute span.
 
@@ -100,7 +109,7 @@ This is probably my favorite dev MCP. It's a huge time saver for new projects, c
 
 The [Chrome DevTools MCP](/docs/mcp/chrome-devtools-mcp) is a must-have for frontend devs. You're building a new form/widget/page/whatever. Instead of opening your browser, typing stuff in, and clicking around, you just tell your agent:
 
-> "Test my login form on localhost:3000. Try valid and invalid logins. Let me know what happens. Run in headless mode"
+> "Test my login form on localhost:3000. Try valid and invalid logins. Let me know what happens."
 
 Chrome opens, test runs, screenshots captured, network traffic logged, console errors noted. All done by the agent.
 
