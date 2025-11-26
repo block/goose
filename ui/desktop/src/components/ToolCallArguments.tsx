@@ -62,9 +62,17 @@ function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: 
 }
 
 // Timeline component for task parameters
-function TaskParametersTimeline({ tasks }: { tasks: any[] }) {
+function TaskParametersTimeline({ tasks, executionMode }: { tasks: any[]; executionMode?: string }) {
   return (
     <div className="space-y-3">
+      {/* Execution mode indicator at the top */}
+      {executionMode && (
+        <div className="flex items-center gap-2 mb-2">
+          <ExecutionModeTree mode={executionMode} taskCount={tasks.length} />
+          <span className="text-textSubtle font-sans text-xs">{executionMode}</span>
+        </div>
+      )}
+      
       {tasks.map((task, index) => {
         // Extract task details
         const instructions = task.instructions || task.prompt || 'No instructions provided';
@@ -113,33 +121,26 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // Extract execution_mode if it exists
+  const executionMode = typeof args.execution_mode === 'string' ? args.execution_mode : undefined;
+
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     // Determine if this parameter should use smaller text
     const useSmallText = ['command', 'path', 'file_text', 'task_parameters', 'execution_mode', 'task_ids'].includes(key);
     const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
 
-    // Special handling for task_parameters - render as timeline
+    // Special handling for task_parameters - render as timeline with execution mode
     if (key === 'task_parameters' && Array.isArray(value)) {
       return (
         <div className="mb-2">
-          <TaskParametersTimeline tasks={value as any[]} />
+          <TaskParametersTimeline tasks={value as any[]} executionMode={executionMode} />
         </div>
       );
     }
 
-    // Special handling for execution_mode - render as tree visualization
-    if (key === 'execution_mode' && typeof value === 'string') {
-      return (
-        <div className="mb-2">
-          <div className="flex items-center gap-3">
-            <span className="text-textSubtle font-sans text-xs min-w-[140px]">{key}</span>
-            <div className="flex items-center gap-2">
-              <ExecutionModeTree mode={value} />
-              <span className="text-textPlaceholder font-sans text-xs">{value}</span>
-            </div>
-          </div>
-        </div>
-      );
+    // Hide execution_mode as standalone - it's now shown in the timeline
+    if (key === 'execution_mode') {
+      return null;
     }
 
     if (typeof value === 'string') {
