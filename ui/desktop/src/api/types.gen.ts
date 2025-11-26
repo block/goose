@@ -14,6 +14,15 @@ export type ActionRequiredData = {
     id: string;
     prompt?: string | null;
     toolName: string;
+} | {
+    actionType: 'elicitation';
+    id: string;
+    message: string;
+    requested_schema: unknown;
+} | {
+    actionType: 'elicitationResponse';
+    id: string;
+    user_data: unknown;
 };
 
 export type AddExtensionRequest = {

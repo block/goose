@@ -1,3 +1,4 @@
+pub mod action_required_manager;
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
