@@ -921,6 +921,15 @@ export type ToolResponse = {
     };
 };
 
+export type TunnelInfo = {
+    hostname: string;
+    secret: string;
+    state: TunnelState;
+    url: string;
+};
+
+export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -2757,3 +2766,71 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type StartTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/start';
+};
+
+export type StartTunnelErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
+
+export type StartTunnelResponses = {
+    /**
+     * Tunnel started successfully
+     */
+    200: TunnelInfo;
+};
+
+export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
+
+export type GetTunnelStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/status';
+};
+
+export type GetTunnelStatusResponses = {
+    /**
+     * Tunnel info
+     */
+    200: TunnelInfo;
+};
+
+export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
+
+export type StopTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/stop';
+};
+
+export type StopTunnelErrors = {
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
+
+export type StopTunnelResponses = {
+    /**
+     * Tunnel stopped successfully
+     */
+    200: unknown;
+};

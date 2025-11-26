@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, GitFork, ScrollText } from 'lucide-react';
+import { Bug, ChefHat, GitFork, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -29,6 +29,8 @@ import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
 import { useForkSession } from '../hooks/useForkSession';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
 
 interface QueuedMessage {
   id: string;
@@ -81,7 +83,6 @@ interface ChatInputProps {
       totalCost: number;
     };
   };
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipe?: Recipe | null;
   recipeId?: string | null;
@@ -108,7 +109,6 @@ export default function ChatInput({
   messages = [],
   disableAnimation = false,
   sessionCosts,
-  setIsGoosehintsModalOpen,
   recipe,
   recipeId,
   recipeAccepted,
@@ -147,6 +147,8 @@ export default function ChatInput({
     if (!sessionId) return;
     await forkAndOpenWindow(sessionId);
   };
+  const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
+  const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1493,9 +1495,6 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipe={recipe}
-                recipeId={recipeId}
-                hasMessages={messages.length > 0}
               />
             </div>
           </Tooltip>
@@ -1507,21 +1506,34 @@ export default function ChatInput({
               <BottomMenuExtensionSelection sessionId={sessionId} />
             </>
           )}
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
+          {sessionId && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <div className="flex items-center h-full">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => {
+                        if (recipe) {
+                          setShowEditRecipeModal(true);
+                        } else {
+                          setShowCreateRecipeModal(true);
+                        }
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                    >
+                      <ChefHat size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </>
+          )}
           {sessionId && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1576,6 +1588,23 @@ export default function ChatInput({
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
+
+        {sessionId && showCreateRecipeModal && (
+          <CreateRecipeFromSessionModal
+            isOpen={showCreateRecipeModal}
+            onClose={() => setShowCreateRecipeModal(false)}
+            sessionId={sessionId}
+          />
+        )}
+
+        {recipe && showEditRecipeModal && (
+          <CreateEditRecipeModal
+            isOpen={showEditRecipeModal}
+            onClose={() => setShowEditRecipeModal(false)}
+            recipe={recipe}
+            recipeId={recipeId}
+          />
+        )}
       </div>
     </div>
   );
