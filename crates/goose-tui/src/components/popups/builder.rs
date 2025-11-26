@@ -204,8 +204,18 @@ impl<'a> BuilderPopup<'a> {
                 Ok(None)
             }
             KeyCode::Enter => {
-                let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
-                let arg_name = &tool.parameters[arg_idx];
+                let Some(tool_idx) = self.selected_tool_idx else {
+                    self.step = Step::Menu;
+                    return Ok(None);
+                };
+                let Some(tool) = state.available_tools.get(tool_idx) else {
+                    self.step = Step::Menu;
+                    return Ok(None);
+                };
+                let Some(arg_name) = tool.parameters.get(arg_idx) else {
+                    self.step = Step::Menu;
+                    return Ok(None);
+                };
                 let value = self.input.lines().join("\n");
 
                 self.arg_values.insert(arg_name.clone(), value);
@@ -241,7 +251,14 @@ impl<'a> BuilderPopup<'a> {
             KeyCode::Enter => {
                 let name = self.input.lines().join("\n").trim().to_string();
                 if !name.is_empty() {
-                    let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
+                    let Some(tool_idx) = self.selected_tool_idx else {
+                        self.step = Step::Menu;
+                        return Ok(None);
+                    };
+                    let Some(tool) = state.available_tools.get(tool_idx) else {
+                        self.step = Step::Menu;
+                        return Ok(None);
+                    };
 
                     let mut args_map = serde_json::Map::new();
                     for (k, v) in &self.arg_values {
@@ -339,8 +356,15 @@ impl<'a> BuilderPopup<'a> {
         block: Block<'static>,
         arg_idx: usize,
     ) {
-        let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
-        let arg_name = &tool.parameters[arg_idx];
+        let Some(tool_idx) = self.selected_tool_idx else {
+            return;
+        };
+        let Some(tool) = state.available_tools.get(tool_idx) else {
+            return;
+        };
+        let Some(arg_name) = tool.parameters.get(arg_idx) else {
+            return;
+        };
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -377,6 +401,13 @@ impl<'a> BuilderPopup<'a> {
         state: &AppState,
         block: Block<'static>,
     ) {
+        let Some(tool_idx) = self.selected_tool_idx else {
+            return;
+        };
+        let Some(tool) = state.available_tools.get(tool_idx) else {
+            return;
+        };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(3)])
@@ -386,7 +417,6 @@ impl<'a> BuilderPopup<'a> {
         f.render_widget(block.title("Final Step: Name Command"), area);
 
         let mut summary = vec![Line::from("Command Summary:")];
-        let tool = &state.available_tools[self.selected_tool_idx.unwrap()];
         summary.push(Line::from(format!("Tool: {}", tool.name)));
         for (k, v) in &self.arg_values {
             summary.push(Line::from(format!("  {k}: {v}")));

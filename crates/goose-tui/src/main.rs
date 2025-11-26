@@ -14,10 +14,11 @@ use services::config::TuiConfig;
 use services::events::{Event, EventHandler};
 use state::action::Action;
 use state::AppState;
-use std::env;
 use std::fs;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
@@ -61,27 +62,28 @@ fn setup_tui_logging() -> Result<WorkerGuard> {
     Ok(guard)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Commands::Tui { session: None }) {
-        Commands::Tui { session } => run_tui(session).await,
-        Commands::Mcp { name } => {
+        Commands::Tui { session } => {
+            let secret_key = Uuid::new_v4().to_string();
+            std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
+            std::env::set_var("GOOSE_PORT", "0");
+
+            tokio::runtime::Runtime::new()?.block_on(run_tui(session, secret_key))
+        }
+        Commands::Mcp { name } => tokio::runtime::Runtime::new()?.block_on(async {
             goose_server::logging::setup_logging(Some(&format!("mcp-{name}")))?;
             goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
             Ok(())
-        }
+        }),
     }
 }
 
-async fn run_tui(session: Option<String>) -> Result<()> {
+async fn run_tui(session: Option<String>, secret_key: String) -> Result<()> {
     let _guard = setup_tui_logging()?;
     info!("Starting Goose TUI...");
-
-    let secret_key = Uuid::new_v4().to_string();
-    env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
-    env::set_var("GOOSE_PORT", "0");
 
     info!("Initializing embedded server...");
 
@@ -89,13 +91,19 @@ async fn run_tui(session: Option<String>) -> Result<()> {
     let port = listener.local_addr()?.port();
     info!("Embedded server bound to port: {}", port);
 
-    tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, server_app).await {
+    let shutdown_token = CancellationToken::new();
+    let server_shutdown = shutdown_token.clone();
+
+    let server_handle = tokio::spawn(async move {
+        let server = axum::serve(listener, server_app).with_graceful_shutdown(async move {
+            server_shutdown.cancelled().await;
+        });
+        if let Err(e) = server.await {
             tracing::error!("Server error: {}", e);
         }
     });
 
-    let client = Client::new(port, secret_key.clone());
+    let client = Client::new(port, secret_key);
     let cwd = std::env::current_dir()?;
 
     let initial_session = if let Some(id) = session {
@@ -155,7 +163,12 @@ async fn run_tui(session: Option<String>) -> Result<()> {
     let app = App::new();
     let event_handler = EventHandler::new();
 
-    run_event_loop(terminal, app, event_handler, state, client).await
+    let result = run_event_loop(terminal, app, event_handler, state, client).await;
+
+    shutdown_token.cancel();
+    let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+
+    result
 }
 
 async fn run_event_loop(
@@ -188,7 +201,9 @@ async fn run_event_loop(
             app.render(f, f.area(), &state);
         })?;
 
-        let event = event_handler.next().await.unwrap();
+        let Some(event) = event_handler.next().await else {
+            break;
+        };
         if process_event(event, &mut app, &mut state, &client, &tx, &mut reply_task) {
             break;
         }
