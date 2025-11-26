@@ -126,9 +126,7 @@ impl Agent {
             let model_name = provider.get_model_config().model_name;
 
             if !should_enable_subagents(&model_name) {
-                tools.retain(|tool| {
-                    tool.name != crate::agents::subagent_tool::SUBAGENT_TOOL_NAME
-                });
+                tools.retain(|tool| tool.name != crate::agents::subagent_tool::SUBAGENT_TOOL_NAME);
             }
         }
 
