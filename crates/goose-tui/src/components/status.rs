@@ -189,11 +189,11 @@ impl StatusComponent {
                 "Esc: Normal",
                 Style::default().fg(Color::DarkGray),
             ));
-            hints.push(Span::styled(
-                "Enter: Send",
-                Style::default().fg(Color::DarkGray),
-            ));
         }
+        hints.push(Span::styled(
+            "Ctrl+S: Copy",
+            Style::default().fg(Color::DarkGray),
+        ));
         hints.push(Span::styled(
             "Ctrl+T: Todos",
             Style::default().fg(Color::DarkGray),

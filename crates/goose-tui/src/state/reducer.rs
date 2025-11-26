@@ -161,6 +161,7 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
         }
         Action::ToggleCopyMode => {
             state.copy_mode = !state.copy_mode;
+            state.needs_refresh = true;
             true
         }
         _ => false,
