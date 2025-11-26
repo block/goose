@@ -107,4 +107,14 @@ The hook runs `goose term log <command> &` in the background, which appends to a
 
 ## Session Management
 
-Terminal sessions are tied to your working directory. If you `cd` to a different project, goose automatically creates or switches to a session for that directory. This keeps conversations organized by project.
+By default a new goose session is created each time you run init and
+that session lasts as long as you keep that terminal open.
+
+You can create a named session by passing --name:
+
+```bash
+eval "$(goose term init zsh --name my_project)"
+```
+
+which will create a session with the name `my_project` if it doesn't exist yet or continues
+that session if it does.
