@@ -196,12 +196,19 @@ impl PromptInjectionScanner {
             .rev()
             .filter(|m| matches!(m.role, rmcp::model::Role::User))
             .take(limit)
-            .filter_map(|m| {
-                m.content.iter().find_map(|c| match c {
-                    crate::conversation::message::MessageContent::Text(t) => Some(t.text.clone()),
-                    _ => None,
-                })
+            .map(|m| {
+                m.content
+                    .iter()
+                    .filter_map(|c| match c {
+                        crate::conversation::message::MessageContent::Text(t) => {
+                            Some(t.text.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
             })
+            .filter(|s| !s.is_empty())
             .collect()
     }
 
