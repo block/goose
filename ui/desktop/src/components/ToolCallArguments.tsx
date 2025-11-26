@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
+import { Circle } from 'lucide-react';
 
 export type ToolCallArgumentValue =
   | string
@@ -14,6 +15,97 @@ interface ToolCallArgumentsProps {
   args: Record<string, ToolCallArgumentValue>;
 }
 
+// Tree visualization for execution mode
+function ExecutionModeTree({ mode, taskCount = 3 }: { mode: string; taskCount?: number }) {
+  const isParallel = mode === 'parallel';
+  
+  if (isParallel) {
+    // Parallel: vertical tree with branches
+    return (
+      <div className="flex items-start gap-2">
+        {/* Root node */}
+        <div className="flex flex-col items-center">
+          <div className="w-2 h-2 rounded-full bg-border-subtle" />
+          <div className="w-0.5 h-4 bg-border-subtle" />
+        </div>
+        
+        {/* Parallel branches */}
+        <div className="flex flex-col gap-1">
+          {Array.from({ length: taskCount }).map((_, index) => (
+            <div key={index} className="flex items-center gap-1">
+              <div className="w-3 h-0.5 bg-border-subtle" />
+              <div className="w-4 h-4 rounded-sm border border-border-subtle bg-background-default flex items-center justify-center">
+                <span className="text-[8px] font-sans text-textSubtle">{index + 1}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  // Sequential: horizontal tree with connected nodes
+  return (
+    <div className="flex items-center gap-1">
+      {Array.from({ length: taskCount }).map((_, index) => (
+        <div key={index} className="flex items-center">
+          <div className="w-4 h-4 rounded-sm border border-border-subtle bg-background-default flex items-center justify-center">
+            <span className="text-[8px] font-sans text-textSubtle">{index + 1}</span>
+          </div>
+          {index < taskCount - 1 && (
+            <div className="w-2 h-0.5 bg-border-subtle mx-0.5" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Timeline component for task parameters
+function TaskParametersTimeline({ tasks }: { tasks: any[] }) {
+  return (
+    <div className="space-y-3">
+      {tasks.map((task, index) => {
+        // Extract task details
+        const instructions = task.instructions || task.prompt || 'No instructions provided';
+        const title = task.title || `Task ${index + 1}`;
+        
+        return (
+          <div key={index} className="flex gap-3">
+            {/* Timeline indicator */}
+            <div className="flex flex-col items-center">
+              <div className="w-6 h-6 rounded-full border-2 border-border-subtle bg-background-default flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-sans text-textSubtle">{index + 1}</span>
+              </div>
+              {index < tasks.length - 1 && (
+                <div className="w-0.5 h-full bg-border-subtle flex-grow mt-1" />
+              )}
+            </div>
+            
+            {/* Task content */}
+            <div className="flex-1 pb-3">
+              {title !== `Task ${index + 1}` && (
+                <div className="font-sans text-xs font-medium text-text-prominent mb-1">
+                  {title}
+                </div>
+              )}
+              <div className="font-sans text-xs text-textPlaceholder">
+                {instructions}
+              </div>
+              {/* Show other task properties if they exist */}
+              {task.description && (
+                <div className="font-sans text-xs text-textSubtle mt-1 italic">
+                  {task.description}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
@@ -23,7 +115,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
     // Determine if this parameter should use smaller text
-    const useSmallText = ['command', 'path', 'file_text'].includes(key);
+    const useSmallText = ['command', 'path', 'file_text', 'task_parameters', 'execution_mode', 'task_ids'].includes(key);
     const textSizeClass = useSmallText ? 'text-xs' : 'text-sm';
 
     if (typeof value === 'string') {
@@ -70,6 +162,30 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <div className="min-w-2 grow" />
                 <Expand size={5} isExpanded={isExpanded} />
               </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Special handling for task_parameters - render as timeline
+    if (key === 'task_parameters' && Array.isArray(value)) {
+      return (
+        <div className="mb-2">
+          <TaskParametersTimeline tasks={value as any[]} />
+        </div>
+      );
+    }
+
+    // Special handling for execution_mode - render as tree visualization
+    if (key === 'execution_mode' && typeof value === 'string') {
+      return (
+        <div className="mb-2">
+          <div className="flex items-center gap-3">
+            <span className="text-textSubtle font-sans text-xs min-w-[140px]">{key}</span>
+            <div className="flex items-center gap-2">
+              <ExecutionModeTree mode={value} />
+              <span className="text-textPlaceholder font-sans text-xs">{value}</span>
             </div>
           </div>
         </div>

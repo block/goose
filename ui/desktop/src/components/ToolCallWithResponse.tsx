@@ -480,30 +480,58 @@ function ToolCallView({
     // Get the first text result
     const textResult = toolResults.find(r => r.result.type === 'text' && r.result.text);
     if (textResult && textResult.result.type === 'text' && textResult.result.text) {
+      const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+      const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+      
+      // Build a descriptive file path/name based on the tool and its arguments
+      let filePath: string | undefined;
+      
+      // Extract path information from common tool arguments
+      if (args.path && typeof args.path === 'string') {
+        filePath = args.path;
+      } else if (args.file_path && typeof args.file_path === 'string') {
+        filePath = args.file_path;
+      } else if (args.filePath && typeof args.filePath === 'string') {
+        filePath = args.filePath;
+      } else if (args.uri && typeof args.uri === 'string') {
+        filePath = args.uri;
+      } else if (args.url && typeof args.url === 'string') {
+        filePath = args.url;
+      } else if (args.command && typeof args.command === 'string') {
+        // For shell commands, use the command as the "file name"
+        filePath = `${toolName}: ${args.command}`;
+      } else {
+        // Fallback: use tool name and description
+        const description = getToolDescription();
+        filePath = description || `${toolName} output`;
+      }
+      
       const instanceId = `tool-output-${Date.now()}`;
-      showDocumentEditor(tabId!, undefined, textResult.result.text, instanceId);
+      showDocumentEditor(tabId!, filePath, textResult.result.text, instanceId);
     }
   };
 
   const toolLabel = (
-    <span
-      className={cn(
-        'flex items-center gap-2',
-        extensionTooltip && 'cursor-pointer hover:opacity-80'
-      )}
-    >
-      <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
-      <span>{getToolLabelContent()}</span>
+    <div className="flex items-center justify-between w-full">
+      <span
+        className={cn(
+          'flex items-center gap-2',
+          extensionTooltip && 'cursor-pointer hover:opacity-80'
+        )}
+      >
+        <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
+        <span>{getToolLabelContent()}</span>
+      </span>
       {canOpenInSidecar && (
         <button
           onClick={handleOpenOutputInSidecar}
-          className="p-1 hover:bg-background-muted rounded transition-colors"
+          className="p-1 hover:bg-background-muted rounded transition-colors mr-2"
           title="Open output in sidecar"
         >
           <ExternalLink className="w-3 h-3" />
         </button>
       )}
-    </span>
+    </div>
   );
   return (
     <ToolCallExpandable
@@ -594,7 +622,7 @@ function ToolLogsView({
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-4 py-1 font-sans text-sm flex items-center">
+        <span className="pl-4 py-1 font-sans text-xs flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -615,7 +643,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
+          <span key={i} className="font-sans text-xs text-textSubtle">
             {log}
           </span>
         ))}
@@ -630,7 +658,7 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-xs text-textSubtle">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (
