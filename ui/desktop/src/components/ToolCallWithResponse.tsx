@@ -39,7 +39,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
+          'w-full text-xs font-sans rounded-lg overflow-hidden border-borderSubtle border'
         )}
       >
         <ToolCallView
@@ -104,7 +104,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-sans text-sm">{label}</span>
+        <span className="flex items-center font-sans text-xs">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
