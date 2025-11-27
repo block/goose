@@ -4,6 +4,7 @@ use crate::state::action::Action;
 use crate::state::AppState;
 use crate::utils::layout::centered_rect;
 use crate::utils::message_format::message_to_plain_text;
+use crate::utils::sanitize::sanitize_line;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
 use goose::conversation::message::MessageContent;
@@ -111,7 +112,8 @@ impl MessagePopup {
                                     text.to_string()
                                 };
                                 for line in display_string.lines() {
-                                    lines.push(Line::from(line.to_string()));
+                                    let (sanitized, _) = sanitize_line(line);
+                                    lines.push(Line::from(sanitized));
                                 }
                             }
                         }

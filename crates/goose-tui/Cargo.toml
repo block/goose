@@ -41,6 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 termimad = "0.34.0"
 unicode-width = "0.2.0"
 arboard = "3.6.1"
+ansi-to-tui = "7.0.0"
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full"] }

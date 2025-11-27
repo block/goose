@@ -3,6 +3,7 @@ use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, InputMode};
 use crate::utils::ascii_art::GOOSE_LOGO;
+use crate::utils::sanitize::sanitize_line;
 use crate::utils::styles::Theme;
 use crate::utils::termimad_renderer::TermimadRenderer2;
 use anyhow::Result;
@@ -14,7 +15,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use std::collections::HashMap;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 pub struct ChatComponent {
     list_state: ListState,
@@ -206,12 +207,13 @@ impl ChatComponent {
                             break;
                         }
 
-                        let line_width = UnicodeWidthStr::width(line);
+                        let (sanitized, line_width) = sanitize_line(line);
+
                         let (truncated_line, truncated_width) = if line_width > content_width {
                             let mut w = 0;
                             let mut s = String::new();
-                            for c in line.chars() {
-                                let cw = c.width().unwrap_or(0);
+                            for c in sanitized.chars() {
+                                let cw = UnicodeWidthStr::width(c.to_string().as_str());
                                 if w + cw > content_width {
                                     break;
                                 }
@@ -220,7 +222,7 @@ impl ChatComponent {
                             }
                             (s, w)
                         } else {
-                            (line.to_string(), line_width)
+                            (sanitized, line_width)
                         };
 
                         let pad = content_width.saturating_sub(truncated_width);
