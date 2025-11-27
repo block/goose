@@ -9,6 +9,7 @@ use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
 use std::future::Future;
 use std::pin::Pin;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
 type AgentMessagesFuture =
@@ -20,16 +21,18 @@ pub async fn run_complete_subagent_task(
     task_config: TaskConfig,
     return_last_only: bool,
     session_id: String,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id)
-        .await
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to execute task: {}", e),
-                None,
-            )
-        })?;
+    let (messages, final_output) =
+        get_agent_messages(recipe, task_config, session_id, cancellation_token)
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to execute task: {}", e),
+                    None,
+                )
+            })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -99,6 +102,7 @@ fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
     session_id: String,
+    cancellation_token: Option<CancellationToken>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
@@ -152,7 +156,9 @@ fn get_agent_messages(
         };
 
         let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-            agent.reply(user_message, session_config, None).await
+            agent
+                .reply(user_message, session_config, cancellation_token)
+                .await
         })
         .await
         .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;

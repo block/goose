@@ -486,6 +486,7 @@ impl Agent {
                 task_config,
                 sub_recipes,
                 session.working_dir.clone(),
+                cancellation_token,
             )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution

@@ -7,8 +7,8 @@ use futures::FutureExt;
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio_util::sync::CancellationToken;
 
-use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
@@ -175,6 +175,7 @@ pub fn handle_subagent_tool(
     task_config: TaskConfig,
     sub_recipes: HashMap<String, SubRecipe>,
     working_dir: PathBuf,
+    cancellation_token: Option<CancellationToken>,
 ) -> ToolCallResult {
     let parsed_params: SubagentParams = match serde_json::from_value(params) {
         Ok(p) => p,
@@ -216,7 +217,16 @@ pub fn handle_subagent_tool(
 
     ToolCallResult {
         notification_stream: None,
-        result: Box::new(execute_subagent(recipe, task_config, parsed_params, working_dir).boxed()),
+        result: Box::new(
+            execute_subagent(
+                recipe,
+                task_config,
+                parsed_params,
+                working_dir,
+                cancellation_token,
+            )
+            .boxed(),
+        ),
     }
 }
 
@@ -225,6 +235,7 @@ async fn execute_subagent(
     task_config: TaskConfig,
     params: SubagentParams,
     working_dir: PathBuf,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<Vec<Content>, ErrorData> {
     let session = SessionManager::create_session(
         working_dir,
@@ -246,7 +257,14 @@ async fn execute_subagent(
             data: None,
         })?;
 
-    let result = run_complete_subagent_task(recipe, task_config, params.summary, session.id).await;
+    let result = run_complete_subagent_task(
+        recipe,
+        task_config,
+        params.summary,
+        session.id,
+        cancellation_token,
+    )
+    .await;
 
     match result {
         Ok(text) => Ok(vec![Content::text(text)]),
@@ -355,56 +373,19 @@ fn build_adhoc_recipe(params: &SubagentParams) -> Result<Recipe> {
         .as_ref()
         .ok_or_else(|| anyhow!("Instructions required for ad-hoc task"))?;
 
-    // Build recipe with defaults
-    let mut builder = Recipe::builder()
+    let recipe = Recipe::builder()
         .version("1.0.0")
         .title("Subagent Task")
         .description("Ad-hoc subagent task")
-        .instructions(instructions);
-
-    // Handle extensions if provided
-    if let Some(extensions) = &params.extensions {
-        if let Some(ext_configs) = process_extensions(extensions) {
-            builder = builder.extensions(ext_configs);
-        }
-    }
-
-    // Build and validate
-    let recipe = builder
+        .instructions(instructions)
         .build()
         .map_err(|e| anyhow!("Failed to build recipe: {}", e))?;
 
-    // Security validation
     if recipe.check_for_security_warnings() {
         return Err(anyhow!("Recipe contains potentially harmful content"));
     }
 
     Ok(recipe)
-}
-
-/// Process extension names into ExtensionConfig objects
-fn process_extensions(extensions: &[String]) -> Option<Vec<ExtensionConfig>> {
-    // If the array is empty, return an empty Vec (not None)
-    // This is important: empty array means "no extensions"
-    if extensions.is_empty() {
-        return Some(Vec::new());
-    }
-
-    let mut converted_extensions = Vec::new();
-
-    for name_str in extensions {
-        if let Some(config) = crate::config::get_extension_by_name(name_str) {
-            if crate::config::is_extension_enabled(&config.key()) {
-                converted_extensions.push(config);
-            } else {
-                tracing::warn!("Extension '{}' is disabled, skipping", name_str);
-            }
-        } else {
-            tracing::warn!("Extension '{}' not found in configuration", name_str);
-        }
-    }
-
-    Some(converted_extensions)
 }
 
 async fn apply_settings_overrides(
