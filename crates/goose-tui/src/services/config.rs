@@ -23,7 +23,7 @@ impl TuiConfig {
 
         let theme_name = global
             .get_param::<String>("tui_theme")
-            .unwrap_or_else(|_| "gemini".to_string());
+            .unwrap_or_else(|_| "goose".to_string());
 
         let custom_commands = global
             .get_param::<Vec<CustomCommand>>("tui_custom_commands")
