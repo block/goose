@@ -1,5 +1,10 @@
 use clap::{Parser, Subcommand};
+use goose_mcp::mcp_server_runner::{serve, McpCommand};
+use goose_mcp::{
+    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+};
 use goose_server::{commands, logging};
+use std::str::FromStr;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -30,7 +35,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Mcp { name } => {
             logging::setup_logging(Some(&format!("mcp-{name}")))?;
-            goose_mcp::mcp_server_runner::run_mcp_server(name).await?;
+            let server = McpCommand::from_str(name)
+                .map_err(|e| anyhow::anyhow!("Invalid MCP server: {}", e))?;
+            match server {
+                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+                McpCommand::Memory => serve(MemoryServer::new()).await?,
+                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+                McpCommand::Developer => serve(DeveloperServer::new()).await?,
+            }
         }
     }
 
