@@ -48,10 +48,6 @@ The following settings can be configured at the root level of your config.yaml f
 | `security_prompt_enabled` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
 | `security_prompt_threshold` | Sensitivity threshold for [prompt injection detection](/docs/guides/security/prompt-injection-detection) (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
 
-:::info Automatic Multi-Model Configuration
-The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
-:::
-
 ## Experimental Features
 
 These settings enable experimental features that are in active development. These may change or be removed in future releases.

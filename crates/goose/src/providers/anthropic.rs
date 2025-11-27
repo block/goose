@@ -14,7 +14,7 @@ use super::errors::ProviderError;
 use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
-use super::utils::{get_model, map_http_error_to_provider_error};
+use super::utils::{get_model, handle_status_openai_compat, map_http_error_to_provider_error};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -273,17 +273,12 @@ impl Provider for AnthropicProvider {
             request = request.header(key, value)?;
         }
 
-        let response = request.response_post(&payload).await.inspect_err(|e| {
+        let resp = request.response_post(&payload).await.inspect_err(|e| {
             let _ = log.error(e);
         })?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            let error_json = serde_json::from_str::<Value>(&error_text).ok();
-            let error = map_http_error_to_provider_error(status, error_json);
-            let _ = log.error(&error);
-            return Err(error);
-        }
+        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

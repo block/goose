@@ -30,7 +30,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
+use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
@@ -703,7 +703,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGER));
+                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;

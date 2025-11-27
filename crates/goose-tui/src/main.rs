@@ -73,9 +73,24 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(Commands::Mcp { name }) = cli.command {
+        use goose_mcp::mcp_server_runner::{serve, McpCommand};
+        use goose_mcp::{
+            AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer,
+            TutorialServer,
+        };
+        use std::str::FromStr;
+
         return tokio::runtime::Runtime::new()?.block_on(async {
             goose_server::logging::setup_logging(Some(&format!("mcp-{name}")))?;
-            goose_mcp::mcp_server_runner::run_mcp_server(&name).await?;
+            let server = McpCommand::from_str(&name)
+                .map_err(|e| anyhow::anyhow!("Invalid MCP server: {}", e))?;
+            match server {
+                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+                McpCommand::Memory => serve(MemoryServer::new()).await?,
+                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+                McpCommand::Developer => serve(DeveloperServer::new()).await?,
+            }
             Ok(())
         });
     }

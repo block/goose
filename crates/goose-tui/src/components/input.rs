@@ -76,7 +76,7 @@ impl<'a> InputComponent<'a> {
             "/copy" | "/copymode" => Some(Action::ToggleCopyMode),
             "/compact" => {
                 let message = goose::conversation::message::Message::user()
-                    .with_text(goose::agents::MANUAL_COMPACT_TRIGGER);
+                    .with_text(goose::agents::MANUAL_COMPACT_TRIGGERS[0]);
                 Some(Action::SendMessage(message))
             }
             "/theme" => {

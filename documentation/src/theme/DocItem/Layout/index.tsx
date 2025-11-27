@@ -1,4 +1,4 @@
-import React, {type ReactNode, useState, useEffect} from 'react';
+import React, {type ReactNode, useState, useEffect, useRef} from 'react';
 import type LayoutType from '@theme/DocItem/Layout';
 import type {WrapperProps} from '@docusaurus/types';
 import {useDoc} from '@docusaurus/plugin-content-docs/client';
@@ -14,7 +14,7 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
-import {Copy, Check} from 'lucide-react';
+import {Copy, Check, ChevronDown, FileText, ExternalLink, Eye, Code, FileCode} from 'lucide-react';
 import layoutStyles from './styles.module.css';
 import TurndownService from 'turndown';
 
@@ -357,6 +357,92 @@ function CopyPageButton(): ReactNode {
   );
 }
 
+// New wrapper component that adds dropdown menu to copy button
+function PageActionsMenu(): ReactNode {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [dropdownOpen]);
+  
+  // Handle keyboard navigation (Escape to close)
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDropdownOpen(false);
+      }
+    };
+    
+    if (dropdownOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [dropdownOpen]);
+  
+  const handleViewMarkdown = () => {
+    const currentPath = window.location.pathname;
+    const mdPath = currentPath.endsWith('/') 
+      ? `${currentPath.slice(0, -1)}.md` 
+      : `${currentPath}.md`;
+    window.open(mdPath, '_blank');
+    setDropdownOpen(false);
+  };
+  
+  return (
+    <div className="relative inline-flex" ref={dropdownRef}>
+      {/* Button group container - unified appearance */}
+      <div className="flex items-center bg-black dark:bg-white rounded-md">
+        {/* Original Copy Page Button - keep its original styling but remove right border radius */}
+        <div className="[&>button]:rounded-r-none">
+          <CopyPageButton />
+        </div>
+        
+        {/* Divider */}
+        <div className="w-px h-4 bg-gray-700 dark:bg-gray-300"></div>
+        
+        {/* Chevron Dropdown Trigger - attached to copy button */}
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="px-2 py-1.5 bg-black dark:bg-white text-white dark:text-black rounded-l-none rounded-r-md text-sm font-medium transition-all duration-200 ease-in-out hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:ring-offset-2 flex items-center justify-center"
+          aria-label="More page actions"
+          aria-expanded={dropdownOpen}
+          aria-haspopup="true"
+        >
+          <ChevronDown size={16} className={`transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+      
+      {/* Dropdown Menu */}
+      {dropdownOpen && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-black dark:bg-white rounded-md shadow-lg border border-gray-700 dark:border-gray-300 z-50">
+          <button
+            onClick={handleViewMarkdown}
+            className="w-full flex items-center justify-between gap-1.5 px-3 py-1.5 text-sm text-white dark:text-black hover:opacity-90 hover:-translate-y-px active:translate-y-px transition-all duration-200 ease-in-out font-medium bg-transparent rounded-md"
+          >
+            <div className="flex items-center gap-1.5">
+              <FileCode size={16} className="flex-shrink-0" />
+              <span>View as Markdown</span>
+            </div>
+            <ExternalLink size={16} className="flex-shrink-0" />
+          </button>
+          {/* Future menu items can be added here */}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Hook to determine if we should show the copy button
 function useShouldShowCopyButton(): boolean {
   const {metadata} = useDoc();
@@ -395,7 +481,7 @@ function useDocTOC() {
   };
 }
 
-// Custom Content component that includes the copy button
+// Custom Content component that includes the page actions menu
 function CustomDocItemContent({children}: {children: ReactNode}): ReactNode {
   const shouldShowCopyButton = useShouldShowCopyButton();
   const {metadata, frontMatter, contentTitle} = useDoc();
@@ -409,12 +495,12 @@ function CustomDocItemContent({children}: {children: ReactNode}): ReactNode {
       {syntheticTitle && (
         <header className="flex justify-between items-start mb-4 flex-col md:flex-row gap-2 md:gap-0">
           <Heading as="h1" className="m-0 flex-1">{syntheticTitle}</Heading>
-          {shouldShowCopyButton && <CopyPageButton />}
+          {shouldShowCopyButton && <PageActionsMenu />}
         </header>
       )}
       {!syntheticTitle && shouldShowCopyButton && (
         <div className="flex justify-end mb-4">
-          <CopyPageButton />
+          <PageActionsMenu />
         </div>
       )}
       <MDXContent>{children}</MDXContent>

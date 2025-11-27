@@ -53,9 +53,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 }
                             }
 
-                            parts.push(json!({
-                                "functionCall": function_call_part
-                            }));
+                            let mut part = Map::new();
+                            part.insert("functionCall".to_string(), json!(function_call_part));
+
+                            if let Some(signature) = &request.thought_signature {
+                                part.insert("thoughtSignature".to_string(), json!(signature));
+                            }
+
+                            parts.push(json!(part));
                         }
                         Err(e) => {
                             parts.push(json!({"text":format!("Error: {}", e)}));
@@ -120,6 +125,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 parts.push(json!({"text":format!("Error: {}", e)}));
                             }
                         }
+                    }
+                    MessageContent::Thinking(thinking) => {
+                        let mut part = Map::new();
+                        part.insert("text".to_string(), json!(thinking.thinking));
+                        part.insert("thoughtSignature".to_string(), json!(thinking.signature));
+                        parts.push(json!(part));
                     }
 
                     _ => {}
@@ -269,8 +280,17 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         .unwrap_or(&binding);
 
     for part in parts {
+        let thought_signature = part
+            .get("thoughtSignature")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
-            content.push(MessageContent::text(text.to_string()));
+            if let Some(sig) = thought_signature {
+                content.push(MessageContent::thinking(text.to_string(), sig));
+            } else {
+                content.push(MessageContent::text(text.to_string()));
+            }
         } else if let Some(function_call) = part.get("functionCall") {
             let id: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)
@@ -294,12 +314,13 @@ pub fn response_to_message(response: Value) -> Result<Message> {
             } else {
                 let parameters = function_call.get("args");
                 if let Some(params) = parameters {
-                    content.push(MessageContent::tool_request(
+                    content.push(MessageContent::tool_request_with_signature(
                         id,
                         Ok(CallToolRequestParam {
                             name: name.into(),
                             arguments: Some(object(params.clone())),
                         }),
+                        thought_signature,
                     ));
                 }
             }

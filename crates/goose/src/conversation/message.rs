@@ -24,7 +24,15 @@ fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageC
 where
     D: Deserializer<'de>,
 {
-    let mut content: Vec<MessageContent> = Vec::deserialize(deserializer)?;
+    use serde::de::Error;
+
+    let mut raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+
+    // Filter out old "conversationCompacted" messages from pre-14.0
+    raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
+
+    let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
+        .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
@@ -53,6 +61,8 @@ pub struct ToolRequest {
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 impl ToolRequest {
@@ -201,6 +211,19 @@ impl MessageContent {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
+            thought_signature: None,
+        })
+    }
+
+    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
+        id: S1,
+        tool_call: ToolResult<CallToolRequestParam>,
+        thought_signature: Option<S2>,
+    ) -> Self {
+        MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            thought_signature: thought_signature.map(|s| s.into()),
         })
     }
 

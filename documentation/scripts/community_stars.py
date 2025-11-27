@@ -7,14 +7,20 @@ This script analyzes GitHub contributor statistics and generates rankings for:
 - Top 5 Team Stars (Block employees, non-goose team)
 - Monthly Leaderboard (all eligible contributors)
 
+The script automatically:
+- Fetches contributor data from GitHub API (with retry logic)
+- Checks public org memberships to detect Block employees
+- Categorizes contributors as Block or External
+- Caches data locally for faster subsequent runs
+
 Usage:
     python3 community_stars.py "November 2025"
     python3 community_stars.py "November 1, 2025 - November 17, 2025"
     python3 community_stars.py "2025-11-01 - 2025-11-17"
 
 Requirements:
-    - GitHub contributor data at /tmp/github_contributors.json
-    - Team list file (local or from GitHub)
+    - Internet connection (to fetch GitHub data)
+    - Team list file at documentation/scripts/community_stars_teams.txt
 """
 
 import json
@@ -24,10 +30,51 @@ import urllib.request
 from datetime import datetime
 import calendar
 from pathlib import Path
+import time
 
 # GitHub URL for team list file
 TEAMS_FILE_URL = "https://raw.githubusercontent.com/block/goose/main/documentation/scripts/community_stars_teams.txt"
 LOCAL_TEAMS_FILE = Path(__file__).parent / "community_stars_teams.txt"
+
+# Block-related organizations to check
+BLOCK_ORGS = {'square', 'block', 'squareup', 'block-ghc', 'cashapp'}
+
+def is_block_employee(username):
+    """Check if a user is a Block employee by checking their profile and org memberships.
+    
+    Makes a single API call to get user profile (includes company field),
+    then only calls orgs endpoint if company field doesn't match.
+    """
+    try:
+        # First check the user's profile (single API call)
+        url = f"https://api.github.com/users/{username}"
+        with urllib.request.urlopen(url) as response:
+            user_data = json.loads(response.read().decode('utf-8'))
+        
+        # Check company field first (no additional API call needed)
+        company = user_data.get('company', '').lower() if user_data.get('company') else ''
+        if company:
+            # Check for Block-related keywords in company field
+            block_keywords = ['block', 'square', 'cash app', 'cashapp', 'tidal']
+            if any(keyword in company for keyword in block_keywords):
+                return True
+        
+        # Only check orgs if company field didn't match (second API call only when needed)
+        url = f"https://api.github.com/users/{username}/orgs"
+        with urllib.request.urlopen(url) as response:
+            orgs = json.loads(response.read().decode('utf-8'))
+            
+        # Check if any org matches Block orgs (case-insensitive)
+        user_orgs = {org['login'].lower() for org in orgs}
+        if user_orgs & BLOCK_ORGS:
+            return True
+                
+        return False
+        
+    except Exception as e:
+        # If we can't check (rate limit, network error, etc.), return False
+        # This means we'll default to treating them as external
+        return False
 
 def load_team_lists():
     """Load and parse team lists from file (local or GitHub)."""
@@ -51,7 +98,6 @@ def load_team_lists():
     goose_maintainers = set()
     block_non_goose = set()
     external_goose = set()
-    external = set()
     bots = set()
     
     current_section = None
@@ -67,15 +113,11 @@ def load_team_lists():
                 current_section = 'block_non_goose'
             elif '# External, goose' in line:
                 current_section = 'external_goose'
-            elif line.startswith('# External') and 'goose' not in line.lower():
-                current_section = 'external'
             elif '# Bots' in line:
                 current_section = 'bots'
             continue
         
         # Add username to appropriate set (lowercase for case-insensitive matching)
-        # Apply .lower() to entire username including brackets (e.g., "dependabot[bot]")
-        # This matches the pattern used above: 'goose' not in line.lower()
         username = line.lower()
         if current_section == 'goose_maintainers':
             goose_maintainers.add(username)
@@ -83,12 +125,10 @@ def load_team_lists():
             block_non_goose.add(username)
         elif current_section == 'external_goose':
             external_goose.add(username)
-        elif current_section == 'external':
-            external.add(username)
         elif current_section == 'bots':
             bots.add(username)
     
-    return goose_maintainers, block_non_goose, external_goose, external, bots
+    return goose_maintainers, block_non_goose, external_goose, bots
 
 def parse_date_range(date_input):
     """Parse various date input formats and return start/end timestamps."""
@@ -148,25 +188,69 @@ def main():
         sys.exit(1)
 
     # Load team lists
-    goose_maintainers, block_non_goose, external_goose, external, bots = load_team_lists()
+    goose_maintainers, block_non_goose, external_goose, bots = load_team_lists()
 
     # Load GitHub data
     github_data_file = '/tmp/github_contributors.json'
+    contributors_data = None
+    
+    # Try to load existing file first
     try:
         with open(github_data_file, 'r') as f:
             contributors_data = json.load(f)
-    except FileNotFoundError:
-        print(f"Error: GitHub contributor data not found at {github_data_file}")
-        print("Please run: curl -s -H 'Accept: application/vnd.github.v3+json' 'https://api.github.com/repos/block/goose/stats/contributors' > /tmp/github_contributors.json")
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in {github_data_file}")
-        print(f"Details: {e}")
-        print("The GitHub API may have returned an error. Try fetching the data again.")
-        sys.exit(1)
+            
+        # Validate the data is not empty or invalid
+        if not contributors_data or not isinstance(contributors_data, list) or len(contributors_data) == 0:
+            print(f"Warning: GitHub data file exists but is empty or invalid. Fetching fresh data...", file=sys.stderr)
+            contributors_data = None
+    except (FileNotFoundError, json.JSONDecodeError):
+        print(f"GitHub data file not found or invalid. Fetching fresh data...", file=sys.stderr)
+        contributors_data = None
+    
+    # Fetch from GitHub API if needed
+    if contributors_data is None:
+        print("Fetching contributor data from GitHub API...", file=sys.stderr)
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                url = "https://api.github.com/repos/block/goose/stats/contributors"
+                with urllib.request.urlopen(url, timeout=30) as response:
+                    contributors_data = json.loads(response.read().decode('utf-8'))
+                
+                # Validate the response
+                if contributors_data and isinstance(contributors_data, list) and len(contributors_data) > 0:
+                    # Save to file for future use
+                    with open(github_data_file, 'w') as f:
+                        json.dump(contributors_data, f)
+                    print(f"✓ Successfully fetched data for {len(contributors_data)} contributors", file=sys.stderr)
+                    break
+                else:
+                    print(f"Attempt {attempt + 1}/{max_retries}: GitHub API returned empty data. Retrying...", file=sys.stderr)
+                    contributors_data = None
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            except Exception as e:
+                print(f"Attempt {attempt + 1}/{max_retries}: Error fetching from GitHub API: {e}", file=sys.stderr)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    print("\nError: Could not fetch GitHub contributor data after multiple attempts.")
+                    print("The GitHub stats API may be temporarily unavailable or still computing statistics.")
+                    print("Please try again in a few minutes.")
+                    sys.exit(1)
+        
+        if contributors_data is None:
+            print("\nError: GitHub API returned empty data after multiple attempts.")
+            print("The repository statistics may still be computing. Please try again in a few minutes.")
+            sys.exit(1)
 
     # Process contributors
     contributor_stats = []
+    checked_orgs = {}  # Cache org checks to avoid redundant API calls
+    
+    print("Checking contributor organizations...", file=sys.stderr)
 
     for contributor in contributors_data:
         # Skip if author is None (deleted users)
@@ -199,10 +283,18 @@ def main():
             # Categorize (only Block non-goose and External now)
             if username_lower in block_non_goose:
                 category = 'block_non_goose'
-            elif username_lower in external:
-                category = 'external'
             else:
-                category = 'unknown'
+                # Check if user is in a Block org (with caching)
+                if username not in checked_orgs:
+                    checked_orgs[username] = is_block_employee(username)
+                    # Add a small delay to avoid rate limiting
+                    time.sleep(0.1)
+                
+                if checked_orgs[username]:
+                    category = 'block_non_goose'
+                    print(f"  ✓ Detected Block employee: @{username}", file=sys.stderr)
+                else:
+                    category = 'external'
             
             contributor_stats.append({
                 'username': username,
@@ -220,7 +312,6 @@ def main():
     # Separate by category
     block_list = [c for c in contributor_stats if c['category'] == 'block_non_goose']
     external_list = [c for c in contributor_stats if c['category'] == 'external']
-    unknown_list = [c for c in contributor_stats if c['category'] == 'unknown']
 
     # Get top 5 from each
     top_external = external_list[:5]
@@ -255,25 +346,16 @@ def main():
     print("-" * 70)
     if contributor_stats:
         for i, contrib in enumerate(contributor_stats, 1):
-            cat_label = "External" if contrib['category'] == 'external' else "Block" if contrib['category'] == 'block_non_goose' else "Unknown"
+            cat_label = "External" if contrib['category'] == 'external' else "Block"
             print(f"{i:2d}. @{contrib['username']:20s} - {contrib['commits']:3d} commits, {contrib['total_lines']:6,d} lines [{cat_label}]")
     else:
         print("No contributors found for this period.")
-
-    if unknown_list:
-        print()
-        print("⚠️  UNKNOWN CONTRIBUTORS (not in team lists):")
-        print("-" * 70)
-        for contrib in unknown_list:
-            print(f"   @{contrib['username']:20s} - {contrib['commits']:3d} commits, {contrib['total_lines']:6,d} lines")
 
     print()
     print("=" * 70)
     print(f"Total contributors (excluding bots, goose maintainers, external goose): {len(contributor_stats)}")
     print(f"  External: {len(external_list)}")
     print(f"  Block (non-goose): {len(block_list)}")
-    if unknown_list:
-        print(f"  Unknown: {len(unknown_list)}")
     print("=" * 70)
 
 if __name__ == "__main__":

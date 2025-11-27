@@ -1,6 +1,10 @@
 # Community Stars Team Lists
 # This file categorizes contributors for the block/goose Community Stars program
 # Format: One username per line under each category header
+#
+# Note: External contributors (eligible for Community All-Stars) are automatically
+# detected - they don't need to be listed here. Anyone not in the lists below
+# defaults to "external" unless they have public Block org membership.
 
 # Goose Maintainers (excluded from rankings)
 angiejones
@@ -64,46 +68,6 @@ chaitanyarahalkar
 # External, goose (excluded from rankings)
 The-Best-Codes
 Abhijay007
-
-# External (eligible for Community All-Stars)
-ARYPROGRAMMER
-dbraduan
-codefromthecrypt
-Better-Boy
-GaryZhous
-iandouglas
-lamchau
-laanak08
-Lymah123
-the-matrixneo
-arielherself
-Developerayo
-SalvatoreT
-sheikhlimon
-cgwalters
-Anudhyan
-johnlanda
-alexyao2015
-aegntic
-bwalding
-ajgray-stripe
-sfc-gh-twhite
-adhintz
-sana-db
-toyamagu-2021
-Shreyanshsingh23
-Jay4242
-jalateras
-sings-to-bees-on-wednesdays
-myaple
-necaris
-par5ul1
-rockwotj
-ki3ani
-vlascik
-eyelight
-nick-w-nick
-ayax79
 
 # Bots (excluded from rankings)
 dependabot[bot]

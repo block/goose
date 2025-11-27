@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
@@ -17,6 +18,8 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    env::join_paths,
+    ffi::OsString,
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
@@ -31,11 +34,11 @@ use tokio::{
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use tokio_util::sync::CancellationToken;
 
+use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
+
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
-use super::shell::{
-    configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
-};
+use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -179,6 +182,8 @@ pub struct DeveloperServer {
     pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     #[cfg(not(test))]
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    bash_env_file: Option<PathBuf>,
+    extend_path_with_shell: bool,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -320,6 +325,8 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
+
+            If fetching web content, consider adding Accept: text/markdown header
         "#};
 
         let windows_specific = indoc! {r#"
@@ -549,7 +556,19 @@ impl DeveloperServer {
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
             running_processes: Arc::new(RwLock::new(HashMap::new())),
+            extend_path_with_shell: false,
+            bash_env_file: None,
         }
+    }
+
+    pub fn extend_path_with_shell(mut self, value: bool) -> Self {
+        self.extend_path_with_shell = value;
+        self
+    }
+
+    pub fn bash_env_file(mut self, value: Option<PathBuf>) -> Self {
+        self.bash_env_file = value;
+        self
     }
 
     /// List all available windows that can be used with screen_capture.
@@ -942,10 +961,34 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
+        let mut shell_config = ShellConfig::default();
+        let shell_name = std::path::Path::new(&shell_config.executable)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
 
-        let mut child = configure_shell_command(&shell_config, command)
+        if let Some(ref env_file) = self.bash_env_file {
+            if shell_name == "bash" {
+                shell_config.envs.push((
+                    OsString::from("BASH_ENV"),
+                    env_file.clone().into_os_string(),
+                ))
+            }
+        }
+
+        let mut command = configure_shell_command(&shell_config, command);
+
+        if self.extend_path_with_shell {
+            if let Err(e) = get_shell_path_dirs()
+                .await
+                .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+                .map(|path| command.env("PATH", path))
+            {
+                tracing::error!("Failed to extend PATH with shell directories: {}", e)
+            }
+        }
+
+        let mut child = command
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
