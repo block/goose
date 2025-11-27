@@ -731,7 +731,13 @@ fn handle_action(
 
             tokio::spawn(async move {
                 let exported = match client.export_session(&session_id).await {
-                    Ok(json) => json,
+                    Ok(json) => {
+                        tracing::debug!(
+                            "Fork: exported session (first 500 chars): {}",
+                            &json[..json.len().min(500)]
+                        );
+                        json
+                    }
                     Err(e) => {
                         let _ = tx.send(Event::Error(format!("Export failed: {e}")));
                         return;
@@ -741,6 +747,7 @@ fn handle_action(
                 let mut session: serde_json::Value = match serde_json::from_str(&exported) {
                     Ok(v) => v,
                     Err(e) => {
+                        tracing::error!("Fork: failed to parse exported JSON: {e}");
                         let _ = tx.send(Event::Error(format!("Parse failed: {e}")));
                         return;
                     }
@@ -776,9 +783,17 @@ fn handle_action(
                 }
 
                 let modified_json = serde_json::to_string(&session).unwrap_or_default();
+                tracing::info!(
+                    "Fork: sending import request with {} bytes",
+                    modified_json.len()
+                );
                 let forked = match client.import_session(&modified_json).await {
-                    Ok(s) => s,
+                    Ok(s) => {
+                        tracing::info!("Fork: import succeeded, new session id: {}", s.id);
+                        s
+                    }
                     Err(e) => {
+                        tracing::error!("Fork: import failed: {e}");
                         let _ = tx.send(Event::Error(format!("Import failed: {e}")));
                         return;
                     }
