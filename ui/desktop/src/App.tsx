@@ -24,7 +24,7 @@ import { TabbedPairRoute } from './components/TabbedPairRoute';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
-import SchedulesView from './components/schedule/SchedulesView';
+import MarketplaceView from './components/marketplace/MarketplaceView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
@@ -139,8 +139,7 @@ const SessionsRoute = () => {
 };
 
 const SchedulesRoute = () => {
-  const navigate = useNavigate();
-  return <SchedulesView onClose={() => navigate('/')} />;
+  return <MarketplaceView />;
 };
 
 const RecipesRoute = () => {

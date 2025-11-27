@@ -73,9 +73,9 @@ const menuItems: NavigationEntry[] = [
   {
     type: 'item',
     path: '/schedules',
-    label: 'Scheduler',
+    label: 'Marketplace',
     icon: Clock,
-    tooltip: 'Manage scheduled runs',
+    tooltip: 'Browse marketplace',
   },
   {
     type: 'item',

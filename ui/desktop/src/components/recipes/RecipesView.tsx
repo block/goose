@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipeStorage';
-import { FileText, Trash2, Bot, Calendar, AlertCircle } from 'lucide-react';
+import { FileText, Trash2, Bot, Calendar, AlertCircle, Clock, Play, Pause, Edit, Square, Eye, Filter } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -13,9 +13,31 @@ import { deleteRecipe, RecipeManifestResponse } from '../../api';
 import CreateRecipeForm, { CreateRecipeButton } from './CreateRecipeForm';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import { filterValidUsedParameters } from '../../utils/providerUtils';
+import { 
+  listSchedules, 
+  pauseSchedule, 
+  unpauseSchedule, 
+  deleteSchedule as deleteScheduleApi,
+  killRunningJob,
+  inspectRunningJob,
+  ScheduledJob 
+} from '../../schedule';
+import { CreateScheduleModal, NewSchedulePayload } from '../schedule/CreateScheduleModal';
+import { EditScheduleModal } from '../schedule/EditScheduleModal';
+import ScheduleDetailView from '../schedule/ScheduleDetailView';
+import cronstrue from 'cronstrue';
+import { formatToLocalDateWithTimezone } from '../../utils/date';
+
+// Extended type that combines recipe with schedule info
+type RecipeWithSchedule = RecipeManifestResponse & {
+  schedule?: ScheduledJob;
+};
+
+type FilterType = 'all' | 'scheduled' | 'unscheduled';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
+  const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +45,24 @@ export default function RecipesView() {
   const [showPreview, setShowPreview] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [previewDeeplink, setPreviewDeeplink] = useState<string>('');
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
+  const [selectedRecipeForSchedule, setSelectedRecipeForSchedule] = useState<RecipeManifestResponse | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
+  
+  // Schedule detail view
+  const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
+  
+  // Action loading states
+  const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
+  const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
+  const [killingScheduleIds, setKillingScheduleIds] = useState<Set<string>>(new Set());
+  const [inspectingScheduleIds, setInspectingScheduleIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadSavedRecipes();
@@ -57,8 +93,15 @@ export default function RecipesView() {
       setShowSkeleton(true);
       setShowContent(false);
       setError(null);
-      const recipeManifestResponses = await listSavedRecipes();
+      
+      // Load both recipes and schedules in parallel
+      const [recipeManifestResponses, schedulesData] = await Promise.all([
+        listSavedRecipes(),
+        listSchedules().catch(() => []) // Don't fail if schedules can't load
+      ]);
+      
       setSavedRecipes(recipeManifestResponses);
+      setSchedules(schedulesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load recipes');
       console.error('Failed to load saved recipes:', err);
@@ -150,65 +193,115 @@ export default function RecipesView() {
     selectedRecipe?.recipe.prompt,
   ]);
 
+  // Helper to find schedule for a recipe
+  const findScheduleForRecipe = useCallback((recipeId: string) => {
+    return schedules.find(schedule => {
+      // Match by recipe ID in the source path
+      return schedule.source.includes(recipeId);
+    });
+  }, [schedules]);
+
   // Render a recipe item
   const RecipeItem = ({
     recipeManifestResponse,
-    recipeManifestResponse: { recipe, lastModified },
+    recipeManifestResponse: { recipe, lastModified, id },
   }: {
     recipeManifestResponse: RecipeManifestResponse;
-  }) => (
-    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
-      <div className="flex justify-between items-start gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
-          </div>
-          <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
-          <div className="flex items-center text-xs text-text-muted">
-            <Calendar className="w-3 h-3 mr-1" />
-            {convertToLocaleDateString(lastModified)}
-          </div>
-        </div>
+  }) => {
+    const schedule = findScheduleForRecipe(id);
+    
+    // Get human-readable cron if scheduled
+    let readableCron = '';
+    if (schedule) {
+      try {
+        readableCron = cronstrue.toString(schedule.cron);
+      } catch (e) {
+        readableCron = schedule.cron;
+      }
+    }
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLoadRecipe(recipe);
-            }}
-            size="sm"
-            className="h-8"
-          >
-            <Bot className="w-4 h-4 mr-1" />
-            Use
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePreviewRecipe(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8"
-          >
-            <FileText className="w-4 h-4 mr-1" />
-            Preview
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteRecipe(recipeManifestResponse);
-            }}
-            variant="ghost"
-            size="sm"
-            className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+    return (
+      <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
+        <div className="flex justify-between items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
+              {schedule && (
+                <>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Scheduled
+                  </span>
+                  {schedule.currently_running && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                      Running
+                    </span>
+                  )}
+                  {schedule.paused && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                      <Pause className="w-3 h-3 mr-1" />
+                      Paused
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+            <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
+            <div className="flex items-center gap-4 text-xs text-text-muted">
+              <div className="flex items-center">
+                <Calendar className="w-3 h-3 mr-1" />
+                {convertToLocaleDateString(lastModified)}
+              </div>
+              {schedule && (
+                <div className="flex items-center">
+                  <Clock className="w-3 h-3 mr-1" />
+                  {readableCron}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLoadRecipe(recipe);
+              }}
+              size="sm"
+              className="h-8"
+            >
+              <Bot className="w-4 h-4 mr-1" />
+              Use
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePreviewRecipe(recipeManifestResponse);
+              }}
+              variant="outline"
+              size="sm"
+              className="h-8"
+            >
+              <FileText className="w-4 h-4 mr-1" />
+              Preview
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteRecipe(recipeManifestResponse);
+              }}
+              variant="ghost"
+              size="sm"
+              className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
-      </div>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   // Render skeleton loader for recipe items
   const RecipeSkeleton = () => (
