@@ -145,6 +145,28 @@ export default function Hub({
 }) {
   const location = useLocation();
   const { isConnected, friends } = useMatrix();
+  const [backgroundImage, setBackgroundImage] = React.useState<string | null>(null);
+
+  // Load background image from localStorage
+  useEffect(() => {
+    const loadBackgroundImage = () => {
+      const stored = localStorage.getItem('home_background_image');
+      setBackgroundImage(stored);
+    };
+
+    // Load on mount
+    loadBackgroundImage();
+
+    // Listen for updates from settings
+    const handleBackgroundUpdate = () => {
+      loadBackgroundImage();
+    };
+
+    window.addEventListener('background-image-updated', handleBackgroundUpdate);
+    return () => {
+      window.removeEventListener('background-image-updated', handleBackgroundUpdate);
+    };
+  }, []);
 
   // Check if we're in Matrix chat mode
   const routeState = location.state as ViewOptions | undefined;
@@ -269,6 +291,17 @@ export default function Hub({
   return (
     <ContextManagerProvider>
       <div className="relative flex flex-col h-full bg-background-default">
+        {/* Background Image - Behind everything */}
+        {backgroundImage && (
+          <div 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30"
+            style={{ 
+              backgroundImage: `url(${backgroundImage})`,
+              zIndex: 0
+            }}
+          />
+        )}
+        
         {/* Animated Node Matrix Background */}
         <NodeMatrixBackground />
         

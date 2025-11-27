@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
+import { Settings, RefreshCw, ExternalLink, Image, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
@@ -27,7 +27,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const updateSectionRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
@@ -207,6 +209,37 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     localStorage.setItem('show_pricing', String(checked));
     // Trigger storage event for other components
     window.dispatchEvent(new CustomEvent('storage'));
+  };
+
+  // Load background image on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('home_background_image');
+    setBackgroundImage(stored);
+  }, []);
+
+  const handleBackgroundImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        setBackgroundImage(dataUrl);
+        localStorage.setItem('home_background_image', dataUrl);
+        // Trigger custom event for Hub to update
+        window.dispatchEvent(new CustomEvent('background-image-updated'));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveBackgroundImage = () => {
+    setBackgroundImage(null);
+    localStorage.removeItem('home_background_image');
+    // Trigger custom event for Hub to update
+    window.dispatchEvent(new CustomEvent('background-image-updated'));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -391,6 +424,61 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <ThemeSelector className="w-auto" hideTitle horizontal />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Background Image</CardTitle>
+          <CardDescription>Set a custom background image for the home page</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="text-text-default text-xs">Home Page Background</h3>
+              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                Upload an image to display behind the matrix animation on the home page
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleBackgroundImageUpload}
+                className="hidden"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2"
+              >
+                <Image className="w-4 h-4" />
+                {backgroundImage ? 'Change' : 'Upload'}
+              </Button>
+              {backgroundImage && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveBackgroundImage}
+                  className="flex items-center gap-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <X className="w-4 h-4" />
+                  Remove
+                </Button>
+              )}
+            </div>
+          </div>
+          {backgroundImage && (
+            <div className="mt-4 rounded-lg overflow-hidden border border-border-default">
+              <img
+                src={backgroundImage}
+                alt="Background preview"
+                className="w-full h-32 object-cover"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
