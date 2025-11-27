@@ -189,6 +189,7 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
         }
         Action::ChangeTheme(name) => {
             state.config.theme = crate::utils::styles::Theme::from_name(name);
+            let _ = state.config.save_theme();
             state.showing_theme_picker = false;
             state.needs_refresh = true;
             true
