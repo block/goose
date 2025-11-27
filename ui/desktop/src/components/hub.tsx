@@ -294,7 +294,7 @@ export default function Hub({
         {/* Background Image - Behind everything */}
         {backgroundImage && (
           <div 
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30"
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60"
             style={{ 
               backgroundImage: `url(${backgroundImage})`,
               zIndex: 0
