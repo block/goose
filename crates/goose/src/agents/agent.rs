@@ -481,7 +481,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
-            handle_subagent_tool(arguments, task_config, &sub_recipes, &session.working_dir).await
+            handle_subagent_tool(
+                arguments,
+                task_config,
+                sub_recipes,
+                session.working_dir.clone(),
+            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(

@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
+use futures::FutureExt;
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -165,13 +167,16 @@ fn get_subrecipe_params_description(sub_recipe: &SubRecipe) -> String {
     }
 }
 
-pub async fn handle_subagent_tool(
+/// Note: SubRecipe.sequential_when_repeated is ignored. It was designed for a previous
+/// execution model where one tool call could spawn multiple tasks. In the current model,
+/// the LLM controls sequencing by making sequential vs parallel tool calls.
+pub fn handle_subagent_tool(
     params: Value,
     task_config: TaskConfig,
-    sub_recipes: &HashMap<String, SubRecipe>,
-    working_dir: &std::path::Path,
+    sub_recipes: HashMap<String, SubRecipe>,
+    working_dir: PathBuf,
 ) -> ToolCallResult {
-    let params: SubagentParams = match serde_json::from_value(params) {
+    let parsed_params: SubagentParams = match serde_json::from_value(params) {
         Ok(p) => p,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -182,7 +187,7 @@ pub async fn handle_subagent_tool(
         }
     };
 
-    if params.instructions.is_none() && params.subrecipe.is_none() {
+    if parsed_params.instructions.is_none() && parsed_params.subrecipe.is_none() {
         return ToolCallResult::from(Err(ErrorData {
             code: ErrorCode::INVALID_PARAMS,
             message: Cow::from("Must provide 'instructions' or 'subrecipe' (or both)"),
@@ -190,7 +195,7 @@ pub async fn handle_subagent_tool(
         }));
     }
 
-    if params.parameters.is_some() && params.subrecipe.is_none() {
+    if parsed_params.parameters.is_some() && parsed_params.subrecipe.is_none() {
         return ToolCallResult::from(Err(ErrorData {
             code: ErrorCode::INVALID_PARAMS,
             message: Cow::from("'parameters' can only be used with 'subrecipe'"),
@@ -198,7 +203,7 @@ pub async fn handle_subagent_tool(
         }));
     }
 
-    let recipe = match build_recipe(&params, sub_recipes) {
+    let recipe = match build_recipe(&parsed_params, &sub_recipes) {
         Ok(r) => r,
         Err(e) => {
             return ToolCallResult::from(Err(ErrorData {
@@ -209,43 +214,47 @@ pub async fn handle_subagent_tool(
         }
     };
 
-    let session = match SessionManager::create_session(
-        working_dir.to_path_buf(),
+    ToolCallResult {
+        notification_stream: None,
+        result: Box::new(execute_subagent(recipe, task_config, parsed_params, working_dir).boxed()),
+    }
+}
+
+async fn execute_subagent(
+    recipe: Recipe,
+    task_config: TaskConfig,
+    params: SubagentParams,
+    working_dir: PathBuf,
+) -> Result<Vec<Content>, ErrorData> {
+    let session = SessionManager::create_session(
+        working_dir,
         "Subagent task".to_string(),
         crate::session::session_manager::SessionType::SubAgent,
     )
     .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            return ToolCallResult::from(Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: Cow::from(format!("Failed to create session: {}", e)),
-                data: None,
-            }));
-        }
-    };
+    .map_err(|e| ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(format!("Failed to create session: {}", e)),
+        data: None,
+    })?;
 
-    let task_config = match apply_settings_overrides(task_config, &params).await {
-        Ok(tc) => tc,
-        Err(e) => {
-            return ToolCallResult::from(Err(ErrorData {
-                code: ErrorCode::INVALID_PARAMS,
-                message: Cow::from(e.to_string()),
-                data: None,
-            }));
-        }
-    };
+    let task_config = apply_settings_overrides(task_config, &params)
+        .await
+        .map_err(|e| ErrorData {
+            code: ErrorCode::INVALID_PARAMS,
+            message: Cow::from(e.to_string()),
+            data: None,
+        })?;
 
     let result = run_complete_subagent_task(recipe, task_config, params.summary, session.id).await;
 
     match result {
-        Ok(text) => ToolCallResult::from(Ok(vec![Content::text(text)])),
-        Err(e) => ToolCallResult::from(Err(ErrorData {
+        Ok(text) => Ok(vec![Content::text(text)]),
+        Err(e) => Err(ErrorData {
             code: ErrorCode::INTERNAL_ERROR,
             message: Cow::from(e.to_string()),
             data: None,
-        })),
+        }),
     }
 }
 
