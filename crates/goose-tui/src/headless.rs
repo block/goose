@@ -16,12 +16,12 @@ pub async fn run_headless(
     let cancel_clone = cancel_token.clone();
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.ok();
-        eprintln!("\nInterrupted");
+        tracing::info!("Interrupted");
         cancel_clone.cancel();
     });
 
     let user_message = Message::user().with_text(&initial_prompt);
-    println!("[user] {}", initial_prompt);
+    println!("[user] {initial_prompt}");
 
     let messages = vec![user_message];
     let mut stream = client.reply(messages, session_id).await?;
@@ -47,7 +47,7 @@ pub async fn run_headless(
                         }
                     }
                     Some(Err(e)) => {
-                        eprintln!("[error] {}", e);
+                        tracing::error!("[error] {e}");
                         break;
                     }
                     None => break,
@@ -89,7 +89,7 @@ fn handle_event(
                                 if let Some(args) = &call.arguments {
                                     if let Ok(pretty) = serde_json::to_string_pretty(args) {
                                         for line in pretty.lines() {
-                                            println!("  {}", line);
+                                            println!("  {line}");
                                         }
                                     }
                                 }
@@ -108,7 +108,7 @@ fn handle_event(
                             } else {
                                 "✗"
                             };
-                            println!("[tool_result] {}", status);
+                            println!("[tool_result] {status}");
 
                             match &resp.tool_result {
                                 Ok(contents) => {
@@ -125,13 +125,13 @@ fn handle_event(
                                         {
                                             let text = &text_content.text;
                                             for line in text.lines() {
-                                                println!("  {}", line);
+                                                println!("  {line}");
                                             }
                                         }
                                     }
                                 }
                                 Err(e) => {
-                                    println!("  Error: {:?}", e);
+                                    tracing::error!("  Error: {e:?}");
                                 }
                             }
                         }
@@ -151,7 +151,7 @@ fn handle_event(
             if *in_text_stream {
                 println!();
             }
-            eprintln!("[error] {}", error);
+            tracing::error!("[error] {error}");
             true
         }
         _ => false,
