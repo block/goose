@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash } from 'lucide-react';
+import { Home, History, FileText, Clock, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
@@ -258,10 +258,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     {
       id: 'scheduler',
       path: '/schedules',
-      label: 'Scheduler',
-      icon: Clock,
-      getTag: () => `${scheduledTodayCount} today`,
-      tagAlign: 'left',
+      label: 'Marketplace',
+      icon: ShoppingBag,
     },
     {
       id: 'extensions',
