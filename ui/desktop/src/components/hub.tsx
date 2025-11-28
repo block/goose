@@ -91,7 +91,11 @@ const NodeMatrixBackground: React.FC = () => {
         // Draw node
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(156, 163, 175, 0.4)'; // text-muted color with low opacity
+        // Use CSS variable for background color with 80% opacity
+        const bgColor = getComputedStyle(canvas).getPropertyValue('--background-default').trim() || '#ffffff';
+        ctx.fillStyle = bgColor.startsWith('#') 
+          ? `${bgColor}CC` // Add 80% opacity (CC in hex)
+          : bgColor.replace('rgb', 'rgba').replace(')', ', 0.8)');
         ctx.fill();
 
         // Draw connections
@@ -106,7 +110,10 @@ const NodeMatrixBackground: React.FC = () => {
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(otherNode.x, otherNode.y);
-            ctx.strokeStyle = `rgba(156, 163, 175, ${opacity})`;
+            // Use the same background color for connections
+            ctx.strokeStyle = bgColor.startsWith('#')
+              ? `${bgColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
+              : bgColor.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -348,7 +355,7 @@ export default function Hub({
                 }}
               >
                 <Greeting className="text-4xl font-light text-text-default mb-4" />
-                <p className="text-text-muted text-lg">
+                <p className="text-text-default text-lg">
                   Start a new conversation to get help with your projects
                 </p>
               </div>
