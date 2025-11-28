@@ -146,6 +146,7 @@ export default function Hub({
   const location = useLocation();
   const { isConnected, friends } = useMatrix();
   const [backgroundImage, setBackgroundImage] = React.useState<string | null>(null);
+  const [showText, setShowText] = React.useState(true);
 
   // Load background image from localStorage
   useEffect(() => {
@@ -166,6 +167,15 @@ export default function Hub({
     return () => {
       window.removeEventListener('background-image-updated', handleBackgroundUpdate);
     };
+  }, []);
+
+  // Hide text after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowText(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Check if we're in Matrix chat mode
@@ -301,12 +311,13 @@ export default function Hub({
                 zIndex: 0
               }}
             />
-            {/* Radial blur overlay - creates pixelated blur in center */}
+            {/* Radial blur overlay - creates pixelated blur in center with animation */}
             <div 
-              className="absolute inset-0 backdrop-blur-md"
+              className="absolute inset-0 backdrop-blur-md transition-opacity duration-1000"
               style={{ 
                 maskImage: 'radial-gradient(circle at center, black 0%, black 30%, transparent 50%)',
                 WebkitMaskImage: 'radial-gradient(circle at center, black 0%, black 30%, transparent 50%)',
+                opacity: 1,
                 zIndex: 0
               }}
             />
@@ -324,10 +335,15 @@ export default function Hub({
               <div className="origin-center mb-6 goose-icon-animation">
                 <Goose className="size-12 mx-auto" />
               </div>
-              <Greeting className="text-4xl font-light text-text-default mb-4" />
-              <p className="text-text-muted text-lg">
-                Start a new conversation to get help with your projects
-              </p>
+              <div 
+                className="transition-opacity duration-1000"
+                style={{ opacity: showText ? 1 : 0 }}
+              >
+                <Greeting className="text-4xl font-light text-text-default mb-4" />
+                <p className="text-text-muted text-lg">
+                  Start a new conversation to get help with your projects
+                </p>
+              </div>
             </div>
 
             {/* Chat Input */}
