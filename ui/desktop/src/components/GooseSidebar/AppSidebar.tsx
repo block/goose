@@ -1,21 +1,25 @@
-import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Clock, FileText, History, Home, Plus, Puzzle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
   SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarSeparator,
 } from '../ui/sidebar';
-import { ChatSmart, Gear } from '../icons';
-import { ViewOptions, View } from '../../utils/navigationUtils';
-import { useChatContext } from '../../contexts/ChatContext';
-import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import { Gear } from '../icons';
+import { View, ViewOptions } from '../../utils/navigationUtils';
+import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
+import { listSessions, Session } from '../../api';
+import { resumeSession, startNewSession } from '../../sessions';
+import { useNavigation } from '../../hooks/useNavigation';
+import { SessionIndicators } from '../SessionIndicators';
+import { useSessionStatusContext } from '../../contexts/SessionStatusContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -40,29 +44,6 @@ interface NavigationSeparator {
 type NavigationEntry = NavigationItem | NavigationSeparator;
 
 const menuItems: NavigationEntry[] = [
-  {
-    type: 'item',
-    path: '/',
-    label: 'Home',
-    icon: Home,
-    tooltip: 'Go back to the main chat screen',
-  },
-  { type: 'separator' },
-  {
-    type: 'item',
-    path: '/pair',
-    label: 'Chat',
-    icon: ChatSmart,
-    tooltip: 'Start pairing with Goose',
-  },
-  {
-    type: 'item',
-    path: '/sessions',
-    label: 'History',
-    icon: History,
-    tooltip: 'View your session history',
-  },
-  { type: 'separator' },
   {
     type: 'item',
     path: '/recipes',
@@ -94,9 +75,89 @@ const menuItems: NavigationEntry[] = [
   },
 ];
 
+const SessionList = React.memo<{
+  sessions: Session[];
+  activeSessionId: string | undefined;
+  getSessionStatus: (
+    sessionId: string
+  ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
+  onSessionClick: (session: Session) => void;
+}>(
+  ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+    return (
+      <>
+        {sessions.map((session) => {
+          const status = getSessionStatus(session.id);
+          const isStreaming = status?.streamState === 'streaming';
+          const hasError = status?.streamState === 'error';
+          const hasUnread = status?.hasUnreadActivity ?? false;
+
+          return (
+            <button
+              key={session.id}
+              onClick={() => onSessionClick(session)}
+              className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                activeSessionId === session.id
+                  ? 'bg-background-medium text-text-default'
+                  : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+              }`}
+              title={session.name}
+            >
+              <span className="flex-1 truncate">{session.name}</span>
+              <SessionIndicators
+                isStreaming={isStreaming}
+                hasUnread={hasUnread}
+                hasError={hasError}
+              />
+            </button>
+          );
+        })}
+      </>
+    );
+  },
+  (prevProps, nextProps) => {
+    if (prevProps.sessions.length !== nextProps.sessions.length) return false;
+    if (prevProps.activeSessionId !== nextProps.activeSessionId) return false;
+
+    const prevIds = prevProps.sessions.map((s) => s.id).join(',');
+    const nextIds = nextProps.sessions.map((s) => s.id).join(',');
+    if (prevIds !== nextIds) return false;
+
+    // Check if any session name changed
+    for (let i = 0; i < prevProps.sessions.length; i++) {
+      if (prevProps.sessions[i].name !== nextProps.sessions[i].name) return false;
+    }
+
+    // Check if any session's status has changed
+    for (const session of prevProps.sessions) {
+      const prevStatus = prevProps.getSessionStatus(session.id);
+      const nextStatus = nextProps.getSessionStatus(session.id);
+
+      if (prevStatus?.hasUnreadActivity !== nextStatus?.hasUnreadActivity) return false;
+      if (prevStatus?.streamState !== nextStatus?.streamState) return false;
+    }
+
+    return true;
+  }
+);
+
+SessionList.displayName = 'SessionList';
+
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
+  const setView = useNavigation();
+  const [searchParams] = useSearchParams();
+  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const { getSessionStatus, markSessionActive, trackSession } = useSessionStatusContext();
+  const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+
+  useEffect(() => {
+    recentSessions.forEach((session) => {
+      trackSession(session.id);
+    });
+  }, [recentSessions, trackSession]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -104,6 +165,95 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     }, 100);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const loadRecentSessions = async () => {
+      setIsLoadingSessions(true);
+      try {
+        const response = await listSessions<true>({ throwOnError: true });
+        const sessions = response.data.sessions.slice(0, 10);
+        setRecentSessions(sessions);
+
+        const hasSessionWithDefaultName = sessions.some(
+          (s) =>
+            s.name === DEFAULT_CHAT_TITLE ||
+            s.name === 'Pair Chat' ||
+            s.name === 'New Chat' ||
+            s.name.startsWith('New chat ')
+        );
+
+        if (hasSessionWithDefaultName) {
+          window.dispatchEvent(new CustomEvent('session-needs-name-update'));
+        }
+      } catch (error) {
+        console.error('Failed to load recent sessions:', error);
+      } finally {
+        setIsLoadingSessions(false);
+      }
+    };
+
+    loadRecentSessions();
+  }, []);
+
+  useEffect(() => {
+    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
+    let isPolling = false;
+
+    const handleSessionCreated = () => {
+      if (isPolling) {
+        return;
+      }
+
+      isPolling = true;
+      const pollIntervalMs = 300; // Poll every 300ms
+      const maxPollDurationMs = 10000; // Poll for up to 10 seconds
+      const maxPolls = maxPollDurationMs / pollIntervalMs;
+      let pollCount = 0;
+
+      const pollForUpdates = async () => {
+        pollCount++;
+
+        try {
+          const response = await listSessions<true>({ throwOnError: true });
+          const newSessions = response.data.sessions.slice(0, 10);
+
+          setRecentSessions(newSessions);
+
+          const sessionWithDefaultName = newSessions.find((s) => {
+            const hasDefaultName =
+              s.name === DEFAULT_CHAT_TITLE ||
+              s.name === 'Pair Chat' ||
+              s.name === 'New Chat' ||
+              s.name.startsWith('New chat ');
+            return hasDefaultName;
+          });
+
+          const shouldContinue = pollCount < maxPolls && (sessionWithDefaultName || pollCount < 5);
+
+          if (shouldContinue) {
+            const timeoutId = setTimeout(pollForUpdates, pollIntervalMs);
+            pollingTimeouts.push(timeoutId);
+          } else {
+            isPolling = false;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (error) {
+          isPolling = false;
+        }
+      };
+      pollForUpdates();
+    };
+
+    window.addEventListener('session-created', handleSessionCreated);
+    window.addEventListener('session-needs-name-update', handleSessionCreated);
+
+    return () => {
+      window.removeEventListener('session-created', handleSessionCreated);
+      window.removeEventListener('session-needs-name-update', handleSessionCreated);
+      pollingTimeouts.forEach(clearTimeout);
+      isPolling = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -128,6 +278,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   const isActivePath = (path: string) => {
     return currentPath === path;
+  };
+
+  const handleNewChat = async () => {
+    await startNewSession('', setView);
+  };
+
+  const handleSessionClick = async (session: Session) => {
+    markSessionActive(session.id);
+    resumeSession(session, setView);
+  };
+
+  const handleViewAllClick = () => {
+    navigate('/sessions');
   };
 
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
@@ -162,7 +325,81 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   return (
     <>
       <SidebarContent className="pt-16">
-        <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
+        <SidebarMenu>
+          {/* Home */}
+          <SidebarGroup>
+            <SidebarGroupContent className="space-y-1">
+              <div className="sidebar-item">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    data-testid="sidebar-home-button"
+                    onClick={() => navigate('/')}
+                    isActive={isActivePath('/')}
+                    tooltip="Go back to the main chat screen"
+                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>Home</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarSeparator />
+
+          {/* New Chat Button */}
+          <SidebarGroup>
+            <SidebarGroupContent className="space-y-1">
+              <div className="sidebar-item">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    data-testid="sidebar-new-chat-button"
+                    onClick={handleNewChat}
+                    tooltip="Start a new chat"
+                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Chat</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {/* Recent Sessions */}
+          <SidebarGroup>
+            <SidebarGroupContent className="space-y-1">
+              {isLoadingSessions ? (
+                <div className="text-xs text-text-muted px-3 py-1">Loading...</div>
+              ) : recentSessions.length > 0 ? (
+                <>
+                  <SessionList
+                    sessions={recentSessions}
+                    activeSessionId={activeSessionId}
+                    getSessionStatus={getSessionStatus}
+                    onSessionClick={handleSessionClick}
+                  />
+                  {/* View All Link */}
+                  <button
+                    onClick={handleViewAllClick}
+                    className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                  >
+                    <History className="w-4 h-4" />
+                    <span>View All</span>
+                  </button>
+                </>
+              ) : (
+                <div className="text-xs text-text-muted px-3 py-1">No sessions yet</div>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarSeparator />
+
+          {/* Other menu items */}
+          {menuItems.map((entry, index) => renderMenuItem(entry, index))}
+        </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter className="pb-2 flex items-start">

@@ -22,7 +22,7 @@ import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatStreamWorker } from '../hooks/useChatStreamWorker';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -36,6 +36,7 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { useSessionStatusContext } from '../contexts/SessionStatusContext';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -52,6 +53,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
+  isActiveSession?: boolean;
   initialMessage?: string;
 }
 
@@ -61,6 +63,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  isActiveSession = false,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -75,11 +78,19 @@ function BaseChatContent({
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
+  const { markSessionActive } = useSessionStatusContext();
 
   const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
 
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
+
+  // Mark session as active when viewing it (only if this is the active session)
+  useEffect(() => {
+    if (sessionId && isActiveSession) {
+      markSessionActive(sessionId);
+    }
+  }, [sessionId, isActiveSession, markSessionActive]);
 
   const onStreamFinish = useCallback(() => {}, []);
 
@@ -102,7 +113,7 @@ function BaseChatContent({
     tokenState,
     notifications: toolCallNotifications,
     onMessageUpdate,
-  } = useChatStream({
+  } = useChatStreamWorker({
     sessionId,
     onStreamFinish,
   });

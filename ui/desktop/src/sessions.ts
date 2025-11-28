@@ -43,6 +43,9 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(options);
 
+  // Dispatch event so sidebar can refresh the session list
+  window.dispatchEvent(new CustomEvent('session-created'));
+
   setView('pair', {
     disableAnimation: true,
     initialMessage: initialText,

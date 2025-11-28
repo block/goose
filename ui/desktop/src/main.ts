@@ -1756,8 +1756,11 @@ async function appMain() {
           "base-uri 'self';" +
           // Manifest files
           "manifest-src 'self';" +
-          // Worker sources
-          "worker-src 'self';" +
+          // Worker sources - allow blob: for Vite's module workers in development
+          // In production, workers should be bundled as regular scripts
+          "worker-src 'self'" +
+          (MAIN_WINDOW_VITE_DEV_SERVER_URL ? ' blob:' : '') +
+          ';' +
           // Upgrade insecure requests
           'upgrade-insecure-requests;',
       },

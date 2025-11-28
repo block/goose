@@ -1,34 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
-
 import {
   Message,
-  MessageEvent,
-  reply,
-  resumeAgent,
   Session,
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
 } from '../api';
-
-import {
-  createUserMessage,
-  getCompactingMessage,
-  getThinkingMessage,
-  NotificationEvent,
-} from '../types/message';
+import { createUserMessage, NotificationEvent } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { useSessionWorkerContext } from '../contexts/SessionWorkerContext';
 
-const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
-
-interface UseChatStreamProps {
+interface UseChatStreamWorkerProps {
   sessionId: string;
   onStreamFinish: () => void;
   onSessionLoaded?: () => void;
 }
 
-interface UseChatStreamReturn {
+interface UseChatStreamWorkerReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
@@ -45,104 +34,18 @@ interface UseChatStreamReturn {
   ) => Promise<void>;
 }
 
-function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
-  const lastMsg = currentMessages[currentMessages.length - 1];
-
-  if (lastMsg?.id && lastMsg.id === incomingMsg.id) {
-    const lastContent = lastMsg.content[lastMsg.content.length - 1];
-    const newContent = incomingMsg.content[incomingMsg.content.length - 1];
-
-    if (
-      lastContent?.type === 'text' &&
-      newContent?.type === 'text' &&
-      incomingMsg.content.length === 1
-    ) {
-      lastContent.text += newContent.text;
-    } else {
-      lastMsg.content.push(...incomingMsg.content);
-    }
-    return [...currentMessages];
-  } else {
-    return [...currentMessages, incomingMsg];
-  }
-}
-
-async function streamFromResponse(
-  stream: AsyncIterable<MessageEvent>,
-  initialMessages: Message[],
-  updateMessages: (messages: Message[]) => void,
-  updateTokenState: (tokenState: TokenState) => void,
-  updateChatState: (state: ChatState) => void,
-  updateNotifications: (notification: NotificationEvent) => void,
-  onFinish: (error?: string) => void
-): Promise<void> {
-  let currentMessages = initialMessages;
-
-  try {
-    for await (const event of stream) {
-      switch (event.type) {
-        case 'Message': {
-          const msg = event.message;
-          currentMessages = pushMessage(currentMessages, msg);
-
-          const hasToolConfirmation = msg.content.some(
-            (content) => content.type === 'toolConfirmationRequest'
-          );
-
-          if (hasToolConfirmation) {
-            updateChatState(ChatState.WaitingForUserInput);
-          } else if (getCompactingMessage(msg)) {
-            updateChatState(ChatState.Compacting);
-          } else if (getThinkingMessage(msg)) {
-            updateChatState(ChatState.Thinking);
-          } else {
-            updateChatState(ChatState.Streaming);
-          }
-
-          updateTokenState(event.token_state);
-          updateMessages(currentMessages);
-          break;
-        }
-        case 'Error': {
-          onFinish('Stream error: ' + event.error);
-          return;
-        }
-        case 'Finish': {
-          onFinish();
-          return;
-        }
-        case 'ModelChange': {
-          break;
-        }
-        case 'UpdateConversation': {
-          // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
-          // Longterm fix is to only send the agent the new messages, not the entire conversation.
-          currentMessages = event.conversation;
-          updateMessages(event.conversation);
-          break;
-        }
-        case 'Notification': {
-          updateNotifications(event as NotificationEvent);
-          break;
-        }
-        case 'Ping':
-          break;
-      }
-    }
-
-    onFinish();
-  } catch (error) {
-    if (error instanceof Error && error.name !== 'AbortError') {
-      onFinish('Stream error: ' + errorMessage(error));
-    }
-  }
-}
-
-export function useChatStream({
+/**
+ * Worker-based version of useChatStream
+ * Delegates streaming to Web Worker for better performance and scalability
+ * Maintains the same interface as useChatStream for drop-in replacement
+ */
+export function useChatStreamWorker({
   sessionId,
   onStreamFinish,
   onSessionLoaded,
-}: UseChatStreamProps): UseChatStreamReturn {
+}: UseChatStreamWorkerProps): UseChatStreamWorkerReturn {
+  const worker = useSessionWorkerContext();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
@@ -157,21 +60,10 @@ export function useChatStream({
     accumulatedTotalTokens: 0,
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    if (session) {
-      resultsCache.set(sessionId, { session, messages });
-    }
-  }, [sessionId, session, messages]);
 
   const updateMessages = useCallback((newMessages: Message[]) => {
     setMessages(newMessages);
     messagesRef.current = newMessages;
-  }, []);
-
-  const updateNotifications = useCallback((notification: NotificationEvent) => {
-    setNotifications((prev) => [...prev, notification]);
   }, []);
 
   const onFinish = useCallback(
@@ -182,9 +74,6 @@ export function useChatStream({
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
-        console.log(
-          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
-        );
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
@@ -196,46 +85,72 @@ export function useChatStream({
 
   // Load session on mount or sessionId change
   useEffect(() => {
-    if (!sessionId) return;
-
-    const cached = resultsCache.get(sessionId);
-    if (cached) {
-      setSession(cached.session);
-      updateMessages(cached.messages);
-      setChatState(ChatState.Idle);
+    if (!sessionId || !worker.isReady) {
       return;
     }
-
-    // Reset state when sessionId changes
-    updateMessages([]);
-    setSession(undefined);
-    setSessionLoadError(undefined);
-    setChatState(ChatState.LoadingConversation);
 
     let cancelled = false;
 
     (async () => {
       try {
-        const response = await resumeAgent({
-          body: {
-            session_id: sessionId,
-            load_model_and_extensions: true,
-          },
-          throwOnError: true,
-        });
+        const existingState = await worker.getSessionState(sessionId);
 
         if (cancelled) {
           return;
         }
 
-        const session = response.data;
-        setSession(session);
-        updateMessages(session?.conversation || []);
-        setChatState(ChatState.Idle);
-        onSessionLoaded?.();
-      } catch (error) {
-        if (cancelled) return;
+        if (existingState && existingState.streamState !== 'loading') {
+          setSession(existingState.session);
+          updateMessages(existingState.messages);
+          setTokenState(existingState.tokenState);
+          setNotifications(existingState.notifications);
 
+          // Set chat state based on worker's stream state
+          if (existingState.streamState === 'streaming') {
+            console.log('[useChatStreamWorker] Restoring to streaming state');
+            setChatState(ChatState.Streaming);
+          } else {
+            console.log('[useChatStreamWorker] Restoring to idle state');
+            setChatState(ChatState.Idle);
+          }
+
+          onSessionLoaded?.();
+        } else if (existingState && existingState.streamState === 'loading') {
+          updateMessages([]);
+          setSession(undefined);
+          setSessionLoadError(undefined);
+          setChatState(ChatState.LoadingConversation);
+        } else {
+          // Show loading state
+          updateMessages([]);
+          setSession(undefined);
+          setSessionLoadError(undefined);
+          setChatState(ChatState.LoadingConversation);
+          await worker.loadSession(sessionId);
+
+          if (cancelled) {
+            return;
+          }
+
+          const state = await worker.getSessionState(sessionId);
+
+          if (state) {
+            setSession(state.session);
+            updateMessages(state.messages);
+            setTokenState(state.tokenState);
+            setNotifications(state.notifications);
+            setChatState(ChatState.Idle);
+            onSessionLoaded?.();
+          } else {
+            console.error('[useChatStreamWorker] No state returned after loadSession');
+          }
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('[useChatStreamWorker] Failed to load session:', error);
         setSessionLoadError(errorMessage(error));
         setChatState(ChatState.Idle);
       }
@@ -244,7 +159,44 @@ export function useChatStream({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, updateMessages, onSessionLoaded]);
+  }, [sessionId, worker.isReady, worker, updateMessages, onSessionLoaded]);
+
+  // Subscribe to session updates from worker
+  useEffect(() => {
+    if (!sessionId || !worker.isReady) return;
+
+    return worker.subscribeToSession(sessionId, (update) => {
+      console.log('[useChatStreamWorker] Received update:', update);
+
+      // Update session object if provided
+      if (update.session) {
+        setSession(update.session);
+      }
+
+      if (update.messages) {
+        // Always update messages from worker - it's the source of truth
+        updateMessages(update.messages);
+      }
+
+      if (update.tokenState) {
+        setTokenState(update.tokenState);
+      }
+
+      if (update.notifications) {
+        setNotifications(update.notifications);
+      }
+
+      if (update.streamState === 'streaming') {
+        setChatState(ChatState.Streaming);
+      } else if (update.streamState === 'idle') {
+        setChatState(ChatState.Idle);
+        onFinish();
+      } else if (update.streamState === 'error') {
+        setChatState(ChatState.Idle);
+        onFinish(update.error);
+      }
+    });
+  }, [sessionId, worker.isReady, worker, updateMessages, onFinish]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
@@ -271,45 +223,16 @@ export function useChatStream({
         ? [...messagesRef.current, createUserMessage(userMessage)]
         : [...messagesRef.current];
 
-      // Update UI with new message before streaming
-      if (hasNewMessage) {
-        updateMessages(currentMessages);
-      }
-
       setChatState(ChatState.Streaming);
-      setNotifications([]);
-      abortControllerRef.current = new AbortController();
 
       try {
-        const { stream } = await reply({
-          body: {
-            session_id: sessionId,
-            messages: currentMessages,
-          },
-          throwOnError: true,
-          signal: abortControllerRef.current.signal,
-        });
-
-        await streamFromResponse(
-          stream,
-          currentMessages,
-          updateMessages,
-          setTokenState,
-          setChatState,
-          updateNotifications,
-          onFinish
-        );
+        await worker.startStream(sessionId, userMessage, currentMessages);
       } catch (error) {
-        // AbortError is expected when user stops streaming
-        if (error instanceof Error && error.name === 'AbortError') {
-          // Silently handle abort
-        } else {
-          // Unexpected error during fetch setup (streamFromResponse handles its own errors)
-          onFinish('Submit error: ' + errorMessage(error));
-        }
+        console.error('[useChatStreamWorker] Stream error:', error);
+        await onFinish(errorMessage(error));
       }
     },
-    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
+    [sessionId, session, chatState, onFinish, worker]
   );
 
   const setRecipeUserParams = useCallback(
@@ -333,7 +256,7 @@ export function useChatStream({
         setSessionLoadError("can't call setRecipeParams without a session");
       }
     },
-    [sessionId, session, setSessionLoadError]
+    [sessionId, session]
   );
 
   useEffect(() => {
@@ -351,9 +274,9 @@ export function useChatStream({
   }, [session]);
 
   const stopStreaming = useCallback(() => {
-    abortControllerRef.current?.abort();
+    worker.stopStream(sessionId);
     setChatState(ChatState.Idle);
-  }, []);
+  }, [sessionId, worker]);
 
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
@@ -416,10 +339,6 @@ export function useChatStream({
     [sessionId, handleSubmit, updateMessages]
   );
 
-  const cached = resultsCache.get(sessionId);
-  const maybe_cached_messages = session ? messages : cached?.messages || [];
-  const maybe_cached_session = session ?? cached?.session;
-
   const notificationsMap = useMemo(() => {
     return notifications.reduce((map, notification) => {
       const key = notification.request_id;
@@ -433,8 +352,8 @@ export function useChatStream({
 
   return {
     sessionLoadError,
-    messages: maybe_cached_messages,
-    session: maybe_cached_session,
+    messages,
+    session,
     chatState,
     handleSubmit,
     stopStreaming,
