@@ -290,7 +290,7 @@ export default function Hub({
 
   return (
     <ContextManagerProvider>
-      <div className="relative flex flex-col h-full bg-background-default">
+      <div className="relative flex flex-col h-full bg-background-default rounded-t-2xl overflow-hidden">
         {/* Background Image - Behind everything */}
         {backgroundImage && (
           <div 
