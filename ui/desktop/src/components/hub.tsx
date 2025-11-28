@@ -305,8 +305,8 @@ export default function Hub({
             <div 
               className="absolute inset-0 backdrop-blur-md"
               style={{ 
-                maskImage: 'radial-gradient(circle at center, black 0%, transparent 70%)',
-                WebkitMaskImage: 'radial-gradient(circle at center, black 0%, transparent 70%)',
+                maskImage: 'radial-gradient(circle at center, black 0%, black 30%, transparent 50%)',
+                WebkitMaskImage: 'radial-gradient(circle at center, black 0%, black 30%, transparent 50%)',
                 zIndex: 0
               }}
             />
