@@ -170,22 +170,21 @@ export default function Hub({
     };
   }, []);
 
-  // Fade in blur gradually
+  // Fade in blur gradually, then fade out when text disappears
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const fadeInTimer = setTimeout(() => {
       setBlurOpacity(1);
     }, 100);
 
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Hide text after 5 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
+    const hideTextTimer = setTimeout(() => {
       setShowText(false);
+      setBlurOpacity(0); // Fade out blur when text disappears
     }, 5000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(fadeInTimer);
+      clearTimeout(hideTextTimer);
+    };
   }, []);
 
   // Check if we're in Matrix chat mode
