@@ -331,13 +331,17 @@ export default function Hub({
         <div className="relative flex-1 flex items-center justify-center p-8" style={{ zIndex: 10 }}>
           <div className="w-full max-w-4xl flex flex-col items-center">
             {/* Greeting above the input */}
-            <div className="text-center mb-8">
+            <div className={`text-center transition-all duration-1000 ${showText ? 'mb-8' : 'mb-4'}`}>
               <div className="origin-center mb-6 goose-icon-animation">
                 <Goose className="size-12 mx-auto" />
               </div>
               <div 
-                className="transition-opacity duration-1000"
-                style={{ opacity: showText ? 1 : 0 }}
+                className="transition-all duration-1000 overflow-hidden"
+                style={{ 
+                  opacity: showText ? 1 : 0,
+                  maxHeight: showText ? '200px' : '0px',
+                  marginBottom: showText ? '0px' : '0px'
+                }}
               >
                 <Greeting className="text-4xl font-light text-text-default mb-4" />
                 <p className="text-text-muted text-lg">
