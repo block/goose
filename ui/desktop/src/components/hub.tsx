@@ -293,13 +293,24 @@ export default function Hub({
       <div className="relative flex flex-col h-full bg-background-default rounded-t-2xl overflow-hidden">
         {/* Background Image - Behind everything */}
         {backgroundImage && (
-          <div 
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ 
-              backgroundImage: `url(${backgroundImage})`,
-              zIndex: 0
-            }}
-          />
+          <>
+            <div 
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ 
+                backgroundImage: `url(${backgroundImage})`,
+                zIndex: 0
+              }}
+            />
+            {/* Radial gradient overlay - creates opacity in center */}
+            <div 
+              className="absolute inset-0"
+              style={{ 
+                background: 'radial-gradient(circle at center, var(--color-background-default) 0%, transparent 70%)',
+                opacity: 0.7,
+                zIndex: 0
+              }}
+            />
+          </>
         )}
         
         {/* Animated Node Matrix Background */}
