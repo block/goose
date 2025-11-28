@@ -147,7 +147,7 @@ export default function Hub({
   const { isConnected, friends } = useMatrix();
   const [backgroundImage, setBackgroundImage] = React.useState<string | null>(null);
   const [showText, setShowText] = React.useState(true);
-  const [blurOpacity, setBlurOpacity] = React.useState(0);
+  const [blurOpacity, setBlurOpacity] = React.useState(1);
 
   // Load background image from localStorage
   useEffect(() => {
@@ -170,19 +170,14 @@ export default function Hub({
     };
   }, []);
 
-  // Fade in blur gradually, then fade out when text disappears
+  // Fade out blur when text disappears after 5 seconds
   useEffect(() => {
-    const fadeInTimer = setTimeout(() => {
-      setBlurOpacity(1);
-    }, 100);
-
     const hideTextTimer = setTimeout(() => {
       setShowText(false);
       setBlurOpacity(0); // Fade out blur when text disappears
     }, 5000);
 
     return () => {
-      clearTimeout(fadeInTimer);
       clearTimeout(hideTextTimer);
     };
   }, []);
