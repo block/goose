@@ -301,12 +301,12 @@ export default function Hub({
                 zIndex: 0
               }}
             />
-            {/* Radial gradient overlay - creates opacity in center */}
+            {/* Radial blur overlay - creates pixelated blur in center */}
             <div 
-              className="absolute inset-0"
+              className="absolute inset-0 backdrop-blur-md"
               style={{ 
-                background: 'radial-gradient(circle at center, var(--color-background-default) 0%, transparent 70%)',
-                opacity: 0.7,
+                maskImage: 'radial-gradient(circle at center, black 0%, transparent 70%)',
+                WebkitMaskImage: 'radial-gradient(circle at center, black 0%, transparent 70%)',
                 zIndex: 0
               }}
             />
