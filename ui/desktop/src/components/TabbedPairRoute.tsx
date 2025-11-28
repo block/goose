@@ -18,7 +18,25 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
   const routeState = location.state as ViewOptions | undefined;
   const initialMessage = routeState?.initialMessage;
   const { isNavExpanded } = useNavigation();
-  const { openExistingSession, openMatrixChat } = useTabContext();
+  const { openExistingSession, openMatrixChat, handleNewTab } = useTabContext();
+
+  // Track if we've already handled the initial message to prevent duplicate handling
+  const [hasHandledInitialMessage, setHasHandledInitialMessage] = React.useState(false);
+
+  // Handle initial message from Hub - create a new tab with the message
+  useEffect(() => {
+    if (initialMessage && !hasHandledInitialMessage) {
+      console.log('📝 TabbedPairRoute: Handling initial message from Hub:', initialMessage);
+      
+      // Create a new tab - the initialMessage will be passed to TabbedChatContainer
+      // and auto-submitted in the new tab
+      handleNewTab();
+      setHasHandledInitialMessage(true);
+      
+      // Clear the location state to prevent re-handling on navigation
+      window.history.replaceState({}, '', window.location.href);
+    }
+  }, [initialMessage, hasHandledInitialMessage, handleNewTab]);
 
   // Handle resuming existing sessions from URL parameters
   useEffect(() => {
