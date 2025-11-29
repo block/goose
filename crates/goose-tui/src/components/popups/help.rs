@@ -2,7 +2,7 @@ use super::popup_block;
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use crate::utils::layout::centered_rect;
 use anyhow::Result;
 use crossterm::event::KeyCode;
@@ -16,7 +16,7 @@ pub struct HelpPopup;
 
 impl Component for HelpPopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if !state.showing_help {
+        if state.active_popup != ActivePopup::Help {
             return Ok(None);
         }
 
@@ -30,10 +30,6 @@ impl Component for HelpPopup {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        if !state.showing_help {
-            return;
-        }
-
         let theme = &state.config.theme;
         let area = centered_rect(60, 60, area);
         f.render_widget(Clear, area);

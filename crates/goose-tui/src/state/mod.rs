@@ -14,6 +14,19 @@ pub enum InputMode {
     Editing,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ActivePopup {
+    #[default]
+    None,
+    Help,
+    Todo,
+    SessionPicker,
+    CommandBuilder,
+    Config,
+    ThemePicker,
+    MessageInfo(usize),
+}
+
 #[derive(Debug, Clone)]
 pub struct TodoItem {
     pub text: String,
@@ -33,13 +46,7 @@ pub struct AppState {
     pub available_sessions: Vec<Session>,
     pub providers: Vec<ProviderDetails>,
     pub extensions: Vec<ExtensionEntry>,
-    pub showing_help: bool,
-    pub showing_todo: bool,
-    pub showing_session_picker: bool,
-    pub showing_command_builder: bool,
-    pub showing_message_info: Option<usize>,
-    pub showing_config: bool,
-    pub showing_theme_picker: bool,
+    pub active_popup: ActivePopup,
     pub has_worked: bool,
     pub input_text_is_empty: bool,
     pub model_context_limit: usize,
@@ -69,13 +76,7 @@ impl AppState {
             available_sessions: Vec::new(),
             providers: Vec::new(),
             extensions: Vec::new(),
-            showing_help: false,
-            showing_todo: false,
-            showing_session_picker: false,
-            showing_command_builder: false,
-            showing_message_info: None,
-            showing_config: false,
-            showing_theme_picker: false,
+            active_popup: ActivePopup::None,
             has_worked: false,
             input_text_is_empty: true,
             model_context_limit: 128_000,

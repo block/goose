@@ -2,7 +2,7 @@ use super::{popup_block, render_hints};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use crate::utils::layout::centered_rect;
 use crate::utils::message_format::message_to_plain_text;
 use crate::utils::sanitize::sanitize_line;
@@ -157,9 +157,9 @@ impl MessagePopup {
 
 impl Component for MessagePopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if state.showing_message_info.is_none() {
+        let ActivePopup::MessageInfo(_) = state.active_popup else {
             return Ok(None);
-        }
+        };
 
         match event {
             Event::Input(key) => match key.code {
@@ -192,14 +192,12 @@ impl Component for MessagePopup {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        let msg_idx = match state.showing_message_info {
-            Some(idx) => idx,
-            None => return,
+        let ActivePopup::MessageInfo(msg_idx) = state.active_popup else {
+            return;
         };
 
-        let message = match state.messages.get(msg_idx) {
-            Some(m) => m,
-            None => return,
+        let Some(message) = state.messages.get(msg_idx) else {
+            return;
         };
 
         let theme = &state.config.theme;

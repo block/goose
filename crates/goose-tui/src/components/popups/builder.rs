@@ -3,7 +3,7 @@ use crate::components::Component;
 use crate::services::config::CustomCommand;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use crate::utils::json::has_input_placeholder;
 use crate::utils::layout::centered_rect;
 use crate::utils::styles::Theme;
@@ -195,7 +195,7 @@ impl<'a> BuilderPopup<'a> {
 // Event handling
 impl<'a> Component for BuilderPopup<'a> {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if !state.showing_command_builder {
+        if state.active_popup != ActivePopup::CommandBuilder {
             self.reset();
             return Ok(None);
         }
@@ -219,10 +219,6 @@ impl<'a> Component for BuilderPopup<'a> {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        if !state.showing_command_builder {
-            return;
-        }
-
         let area = centered_rect(70, 70, area);
         f.render_widget(Clear, area);
 

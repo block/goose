@@ -1,5 +1,5 @@
 use super::action::Action;
-use crate::state::{AppState, InputMode, TodoItem};
+use crate::state::{ActivePopup, AppState, InputMode, TodoItem};
 use goose::conversation::message::MessageContent;
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
@@ -54,7 +54,7 @@ fn handle_data_loaded(state: &mut AppState, action: &Action) -> bool {
             state.token_state.accumulated_output_tokens =
                 session.accumulated_output_tokens.unwrap_or(0);
             state.todos.clear();
-            state.showing_session_picker = false;
+            state.active_popup = ActivePopup::None;
             state.is_working = false;
             true
         }
@@ -103,7 +103,7 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
         }
         Action::CreateNewSession | Action::ResumeSession(_) | Action::ForkFromMessage(_) => {
             state.is_working = true;
-            state.showing_message_info = None;
+            state.active_popup = ActivePopup::None;
             true
         }
         Action::Error(e) => {
@@ -128,41 +128,43 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
             true
         }
         Action::ToggleTodo => {
-            state.showing_todo = !state.showing_todo;
+            state.active_popup = if state.active_popup == ActivePopup::Todo {
+                ActivePopup::None
+            } else {
+                ActivePopup::Todo
+            };
             true
         }
         Action::ToggleHelp => {
-            state.showing_help = !state.showing_help;
+            state.active_popup = if state.active_popup == ActivePopup::Help {
+                ActivePopup::None
+            } else {
+                ActivePopup::Help
+            };
             true
         }
         Action::OpenSessionPicker => {
-            state.showing_session_picker = true;
+            state.active_popup = ActivePopup::SessionPicker;
             true
         }
         Action::OpenConfig => {
-            state.showing_config = true;
+            state.active_popup = ActivePopup::Config;
             true
         }
         Action::ClosePopup => {
-            state.showing_help = false;
-            state.showing_todo = false;
-            state.showing_session_picker = false;
-            state.showing_command_builder = false;
-            state.showing_message_info = None;
-            state.showing_config = false;
-            state.showing_theme_picker = false;
+            state.active_popup = ActivePopup::None;
             true
         }
         Action::OpenThemePicker => {
-            state.showing_theme_picker = true;
+            state.active_popup = ActivePopup::ThemePicker;
             true
         }
         Action::OpenMessageInfo(idx) => {
-            state.showing_message_info = Some(*idx);
+            state.active_popup = ActivePopup::MessageInfo(*idx);
             true
         }
         Action::StartCommandBuilder => {
-            state.showing_command_builder = true;
+            state.active_popup = ActivePopup::CommandBuilder;
             true
         }
         Action::ToggleCopyMode => {
@@ -190,7 +192,7 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
         Action::ChangeTheme(name) => {
             state.config.theme = crate::utils::styles::Theme::from_name(name);
             let _ = state.config.save_theme();
-            state.showing_theme_picker = false;
+            state.active_popup = ActivePopup::None;
             state.needs_refresh = true;
             true
         }
@@ -211,14 +213,14 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             state.config.custom_commands.retain(|c| c.name != cmd.name);
             state.config.custom_commands.push(cmd.clone());
             let _ = state.config.save();
-            state.showing_command_builder = false;
+            state.active_popup = ActivePopup::None;
             state.flash_message = Some((msg.clone(), Instant::now() + Duration::from_secs(3)));
             true
         }
         Action::UpdateProvider { provider, model } => {
             state.active_provider = Some(provider.clone());
             state.active_model = Some(model.clone());
-            state.showing_config = false;
+            state.active_popup = ActivePopup::None;
             true
         }
         _ => false,

@@ -12,7 +12,7 @@ use crate::components::status::StatusComponent;
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -61,71 +61,28 @@ impl<'a> App<'a> {
     }
 
     fn handle_popups(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if state.showing_todo {
-            if let Some(action) = self.todo_popup.handle_event(event, state)? {
-                if matches!(action, Action::ClosePopup) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_help {
-            if let Some(action) = self.help_popup.handle_event(event, state)? {
-                if matches!(action, Action::ClosePopup) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_session_picker {
-            if let Some(action) = self.session_popup.handle_event(event, state)? {
-                if matches!(
-                    action,
-                    Action::ClosePopup | Action::ResumeSession(_) | Action::CreateNewSession
-                ) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_command_builder {
-            if let Some(action) = self.builder_popup.handle_event(event, state)? {
+        let popup_handler: Option<&mut dyn Component> = match &state.active_popup {
+            ActivePopup::Todo => Some(&mut self.todo_popup),
+            ActivePopup::Help => Some(&mut self.help_popup),
+            ActivePopup::SessionPicker => Some(&mut self.session_popup),
+            ActivePopup::CommandBuilder => Some(&mut self.builder_popup),
+            ActivePopup::MessageInfo(_) => Some(&mut self.message_popup),
+            ActivePopup::Config => Some(&mut self.config_popup),
+            ActivePopup::ThemePicker => Some(&mut self.theme_popup),
+            ActivePopup::None => None,
+        };
+
+        if let Some(handler) = popup_handler {
+            if let Some(action) = handler.handle_event(event, state)? {
                 if matches!(
                     action,
                     Action::ClosePopup
+                        | Action::ResumeSession(_)
+                        | Action::CreateNewSession
                         | Action::DeleteCustomCommand(_)
                         | Action::SubmitCommandBuilder(_, _)
+                        | Action::ChangeTheme(_)
                 ) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_message_info.is_some() {
-            if let Some(action) = self.message_popup.handle_event(event, state)? {
-                if matches!(action, Action::ClosePopup) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_config {
-            if let Some(action) = self.config_popup.handle_event(event, state)? {
-                if matches!(action, Action::ClosePopup) {
-                    self.last_popup_close_time = Some(std::time::Instant::now());
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
-        }
-        if state.showing_theme_picker {
-            if let Some(action) = self.theme_popup.handle_event(event, state)? {
-                if matches!(action, Action::ClosePopup | Action::ChangeTheme(_)) {
                     self.last_popup_close_time = Some(std::time::Instant::now());
                 }
                 return Ok(Some(action));
@@ -197,16 +154,7 @@ impl<'a> Component for App<'a> {
         }
 
         // 2. Popups
-        // Check if any popup is active. If so, handle it and STOP propagation.
-        let popup_active = state.showing_todo
-            || state.showing_help
-            || state.showing_session_picker
-            || state.showing_command_builder
-            || state.showing_message_info.is_some()
-            || state.showing_config
-            || state.showing_theme_picker;
-
-        if popup_active {
+        if state.active_popup != ActivePopup::None {
             if let Some(action) = self.handle_popups(event, state)? {
                 return Ok(Some(action));
             }
@@ -274,14 +222,15 @@ impl<'a> Component for App<'a> {
         self.input.render(f, chunks[2], state);
         self.status.render(f, chunks[3], state);
 
-        self.todo_popup.render(f, f.area(), state);
-        self.help_popup.render(f, f.area(), state);
-        self.session_popup.render(f, f.area(), state);
-        self.builder_popup.render(f, f.area(), state);
-        if state.showing_message_info.is_some() {
-            self.message_popup.render(f, f.area(), state);
+        match &state.active_popup {
+            ActivePopup::Todo => self.todo_popup.render(f, f.area(), state),
+            ActivePopup::Help => self.help_popup.render(f, f.area(), state),
+            ActivePopup::SessionPicker => self.session_popup.render(f, f.area(), state),
+            ActivePopup::CommandBuilder => self.builder_popup.render(f, f.area(), state),
+            ActivePopup::MessageInfo(_) => self.message_popup.render(f, f.area(), state),
+            ActivePopup::Config => self.config_popup.render(f, f.area(), state),
+            ActivePopup::ThemePicker => self.theme_popup.render(f, f.area(), state),
+            ActivePopup::None => {}
         }
-        self.config_popup.render(f, f.area(), state);
-        self.theme_popup.render(f, f.area(), state);
     }
 }

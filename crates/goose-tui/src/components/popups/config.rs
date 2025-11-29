@@ -2,7 +2,7 @@ use super::{navigate_list, popup_block, render_hints, render_scrollbar};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use crate::utils::layout::centered_rect;
 use crate::utils::styles::Theme;
 use anyhow::Result;
@@ -373,7 +373,7 @@ impl ConfigPopup {
 
 impl Component for ConfigPopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if !state.showing_config {
+        if state.active_popup != ActivePopup::Config {
             self.reset();
             return Ok(None);
         }
@@ -394,10 +394,6 @@ impl Component for ConfigPopup {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        if !state.showing_config {
-            return;
-        }
-
         let theme = &state.config.theme;
         let area = centered_rect(70, 70, area);
         f.render_widget(Clear, area);

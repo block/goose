@@ -2,7 +2,7 @@ use super::{navigate_list, popup_block, render_hints};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{ActivePopup, AppState};
 use crate::utils::layout::centered_rect;
 use crate::utils::styles::Theme;
 use anyhow::Result;
@@ -40,7 +40,7 @@ impl ThemePopup {
 
 impl Component for ThemePopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if !state.showing_theme_picker {
+        if state.active_popup != ActivePopup::ThemePicker {
             return Ok(None);
         }
 
@@ -70,10 +70,6 @@ impl Component for ThemePopup {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        if !state.showing_theme_picker {
-            return;
-        }
-
         let theme = &state.config.theme;
         let names = Theme::all_names();
 
