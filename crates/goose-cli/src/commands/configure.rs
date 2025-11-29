@@ -1801,6 +1801,50 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Prompts the user to collect custom HTTP headers for a provider.
+fn collect_custom_headers() -> anyhow::Result<Option<std::collections::HashMap<String, String>>> {
+    let use_custom_headers = cliclack::confirm("Does this provider require custom headers?")
+        .initial_value(false)
+        .interact()?;
+
+    if !use_custom_headers {
+        return Ok(None);
+    }
+
+    let mut custom_headers = std::collections::HashMap::new();
+
+    loop {
+        let header_name: String = cliclack::input("Header name:")
+            .placeholder("e.g., x-origin-client-id")
+            .required(false)
+            .interact()?;
+
+        if header_name.is_empty() {
+            break;
+        }
+
+        let header_value: String = cliclack::password(format!("Value for '{}':", header_name))
+            .mask('▪')
+            .interact()?;
+
+        custom_headers.insert(header_name, header_value);
+
+        let add_more = cliclack::confirm("Add another header?")
+            .initial_value(false)
+            .interact()?;
+
+        if !add_more {
+            break;
+        }
+    }
+
+    if custom_headers.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(custom_headers))
+    }
+}
+
 fn add_provider() -> anyhow::Result<()> {
     let provider_type = cliclack::select("What type of API is this?")
         .item(
@@ -1870,47 +1914,7 @@ fn add_provider() -> anyhow::Result<()> {
 
     // Ask about custom headers for OpenAI compatible providers
     let headers = if provider_type == "openai_compatible" {
-        let use_custom_headers = cliclack::confirm("Does this provider require custom headers?")
-            .initial_value(false)
-            .interact()?;
-
-        if use_custom_headers {
-            let mut custom_headers = std::collections::HashMap::new();
-
-            loop {
-                let header_name: String = cliclack::input("Header name:")
-                    .placeholder("e.g., x-origin-client-id")
-                    .required(false)
-                    .interact()?;
-
-                if header_name.is_empty() {
-                    break;
-                }
-
-                let header_value: String =
-                    cliclack::password(format!("Value for '{}':", header_name))
-                        .mask('▪')
-                        .interact()?;
-
-                custom_headers.insert(header_name, header_value);
-
-                let add_more = cliclack::confirm("Add another header?")
-                    .initial_value(false)
-                    .interact()?;
-
-                if !add_more {
-                    break;
-                }
-            }
-
-            if custom_headers.is_empty() {
-                None
-            } else {
-                Some(custom_headers)
-            }
-        } else {
-            None
-        }
+        collect_custom_headers()?
     } else {
         None
     };

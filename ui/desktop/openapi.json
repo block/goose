@@ -5274,6 +5274,13 @@
           "engine": {
             "type": "string"
           },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "models": {
             "type": "array",
             "items": {
