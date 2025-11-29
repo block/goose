@@ -90,8 +90,10 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
         }
         Action::Interrupt => {
             state.is_working = false;
-            state.flash_message =
-                Some(("Interrupted".to_string(), Instant::now() + FLASH_DURATION_SHORT));
+            state.flash_message = Some((
+                "Interrupted".to_string(),
+                Instant::now() + FLASH_DURATION_SHORT,
+            ));
             true
         }
         Action::ClearChat => {
@@ -107,10 +109,8 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
             true
         }
         Action::Error(e) => {
-            state.flash_message = Some((
-                format!("Error: {e}"),
-                Instant::now() + FLASH_DURATION_ERROR,
-            ));
+            state.flash_message =
+                Some((format!("Error: {e}"), Instant::now() + FLASH_DURATION_ERROR));
             state.is_working = false;
             true
         }
@@ -183,8 +183,7 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             true
         }
         Action::ShowFlash(message) => {
-            state.flash_message =
-                Some((message.clone(), Instant::now() + FLASH_DURATION_NORMAL));
+            state.flash_message = Some((message.clone(), Instant::now() + FLASH_DURATION_NORMAL));
             true
         }
         Action::ChangeTheme(name) => {
