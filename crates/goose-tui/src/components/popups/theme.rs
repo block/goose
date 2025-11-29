@@ -1,3 +1,4 @@
+use super::{navigate_list, popup_block, render_hints};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
@@ -6,10 +7,10 @@ use crate::utils::layout::centered_rect;
 use crate::utils::styles::Theme;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState};
+use ratatui::widgets::{Clear, List, ListItem, ListState};
 use ratatui::Frame;
 
 pub struct ThemePopup {
@@ -24,30 +25,32 @@ impl Default for ThemePopup {
 
 impl ThemePopup {
     pub fn new() -> Self {
-        let mut list_state = ListState::default();
-        list_state.select(Some(0));
-        Self { list_state }
+        Self {
+            list_state: ListState::default().with_selected(Some(0)),
+        }
+    }
+
+    fn navigate(&mut self, delta: i32) {
+        let count = Theme::all_names().len();
+        if let Some(next) = navigate_list(self.list_state.selected(), delta, count) {
+            self.list_state.select(Some(next));
+        }
     }
 }
 
 impl Component for ThemePopup {
-    fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
-        let names = Theme::all_names();
-        let len = names.len();
+    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        if !state.showing_theme_picker {
+            return Ok(None);
+        }
 
         match event {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down => {
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some((cur + 1) % len));
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state
-                        .select(Some(cur.checked_sub(1).unwrap_or(len - 1)));
-                }
+                KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => self.navigate(1),
+                KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => self.navigate(-1),
                 KeyCode::Enter => {
+                    let names = Theme::all_names();
                     if let Some(idx) = self.list_state.selected() {
                         if let Some(&name) = names.get(idx) {
                             return Ok(Some(Action::ChangeTheme(name.to_string())));
@@ -57,15 +60,8 @@ impl Component for ThemePopup {
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => {
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state.select(Some((cur + 1) % len));
-                }
-                MouseEventKind::ScrollUp => {
-                    let cur = self.list_state.selected().unwrap_or(0);
-                    self.list_state
-                        .select(Some(cur.checked_sub(1).unwrap_or(len - 1)));
-                }
+                MouseEventKind::ScrollDown => self.navigate(1),
+                MouseEventKind::ScrollUp => self.navigate(-1),
                 _ => {}
             },
             _ => {}
@@ -84,6 +80,12 @@ impl Component for ThemePopup {
         let area = centered_rect(30, 50, area);
         f.render_widget(Clear, area);
 
+        let [list_area, hints_area] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+            .margin(1)
+            .areas(area);
+
+        f.render_widget(popup_block(" Select Theme ", theme), area);
+
         let items: Vec<ListItem> = names
             .iter()
             .map(|&name| {
@@ -100,14 +102,7 @@ impl Component for ThemePopup {
             })
             .collect();
 
-        let block = Block::default()
-            .title("Select Theme (Enter to apply)")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .style(Style::default().bg(theme.base.background));
-
         let list = List::new(items)
-            .block(block)
             .highlight_style(
                 Style::default()
                     .bg(theme.base.selection)
@@ -115,6 +110,13 @@ impl Component for ThemePopup {
             )
             .highlight_symbol("▶ ");
 
-        f.render_stateful_widget(list, area, &mut self.list_state);
+        f.render_stateful_widget(list, list_area, &mut self.list_state);
+
+        render_hints(
+            f,
+            hints_area,
+            theme,
+            &[("↑↓", "nav"), ("Enter", "apply"), ("Esc", "close")],
+        );
     }
 }

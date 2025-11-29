@@ -1,3 +1,4 @@
+use super::{popup_block, render_hints};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
@@ -5,16 +6,14 @@ use crate::state::AppState;
 use crate::utils::layout::centered_rect;
 use crate::utils::message_format::message_to_plain_text;
 use crate::utils::sanitize::sanitize_line;
+use crate::utils::styles::Theme;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
 use goose::conversation::message::MessageContent;
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-    Wrap,
-};
+use ratatui::widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::Frame;
 use std::time::Instant;
 
@@ -46,16 +45,25 @@ impl MessagePopup {
     }
 
     fn max_scroll(&self) -> u16 {
-        if self.content_height <= self.viewport_height {
-            0
+        self.content_height.saturating_sub(self.viewport_height)
+    }
+
+    fn scroll_by(&mut self, delta: i16) {
+        if delta > 0 {
+            self.scroll = self
+                .scroll
+                .saturating_add(delta as u16)
+                .min(self.max_scroll());
         } else {
-            self.content_height.saturating_sub(1)
+            self.scroll = self.scroll.saturating_sub((-delta) as u16);
         }
+        self.last_scroll_time = Some(Instant::now());
     }
 
     fn render_content(
         &self,
         message: &goose::conversation::message::Message,
+        theme: &Theme,
     ) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
@@ -63,22 +71,31 @@ impl MessagePopup {
             match content {
                 MessageContent::Text(t) => {
                     for line in t.text.lines() {
-                        lines.push(Line::from(line.to_string()));
+                        lines.push(Line::from(Span::styled(
+                            line.to_string(),
+                            Style::default().fg(theme.base.foreground),
+                        )));
                     }
                 }
                 MessageContent::ToolRequest(req) => {
                     lines.push(Line::from(Span::styled(
                         "Tool Request:",
                         Style::default()
-                            .fg(Color::Yellow)
+                            .fg(theme.status.warning)
                             .add_modifier(Modifier::BOLD),
                     )));
                     if let Ok(call) = &req.tool_call {
-                        lines.push(Line::from(format!("Name: {}", call.name)));
+                        lines.push(Line::from(Span::styled(
+                            format!("Name: {}", call.name),
+                            Style::default().fg(theme.status.info),
+                        )));
                         if let Some(args) = &call.arguments {
                             let json_str = serde_json::to_string_pretty(args).unwrap_or_default();
                             for line in json_str.lines() {
-                                lines.push(Line::from(line.to_string()));
+                                lines.push(Line::from(Span::styled(
+                                    line.to_string(),
+                                    Style::default().fg(theme.base.foreground),
+                                )));
                             }
                         }
                     }
@@ -87,7 +104,7 @@ impl MessagePopup {
                     lines.push(Line::from(Span::styled(
                         "Tool Output:",
                         Style::default()
-                            .fg(Color::Yellow)
+                            .fg(theme.status.warning)
                             .add_modifier(Modifier::BOLD),
                     )));
                     if let Ok(contents) = &resp.tool_result {
@@ -113,7 +130,10 @@ impl MessagePopup {
                                 };
                                 for line in display_string.lines() {
                                     let (sanitized, _) = sanitize_line(line);
-                                    lines.push(Line::from(sanitized));
+                                    lines.push(Line::from(Span::styled(
+                                        sanitized,
+                                        Style::default().fg(theme.base.foreground),
+                                    )));
                                 }
                             }
                         }
@@ -136,7 +156,11 @@ impl MessagePopup {
 }
 
 impl Component for MessagePopup {
-    fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
+    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        if state.showing_message_info.is_none() {
+            return Ok(None);
+        }
+
         match event {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
@@ -151,25 +175,15 @@ impl Component for MessagePopup {
                         return Ok(Some(Action::ForkFromMessage(idx)));
                     }
                 }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll = self.scroll.saturating_sub(1);
-                    self.last_scroll_time = Some(Instant::now());
-                }
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_by(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_by(-1),
+                KeyCode::PageDown => self.scroll_by(10),
+                KeyCode::PageUp => self.scroll_by(-10),
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => {
-                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                MouseEventKind::ScrollUp => {
-                    self.scroll = self.scroll.saturating_sub(3);
-                    self.last_scroll_time = Some(Instant::now());
-                }
+                MouseEventKind::ScrollDown => self.scroll_by(3),
+                MouseEventKind::ScrollUp => self.scroll_by(-3),
                 _ => {}
             },
             _ => {}
@@ -188,6 +202,8 @@ impl Component for MessagePopup {
             None => return,
         };
 
+        let theme = &state.config.theme;
+
         if self.cached_message_idx != Some(msg_idx) {
             self.cached_message_idx = Some(msg_idx);
             self.cached_plain_text = message_to_plain_text(message);
@@ -197,15 +213,17 @@ impl Component for MessagePopup {
         let area = centered_rect(80, 80, area);
         f.render_widget(Clear, area);
 
-        let lines = self.render_content(message);
+        let [content_area, hints_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+                .margin(1)
+                .areas(area);
 
-        let block = Block::default()
-            .title("Message Details (Esc close, c copy, f fork)")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .style(Style::default().bg(state.config.theme.base.background));
+        f.render_widget(popup_block(" Message Details ", theme), area);
 
-        let inner_width = area.width.saturating_sub(2).max(1);
+        let lines = self.render_content(message, theme);
+
+        // Calculate wrapped height
+        let inner_width = content_area.width.max(1);
         let mut wrapped_height = 0;
         for line in &lines {
             let width = line.width() as u16;
@@ -217,21 +235,23 @@ impl Component for MessagePopup {
         }
 
         self.content_height = wrapped_height;
-        self.viewport_height = area.height.saturating_sub(2);
+        self.viewport_height = content_area.height;
 
         if self.scroll > self.max_scroll() {
             self.scroll = self.max_scroll();
         }
 
         let p = Paragraph::new(Text::from(lines))
-            .block(block)
             .wrap(Wrap { trim: false })
             .scroll((self.scroll, 0));
 
-        f.render_widget(p, area);
+        f.render_widget(p, content_area);
 
+        // Show scrollbar briefly after scrolling
         if let Some(last) = self.last_scroll_time {
-            if last.elapsed() < std::time::Duration::from_secs(1) {
+            if last.elapsed() < std::time::Duration::from_secs(1)
+                && self.content_height > self.viewport_height
+            {
                 let mut scrollbar_state = ScrollbarState::default()
                     .content_length(self.content_height as usize)
                     .viewport_content_length(self.viewport_height as usize)
@@ -239,12 +259,24 @@ impl Component for MessagePopup {
 
                 f.render_stateful_widget(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(None)
-                        .end_symbol(None),
-                    area,
+                        .begin_symbol(Some("↑"))
+                        .end_symbol(Some("↓")),
+                    content_area,
                     &mut scrollbar_state,
                 );
             }
         }
+
+        render_hints(
+            f,
+            hints_area,
+            theme,
+            &[
+                ("↑↓", "scroll"),
+                ("c", "copy"),
+                ("f", "fork"),
+                ("Esc", "close"),
+            ],
+        );
     }
 }

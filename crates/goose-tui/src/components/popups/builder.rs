@@ -1,3 +1,4 @@
+use super::{popup_block, render_hints, render_scrollbar};
 use crate::components::Component;
 use crate::services::config::CustomCommand;
 use crate::services::events::Event;
@@ -8,12 +9,11 @@ use crate::utils::styles::Theme;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEventKind};
 use goose_client::ToolInfo;
-use ratatui::layout::{Alignment, Constraint, Layout, Margin, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
-    ScrollbarOrientation, ScrollbarState,
+    Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, ScrollbarState,
 };
 use ratatui::Frame;
 use std::collections::HashMap;
@@ -529,16 +529,6 @@ impl BuilderPopup<'_> {
     }
 }
 
-// Shared rendering helpers
-fn popup_block(title: &str, theme: &Theme) -> Block<'static> {
-    Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme.base.border))
-        .title(title.to_string())
-        .style(Style::default().bg(theme.base.background))
-}
-
 fn input_block(title: &str, focused: bool, theme: &Theme) -> Block<'static> {
     let border_color = if focused {
         theme.base.border_active
@@ -550,43 +540,6 @@ fn input_block(title: &str, focused: bool, theme: &Theme) -> Block<'static> {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
         .title(title.to_string())
-}
-
-fn render_scrollbar(f: &mut Frame, area: Rect, state: &mut ScrollbarState) {
-    f.render_stateful_widget(
-        Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓")),
-        area.inner(Margin::new(0, 0)),
-        state,
-    );
-}
-
-fn render_hints(f: &mut Frame, area: Rect, theme: &Theme, hints: &[(&str, &str)]) {
-    let spans: Vec<Span> = hints
-        .iter()
-        .enumerate()
-        .flat_map(|(i, (key, desc))| {
-            let mut v = vec![];
-            if i > 0 {
-                v.push(Span::raw("  "));
-            }
-            v.push(Span::styled(
-                (*key).to_string(),
-                Style::default().fg(theme.status.info),
-            ));
-            v.push(Span::styled(
-                format!(" {desc}"),
-                Style::default().fg(theme.base.foreground),
-            ));
-            v
-        })
-        .collect();
-    f.render_widget(
-        Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
-        area,
-    );
 }
 
 fn new_text_input(placeholder: &str) -> TextArea<'static> {

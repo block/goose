@@ -5,3 +5,71 @@ pub mod message;
 pub mod session;
 pub mod theme;
 pub mod todo;
+
+use crate::utils::styles::Theme;
+use ratatui::layout::{Alignment, Margin, Rect};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
+use ratatui::Frame;
+
+/// Create a standard popup block with rounded borders and theme styling
+pub fn popup_block(title: &str, theme: &Theme) -> Block<'static> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme.base.border))
+        .title(title.to_string())
+        .style(Style::default().bg(theme.base.background))
+}
+
+/// Render a scrollbar on the right side of an area
+pub fn render_scrollbar(f: &mut Frame, area: Rect, state: &mut ScrollbarState) {
+    f.render_stateful_widget(
+        Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓")),
+        area.inner(Margin::new(0, 1)),
+        state,
+    );
+}
+
+/// Render keyboard hints at the bottom of a popup
+pub fn render_hints(f: &mut Frame, area: Rect, theme: &Theme, hints: &[(&str, &str)]) {
+    let spans: Vec<Span> = hints
+        .iter()
+        .enumerate()
+        .flat_map(|(i, (key, desc))| {
+            let mut v = vec![];
+            if i > 0 {
+                v.push(Span::raw("  "));
+            }
+            v.push(Span::styled(
+                (*key).to_string(),
+                Style::default().fg(theme.status.info),
+            ));
+            v.push(Span::styled(
+                format!(" {desc}"),
+                Style::default().fg(theme.base.foreground),
+            ));
+            v
+        })
+        .collect();
+    f.render_widget(
+        Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+        area,
+    );
+}
+
+/// Navigate within a list, wrapping around at boundaries
+pub fn navigate_list(current: Option<usize>, delta: i32, count: usize) -> Option<usize> {
+    if count == 0 {
+        return None;
+    }
+    let cur = current.unwrap_or(0) as i32;
+    let next = (cur + delta).rem_euclid(count as i32) as usize;
+    Some(next)
+}

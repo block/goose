@@ -1,15 +1,15 @@
+use super::{popup_block, render_hints};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::AppState;
+use crate::utils::layout::centered_rect;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 use std::time::Instant;
 
@@ -36,60 +36,41 @@ impl TodoPopup {
         }
     }
 
-    fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-        let popup_layout = ratatui::layout::Layout::default()
-            .direction(ratatui::layout::Direction::Vertical)
-            .constraints([
-                ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-                ratatui::layout::Constraint::Percentage(percent_y),
-                ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-            ])
-            .split(r);
-
-        ratatui::layout::Layout::default()
-            .direction(ratatui::layout::Direction::Horizontal)
-            .constraints([
-                ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-                ratatui::layout::Constraint::Percentage(percent_x),
-                ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-            ])
-            .split(popup_layout[1])[1]
+    fn max_scroll(&self) -> u16 {
+        self.content_height.saturating_sub(self.viewport_height)
     }
 
-    fn max_scroll(&self) -> u16 {
-        if self.content_height <= self.viewport_height {
-            0
+    fn scroll_by(&mut self, delta: i16) {
+        if delta > 0 {
+            self.scroll = self
+                .scroll
+                .saturating_add(delta as u16)
+                .min(self.max_scroll());
         } else {
-            self.content_height.saturating_sub(1)
+            self.scroll = self.scroll.saturating_sub((-delta) as u16);
         }
+        self.last_scroll_time = Some(Instant::now());
     }
 }
 
 impl Component for TodoPopup {
-    fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
+    fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
+        if !state.showing_todo {
+            return Ok(None);
+        }
+
         match event {
             Event::Input(key) => match key.code {
-                KeyCode::Esc => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.scroll = self.scroll.saturating_add(1).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.scroll = self.scroll.saturating_sub(1);
-                    self.last_scroll_time = Some(Instant::now());
-                }
+                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_by(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_by(-1),
+                KeyCode::PageDown => self.scroll_by(10),
+                KeyCode::PageUp => self.scroll_by(-10),
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => {
-                    self.scroll = self.scroll.saturating_add(3).min(self.max_scroll());
-                    self.last_scroll_time = Some(Instant::now());
-                }
-                MouseEventKind::ScrollUp => {
-                    self.scroll = self.scroll.saturating_sub(3);
-                    self.last_scroll_time = Some(Instant::now());
-                }
+                MouseEventKind::ScrollDown => self.scroll_by(3),
+                MouseEventKind::ScrollUp => self.scroll_by(-3),
                 _ => {}
             },
             _ => {}
@@ -102,18 +83,31 @@ impl Component for TodoPopup {
             return;
         }
 
-        let area = Self::centered_rect(60, 60, area);
+        let theme = &state.config.theme;
+        let area = centered_rect(60, 60, area);
         f.render_widget(Clear, area);
+
+        let [content_area, hints_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+                .margin(1)
+                .areas(area);
+
+        f.render_widget(popup_block(" Todos ", theme), area);
 
         let mut lines = Vec::new();
         for item in &state.todos {
             let (prefix, style) = if item.done {
-                ("[x] ", Style::default().fg(Color::DarkGray))
+                (
+                    "[x] ",
+                    Style::default()
+                        .fg(theme.base.border)
+                        .add_modifier(Modifier::DIM),
+                )
             } else {
                 (
                     "[ ] ",
                     Style::default()
-                        .fg(Color::White)
+                        .fg(theme.base.foreground)
                         .add_modifier(Modifier::BOLD),
                 )
             };
@@ -126,29 +120,25 @@ impl Component for TodoPopup {
         if lines.is_empty() {
             lines.push(Line::from(Span::styled(
                 "No tasks yet.",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.base.border),
             )));
         }
 
-        let block = Block::default()
-            .title("Todos (Esc to Close)")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .style(Style::default().bg(state.config.theme.base.background));
-
         self.content_height = lines.len() as u16;
-        self.viewport_height = area.height.saturating_sub(2);
+        self.viewport_height = content_area.height;
 
         if self.scroll > self.max_scroll() {
             self.scroll = self.max_scroll();
         }
 
-        let p = Paragraph::new(lines).block(block).scroll((self.scroll, 0));
+        let p = Paragraph::new(lines).scroll((self.scroll, 0));
+        f.render_widget(p, content_area);
 
-        f.render_widget(p, area);
-
+        // Show scrollbar briefly after scrolling
         if let Some(last) = self.last_scroll_time {
-            if last.elapsed() < std::time::Duration::from_secs(1) {
+            if last.elapsed() < std::time::Duration::from_secs(1)
+                && self.content_height > self.viewport_height
+            {
                 let mut scrollbar_state = ScrollbarState::default()
                     .content_length(self.content_height as usize)
                     .viewport_content_length(self.viewport_height as usize)
@@ -156,12 +146,14 @@ impl Component for TodoPopup {
 
                 f.render_stateful_widget(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(None)
-                        .end_symbol(None),
-                    area,
+                        .begin_symbol(Some("↑"))
+                        .end_symbol(Some("↓")),
+                    content_area,
                     &mut scrollbar_state,
                 );
             }
         }
+
+        render_hints(f, hints_area, theme, &[("↑↓", "scroll"), ("Esc", "close")]);
     }
 }
