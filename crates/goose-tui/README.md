@@ -94,7 +94,6 @@ Output is printed to stdout. Automatically enabled when stdout is not a terminal
 | Key | Action |
 |-----|--------|
 | `Enter` | Send message |
-| `Shift+Enter` | Insert newline |
 | `Ctrl+J` | Insert newline |
 | `Esc` | Switch to Normal mode |
 
@@ -199,17 +198,17 @@ Use `/config` to change:
 │                                             │
 │  Assistant response with markdown           │
 │                                             │
-│  ╭─ tool_name args... ──────────────────╮  │
-│  │ Tool output (truncated)              │  │
-│  ╰──────────────────────────────────────╯  │
+│  ╭─ tool_name args... ──────────────────╮   │
+│  │ Tool output (truncated)              │   │
+│  ╰──────────────────────────────────────╯   │
 │                                             │
 ├─────────────────────────────────────────────┤
-│ ⠋ Current task (2/5)              Flash!   │  ← Info line
+│ ⠋ Current task (2/5)              Flash!    │  ← Info line
 ├─────────────────────────────────────────────┤
 │ Message                                     │  ← Input
 │ Type here...                                │
 ├─────────────────────────────────────────────┤
-│ EDITING │ COPY │ session │ 12k/128k │ ...  │  ← Status bar
+│ EDITING │ COPY │ session │ 12k/128k │ ...   │  ← Status bar
 └─────────────────────────────────────────────┘
 ```
 
