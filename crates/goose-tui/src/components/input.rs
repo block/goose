@@ -56,6 +56,95 @@ impl<'a> InputComponent<'a> {
         (self.lines_count() + 2).clamp(3, max_height)
     }
 
+    fn render_command_autocomplete(&self, f: &mut Frame, area: Rect, state: &AppState) {
+        let theme = &state.config.theme;
+        let Some(first_line) = self.textarea.lines().first() else {
+            return;
+        };
+        let first_word = first_line.split_whitespace().next().unwrap_or(first_line);
+        if !first_word.starts_with('/') {
+            return;
+        }
+
+        let builtin_commands = vec![
+            ("/exit", false),
+            ("/quit", false),
+            ("/help", false),
+            ("/todos", false),
+            ("/config", false),
+            ("/session", false),
+            ("/alias", false),
+            ("/clear", false),
+            ("/compact", false),
+            ("/theme", true),
+            ("/copy", false),
+            ("/copymode", false),
+        ];
+
+        let custom: Vec<(String, bool)> = state
+            .config
+            .custom_commands
+            .iter()
+            .map(|c| {
+                let has_input = has_input_placeholder(&c.args);
+                (format!("/{}", c.name), has_input)
+            })
+            .collect();
+
+        let mut all_commands: Vec<(&str, bool)> = builtin_commands;
+        let custom_refs: Vec<(&str, bool)> = custom.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+        all_commands.extend(custom_refs);
+        all_commands.sort_by(|a, b| a.0.cmp(b.0));
+
+        let filtered: Vec<(&str, bool)> = all_commands
+            .into_iter()
+            .filter(|(c, _)| c.starts_with(first_word))
+            .collect();
+
+        if filtered.is_empty() {
+            return;
+        }
+
+        let max_height = f.area().height / 2;
+        let content_height = filtered.len() as u16 + 2;
+        let height = content_height.min(max_height).max(3);
+        let width = 30;
+        let popup_area = Rect::new(area.x, area.y.saturating_sub(height), width, height);
+
+        f.render_widget(Clear, popup_area);
+
+        let items: Vec<ListItem> = filtered
+            .iter()
+            .map(|(c, accepts_args)| {
+                if *accepts_args {
+                    ListItem::new(ratatui::text::Line::from(vec![
+                        Span::styled((*c).to_string(), Style::default().fg(theme.base.foreground)),
+                        Span::styled(
+                            " <args>".to_string(),
+                            Style::default().fg(theme.status.warning),
+                        ),
+                    ]))
+                } else {
+                    ListItem::new(Span::styled(
+                        (*c).to_string(),
+                        Style::default().fg(theme.base.foreground),
+                    ))
+                }
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Commands"),
+            )
+            .style(Style::default().bg(theme.base.background));
+
+        f.render_widget(list, popup_area);
+    }
+
     fn handle_slash_command(&self, cmd_line: &str, state: &AppState) -> Option<Action> {
         // Split into command and trailing arguments
         let trimmed = cmd_line.trim();
@@ -269,92 +358,7 @@ impl<'a> Component for InputComponent<'a> {
         f.render_widget(&self.textarea, area);
 
         if state.input_mode == InputMode::Editing {
-            if let Some(first_line) = self.textarea.lines().first() {
-                let first_word = first_line.split_whitespace().next().unwrap_or(first_line);
-                if first_word.starts_with('/') {
-                    let builtin_commands = vec![
-                        ("/exit", false),
-                        ("/quit", false),
-                        ("/help", false),
-                        ("/todos", false),
-                        ("/config", false),
-                        ("/session", false),
-                        ("/alias", false),
-                        ("/clear", false),
-                        ("/compact", false),
-                        ("/theme", true),
-                        ("/copy", false),
-                        ("/copymode", false),
-                    ];
-
-                    let custom: Vec<(String, bool)> = state
-                        .config
-                        .custom_commands
-                        .iter()
-                        .map(|c| {
-                            let has_input = has_input_placeholder(&c.args);
-                            (format!("/{}", c.name), has_input)
-                        })
-                        .collect();
-
-                    let mut all_commands: Vec<(&str, bool)> = builtin_commands;
-                    let custom_refs: Vec<(&str, bool)> =
-                        custom.iter().map(|(s, b)| (s.as_str(), *b)).collect();
-                    all_commands.extend(custom_refs);
-                    all_commands.sort_by(|a, b| a.0.cmp(b.0));
-
-                    let filtered: Vec<(&str, bool)> = all_commands
-                        .into_iter()
-                        .filter(|(c, _)| c.starts_with(first_word))
-                        .collect();
-
-                    if !filtered.is_empty() {
-                        let max_height = f.area().height / 2;
-                        let content_height = filtered.len() as u16 + 2;
-                        let height = content_height.min(max_height).max(3);
-
-                        let width = 30;
-                        let popup_area =
-                            Rect::new(area.x, area.y.saturating_sub(height), width, height);
-
-                        f.render_widget(Clear, popup_area);
-
-                        let items: Vec<ListItem> = filtered
-                            .iter()
-                            .map(|(c, accepts_args)| {
-                                if *accepts_args {
-                                    ListItem::new(ratatui::text::Line::from(vec![
-                                        Span::styled(
-                                            (*c).to_string(),
-                                            Style::default().fg(theme.base.foreground),
-                                        ),
-                                        Span::styled(
-                                            " <args>".to_string(),
-                                            Style::default().fg(theme.status.warning),
-                                        ),
-                                    ]))
-                                } else {
-                                    ListItem::new(Span::styled(
-                                        (*c).to_string(),
-                                        Style::default().fg(theme.base.foreground),
-                                    ))
-                                }
-                            })
-                            .collect();
-
-                        let list = List::new(items)
-                            .block(
-                                Block::default()
-                                    .borders(Borders::ALL)
-                                    .border_type(BorderType::Rounded)
-                                    .title("Commands"),
-                            )
-                            .style(Style::default().bg(theme.base.background));
-
-                        f.render_widget(list, popup_area);
-                    }
-                }
-            }
+            self.render_command_autocomplete(f, area, state);
         }
     }
 }

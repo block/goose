@@ -481,7 +481,7 @@ fn render_search_box(f: &mut Frame, area: Rect, query: &str, theme: &Theme) {
     let text = if query.is_empty() {
         "Type to search...".to_string()
     } else {
-        format!("Search: {}_", query)
+        format!("Search: {query}_")
     };
 
     let style = if query.is_empty() {
