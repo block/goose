@@ -5,7 +5,7 @@ use crate::state::{AppState, InputMode};
 use crate::utils::ascii_art::GOOSE_LOGO;
 use crate::utils::sanitize::sanitize_line;
 use crate::utils::styles::{breathing_color, Theme};
-use crate::utils::termimad_renderer::TermimadRenderer2;
+use crate::utils::termimad_renderer::MarkdownRenderer;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
 use goose::conversation::message::MessageContent;
@@ -110,7 +110,7 @@ impl ChatComponent {
         map: &mut Vec<usize>,
     ) {
         let user_text_style = Style::default().fg(theme.base.user_message_foreground);
-        let renderer = TermimadRenderer2::new(theme, Some(user_text_style));
+        let renderer = MarkdownRenderer::new(theme, Some(user_text_style));
         let mut rendered_lines = renderer.render_lines(&t.text, width.saturating_sub(4));
 
         // Remove trailing empty line if text doesn't end with double newline
@@ -263,7 +263,7 @@ impl ChatComponent {
         for content in &message.content {
             match content {
                 MessageContent::Text(t) => {
-                    let renderer = TermimadRenderer2::new(theme, None);
+                    let renderer = MarkdownRenderer::new(theme, None);
                     let rendered_lines = renderer.render_lines(&t.text, width);
                     for line in rendered_lines {
                         items.push(ListItem::new(line));

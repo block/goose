@@ -1,11 +1,15 @@
 use super::action::Action;
 use crate::state::{ActivePopup, AppState, InputMode, TodoItem};
-use goose::conversation::message::MessageContent;
+use goose::conversation::message::{Message, MessageContent};
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+const FLASH_DURATION_SHORT: Duration = Duration::from_secs(2);
+const FLASH_DURATION_NORMAL: Duration = Duration::from_secs(3);
+const FLASH_DURATION_ERROR: Duration = Duration::from_secs(5);
 
 pub fn update(state: &mut AppState, action: Action) {
     match action {
@@ -28,9 +32,7 @@ pub fn update(state: &mut AppState, action: Action) {
                 && !handle_chat(state, &action)
                 && !handle_ui(state, &action)
                 && !handle_misc(state, &action)
-            {
-                // Handle remaining or ignore
-            }
+            {}
         }
     }
 }
@@ -88,10 +90,8 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
         }
         Action::Interrupt => {
             state.is_working = false;
-            state.flash_message = Some((
-                "Interrupted".to_string(),
-                Instant::now() + std::time::Duration::from_secs(2),
-            ));
+            state.flash_message =
+                Some(("Interrupted".to_string(), Instant::now() + FLASH_DURATION_SHORT));
             true
         }
         Action::ClearChat => {
@@ -109,7 +109,7 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
         Action::Error(e) => {
             state.flash_message = Some((
                 format!("Error: {e}"),
-                Instant::now() + std::time::Duration::from_secs(5),
+                Instant::now() + FLASH_DURATION_ERROR,
             ));
             state.is_working = false;
             true
@@ -183,10 +183,8 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             true
         }
         Action::ShowFlash(message) => {
-            state.flash_message = Some((
-                message.clone(),
-                Instant::now() + std::time::Duration::from_secs(3),
-            ));
+            state.flash_message =
+                Some((message.clone(), Instant::now() + FLASH_DURATION_NORMAL));
             true
         }
         Action::ChangeTheme(name) => {
@@ -205,7 +203,7 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             let _ = state.config.save();
             state.flash_message = Some((
                 format!("✓ Deleted /{name}"),
-                Instant::now() + Duration::from_secs(3),
+                Instant::now() + FLASH_DURATION_NORMAL,
             ));
             true
         }
@@ -214,7 +212,7 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             state.config.custom_commands.push(cmd.clone());
             let _ = state.config.save();
             state.active_popup = ActivePopup::None;
-            state.flash_message = Some((msg.clone(), Instant::now() + Duration::from_secs(3)));
+            state.flash_message = Some((msg.clone(), Instant::now() + FLASH_DURATION_NORMAL));
             true
         }
         Action::UpdateProvider { provider, model } => {
@@ -275,42 +273,8 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
         } => {
             state.token_state = token_state.clone();
 
-            for content in &message.content {
-                if let MessageContent::ToolRequest(req) = content {
-                    if let Ok(tool_call) = &req.tool_call {
-                        if tool_call.name == "todo__todo_write" {
-                            if let Some(args) = &tool_call.arguments {
-                                if let Some(content_val) = args.get("content") {
-                                    if let Some(content_str) = content_val.as_str() {
-                                        let mut new_todos = Vec::new();
-                                        let mut has_todos = false;
-                                        for line in content_str.lines() {
-                                            let trimmed = line.trim();
-                                            if let Some(task) = trimmed.strip_prefix("- [ ] ") {
-                                                new_todos.push(TodoItem {
-                                                    text: task.to_string(),
-                                                    done: false,
-                                                });
-                                                has_todos = true;
-                                            } else if let Some(task) =
-                                                trimmed.strip_prefix("- [x] ")
-                                            {
-                                                new_todos.push(TodoItem {
-                                                    text: task.to_string(),
-                                                    done: true,
-                                                });
-                                                has_todos = true;
-                                            }
-                                        }
-                                        if has_todos {
-                                            state.todos = new_todos;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            if let Some(todos) = extract_todos_from_message(message) {
+                state.todos = todos;
             }
 
             if let Some(last_msg) = state.messages.last_mut() {
@@ -337,13 +301,13 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
             state.messages = conversation.messages().clone();
             state.flash_message = Some((
                 "Context compaction complete".to_string(),
-                Instant::now() + std::time::Duration::from_secs(5),
+                Instant::now() + FLASH_DURATION_ERROR,
             ));
         }
         MessageEvent::Error { error } => {
             state.flash_message = Some((
                 format!("Server Error: {error}"),
-                Instant::now() + std::time::Duration::from_secs(5),
+                Instant::now() + FLASH_DURATION_ERROR,
             ));
             state.is_working = false;
         }
@@ -353,4 +317,45 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
         }
         _ => {}
     }
+}
+
+fn extract_todos_from_message(message: &Message) -> Option<Vec<TodoItem>> {
+    for content in &message.content {
+        let MessageContent::ToolRequest(req) = content else {
+            continue;
+        };
+        let Ok(tool_call) = &req.tool_call else {
+            continue;
+        };
+        if tool_call.name != "todo__todo_write" {
+            continue;
+        }
+        let Some(args) = &tool_call.arguments else {
+            continue;
+        };
+        let Some(content_str) = args.get("content").and_then(|v| v.as_str()) else {
+            continue;
+        };
+
+        let mut todos = Vec::new();
+        for line in content_str.lines() {
+            let trimmed = line.trim();
+            if let Some(task) = trimmed.strip_prefix("- [ ] ") {
+                todos.push(TodoItem {
+                    text: task.to_string(),
+                    done: false,
+                });
+            } else if let Some(task) = trimmed.strip_prefix("- [x] ") {
+                todos.push(TodoItem {
+                    text: task.to_string(),
+                    done: true,
+                });
+            }
+        }
+
+        if !todos.is_empty() {
+            return Some(todos);
+        }
+    }
+    None
 }
