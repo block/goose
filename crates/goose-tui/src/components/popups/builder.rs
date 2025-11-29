@@ -292,14 +292,15 @@ impl BuilderPopup<'_> {
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => self.navigate(1, state),
             KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => self.navigate(-1, state),
             KeyCode::Char('d') | KeyCode::Delete => {
-                if let Some(cmd) = self
-                    .list_state
-                    .selected()
-                    .and_then(|i| state.config.custom_commands.get(i))
-                {
-                    let name = cmd.name.clone();
-                    self.reset();
-                    return Ok(Some(Action::DeleteCustomCommand(name)));
+                if let Some(selected) = self.list_state.selected() {
+                    if let Some(cmd) = state.config.custom_commands.get(selected) {
+                        let name = cmd.name.clone();
+                        let new_len = state.config.custom_commands.len().saturating_sub(1);
+                        if new_len > 0 && selected >= new_len {
+                            self.list_state.select(Some(new_len - 1));
+                        }
+                        return Ok(Some(Action::DeleteCustomCommand(name)));
+                    }
                 }
             }
             KeyCode::Enter | KeyCode::Char('e') => {
@@ -329,18 +330,15 @@ impl BuilderPopup<'_> {
         key: &crossterm::event::KeyEvent,
         state: &AppState,
     ) -> Result<Option<Action>> {
-        let is_last_field = self.focused_field == self.param_inputs.len();
-        let ctrl_held = key.modifiers.contains(KeyModifiers::CONTROL);
-
         match key.code {
             KeyCode::Esc => {
                 self.view = View::ToolSelect;
                 self.search.clear();
                 self.list_state.select(Some(0));
             }
-            KeyCode::Tab => self.focus_next(),
-            KeyCode::BackTab => self.focus_prev(),
-            KeyCode::Enter if ctrl_held || is_last_field => {
+            KeyCode::Tab | KeyCode::Down => self.focus_next(),
+            KeyCode::BackTab | KeyCode::Up => self.focus_prev(),
+            KeyCode::Enter => {
                 if let Some(cmd) = self.build_command(&state.available_tools) {
                     let msg = if self.editing_alias.is_some() {
                         format!("✓ Updated /{}", cmd.name)
@@ -360,6 +358,12 @@ impl BuilderPopup<'_> {
             }
         }
         Ok(None)
+    }
+
+    fn has_input_placeholder(&self) -> bool {
+        self.param_inputs
+            .iter()
+            .any(|(_, ta)| ta.lines().join("").contains("{input}"))
     }
 }
 
@@ -461,19 +465,24 @@ impl BuilderPopup<'_> {
             " New Alias "
         };
 
+        let has_input = self.has_input_placeholder();
+
+        // Calculate constraints: alias name + params + hint (if no {input}) + preview + spacer + hints
         let mut constraints: Vec<Constraint> = vec![Constraint::Length(3)];
         constraints.extend(std::iter::repeat_n(
             Constraint::Length(3),
             self.param_inputs.len(),
         ));
+        if !has_input && !self.param_inputs.is_empty() {
+            constraints.push(Constraint::Length(1)); // hint about {input}
+        }
         constraints.extend([
-            Constraint::Length(2),
-            Constraint::Min(0),
-            Constraint::Length(1),
+            Constraint::Length(2), // preview
+            Constraint::Min(0),    // spacer
+            Constraint::Length(1), // hints
         ]);
 
         let chunks = Layout::vertical(constraints).margin(1).split(area);
-        let field_count = self.param_inputs.len() + 1;
 
         f.render_widget(popup_block(title, theme), area);
 
@@ -486,22 +495,36 @@ impl BuilderPopup<'_> {
             f.render_widget(&*ta, chunks[i + 1]);
         }
 
+        let mut next_chunk = self.param_inputs.len() + 1;
+
+        // Show hint about {input} if not already used
+        if !has_input && !self.param_inputs.is_empty() {
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled("Tip: ", Style::default().fg(theme.base.border)),
+                    Span::styled(
+                        "Use {input} in a parameter to accept trailing arguments",
+                        Style::default().fg(theme.base.border),
+                    ),
+                ])),
+                chunks[next_chunk],
+            );
+            next_chunk += 1;
+        }
+
+        // Preview with {input} highlighting
+        let preview = self.preview_text(&state.available_tools);
+        let preview_spans = build_preview_spans(&preview, has_input, theme);
         f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("Preview: ", Style::default().fg(theme.base.border)),
-                Span::styled(
-                    self.preview_text(&state.available_tools),
-                    Style::default().fg(theme.status.success),
-                ),
-            ])),
-            chunks[field_count],
+            Paragraph::new(Line::from(preview_spans)),
+            chunks[next_chunk],
         );
 
         render_hints(
             f,
-            chunks[field_count + 2],
+            chunks[next_chunk + 2],
             theme,
-            &[("Tab", "next"), ("Ctrl+Enter", "save"), ("Esc", "cancel")],
+            &[("↑↓/Tab", "nav"), ("Enter", "save"), ("Esc", "cancel")],
         );
     }
 }
@@ -679,24 +702,44 @@ fn tool_list_item_with_prefix(tool: &ToolInfo, theme: &Theme) -> ListItem<'stati
 fn alias_list_item(cmd: &CustomCommand, theme: &Theme) -> ListItem<'static> {
     let short_tool = cmd.tool.split("__").last().unwrap_or(&cmd.tool);
     let args_preview = preview_args(&cmd.args);
+    let has_input = args_has_input_placeholder(&cmd.args);
+
+    let mut first_line = vec![
+        Span::styled(
+            format!("/{}", cmd.name),
+            Style::default()
+                .fg(theme.status.success)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" → {short_tool}"),
+            Style::default().fg(theme.status.info),
+        ),
+    ];
+
+    if has_input {
+        first_line.push(Span::styled(
+            " <args>".to_string(),
+            Style::default().fg(theme.status.warning),
+        ));
+    }
+
     ListItem::new(vec![
-        Line::from(vec![
-            Span::styled(
-                format!("/{}", cmd.name),
-                Style::default()
-                    .fg(theme.status.success)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" → {short_tool}"),
-                Style::default().fg(theme.status.info),
-            ),
-        ]),
+        Line::from(first_line),
         Line::from(Span::styled(
             format!("  {args_preview}"),
             Style::default().fg(theme.base.border),
         )),
     ])
+}
+
+fn args_has_input_placeholder(args: &serde_json::Value) -> bool {
+    match args {
+        serde_json::Value::String(s) => s.contains("{input}"),
+        serde_json::Value::Object(obj) => obj.values().any(args_has_input_placeholder),
+        serde_json::Value::Array(arr) => arr.iter().any(args_has_input_placeholder),
+        _ => false,
+    }
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -725,4 +768,41 @@ fn preview_args(args: &serde_json::Value) -> String {
             }
         })
         .unwrap_or_default()
+}
+
+fn build_preview_spans<'a>(preview: &str, has_input: bool, theme: &Theme) -> Vec<Span<'a>> {
+    let mut spans = vec![Span::styled(
+        "Preview: ".to_string(),
+        Style::default().fg(theme.base.border),
+    )];
+
+    if has_input {
+        // Split on {input} and highlight it
+        let parts: Vec<&str> = preview.split("{input}").collect();
+        for (i, part) in parts.iter().enumerate() {
+            if !part.is_empty() {
+                spans.push(Span::styled(
+                    (*part).to_string(),
+                    Style::default().fg(theme.status.success),
+                ));
+            }
+            if i < parts.len() - 1 {
+                spans.push(Span::styled(
+                    "{input}".to_string(),
+                    Style::default().fg(theme.status.warning),
+                ));
+            }
+        }
+        spans.push(Span::styled(
+            " (accepts args)".to_string(),
+            Style::default().fg(theme.status.warning),
+        ));
+    } else {
+        spans.push(Span::styled(
+            preview.to_string(),
+            Style::default().fg(theme.status.success),
+        ));
+    }
+
+    spans
 }

@@ -201,7 +201,6 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
         Action::DeleteCustomCommand(name) => {
             state.config.custom_commands.retain(|c| c.name != *name);
             let _ = state.config.save();
-            state.showing_command_builder = false;
             state.flash_message = Some((
                 format!("✓ Deleted /{name}"),
                 Instant::now() + Duration::from_secs(3),

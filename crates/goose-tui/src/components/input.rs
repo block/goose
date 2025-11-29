@@ -63,8 +63,13 @@ impl<'a> InputComponent<'a> {
     }
 
     fn handle_slash_command(&self, cmd_line: &str, state: &AppState) -> Option<Action> {
-        let parts: Vec<&str> = cmd_line.split_whitespace().collect();
-        let cmd = parts[0];
+        // Split into command and trailing arguments
+        let trimmed = cmd_line.trim();
+        let (cmd, trailing_args) = match trimmed.split_once(' ') {
+            Some((c, rest)) => (c, rest.trim()),
+            None => (trimmed, ""),
+        };
+
         match cmd {
             "/exit" | "/quit" => Some(Action::Quit),
             "/help" => Some(Action::ToggleHelp),
@@ -80,8 +85,8 @@ impl<'a> InputComponent<'a> {
                 Some(Action::SendMessage(message))
             }
             "/theme" => {
-                if let Some(theme_name) = parts.get(1) {
-                    Some(Action::ChangeTheme(theme_name.to_string()))
+                if !trailing_args.is_empty() {
+                    Some(Action::ChangeTheme(trailing_args.to_string()))
                 } else {
                     Some(Action::OpenThemePicker)
                 }
@@ -95,9 +100,10 @@ impl<'a> InputComponent<'a> {
                     .iter()
                     .find(|c| c.name == cmd_name)
                 {
+                    let processed_args = replace_input_placeholder(&custom.args, trailing_args);
                     let message_text = format!(
                         "Please run the tool '{}' with these arguments: {}",
-                        custom.tool, custom.args
+                        custom.tool, processed_args
                     );
                     let message =
                         goose::conversation::message::Message::user().with_text(message_text);
@@ -107,6 +113,25 @@ impl<'a> InputComponent<'a> {
                 }
             }
         }
+    }
+}
+
+fn replace_input_placeholder(args: &serde_json::Value, input: &str) -> serde_json::Value {
+    match args {
+        serde_json::Value::String(s) => serde_json::Value::String(s.replace("{input}", input)),
+        serde_json::Value::Object(obj) => {
+            let new_obj: serde_json::Map<String, serde_json::Value> = obj
+                .iter()
+                .map(|(k, v)| (k.clone(), replace_input_placeholder(v, input)))
+                .collect();
+            serde_json::Value::Object(new_obj)
+        }
+        serde_json::Value::Array(arr) => serde_json::Value::Array(
+            arr.iter()
+                .map(|v| replace_input_placeholder(v, input))
+                .collect(),
+        ),
+        other => other.clone(),
     }
 }
 
@@ -264,35 +289,42 @@ impl<'a> Component for InputComponent<'a> {
 
         if state.input_mode == InputMode::Editing {
             if let Some(first_line) = self.textarea.lines().first() {
-                if first_line.starts_with('/') {
-                    let mut commands = vec![
-                        "/exit",
-                        "/quit",
-                        "/help",
-                        "/todos",
-                        "/config",
-                        "/session",
-                        "/alias",
-                        "/clear",
-                        "/compact",
-                        "/theme",
-                        "/copy",
-                        "/copymode",
+                let first_word = first_line.split_whitespace().next().unwrap_or(first_line);
+                if first_word.starts_with('/') {
+                    let builtin_commands = vec![
+                        ("/exit", false),
+                        ("/quit", false),
+                        ("/help", false),
+                        ("/todos", false),
+                        ("/config", false),
+                        ("/session", false),
+                        ("/alias", false),
+                        ("/clear", false),
+                        ("/compact", false),
+                        ("/theme", true),
+                        ("/copy", false),
+                        ("/copymode", false),
                     ];
-                    let custom: Vec<String> = state
+
+                    let custom: Vec<(String, bool)> = state
                         .config
                         .custom_commands
                         .iter()
-                        .map(|c| format!("/{}", c.name))
+                        .map(|c| {
+                            let has_input = args_has_input_placeholder(&c.args);
+                            (format!("/{}", c.name), has_input)
+                        })
                         .collect();
-                    let custom_refs: Vec<&str> = custom.iter().map(|s| s.as_str()).collect();
-                    commands.extend(custom_refs);
-                    commands.sort();
 
-                    let filtered: Vec<&str> = commands
-                        .iter()
-                        .filter(|c| c.starts_with(first_line))
-                        .cloned()
+                    let mut all_commands: Vec<(&str, bool)> = builtin_commands;
+                    let custom_refs: Vec<(&str, bool)> =
+                        custom.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+                    all_commands.extend(custom_refs);
+                    all_commands.sort_by(|a, b| a.0.cmp(b.0));
+
+                    let filtered: Vec<(&str, bool)> = all_commands
+                        .into_iter()
+                        .filter(|(c, _)| c.starts_with(first_word))
                         .collect();
 
                     if !filtered.is_empty() {
@@ -308,11 +340,24 @@ impl<'a> Component for InputComponent<'a> {
 
                         let items: Vec<ListItem> = filtered
                             .iter()
-                            .map(|c| {
-                                ListItem::new(Span::styled(
-                                    *c,
-                                    Style::default().fg(theme.base.foreground),
-                                ))
+                            .map(|(c, accepts_args)| {
+                                if *accepts_args {
+                                    ListItem::new(ratatui::text::Line::from(vec![
+                                        Span::styled(
+                                            (*c).to_string(),
+                                            Style::default().fg(theme.base.foreground),
+                                        ),
+                                        Span::styled(
+                                            " <args>".to_string(),
+                                            Style::default().fg(theme.status.warning),
+                                        ),
+                                    ]))
+                                } else {
+                                    ListItem::new(Span::styled(
+                                        (*c).to_string(),
+                                        Style::default().fg(theme.base.foreground),
+                                    ))
+                                }
                             })
                             .collect();
 
@@ -330,5 +375,14 @@ impl<'a> Component for InputComponent<'a> {
                 }
             }
         }
+    }
+}
+
+fn args_has_input_placeholder(args: &serde_json::Value) -> bool {
+    match args {
+        serde_json::Value::String(s) => s.contains("{input}"),
+        serde_json::Value::Object(obj) => obj.values().any(args_has_input_placeholder),
+        serde_json::Value::Array(arr) => arr.iter().any(args_has_input_placeholder),
+        _ => false,
     }
 }
