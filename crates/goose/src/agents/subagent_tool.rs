@@ -118,9 +118,15 @@ fn build_tool_description(sub_recipes: &[SubRecipe]) -> String {
         desc.push_str("\n\nAvailable subrecipes:");
         for sr in sub_recipes {
             let params_info = get_subrecipe_params_description(sr);
+            let sequential_hint = if sr.sequential_when_repeated {
+                " [run sequentially, not in parallel]"
+            } else {
+                ""
+            };
             desc.push_str(&format!(
-                "\n• {} - {}{}",
+                "\n• {}{} - {}{}",
                 sr.name,
+                sequential_hint,
                 sr.description.as_deref().unwrap_or("No description"),
                 if params_info.is_empty() {
                     String::new()
@@ -167,9 +173,9 @@ fn get_subrecipe_params_description(sub_recipe: &SubRecipe) -> String {
     }
 }
 
-/// Note: SubRecipe.sequential_when_repeated is ignored. It was designed for a previous
-/// execution model where one tool call could spawn multiple tasks. In the current model,
-/// the LLM controls sequencing by making sequential vs parallel tool calls.
+/// Note: SubRecipe.sequential_when_repeated is surfaced as a hint in the tool description
+/// (e.g., "[run sequentially, not in parallel]") but not enforced. The LLM controls
+/// sequencing by making sequential vs parallel tool calls.
 pub fn handle_subagent_tool(
     params: Value,
     task_config: TaskConfig,
@@ -479,6 +485,34 @@ mod tests {
             .unwrap()
             .contains("Available subrecipes"));
         assert!(tool.description.as_ref().unwrap().contains("test_recipe"));
+    }
+
+    #[test]
+    fn test_sequential_hint_in_description() {
+        let sub_recipes = vec![
+            SubRecipe {
+                name: "parallel_ok".to_string(),
+                path: "test.yaml".to_string(),
+                values: None,
+                sequential_when_repeated: false,
+                description: Some("Can run in parallel".to_string()),
+            },
+            SubRecipe {
+                name: "sequential_only".to_string(),
+                path: "test.yaml".to_string(),
+                values: None,
+                sequential_when_repeated: true,
+                description: Some("Must run sequentially".to_string()),
+            },
+        ];
+
+        let tool = create_subagent_tool(&sub_recipes);
+        let desc = tool.description.as_ref().unwrap();
+
+        assert!(desc.contains("parallel_ok"));
+        assert!(!desc.contains("parallel_ok [run sequentially"));
+
+        assert!(desc.contains("sequential_only [run sequentially, not in parallel]"));
     }
 
     #[test]
