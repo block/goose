@@ -2,10 +2,12 @@ use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, InputMode};
+use crate::utils::json::has_input_placeholder;
+use crate::utils::styles::breathing_color;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
 use ratatui::Frame;
@@ -51,15 +53,7 @@ impl<'a> InputComponent<'a> {
     }
 
     pub fn height(&self, max_height: u16) -> u16 {
-        // +2 for top/bottom borders of the textarea block
         (self.lines_count() + 2).clamp(3, max_height)
-    }
-
-    fn to_rgb(color: Color) -> (u8, u8, u8) {
-        match color {
-            Color::Rgb(r, g, b) => (r, g, b),
-            _ => (128, 128, 128),
-        }
     }
 
     fn handle_slash_command(&self, cmd_line: &str, state: &AppState) -> Option<Action> {
@@ -254,26 +248,13 @@ impl<'a> Component for InputComponent<'a> {
             }
         };
 
-        let (r, g, b) = Self::to_rgb(base_color);
-
-        // Breathing effect
-        let (dr, dg, db) = if state.is_working {
-            let t = self.frame_count as f32 * 0.1;
-            let factor = 0.85 + 0.15 * t.sin();
-            (
-                (r as f32 * factor) as u8,
-                (g as f32 * factor) as u8,
-                (b as f32 * factor) as u8,
-            )
-        } else {
-            (r, g, b)
-        };
+        let border_color = breathing_color(base_color, self.frame_count, state.is_working);
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title("Message")
-            .border_style(Style::default().fg(Color::Rgb(dr, dg, db)));
+            .border_style(Style::default().fg(border_color));
 
         self.textarea.set_block(block);
         self.textarea.set_style(
@@ -311,7 +292,7 @@ impl<'a> Component for InputComponent<'a> {
                         .custom_commands
                         .iter()
                         .map(|c| {
-                            let has_input = args_has_input_placeholder(&c.args);
+                            let has_input = has_input_placeholder(&c.args);
                             (format!("/{}", c.name), has_input)
                         })
                         .collect();
@@ -375,14 +356,5 @@ impl<'a> Component for InputComponent<'a> {
                 }
             }
         }
-    }
-}
-
-fn args_has_input_placeholder(args: &serde_json::Value) -> bool {
-    match args {
-        serde_json::Value::String(s) => s.contains("{input}"),
-        serde_json::Value::Object(obj) => obj.values().any(args_has_input_placeholder),
-        serde_json::Value::Array(arr) => arr.iter().any(args_has_input_placeholder),
-        _ => false,
     }
 }

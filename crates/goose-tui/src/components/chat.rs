@@ -4,7 +4,7 @@ use crate::state::action::Action;
 use crate::state::{AppState, InputMode};
 use crate::utils::ascii_art::GOOSE_LOGO;
 use crate::utils::sanitize::sanitize_line;
-use crate::utils::styles::Theme;
+use crate::utils::styles::{breathing_color, Theme};
 use crate::utils::termimad_renderer::TermimadRenderer2;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
@@ -49,13 +49,6 @@ impl ChatComponent {
             last_input_mode: InputMode::Normal,
             last_item_count: 0,
             last_width: 0,
-        }
-    }
-
-    fn to_rgb(color: Color) -> (u8, u8, u8) {
-        match color {
-            Color::Rgb(r, g, b) => (r, g, b),
-            _ => (128, 128, 128),
         }
     }
 
@@ -328,20 +321,7 @@ impl ChatComponent {
                 InputMode::Normal => theme.base.border,
             }
         };
-        let (r, g, b) = Self::to_rgb(base_color);
-
-        let (dr, dg, db) = if state.is_working {
-            let t = self.frame_count as f32 * 0.1;
-            let factor = 0.85 + 0.15 * t.sin();
-            (
-                (r as f32 * factor) as u8,
-                (g as f32 * factor) as u8,
-                (b as f32 * factor) as u8,
-            )
-        } else {
-            (r, g, b)
-        };
-        let logo_color = Color::Rgb(dr, dg, db);
+        let logo_color = breathing_color(base_color, self.frame_count, state.is_working);
 
         let logo_lines: Vec<Line> = GOOSE_LOGO
             .lines()

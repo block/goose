@@ -1,5 +1,27 @@
 use ratatui::style::Color;
 
+pub fn color_to_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (128, 128, 128),
+    }
+}
+
+pub fn breathing_color(base: Color, frame_count: usize, is_active: bool) -> Color {
+    let (r, g, b) = color_to_rgb(base);
+    if is_active {
+        let t = frame_count as f32 * 0.1;
+        let factor = 0.85 + 0.15 * t.sin();
+        Color::Rgb(
+            (r as f32 * factor) as u8,
+            (g as f32 * factor) as u8,
+            (b as f32 * factor) as u8,
+        )
+    } else {
+        Color::Rgb(r, g, b)
+    }
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Theme {

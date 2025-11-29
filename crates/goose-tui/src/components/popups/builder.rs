@@ -4,6 +4,7 @@ use crate::services::config::CustomCommand;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::AppState;
+use crate::utils::json::has_input_placeholder;
 use crate::utils::layout::centered_rect;
 use crate::utils::styles::Theme;
 use anyhow::Result;
@@ -655,7 +656,6 @@ fn tool_list_item_with_prefix(tool: &ToolInfo, theme: &Theme) -> ListItem<'stati
 fn alias_list_item(cmd: &CustomCommand, theme: &Theme) -> ListItem<'static> {
     let short_tool = cmd.tool.split("__").last().unwrap_or(&cmd.tool);
     let args_preview = preview_args(&cmd.args);
-    let has_input = args_has_input_placeholder(&cmd.args);
 
     let mut first_line = vec![
         Span::styled(
@@ -670,7 +670,7 @@ fn alias_list_item(cmd: &CustomCommand, theme: &Theme) -> ListItem<'static> {
         ),
     ];
 
-    if has_input {
+    if has_input_placeholder(&cmd.args) {
         first_line.push(Span::styled(
             " <args>".to_string(),
             Style::default().fg(theme.status.warning),
@@ -684,15 +684,6 @@ fn alias_list_item(cmd: &CustomCommand, theme: &Theme) -> ListItem<'static> {
             Style::default().fg(theme.base.border),
         )),
     ])
-}
-
-fn args_has_input_placeholder(args: &serde_json::Value) -> bool {
-    match args {
-        serde_json::Value::String(s) => s.contains("{input}"),
-        serde_json::Value::Object(obj) => obj.values().any(args_has_input_placeholder),
-        serde_json::Value::Array(arr) => arr.iter().any(args_has_input_placeholder),
-        _ => false,
-    }
 }
 
 fn truncate(s: &str, max: usize) -> String {

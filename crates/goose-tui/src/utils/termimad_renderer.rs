@@ -1,3 +1,4 @@
+use crate::utils::sanitize::strip_ansi_codes;
 use crate::utils::styles::Theme;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -276,24 +277,4 @@ fn parse_ansi_line(line: &str) -> Line<'static> {
     }
 
     Line::from(spans)
-}
-
-/// Strip ANSI escape codes from a string (for emptiness check)
-fn strip_ansi_codes(s: &str) -> String {
-    let mut result = String::new();
-    let mut in_escape = false;
-
-    for ch in s.chars() {
-        if ch == '\x1b' {
-            in_escape = true;
-        } else if in_escape {
-            if ch == 'm' {
-                in_escape = false;
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
 }

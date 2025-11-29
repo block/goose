@@ -22,7 +22,7 @@ pub fn sanitize_line(s: &str) -> (String, usize) {
     (sanitized, width)
 }
 
-fn strip_ansi_codes(s: &str) -> String {
+pub fn strip_ansi_codes(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
 
