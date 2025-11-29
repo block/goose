@@ -5,7 +5,7 @@ use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub fn update(state: &mut AppState, action: Action) {
     match action {
@@ -202,12 +202,18 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             state.config.custom_commands.retain(|c| c.name != *name);
             let _ = state.config.save();
             state.showing_command_builder = false;
+            state.flash_message = Some((
+                format!("✓ Deleted /{name}"),
+                Instant::now() + Duration::from_secs(3),
+            ));
             true
         }
-        Action::SubmitCommandBuilder(cmd) => {
+        Action::SubmitCommandBuilder(cmd, msg) => {
+            state.config.custom_commands.retain(|c| c.name != cmd.name);
             state.config.custom_commands.push(cmd.clone());
             let _ = state.config.save();
             state.showing_command_builder = false;
+            state.flash_message = Some((msg.clone(), Instant::now() + Duration::from_secs(3)));
             true
         }
         Action::UpdateProvider { provider, model } => {

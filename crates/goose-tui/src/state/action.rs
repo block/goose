@@ -54,7 +54,7 @@ pub enum Action {
 
     DeleteCustomCommand(String),
     StartCommandBuilder,
-    SubmitCommandBuilder(CustomCommand),
+    SubmitCommandBuilder(CustomCommand, String),
 
     ToggleCopyMode,
     ForkFromMessage(usize),

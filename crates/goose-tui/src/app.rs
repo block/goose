@@ -97,7 +97,7 @@ impl<'a> App<'a> {
                     action,
                     Action::ClosePopup
                         | Action::DeleteCustomCommand(_)
-                        | Action::SubmitCommandBuilder(_)
+                        | Action::SubmitCommandBuilder(_, _)
                 ) {
                     self.last_popup_close_time = Some(std::time::Instant::now());
                 }
