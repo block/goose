@@ -25,6 +25,34 @@ use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use uuid::Uuid;
 
+/// Configure a session with the global provider and extensions.
+/// Returns (provider, model) for state initialization.
+pub async fn configure_session_from_global(
+    client: &Client,
+    session_id: &str,
+) -> (String, Option<String>) {
+    let global_config = goose::config::Config::global();
+    let provider = global_config
+        .get_goose_provider()
+        .unwrap_or_else(|_| "openai".to_string());
+    let model = global_config.get_goose_model().ok();
+
+    if let Err(e) = client
+        .update_provider(session_id, provider.clone(), model.clone())
+        .await
+    {
+        tracing::error!("Failed to update provider: {e}");
+    }
+
+    for ext in goose::config::get_enabled_extensions() {
+        if let Err(e) = client.add_extension(session_id, ext.clone()).await {
+            tracing::error!("Failed to add extension {}: {}", ext.name(), e);
+        }
+    }
+
+    (provider, model)
+}
+
 #[derive(Parser)]
 #[command(author, version, about = "A terminal user interface for Goose")]
 struct Cli {
@@ -174,24 +202,7 @@ async fn run_recipe_mode(
         .start_agent_with_recipe(cwd.to_string_lossy().to_string(), recipe)
         .await?;
 
-    let global_config = goose::config::Config::global();
-    let provider = global_config
-        .get_goose_provider()
-        .unwrap_or_else(|_| "openai".to_string());
-    let model = global_config.get_goose_model().ok();
-
-    if let Err(e) = client
-        .update_provider(&initial_session.id, provider, model)
-        .await
-    {
-        tracing::error!("Failed to update provider: {e}");
-    }
-
-    for ext in goose::config::get_enabled_extensions() {
-        if let Err(e) = client.add_extension(&initial_session.id, ext.clone()).await {
-            tracing::error!("Failed to add extension {}: {}", ext.name(), e);
-        }
-    }
+    configure_session_from_global(&client, &initial_session.id).await;
 
     let use_headless = headless || !std::io::stdout().is_terminal();
 
@@ -239,40 +250,24 @@ async fn run_interactive_mode(
             .await?
     };
 
-    let global_config = goose::config::Config::global();
-    let provider = global_config
-        .get_goose_provider()
-        .unwrap_or_else(|_| "openai".to_string());
-    let model = global_config.get_goose_model().ok();
-
-    if let Err(e) = client
-        .update_provider(&initial_session.id, provider.clone(), model.clone())
-        .await
-    {
-        tracing::error!("Failed to update provider: {e}");
-    }
-
-    for ext in goose::config::get_enabled_extensions() {
-        if let Err(e) = client.add_extension(&initial_session.id, ext.clone()).await {
-            tracing::error!("Failed to add extension {}: {}", ext.name(), e);
-        }
-    }
+    let (provider, model) = configure_session_from_global(&client, &initial_session.id).await;
 
     let config = TuiConfig::load()?;
     let mut state = AppState::new(
         initial_session.id.clone(),
         config,
-        Some(provider.clone()),
+        Some(provider),
         model.clone(),
     );
 
-    if let Some(ref model_name) = model {
-        state.model_context_limit = goose::model::ModelConfig::new(model_name)
-            .map(|config| config.context_limit())
-            .unwrap_or(128_000);
-    } else {
-        state.model_context_limit = 128_000;
-    }
+    state.model_context_limit = model
+        .as_ref()
+        .and_then(|m| {
+            goose::model::ModelConfig::new(m)
+                .ok()
+                .map(|c| c.context_limit())
+        })
+        .unwrap_or(goose_tui::DEFAULT_CONTEXT_LIMIT);
 
     state.messages = initial_session
         .conversation

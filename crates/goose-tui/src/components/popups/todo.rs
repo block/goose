@@ -1,4 +1,4 @@
-use super::{popup_block, render_hints};
+use super::{popup_block, render_hints, PopupScrollState};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
@@ -9,47 +9,17 @@ use crossterm::event::{KeyCode, MouseEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
-use std::time::Instant;
 
+#[derive(Default)]
 pub struct TodoPopup {
-    scroll: u16,
-    last_scroll_time: Option<Instant>,
-    content_height: u16,
-    viewport_height: u16,
-}
-
-impl Default for TodoPopup {
-    fn default() -> Self {
-        Self::new()
-    }
+    scroll_state: PopupScrollState,
 }
 
 impl TodoPopup {
     pub fn new() -> Self {
-        Self {
-            scroll: 0,
-            last_scroll_time: None,
-            content_height: 0,
-            viewport_height: 0,
-        }
-    }
-
-    fn max_scroll(&self) -> u16 {
-        self.content_height.saturating_sub(self.viewport_height)
-    }
-
-    fn scroll_by(&mut self, delta: i16) {
-        if delta > 0 {
-            self.scroll = self
-                .scroll
-                .saturating_add(delta as u16)
-                .min(self.max_scroll());
-        } else {
-            self.scroll = self.scroll.saturating_sub((-delta) as u16);
-        }
-        self.last_scroll_time = Some(Instant::now());
+        Self::default()
     }
 }
 
@@ -62,15 +32,15 @@ impl Component for TodoPopup {
         match event {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down => self.scroll_by(1),
-                KeyCode::Char('k') | KeyCode::Up => self.scroll_by(-1),
-                KeyCode::PageDown => self.scroll_by(10),
-                KeyCode::PageUp => self.scroll_by(-10),
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_state.scroll_by(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_state.scroll_by(-1),
+                KeyCode::PageDown => self.scroll_state.scroll_by(10),
+                KeyCode::PageUp => self.scroll_state.scroll_by(-10),
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => self.scroll_by(3),
-                MouseEventKind::ScrollUp => self.scroll_by(-3),
+                MouseEventKind::ScrollDown => self.scroll_state.scroll_by(3),
+                MouseEventKind::ScrollUp => self.scroll_state.scroll_by(-3),
                 _ => {}
             },
             _ => {}
@@ -120,35 +90,15 @@ impl Component for TodoPopup {
             )));
         }
 
-        self.content_height = lines.len() as u16;
-        self.viewport_height = content_area.height;
+        self.scroll_state.content_height = lines.len() as u16;
+        self.scroll_state.viewport_height = content_area.height;
+        self.scroll_state.clamp();
 
-        if self.scroll > self.max_scroll() {
-            self.scroll = self.max_scroll();
-        }
-
-        let p = Paragraph::new(lines).scroll((self.scroll, 0));
+        let p = Paragraph::new(lines).scroll((self.scroll_state.scroll, 0));
         f.render_widget(p, content_area);
 
-        // Show scrollbar briefly after scrolling
-        if let Some(last) = self.last_scroll_time {
-            if last.elapsed() < std::time::Duration::from_secs(1)
-                && self.content_height > self.viewport_height
-            {
-                let mut scrollbar_state = ScrollbarState::default()
-                    .content_length(self.content_height as usize)
-                    .viewport_content_length(self.viewport_height as usize)
-                    .position(self.scroll as usize);
-
-                f.render_stateful_widget(
-                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(Some("↑"))
-                        .end_symbol(Some("↓")),
-                    content_area,
-                    &mut scrollbar_state,
-                );
-            }
-        }
+        self.scroll_state
+            .render_transient_scrollbar(f, content_area);
 
         render_hints(f, hints_area, theme, &[("↑↓", "scroll"), ("Esc", "close")]);
     }

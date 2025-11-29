@@ -23,7 +23,6 @@ pub fn breathing_color(base: Color, frame_count: usize, is_active: bool) -> Colo
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Theme {
     pub name: String,
     pub base: BaseColors,
@@ -31,7 +30,6 @@ pub struct Theme {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct BaseColors {
     pub background: Color,
     pub foreground: Color,
@@ -43,7 +41,6 @@ pub struct BaseColors {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct StatusColors {
     pub info: Color,
     pub success: Color,

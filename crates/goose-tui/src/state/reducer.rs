@@ -243,7 +243,7 @@ fn handle_models_loaded(state: &mut AppState, provider: String, models: Vec<Stri
             } else {
                 let limit = ModelConfig::new(&name)
                     .map(|c| c.context_limit())
-                    .unwrap_or(128_000);
+                    .unwrap_or(crate::utils::DEFAULT_CONTEXT_LIMIT);
 
                 new_list.push(ModelInfo::new(name, limit));
             }

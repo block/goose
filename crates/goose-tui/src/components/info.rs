@@ -132,7 +132,7 @@ impl Component for InfoComponent {
                 ));
             } else if !state.has_worked {
                 spans.push(Span::styled(
-                    "goose 1.14.0",
+                    format!("goose {}", env!("CARGO_PKG_VERSION")),
                     Style::default()
                         .fg(Color::Gray)
                         .add_modifier(Modifier::ITALIC),

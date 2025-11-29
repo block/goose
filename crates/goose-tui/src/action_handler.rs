@@ -111,25 +111,7 @@ fn handle_create_new_session(client: &Client, tx: &mpsc::UnboundedSender<Event>)
         let cwd = std::env::current_dir().unwrap_or_default();
         match client.start_agent(cwd.to_string_lossy().to_string()).await {
             Ok(s) => {
-                let global_config = goose::config::Config::global();
-                let provider = global_config
-                    .get_goose_provider()
-                    .unwrap_or_else(|_| "openai".to_string());
-                let model = global_config.get_goose_model().ok();
-
-                if let Err(e) = client.update_provider(&s.id, provider, model).await {
-                    let _ = tx.send(Event::Error(format!("Failed to update provider: {e}")));
-                }
-
-                for ext in goose::config::get_enabled_extensions() {
-                    if let Err(e) = client.add_extension(&s.id, ext.clone()).await {
-                        let _ = tx.send(Event::Error(format!(
-                            "Failed to add extension {}: {e}",
-                            ext.name()
-                        )));
-                    }
-                }
-
+                crate::configure_session_from_global(&client, &s.id).await;
                 let _ = tx.send(Event::SessionResumed(Box::new(s)));
             }
             Err(e) => {

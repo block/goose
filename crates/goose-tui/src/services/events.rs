@@ -28,7 +28,6 @@ pub enum Event {
     ConfigLoaded(serde_json::Value),
     Error(String),
 }
-#[allow(dead_code)]
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,
     tx: mpsc::UnboundedSender<Event>,

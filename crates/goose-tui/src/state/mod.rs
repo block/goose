@@ -79,7 +79,7 @@ impl AppState {
             active_popup: ActivePopup::None,
             has_worked: false,
             input_text_is_empty: true,
-            model_context_limit: 128_000,
+            model_context_limit: crate::utils::DEFAULT_CONTEXT_LIMIT,
             active_provider,
             active_model,
             needs_refresh: false,

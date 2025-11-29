@@ -1,4 +1,4 @@
-use super::{popup_block, render_hints};
+use super::{popup_block, render_hints, PopupScrollState};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
@@ -13,15 +13,11 @@ use goose::conversation::message::MessageContent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
+use ratatui::widgets::{Clear, Paragraph, Wrap};
 use ratatui::Frame;
-use std::time::Instant;
 
 pub struct MessagePopup {
-    scroll: u16,
-    last_scroll_time: Option<Instant>,
-    content_height: u16,
-    viewport_height: u16,
+    scroll_state: PopupScrollState,
     cached_message_idx: Option<usize>,
     cached_plain_text: String,
 }
@@ -35,29 +31,10 @@ impl Default for MessagePopup {
 impl MessagePopup {
     pub fn new() -> Self {
         Self {
-            scroll: 0,
-            last_scroll_time: None,
-            content_height: 0,
-            viewport_height: 0,
+            scroll_state: PopupScrollState::new(),
             cached_message_idx: None,
             cached_plain_text: String::new(),
         }
-    }
-
-    fn max_scroll(&self) -> u16 {
-        self.content_height.saturating_sub(self.viewport_height)
-    }
-
-    fn scroll_by(&mut self, delta: i16) {
-        if delta > 0 {
-            self.scroll = self
-                .scroll
-                .saturating_add(delta as u16)
-                .min(self.max_scroll());
-        } else {
-            self.scroll = self.scroll.saturating_sub((-delta) as u16);
-        }
-        self.last_scroll_time = Some(Instant::now());
     }
 
     fn render_content(
@@ -175,15 +152,15 @@ impl Component for MessagePopup {
                         return Ok(Some(Action::ForkFromMessage(idx)));
                     }
                 }
-                KeyCode::Char('j') | KeyCode::Down => self.scroll_by(1),
-                KeyCode::Char('k') | KeyCode::Up => self.scroll_by(-1),
-                KeyCode::PageDown => self.scroll_by(10),
-                KeyCode::PageUp => self.scroll_by(-10),
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_state.scroll_by(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_state.scroll_by(-1),
+                KeyCode::PageDown => self.scroll_state.scroll_by(10),
+                KeyCode::PageUp => self.scroll_state.scroll_by(-10),
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => self.scroll_by(3),
-                MouseEventKind::ScrollUp => self.scroll_by(-3),
+                MouseEventKind::ScrollDown => self.scroll_state.scroll_by(3),
+                MouseEventKind::ScrollUp => self.scroll_state.scroll_by(-3),
                 _ => {}
             },
             _ => {}
@@ -205,7 +182,7 @@ impl Component for MessagePopup {
         if self.cached_message_idx != Some(msg_idx) {
             self.cached_message_idx = Some(msg_idx);
             self.cached_plain_text = message_to_plain_text(message);
-            self.scroll = 0;
+            self.scroll_state.reset();
         }
 
         let area = centered_rect(80, 80, area);
@@ -232,38 +209,18 @@ impl Component for MessagePopup {
             }
         }
 
-        self.content_height = wrapped_height;
-        self.viewport_height = content_area.height;
-
-        if self.scroll > self.max_scroll() {
-            self.scroll = self.max_scroll();
-        }
+        self.scroll_state.content_height = wrapped_height;
+        self.scroll_state.viewport_height = content_area.height;
+        self.scroll_state.clamp();
 
         let p = Paragraph::new(Text::from(lines))
             .wrap(Wrap { trim: false })
-            .scroll((self.scroll, 0));
+            .scroll((self.scroll_state.scroll, 0));
 
         f.render_widget(p, content_area);
 
-        // Show scrollbar briefly after scrolling
-        if let Some(last) = self.last_scroll_time {
-            if last.elapsed() < std::time::Duration::from_secs(1)
-                && self.content_height > self.viewport_height
-            {
-                let mut scrollbar_state = ScrollbarState::default()
-                    .content_length(self.content_height as usize)
-                    .viewport_content_length(self.viewport_height as usize)
-                    .position(self.scroll as usize);
-
-                f.render_stateful_widget(
-                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(Some("↑"))
-                        .end_symbol(Some("↓")),
-                    content_area,
-                    &mut scrollbar_state,
-                );
-            }
-        }
+        self.scroll_state
+            .render_transient_scrollbar(f, content_area);
 
         render_hints(
             f,
