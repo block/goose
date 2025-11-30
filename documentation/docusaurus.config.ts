@@ -44,6 +44,19 @@ const config: Config = {
     locales: ["en"],
   },
 
+
+  headTags: [
+    {
+      tagName: "link",
+      attributes: {
+        rel: "alternate",
+        type: "text/plain",
+        title: "LLM context",
+        href: "/goose/llms.txt",
+      },
+    },
+  ],
+
   presets: [
     [
       "classic",
