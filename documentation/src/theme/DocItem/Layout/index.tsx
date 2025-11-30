@@ -14,7 +14,7 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
-import {Copy, Check, ChevronDown, FileText, ExternalLink, Eye, Code, FileCode, Bot} from 'lucide-react';
+import {Copy, Check, ChevronDown, ExternalLink, FileCode, Bot} from 'lucide-react';
 import layoutStyles from './styles.module.css';
 import TurndownService from 'turndown';
 
