@@ -29,7 +29,7 @@ Step into the role of the lead AI engineer at a bustling Winter Festival. You're
 
 **Day 17:** Deploy a cross-platform wishlist app using MCP-UI so vendors know exactly what visitors want.
 
-You'll master core AI engineering skills like building gesture controlled interfaces, data visualizations, multi agent systems, and production deployments using goose. These foundational skills will prepare you to work with any AI agent. Complete all 17 days, and you'll have built a comprehensive portfolio showcasing everything from basic automation to sophisticated multi-agent systems.
+You'll master core AI engineering skills like building gesture-controlled interfaces, data visualizations, multi-agent systems, and production deployments using goose. These foundational skills will prepare you to work with any AI agent. Complete all 17 days, and you'll have built a comprehensive portfolio showcasing everything from basic automation to sophisticated multi-agent systems.
 
 ## Designed for All Skill Levels
 
