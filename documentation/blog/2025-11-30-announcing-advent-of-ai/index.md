@@ -17,7 +17,7 @@ That's why we're launching [Advent of AI](https://adventofai.dev), a 17-day chal
 
 ## Here's Your Mission
 
-Step into the role of the lead AI engineer at a bustling Winter Festival where technology meets magic. Each day brings a new challenge from the festival community:
+Step into the role of the lead AI engineer at a bustling Winter Festival. You're the go-to person when systems fail, and they're failing fast. Each day brings a new challenge from the festival community:
 
 **Day 1:** Build Madame Zelda an AI fortune generator that can handle the growing crowd when her app crashes.
 
@@ -29,18 +29,18 @@ Step into the role of the lead AI engineer at a bustling Winter Festival where t
 
 **Day 17:** Deploy a cross-platform wishlist app using MCP-UI so vendors know exactly what visitors want.
 
-You'll master tools like goose through practical projects involving gesture-controlled interfaces, data visualizations, multi-agent systems, and production deployments. Complete all 17 days, and you'll have built a comprehensive portfolio showcasing everything from basic automation to sophisticated multi-agent systems.
+You'll master core AI engineering skills like building gesture controlled interfaces, data visualizations, multi agent systems, and production deployments using goose. These foundational skills will prepare you to work with any AI agent. Complete all 17 days, and you'll have built a comprehensive portfolio showcasing everything from basic automation to sophisticated multi-agent systems.
 
 ## Designed for All Skill Levels
 
 **For Beginners:** Every challenge includes clear guidance and resources to get you started. You'll learn core concepts from the ground up in a practical, project-based way.
 
-**For Advanced Builders:** Looking for an extra test? Each main challenge includes bonus objectives that push you further—optimizing for performance, adding complex features, or integrating with advanced tools.
+**For Advanced Builders:** Looking for an extra test? Each main challenge includes bonus objectives that push you further: optimizing for performance, adding complex features, or integrating with advanced tools.
 
 ## How It Works
 
 1. **Daily Challenges:** Every weekday brings a new story-driven problem to solve
-2. **Your Creative Solutions:** There's no single "right" answer—we want to see your unique approach
+2. **Your Creative Solutions:** There's no single "right" answer - we want to see your unique approach
 3. **Community Sharing:** Join the #adventofai channel on our Discord to share and collaborate
 4. **Solution Videos:** We'll post our approach on YouTube the day after each challenge
 
@@ -50,7 +50,7 @@ You'll master tools like goose through practical projects involving gesture-cont
 2. Install goose using the [quickstart guide](/docs/quickstart)
 3. Join the community on [Discord](https://discord.gg/block-opensource)
 
-The first challenge unlocks December 1st at 12 PM ET. The Winter Festival needs your skills—let's build something amazing together.
+The first challenge unlocks December 1st at 12 PM ET. The Winter Festival needs your skills - let's build something amazing together.
 
 <head>
   <meta property="og:title" content="Announcing Advent of AI" />
