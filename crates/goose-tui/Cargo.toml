@@ -18,7 +18,6 @@ crossterm = { version = "0.28.1", features = ["event-stream"] }
 tui-textarea = "0.7.0"
 tokio = { version = "1.43", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["full"] }
-reqwest = { version = "0.12.9", features = ["json", "stream", "rustls-tls"], default-features = false }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -28,14 +27,9 @@ tracing-appender = "0.2"
 futures = "0.3"
 uuid = { version = "1.11", features = ["fast-rng", "v4"] }
 directories = "5.0"
-textwrap = "0.16"
-dirs = "6.0.0"
 tokio-stream = "0.1.17"
-eventsource-stream = "0.2.3"
 clap = { version = "4.5.52", features = ["derive"] }
 goose-mcp = { version = "1.14.0", path = "../goose-mcp" }
-syntect = "5.2"
-chrono = { version = "0.4", features = ["serde"] }
 termimad = "0.34.0"
 unicode-width = "0.2.0"
 arboard = "3.6.1"
