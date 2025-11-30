@@ -506,12 +506,14 @@ impl Component for ChatComponent {
             self.last_width = area.width;
         }
 
-        // If state cleared (new session), clear cache
+        // If state cleared (new session), clear cache and reset scroll
         if state.messages.len() < self.sealed_count {
             self.cached_items.clear();
             self.cached_mapping.clear();
             self.sealed_count = 0;
             self.last_tool_context.clear();
+            self.list_state = ListState::default();
+            self.stick_to_bottom = true;
         }
 
         // Determine how many messages are "sealed"

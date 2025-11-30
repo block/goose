@@ -106,6 +106,8 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
         Action::CreateNewSession | Action::ResumeSession(_) | Action::ForkFromMessage(_) => {
             state.is_working = true;
             state.active_popup = ActivePopup::None;
+            state.messages.clear();
+            state.todos.clear();
             true
         }
         Action::Error(e) => {
