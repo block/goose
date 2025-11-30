@@ -72,7 +72,7 @@ goose configuration is stored in `~/.config/goose/` with:
 - `profiles.yaml`: Provider and extension settings
 - `config.yaml`: Global preferences
 
-Project-specific hints can be added via `.goosehints` and or `AGENT.md` files.
+Project-specific hints can be added via `.goosehints` and/or `AGENT.md` files.
 
 ## Links
 
