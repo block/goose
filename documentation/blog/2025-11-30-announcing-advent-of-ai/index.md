@@ -50,7 +50,7 @@ You'll master core AI engineering skills like building gesture controlled interf
 2. Install goose using the [quickstart guide](/docs/quickstart)
 3. Join the community on [Discord](https://discord.gg/block-opensource)
 
-The first challenge unlocks December 1st at 12 PM ET. The Winter Festival needs your skills - let's build something amazing together.
+The first challenge unlocks December 1st at 12 PM ET. The Winter Festival needs your skills. Let's build something amazing together.
 
 <head>
   <meta property="og:title" content="Announcing Advent of AI" />

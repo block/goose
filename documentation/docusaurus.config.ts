@@ -502,6 +502,14 @@ const config: Config = {
       textColor: '#fff',
       isCloseable: false,
     },
+    // announcementBar: {
+    //   id: 'goose-grants',
+    //   content:
+    //     '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
+    //   backgroundColor: '#20232a',
+    //   textColor: '#fff',
+    //   isCloseable: false,
+    // },
   } satisfies Preset.ThemeConfig,
 };
 
