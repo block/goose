@@ -1,6 +1,6 @@
 mod types;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use eventsource_stream::Eventsource;
 use futures::stream::Stream;
 use goose::agents::ExtensionConfig;
@@ -8,7 +8,9 @@ use goose::config::ExtensionEntry;
 use goose::conversation::message::Message;
 use goose::session::Session;
 use goose_server::routes::reply::MessageEvent;
-use reqwest::Client as ReqwestClient;
+use reqwest::{Client as ReqwestClient, RequestBuilder};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use tokio_stream::StreamExt;
 
 use types::{
@@ -52,10 +54,21 @@ impl ClientBuilder {
         let secret_key = self
             .secret_key
             .ok_or_else(|| anyhow::anyhow!("Secret key is required"))?;
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        let mut secret_value = reqwest::header::HeaderValue::from_str(&secret_key)
+            .context("Invalid secret key format")?;
+        secret_value.set_sensitive(true);
+        headers.insert("X-Secret-Key", secret_value);
+
+        let http = ReqwestClient::builder()
+            .default_headers(headers)
+            .build()
+            .context("Failed to build HTTP client")?;
+
         Ok(Client {
             base_url: format!("http://{}:{}", self.host, self.port),
-            secret_key,
-            http_client: ReqwestClient::new(),
+            http,
         })
     }
 }
@@ -69,8 +82,47 @@ impl Default for ClientBuilder {
 #[derive(Clone)]
 pub struct Client {
     base_url: String,
-    secret_key: String,
-    http_client: ReqwestClient,
+    http: ReqwestClient,
+}
+
+struct Request(RequestBuilder);
+
+impl Request {
+    fn new(inner: RequestBuilder) -> Self {
+        Self(inner)
+    }
+
+    fn json<T: Serialize>(self, body: &T) -> Self {
+        Self(self.0.json(body))
+    }
+
+    fn query<T: Serialize + ?Sized>(self, query: &T) -> Self {
+        Self(self.0.query(query))
+    }
+
+    async fn send<T: DeserializeOwned>(self) -> Result<T> {
+        let response = self.0.send().await.context("Request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            bail!("HTTP {}: {}", status.as_u16(), error_text);
+        }
+
+        response.json().await.context("Failed to parse response")
+    }
+
+    async fn send_empty(self) -> Result<()> {
+        let response = self.0.send().await.context("Request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            bail!("HTTP {}: {}", status.as_u16(), error_text);
+        }
+
+        Ok(())
+    }
 }
 
 impl Client {
@@ -86,70 +138,39 @@ impl Client {
             .expect("Failed to build client with provided parameters")
     }
 
+    fn get(&self, path: &str) -> Request {
+        Request::new(self.http.get(format!("{}{}", self.base_url, path)))
+    }
+
+    fn post(&self, path: &str) -> Request {
+        Request::new(self.http.post(format!("{}{}", self.base_url, path)))
+    }
+
+    fn delete(&self, path: &str) -> Request {
+        Request::new(self.http.delete(format!("{}{}", self.base_url, path)))
+    }
+
     pub async fn get_providers(&self) -> Result<Vec<ProviderDetails>> {
-        let response = self
-            .http_client
-            .get(format!("{}/config/providers", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.get("/config/providers")
             .send()
             .await
-            .context("Failed to fetch providers")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to get providers: {}", error_text);
-        }
-
-        let providers: Vec<ProviderDetails> = response
-            .json()
-            .await
-            .context("Failed to parse providers list")?;
-        Ok(providers)
+            .context("Failed to fetch providers")
     }
 
     pub async fn get_extensions(&self) -> Result<Vec<ExtensionEntry>> {
-        let response = self
-            .http_client
-            .get(format!("{}/config/extensions", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        let response: ExtensionResponse = self
+            .get("/config/extensions")
             .send()
             .await
             .context("Failed to fetch extensions")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to get extensions: {}", error_text);
-        }
-
-        let wrapper: ExtensionResponse = response
-            .json()
-            .await
-            .context("Failed to parse extensions list")?;
-        Ok(wrapper.extensions)
+        Ok(response.extensions)
     }
 
     pub async fn get_provider_models(&self, provider: &str) -> Result<Vec<String>> {
-        let response = self
-            .http_client
-            .get(format!(
-                "{}/config/providers/{}/models",
-                self.base_url, provider
-            ))
-            .header("X-Secret-Key", &self.secret_key)
+        self.get(&format!("/config/providers/{}/models", provider))
             .send()
             .await
-            .context("Failed to fetch provider models")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to get provider models: {}", error_text);
-        }
-
-        let models: Vec<String> = response
-            .json()
-            .await
-            .context("Failed to parse provider models list")?;
-        Ok(models)
+            .context("Failed to fetch provider models")
     }
 
     pub async fn upsert_config(
@@ -158,87 +179,46 @@ impl Client {
         value: serde_json::Value,
         is_secret: bool,
     ) -> Result<()> {
-        let response = self
-            .http_client
-            .post(format!("{}/config/upsert", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/config/upsert")
             .json(&UpsertConfigQuery {
                 key: key.to_string(),
                 value,
                 is_secret,
             })
-            .send()
+            .send_empty()
             .await
-            .context("Failed to upsert config")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to upsert config: {}", error_text);
-        }
-
-        Ok(())
+            .context("Failed to upsert config")
     }
 
-    #[allow(dead_code)]
     pub async fn read_config(&self) -> Result<serde_json::Value> {
-        let response = self
-            .http_client
-            .get(format!("{}/config", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        let response: ConfigResponse = self
+            .get("/config")
             .send()
             .await
             .context("Failed to read config")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to read config: {}", error_text);
-        }
-
-        let wrapper: ConfigResponse = response.json().await.context("Failed to parse config")?;
-        // Convert HashMap to Value
-        let map: serde_json::Map<String, serde_json::Value> = wrapper.config.into_iter().collect();
-        Ok(serde_json::Value::Object(map))
+        Ok(serde_json::Value::Object(
+            response.config.into_iter().collect(),
+        ))
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<Session>> {
-        let response = self
-            .http_client
-            .get(format!("{}/sessions", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        let response: SessionListResponse = self
+            .get("/sessions")
             .send()
             .await
-            .context("Failed to send list sessions request")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to list sessions: {}", error_text);
-        }
-
-        let wrapper: SessionListResponse = response
-            .json()
-            .await
-            .context("Failed to parse sessions list")?;
-        Ok(wrapper.sessions)
+            .context("Failed to list sessions")?;
+        Ok(response.sessions)
     }
 
     pub async fn remove_extension(&self, session_id: &str, name: &str) -> Result<()> {
-        let response = self
-            .http_client
-            .post(format!("{}/agent/remove_extension", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/agent/remove_extension")
             .json(&RemoveExtensionRequest {
                 session_id: session_id.to_string(),
                 name: name.to_string(),
             })
-            .send()
+            .send_empty()
             .await
-            .context("Failed to remove extension from session")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to remove extension: {}", error_text);
-        }
-        Ok(())
+            .context("Failed to remove extension from session")
     }
 
     pub async fn add_config_extension(
@@ -247,41 +227,22 @@ impl Client {
         config: ExtensionConfig,
         enabled: bool,
     ) -> Result<()> {
-        let response = self
-            .http_client
-            .post(format!("{}/config/extensions", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/config/extensions")
             .json(&ExtensionQuery {
                 name,
                 config,
                 enabled,
             })
-            .send()
+            .send_empty()
             .await
-            .context("Failed to add config extension")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to add config extension: {}", error_text);
-        }
-        Ok(())
+            .context("Failed to add config extension")
     }
 
-    #[allow(dead_code)]
     pub async fn remove_config_extension(&self, name: &str) -> Result<()> {
-        let response = self
-            .http_client
-            .delete(format!("{}/config/extensions/{}", self.base_url, name))
-            .header("X-Secret-Key", &self.secret_key)
-            .send()
+        self.delete(&format!("/config/extensions/{}", name))
+            .send_empty()
             .await
-            .context("Failed to remove config extension")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to remove config extension: {}", error_text);
-        }
-        Ok(())
+            .context("Failed to remove config extension")
     }
 
     pub async fn start_agent(&self, working_dir: String) -> Result<Session> {
@@ -301,10 +262,7 @@ impl Client {
         working_dir: String,
         recipe: Option<goose::recipe::Recipe>,
     ) -> Result<Session> {
-        let response = self
-            .http_client
-            .post(format!("{}/agent/start", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/agent/start")
             .json(&StartAgentRequest {
                 working_dir,
                 recipe,
@@ -313,41 +271,18 @@ impl Client {
             })
             .send()
             .await
-            .context("Failed to send start request")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to start agent: {}", error_text);
-        }
-
-        response
-            .json::<Session>()
-            .await
-            .context("Failed to parse session response")
+            .context("Failed to start agent")
     }
 
     pub async fn resume_agent(&self, session_id: &str) -> Result<Session> {
-        let response = self
-            .http_client
-            .post(format!("{}/agent/resume", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/agent/resume")
             .json(&ResumeAgentRequest {
                 session_id: session_id.to_string(),
                 load_model_and_extensions: true,
             })
             .send()
             .await
-            .context("Failed to send resume request")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to resume agent: {}", error_text);
-        }
-
-        response
-            .json::<Session>()
-            .await
-            .context("Failed to parse session response")
+            .context("Failed to resume agent")
     }
 
     pub async fn update_provider(
@@ -356,108 +291,49 @@ impl Client {
         provider: String,
         model: Option<String>,
     ) -> Result<()> {
-        let response = self
-            .http_client
-            .post(format!("{}/agent/update_provider", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/agent/update_provider")
             .json(&UpdateProviderRequest {
                 provider,
                 model,
                 session_id: session_id.to_string(),
             })
-            .send()
+            .send_empty()
             .await
-            .context("Failed to send update provider request")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to update provider: {}", error_text);
-        }
-
-        Ok(())
+            .context("Failed to update provider")
     }
 
     pub async fn add_extension(&self, session_id: &str, config: ExtensionConfig) -> Result<()> {
-        let response = self
-            .http_client
-            .post(format!("{}/agent/add_extension", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/agent/add_extension")
             .json(&AddExtensionRequest {
                 session_id: session_id.to_string(),
                 config,
             })
-            .send()
+            .send_empty()
             .await
-            .context("Failed to send add extension request")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to add extension: {}", error_text);
-        }
-
-        Ok(())
+            .context("Failed to add extension")
     }
 
     pub async fn get_tools(&self, session_id: &str) -> Result<Vec<ToolInfo>> {
-        let response = self
-            .http_client
-            .get(format!("{}/agent/tools", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.get("/agent/tools")
             .query(&[("session_id", session_id)])
             .send()
             .await
-            .context("Failed to fetch tools")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to get tools: {}", error_text);
-        }
-
-        response
-            .json::<Vec<ToolInfo>>()
-            .await
-            .context("Failed to parse tools list")
+            .context("Failed to fetch tools")
     }
 
     pub async fn export_session(&self, session_id: &str) -> Result<String> {
-        let response = self
-            .http_client
-            .get(format!("{}/sessions/{}/export", self.base_url, session_id))
-            .header("X-Secret-Key", &self.secret_key)
+        self.get(&format!("/sessions/{}/export", session_id))
             .send()
             .await
-            .context("Failed to export session")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to export session: {}", error_text);
-        }
-
-        response
-            .json::<String>()
-            .await
-            .context("Failed to parse export")
+            .context("Failed to export session")
     }
 
     pub async fn import_session(&self, json: &str) -> Result<Session> {
-        let response = self
-            .http_client
-            .post(format!("{}/sessions/import", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
+        self.post("/sessions/import")
             .json(&serde_json::json!({ "json": json }))
             .send()
             .await
-            .context("Failed to import session")?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to import session: {}", error_text);
-        }
-
-        response
-            .json::<Session>()
-            .await
-            .context("Failed to parse imported session")
+            .context("Failed to import session")
     }
 
     pub async fn reply(
@@ -466,9 +342,8 @@ impl Client {
         session_id: String,
     ) -> Result<impl Stream<Item = Result<MessageEvent>>> {
         let stream = self
-            .http_client
+            .http
             .post(format!("{}/reply", self.base_url))
-            .header("X-Secret-Key", &self.secret_key)
             .json(&ChatRequest {
                 messages,
                 session_id,
