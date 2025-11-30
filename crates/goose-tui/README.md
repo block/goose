@@ -151,6 +151,43 @@ Type these in the input field:
 
 Theme preference is saved to your Goose configuration.
 
+### Custom Themes
+
+You can define custom themes in `~/.config/goose/config.yaml`. Custom themes appear alongside built-in themes in the theme picker.
+
+#### Theme Format
+
+```yaml
+tui_custom_themes:
+  sakura:
+    base:
+      background: [30, 25, 28]
+      foreground: [255, 220, 235]
+      cursor: [255, 183, 197]
+      selection: [60, 45, 55]
+      border: [90, 70, 85]
+      border_active: [255, 174, 201]
+      user_message_foreground: [230, 190, 210]
+    status:
+      info: [168, 216, 255]
+      success: [180, 230, 180]
+      warning: [255, 200, 150]
+      error: [255, 140, 160]
+      thinking: [212, 170, 230]
+```
+
+#### Color Format
+
+Colors are RGB arrays `[r, g, b]` where each value is 0-255. For terminal default background, use the string `"Reset"` instead of an RGB array.
+
+#### Using Custom Themes
+
+1. Add your theme definition to `tui_custom_themes` in your config file
+2. Use `/theme <name>` to switch to it (e.g., `/theme sakura`)
+3. Or set it as default: `tui_theme: sakura`
+
+Custom themes are loaded at startup and appear in the theme picker (`/theme` without arguments).
+
 ## Custom Commands
 
 Create shortcuts for frequently used tools with `/alias`:
@@ -180,6 +217,7 @@ The TUI uses the global Goose configuration at `~/.config/goose/config.yaml`.
 
 TUI-specific settings:
 - `tui_theme`: Current theme name
+- `tui_custom_themes`: Custom theme definitions (see [Custom Themes](#custom-themes))
 - `tui_custom_commands`: List of custom commands
 
 Use `/config` to change:

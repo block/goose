@@ -35,30 +35,14 @@ impl MarkdownRenderer {
             .add_attr(termimad::crossterm::style::Attribute::Italic);
 
         skin.inline_code
-            .set_fg(termimad::crossterm::style::Color::Rgb {
-                r: 255,
-                g: 200,
-                b: 100,
-            });
+            .set_fg(to_crossterm_color(theme.status.warning));
         skin.inline_code
-            .set_bg(termimad::crossterm::style::Color::Rgb {
-                r: 40,
-                g: 40,
-                b: 40,
-            });
+            .set_bg(to_crossterm_color(theme.base.selection));
 
         skin.code_block
-            .set_fg(termimad::crossterm::style::Color::Rgb {
-                r: 200,
-                g: 200,
-                b: 200,
-            });
+            .set_fg(to_crossterm_color(theme.base.foreground));
         skin.code_block
-            .set_bg(termimad::crossterm::style::Color::Rgb {
-                r: 30,
-                g: 30,
-                b: 30,
-            });
+            .set_bg(to_crossterm_color(theme.base.selection));
 
         Self { skin }
     }

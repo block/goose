@@ -22,12 +22,13 @@ pub struct ChatComponent {
     cached_items: Vec<ListItem<'static>>,
     cached_mapping: Vec<usize>,
     sealed_count: usize,
-    last_tool_context: HashMap<String, (String, String)>, // ID -> (Name, Args)
+    last_tool_context: HashMap<String, (String, String)>,
     stick_to_bottom: bool,
     frame_count: usize,
     last_input_mode: InputMode,
     last_item_count: usize,
     last_width: u16,
+    last_theme_name: String,
 }
 
 impl Default for ChatComponent {
@@ -49,6 +50,7 @@ impl ChatComponent {
             last_input_mode: InputMode::Normal,
             last_item_count: 0,
             last_width: 0,
+            last_theme_name: String::new(),
         }
     }
 
@@ -504,6 +506,15 @@ impl Component for ChatComponent {
             self.sealed_count = 0;
             self.last_tool_context.clear();
             self.last_width = area.width;
+        }
+
+        // If theme changed, clear cache to re-render with new colors
+        if state.config.theme.name != self.last_theme_name {
+            self.cached_items.clear();
+            self.cached_mapping.clear();
+            self.sealed_count = 0;
+            self.last_tool_context.clear();
+            self.last_theme_name = state.config.theme.name.clone();
         }
 
         // If state cleared (new session), clear cache and reset scroll

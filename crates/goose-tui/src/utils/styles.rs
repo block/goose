@@ -1,4 +1,6 @@
 use ratatui::style::Color;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub fn color_to_rgb(color: Color) -> (u8, u8, u8) {
     match color {
@@ -19,6 +21,32 @@ pub fn breathing_color(base: Color, frame_count: usize, is_active: bool) -> Colo
         )
     } else {
         Color::Rgb(r, g, b)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SerializableColor {
+    Rgb([u8; 3]),
+    Reset,
+}
+
+impl From<SerializableColor> for Color {
+    fn from(c: SerializableColor) -> Self {
+        match c {
+            SerializableColor::Rgb([r, g, b]) => Color::Rgb(r, g, b),
+            SerializableColor::Reset => Color::Reset,
+        }
+    }
+}
+
+impl From<Color> for SerializableColor {
+    fn from(c: Color) -> Self {
+        match c {
+            Color::Rgb(r, g, b) => SerializableColor::Rgb([r, g, b]),
+            Color::Reset => SerializableColor::Reset,
+            _ => SerializableColor::Rgb([128, 128, 128]),
+        }
     }
 }
 
@@ -49,6 +77,56 @@ pub struct StatusColors {
     pub thinking: Color,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeDefinition {
+    pub base: BaseColorsDefinition,
+    pub status: StatusColorsDefinition,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BaseColorsDefinition {
+    pub background: SerializableColor,
+    pub foreground: SerializableColor,
+    pub cursor: SerializableColor,
+    pub selection: SerializableColor,
+    pub border: SerializableColor,
+    pub border_active: SerializableColor,
+    pub user_message_foreground: SerializableColor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusColorsDefinition {
+    pub info: SerializableColor,
+    pub success: SerializableColor,
+    pub warning: SerializableColor,
+    pub error: SerializableColor,
+    pub thinking: SerializableColor,
+}
+
+impl ThemeDefinition {
+    pub fn to_theme(&self, name: String) -> Theme {
+        Theme {
+            name,
+            base: BaseColors {
+                background: self.base.background.clone().into(),
+                foreground: self.base.foreground.clone().into(),
+                cursor: self.base.cursor.clone().into(),
+                selection: self.base.selection.clone().into(),
+                border: self.base.border.clone().into(),
+                border_active: self.base.border_active.clone().into(),
+                user_message_foreground: self.base.user_message_foreground.clone().into(),
+            },
+            status: StatusColors {
+                info: self.status.info.clone().into(),
+                success: self.status.success.clone().into(),
+                warning: self.status.warning.clone().into(),
+                error: self.status.error.clone().into(),
+                thinking: self.status.thinking.clone().into(),
+            },
+        }
+    }
+}
+
 impl Default for Theme {
     fn default() -> Self {
         Theme::gemini()
@@ -56,8 +134,8 @@ impl Default for Theme {
 }
 
 impl Theme {
-    pub fn all_names() -> Vec<&'static str> {
-        vec![
+    pub fn all_names() -> Vec<String> {
+        let mut names: Vec<String> = vec![
             "gemini",
             "goose",
             "light",
@@ -70,9 +148,29 @@ impl Theme {
             "solarized",
             "retrowave",
         ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        if let Ok(custom_themes) = goose::config::Config::global()
+            .get_param::<HashMap<String, ThemeDefinition>>("tui_custom_themes")
+        {
+            names.extend(custom_themes.keys().cloned());
+        }
+
+        names.sort();
+        names
     }
 
     pub fn from_name(name: &str) -> Self {
+        if let Ok(custom_themes) = goose::config::Config::global()
+            .get_param::<HashMap<String, ThemeDefinition>>("tui_custom_themes")
+        {
+            if let Some(theme_def) = custom_themes.get(name) {
+                return theme_def.to_theme(name.to_string());
+            }
+        }
+
         match name.to_lowercase().as_str() {
             "goose" => Theme::goose(),
             "light" => Theme::light(),

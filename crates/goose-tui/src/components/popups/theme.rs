@@ -52,8 +52,8 @@ impl Component for ThemePopup {
                 KeyCode::Enter => {
                     let names = Theme::all_names();
                     if let Some(idx) = self.list_state.selected() {
-                        if let Some(&name) = names.get(idx) {
-                            return Ok(Some(Action::ChangeTheme(name.to_string())));
+                        if let Some(name) = names.get(idx) {
+                            return Ok(Some(Action::ChangeTheme(name.clone())));
                         }
                     }
                 }
@@ -84,7 +84,7 @@ impl Component for ThemePopup {
 
         let items: Vec<ListItem> = names
             .iter()
-            .map(|&name| {
+            .map(|name| {
                 let is_current = name.eq_ignore_ascii_case(&theme.name);
                 let style = if is_current {
                     Style::default()
