@@ -29,7 +29,9 @@ export default function UpdateSection() {
     currentVersion: '',
   });
   const [progress, setProgress] = useState<number>(0);
+  const [isUsingGitHubFallback, setIsUsingGitHubFallback] = useState<boolean>(false);
   const progressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastProgressRef = React.useRef<number>(0); // Track last progress to prevent backward jumps
 
   useEffect(() => {
     // Get current version on mount
@@ -48,6 +50,11 @@ export default function UpdateSection() {
       }
     });
 
+    // Check if using GitHub fallback
+    window.electron.isUsingGitHubFallback().then((isGitHub) => {
+      setIsUsingGitHubFallback(isGitHub);
+    });
+
     // Listen for updater events
     window.electron.onUpdaterEvent((event) => {
       console.log('Updater event:', event);
@@ -64,6 +71,10 @@ export default function UpdateSection() {
             latestVersion: (event.data as UpdateEventData)?.version,
             isUpdateAvailable: true,
           }));
+          // Check if GitHub fallback is being used
+          window.electron.isUsingGitHubFallback().then((isGitHub) => {
+            setIsUsingGitHubFallback(isGitHub);
+          });
           break;
 
         case 'update-not-available':
@@ -74,18 +85,29 @@ export default function UpdateSection() {
           }));
           break;
 
-        case 'download-progress':
+        case 'download-progress': {
           setUpdateStatus('downloading');
 
-          // Debounce progress updates to prevent flickering (max 10 updates/sec)
-          if (progressTimeoutRef.current) {
-            clearTimeout(progressTimeoutRef.current);
-          }
+          // Get the new progress value (ensure it's a valid number)
+          const rawPercent = (event.data as UpdateEventData)?.percent;
+          const newProgress = typeof rawPercent === 'number' ? Math.round(rawPercent) : 0;
 
-          progressTimeoutRef.current = setTimeout(() => {
-            setProgress((event.data as UpdateEventData)?.percent || 0);
-          }, 100); // Update at most every 100ms
+          // Only update if progress increased (prevents backward jumps from out-of-order events)
+          if (newProgress > lastProgressRef.current) {
+            lastProgressRef.current = newProgress;
+
+            // Cancel any pending update
+            if (progressTimeoutRef.current) {
+              clearTimeout(progressTimeoutRef.current);
+            }
+
+            // Use a small delay to batch rapid updates
+            progressTimeoutRef.current = setTimeout(() => {
+              setProgress(newProgress);
+            }, 50); // 50ms delay for smoother batching
+          }
           break;
+        }
 
         case 'update-downloaded':
           setUpdateStatus('ready');
@@ -114,6 +136,7 @@ export default function UpdateSection() {
   const checkForUpdates = async () => {
     setUpdateStatus('checking');
     setProgress(0);
+    lastProgressRef.current = 0; // Reset progress tracking for new download
 
     try {
       const result = await window.electron.checkForUpdates();
@@ -224,11 +247,17 @@ export default function UpdateSection() {
         )}
 
         {updateStatus === 'downloading' && (
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
+          <div className="w-full mt-2">
+            <div className="flex justify-between text-xs text-text-muted mb-1">
+              <span>Downloading update...</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-[width] duration-150 ease-out"
+                style={{ width: `${Math.max(progress, 0)}%`, minWidth: progress > 0 ? '8px' : '0' }}
+              />
+            </div>
           </div>
         )}
 
@@ -236,18 +265,39 @@ export default function UpdateSection() {
         {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-muted mt-4 space-y-1">
             <p>Update will be downloaded automatically in the background.</p>
-            <p className="text-xs text-green-600">
-              The update will be installed automatically when you quit the app.
-            </p>
+            {isUsingGitHubFallback ? (
+              <p className="text-xs text-amber-600">
+                After download, you'll need to manually install the update.
+              </p>
+            ) : (
+              <p className="text-xs text-green-600">
+                The update will be installed automatically when you quit the app.
+              </p>
+            )}
           </div>
         )}
 
         {updateStatus === 'ready' && (
           <div className="text-xs text-text-muted mt-4 space-y-1">
-            <p className="text-xs text-green-600">
-              Update is ready! It will be installed when you quit Goose.
-            </p>
-            <p className="text-xs text-text-muted">Or click "Install & Restart" to update now.</p>
+            {isUsingGitHubFallback ? (
+              <>
+                <p className="text-xs text-green-600">
+                  ✓ Update is ready! Click "Install & Restart" for installation instructions.
+                </p>
+                <p className="text-xs text-text-muted">
+                  Manual installation required for this update method.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-green-600">
+                  ✓ Update is ready! It will be installed when you quit Goose.
+                </p>
+                <p className="text-xs text-text-muted">
+                  Or click "Install & Restart" to update now.
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>

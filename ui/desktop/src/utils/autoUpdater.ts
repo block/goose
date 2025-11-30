@@ -31,6 +31,9 @@ let githubUpdateInfo: {
 // Store update state
 let lastUpdateState: { updateAvailable: boolean; latestVersion?: string } | null = null;
 
+// Track last reported progress to prevent backward jumps
+let lastReportedProgress = 0;
+
 // Track if IPC handlers have been registered
 let ipcUpdateHandlersRegistered = false;
 
@@ -48,9 +51,10 @@ export function registerUpdateIpcHandlers() {
     try {
       log.info('Manual check for updates requested');
 
-      // Reset fallback flag
+      // Reset state for new update check
       isUsingGitHubFallback = false;
       githubUpdateInfo = {};
+      lastReportedProgress = 0; // Reset progress tracking
 
       // Ensure auto-updater is properly initialized
       if (!autoUpdater.currentVersion) {
@@ -154,12 +158,17 @@ export function registerUpdateIpcHandlers() {
     try {
       if (isUsingGitHubFallback && githubUpdateInfo.downloadUrl && githubUpdateInfo.latestVersion) {
         log.info('Using GitHub fallback for download...');
+        lastReportedProgress = 0; // Reset progress tracking
 
         const result = await githubUpdater.downloadUpdate(
           githubUpdateInfo.downloadUrl,
           githubUpdateInfo.latestVersion,
           (percent) => {
-            sendStatusToWindow('download-progress', { percent });
+            // Only send if progress increased (monotonic)
+            if (percent > lastReportedProgress) {
+              lastReportedProgress = percent;
+              sendStatusToWindow('download-progress', { percent });
+            }
           }
         );
 
@@ -205,25 +214,26 @@ export function registerUpdateIpcHandlers() {
           throw new Error('Update file not found. Please download the update first.');
         }
 
-        // Show dialog to inform user about manual installation
+        // Improved dialog with clearer instructions
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
-          title: 'Update Downloaded',
-          message: 'The update has been downloaded to your Downloads folder.',
-          detail: `Please extract the zip file and move the Goose app to your Applications folder to complete the update.`,
-          buttons: ['Open Downloads', 'Cancel'],
+          title: 'Update Ready to Install',
+          message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
+          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Goose.app\n2. Quit Goose (this app will close)\n3. Drag the new Goose.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Goose.`,
+          buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
-          cancelId: 1,
+          cancelId: 2,
         })) as unknown as { response: number };
 
         if (dialogResult.response === 0) {
-          // Open the extracted folder or show the zip file
+          // Open folder and quit app for easy replacement
           shell.showItemInFolder(updatePath);
-
-          // Optionally quit the app so user can replace it
           setTimeout(() => {
             app.quit();
-          }, 1000);
+          }, 1500); // Give user time to see the folder open
+        } else if (dialogResult.response === 1) {
+          // Just open folder, don't quit
+          shell.showItemInFolder(updatePath);
         }
       } catch (error) {
         log.error('Error installing GitHub update:', error);
@@ -241,6 +251,10 @@ export function registerUpdateIpcHandlers() {
 
   ipcMain.handle('get-update-state', () => {
     return lastUpdateState;
+  });
+
+  ipcMain.handle('is-using-github-fallback', () => {
+    return isUsingGitHubFallback;
   });
 }
 
@@ -375,6 +389,7 @@ export function setupAutoUpdater(tray?: Tray) {
   autoUpdater.on('checking-for-update', () => {
     log.info('Auto-updater: Checking for update...');
     log.info(`Auto-updater: Feed URL during check: ${autoUpdater.getFeedURL()}`);
+    lastReportedProgress = 0; // Reset progress tracking for new check
     sendStatusToWindow('checking-for-update');
   });
 
@@ -455,16 +470,20 @@ export function setupAutoUpdater(tray?: Tray) {
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
-    let log_message = 'Download speed: ' + progressObj.bytesPerSecond;
-    log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
-    log_message = log_message + ' (' + progressObj.transferred + '/' + progressObj.total + ')';
-    log.info(log_message);
+    const roundedPercent = Math.round(progressObj.percent);
 
-    // Round percentage to avoid fractional jitter (12.3456% -> 12%)
-    sendStatusToWindow('download-progress', {
-      ...progressObj,
-      percent: Math.round(progressObj.percent),
-    });
+    // Only send progress if it increased (prevents backward jumps)
+    if (roundedPercent > lastReportedProgress) {
+      lastReportedProgress = roundedPercent;
+
+      const log_message = `Download: ${roundedPercent}% (${progressObj.transferred}/${progressObj.total}) @ ${Math.round(progressObj.bytesPerSecond / 1024)} KB/s`;
+      log.info(log_message);
+
+      sendStatusToWindow('download-progress', {
+        ...progressObj,
+        percent: roundedPercent,
+      });
+    }
   });
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
@@ -503,12 +522,19 @@ async function githubAutoDownload(
   latestVersion: string,
   contextLabel = ''
 ): Promise<void> {
+  // Reset progress tracking for new download
+  lastReportedProgress = 0;
+
   try {
     const downloadResult = await githubUpdater.downloadUpdate(
       downloadUrl,
       latestVersion,
       (percent) => {
-        sendStatusToWindow('download-progress', { percent });
+        // Only send if progress increased (monotonic)
+        if (percent > lastReportedProgress) {
+          lastReportedProgress = percent;
+          sendStatusToWindow('download-progress', { percent });
+        }
       }
     );
 
