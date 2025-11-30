@@ -7,9 +7,8 @@ Allow: /
 # Sitemap
 Sitemap: https://block.github.io/goose/sitemap.xml
 
-# LLM context file
-# See https://llmstxt.org/ for more information
-LLMs-txt: https://block.github.io/goose/llms.txt
+# LLM context file available at /llms.txt
+
 
 # AI crawlers are welcome
 User-agent: GPTBot
