@@ -167,7 +167,7 @@ impl Client {
     }
 
     pub async fn get_provider_models(&self, provider: &str) -> Result<Vec<String>> {
-        self.get(&format!("/config/providers/{}/models", provider))
+        self.get(&format!("/config/providers/{provider}/models"))
             .send()
             .await
             .context("Failed to fetch provider models")
@@ -239,7 +239,7 @@ impl Client {
     }
 
     pub async fn remove_config_extension(&self, name: &str) -> Result<()> {
-        self.delete(&format!("/config/extensions/{}", name))
+        self.delete(&format!("/config/extensions/{name}"))
             .send_empty()
             .await
             .context("Failed to remove config extension")
@@ -322,7 +322,7 @@ impl Client {
     }
 
     pub async fn export_session(&self, session_id: &str) -> Result<String> {
-        self.get(&format!("/sessions/{}/export", session_id))
+        self.get(&format!("/sessions/{session_id}/export"))
             .send()
             .await
             .context("Failed to export session")
