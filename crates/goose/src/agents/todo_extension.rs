@@ -158,6 +158,8 @@ impl TodoClient {
                     - Task tracking and progress updates
                     - Important notes and reminders
 
+                    Update TODO after each step - it's the user's window into your progress.
+
                     WARNING: This operation completely replaces the existing content. Always include
                     all content you want to keep, not just the changes.
                 "#}
