@@ -140,11 +140,23 @@ function BaseChatContent({
 
     const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
-    // Only submit initial message if:
-    // 1. We have an initial message
-    // 2. The session has no messages yet (truly new)
-    // 3. We haven't already submitted (hasAutoSubmittedRef)
-    if (initialMessage && session.message_count === 0 && messages.length === 0) {
+    // Handle different scenarios:
+    // 1. Forked session with edited message - shouldStartAgent is true and we have initialMessage
+    // 2. Brand new session with initial message - no messages yet
+    // 3. Resume with shouldStartAgent - continue existing conversation
+
+    if (shouldStartAgent && initialMessage) {
+      // This is a forked session with an edited message to submit
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+
+      // Clear the initial message from active sessions to prevent re-submission
+      window.dispatchEvent(
+        new CustomEvent('clear-initial-message', {
+          detail: { sessionId },
+        })
+      );
+    } else if (initialMessage && session.message_count === 0 && messages.length === 0) {
       // Submit the initial message only for brand new sessions
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
@@ -155,8 +167,8 @@ function BaseChatContent({
           detail: { sessionId },
         })
       );
-    } else if (shouldStartAgent) {
-      // Trigger agent to continue with existing conversation
+    } else if (shouldStartAgent && !initialMessage) {
+      // Trigger agent to continue with existing conversation (no new message)
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
@@ -257,6 +269,9 @@ function BaseChatContent({
         editedMessage?: string;
       }>;
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+
+      // Dispatch session-created event to refresh the sidebar
+      window.dispatchEvent(new CustomEvent('session-created'));
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);

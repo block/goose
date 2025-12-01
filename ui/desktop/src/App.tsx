@@ -123,15 +123,15 @@ const PairRouteWrapper = ({
   ]);
 
   // Add resumed session to active sessions if not already there
-  // Don't include initialMessage for resumed sessions - they already have their messages
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
       const resumedSession = {
         sessionId: resumeSessionId,
-        initialMessage: undefined, // Explicitly undefined to prevent re-submission
+        // Pass initialMessage from route state if it exists (e.g., for forked sessions)
+        // BaseChat will determine whether to submit it based on session state
+        initialMessage: initialMessage,
       };
 
-      // For resumed sessions, explicitly set initialMessage to undefined
       setActiveSessions([...activeSessions, resumedSession]);
     }
   }, [resumeSessionId, activeSessions, setActiveSessions, initialMessage]);
