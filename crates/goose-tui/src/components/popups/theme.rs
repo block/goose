@@ -27,7 +27,7 @@ impl Default for ThemePopup {
 impl ThemePopup {
     pub fn new() -> Self {
         Self {
-            list_state: ListState::default().with_selected(Some(0)),
+            list_state: ListState::default(),
             original_theme: None,
         }
     }
@@ -48,6 +48,8 @@ impl ThemePopup {
 impl Component for ThemePopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
         if state.active_popup != ActivePopup::ThemePicker {
+            self.original_theme = None;
+            self.list_state.select(None);
             return Ok(None);
         }
 
@@ -59,7 +61,7 @@ impl Component for ThemePopup {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => {
                     if let Some(original) = self.original_theme.take() {
-                        return Ok(Some(Action::PreviewTheme(original)));
+                        return Ok(Some(Action::ChangeTheme(original)));
                     }
                     return Ok(Some(Action::ClosePopup));
                 }
@@ -93,6 +95,14 @@ impl Component for ThemePopup {
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
         let names = Theme::all_names();
+
+        if self.list_state.selected().is_none() {
+            let current_idx = names
+                .iter()
+                .position(|n| n.eq_ignore_ascii_case(&state.config.theme.name))
+                .unwrap_or(0);
+            self.list_state.select(Some(current_idx));
+        }
 
         let area = centered_rect(30, 50, area);
         f.render_widget(Clear, area);
