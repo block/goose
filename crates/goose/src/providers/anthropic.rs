@@ -240,9 +240,7 @@ impl Provider for AnthropicProvider {
 
         let mut models: Vec<String> = arr
             .iter()
-            .filter_map(|m| {
-                m.get("id").and_then(|v| v.as_str()).map(str::to_string)
-            })
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
         Ok(Some(models))
