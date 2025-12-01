@@ -26,9 +26,10 @@ pub async fn inject_moim(
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
-        let has_unexpected_issues = issues
-            .iter()
-            .any(|issue| !issue.contains("Merged consecutive user messages"));
+        let has_unexpected_issues = issues.iter().any(|issue| {
+            !issue.contains("Merged consecutive user messages")
+                && !issue.contains("Merged consecutive assistant messages")
+        });
 
         if has_unexpected_issues {
             tracing::warn!("MOIM injection caused unexpected issues: {:?}", issues);
