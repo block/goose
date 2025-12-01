@@ -9,6 +9,7 @@
       - script-src: Allow scripts from any origin, inline, eval, wasm, and blob URLs
       - style-src: Allow styles from any origin and inline styles
       - font-src: Allow fonts from any origin
+      - img-src: Allow images from any origin
       - connect-src: Allow network requests to any origin
       - frame-src: Allow embedding iframes from any origin (required for proxy functionality)
       - media-src: Allow audio/video media from any origin
@@ -17,7 +18,7 @@
     -->
     <meta 
       http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; script-src * 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; font-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
+      content="default-src 'self'; script-src * 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; font-src *; img-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
     <title>MCP-UI Proxy</title>
     <style>
       body,
