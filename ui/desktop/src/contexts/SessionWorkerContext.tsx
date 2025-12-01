@@ -1,21 +1,22 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useSessionWorker } from '../hooks/useSessionWorker';
 import { WorkerConfig, SessionState } from '../workers/types';
-import { Message } from '../api';
+import { Message, Session } from '../api';
 
 interface SessionWorkerContextType {
   isReady: boolean;
   initSession: (sessionId: string) => void;
-  loadSession: (sessionId: string) => Promise<void>;
+  loadSession: (sessionId: string) => Promise<SessionState>;
   startStream: (sessionId: string, userMessage: string, messages: Message[]) => Promise<void>;
   stopStream: (sessionId: string) => void;
   destroySession: (sessionId: string) => void;
   getSessionState: (sessionId: string) => Promise<SessionState | null>;
-  getAllSessions: () => SessionState[];
+  updateSession: (sessionId: string, session: Session) => Promise<void>;
   subscribeToSession: (
     sessionId: string,
     callback: (state: Partial<SessionState>) => void
   ) => () => void;
+  waitForReady: () => Promise<void>;
 }
 
 const SessionWorkerContext = createContext<SessionWorkerContextType | null>(null);

@@ -60,6 +60,11 @@ export type WorkerCommand =
       params: Record<string, string>;
     }
   | {
+      type: 'UPDATE_SESSION';
+      sessionId: string;
+      session: Session;
+    }
+  | {
       type: 'GET_ALL_SESSIONS';
     };
 

@@ -144,12 +144,17 @@ function BaseChatContent({
       // Submit the initial message (e.g., from fork)
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
+      window.dispatchEvent(
+        new CustomEvent('session-initial-message-submitted', {
+          detail: { sessionId },
+        })
+      );
     } else if (shouldStartAgent) {
       // Trigger agent to continue with existing conversation
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit]);
+  }, [session, initialMessage, searchParams, handleSubmit, sessionId]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;

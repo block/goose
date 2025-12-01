@@ -9,7 +9,7 @@ import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 
 interface AppLayoutContentProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
@@ -112,28 +112,21 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {/* Keep chat sessions mounted so they persist, but only show on /pair route */}
-        <div
-          style={{
-            display: isOnPairRoute ? 'flex' : 'none',
-            flexDirection: 'column',
-            width: '100%',
-            height: '100%',
-          }}
-        >
-          <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
-        </div>
-        {/* Show regular outlet content when not on /pair route */}
-        <div style={{ display: isOnPairRoute ? 'none' : 'block', width: '100%', height: '100%' }}>
+        {isOnPairRoute ? (
+          <>
+            <Outlet />
+            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+          </>
+        ) : (
           <Outlet />
-        </div>
+        )}
       </SidebarInset>
     </div>
   );
 };
 
 interface AppLayoutProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {

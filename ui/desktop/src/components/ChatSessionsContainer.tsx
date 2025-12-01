@@ -4,13 +4,13 @@ import { ChatType } from '../types/chat';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
 }
 
 /**
- * Container that keeps all active chat sessions mounted but only displays
- * the one matching the current URL parameter. This allows sessions to continue
- * streaming in the background without being unmounted.
+ * Container that mounts only the active chat session to reduce DOM overhead.
+ * The web worker continues to manage all session states in the background,
+ * allowing multiple sessions to stream simultaneously.
  */
 export default function ChatSessionsContainer({
   setChat,
@@ -18,35 +18,29 @@ export default function ChatSessionsContainer({
 }: ChatSessionsContainerProps) {
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
-  if (activeSessions.length === 0) {
+  const activeSession = activeSessions.find((s) => s.sessionId === currentSessionId);
+
+  // If we have a currentSessionId but no activeSession, we still want to render BaseChat
+  // This handles the case where we refresh the page on a session URL
+  if (!currentSessionId) {
     return null;
   }
 
-  return (
-    <>
-      {activeSessions.map(({ sessionId, initialMessage }) => {
-        const isActive = sessionId === currentSessionId;
+  // If we have an activeSession in our state, use its data
+  // Otherwise, we're resuming a session after refresh - BaseChat will handle loading
+  const sessionId = activeSession?.sessionId || currentSessionId;
+  // Only pass initial message for brand new sessions that were just created
+  // This prevents re-submitting when resuming existing sessions
+  const shouldPassInitialMessage = activeSession?.isNewSession && activeSession.initialMessage;
 
-        return (
-          <div
-            key={sessionId}
-            style={{
-              display: isActive ? 'flex' : 'none',
-              flexDirection: 'column',
-              width: '100%',
-              height: '100%',
-            }}
-          >
-            <BaseChat
-              setChat={setChat}
-              sessionId={sessionId}
-              initialMessage={initialMessage}
-              suppressEmptyState={false}
-              isActiveSession={isActive}
-            />
-          </div>
-        );
-      })}
-    </>
+  return (
+    <BaseChat
+      key={sessionId}
+      setChat={setChat}
+      sessionId={sessionId}
+      initialMessage={shouldPassInitialMessage ? activeSession.initialMessage : undefined}
+      suppressEmptyState={false}
+      isActiveSession={true}
+    />
   );
 }

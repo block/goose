@@ -85,7 +85,7 @@ export function useChatStreamWorker({
 
   // Load session on mount or sessionId change
   useEffect(() => {
-    if (!sessionId || !worker.isReady) {
+    if (!sessionId) {
       return;
     }
 
@@ -93,6 +93,7 @@ export function useChatStreamWorker({
 
     (async () => {
       try {
+        await worker.waitForReady();
         const existingState = await worker.getSessionState(sessionId);
 
         if (cancelled) {
@@ -126,13 +127,12 @@ export function useChatStreamWorker({
           setSession(undefined);
           setSessionLoadError(undefined);
           setChatState(ChatState.LoadingConversation);
-          await worker.loadSession(sessionId);
+
+          const state = await worker.loadSession(sessionId);
 
           if (cancelled) {
             return;
           }
-
-          const state = await worker.getSessionState(sessionId);
 
           if (state) {
             setSession(state.session);
@@ -159,11 +159,11 @@ export function useChatStreamWorker({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, worker.isReady, worker, updateMessages, onSessionLoaded]);
+  }, [sessionId, worker, updateMessages, onSessionLoaded]);
 
   // Subscribe to session updates from worker
   useEffect(() => {
-    if (!sessionId || !worker.isReady) return;
+    if (!sessionId) return;
 
     return worker.subscribeToSession(sessionId, (update) => {
       console.log('[useChatStreamWorker] Received update:', update);
@@ -196,7 +196,7 @@ export function useChatStreamWorker({
         onFinish(update.error);
       }
     });
-  }, [sessionId, worker.isReady, worker, updateMessages, onFinish]);
+  }, [sessionId, worker, updateMessages, onFinish]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
@@ -248,15 +248,17 @@ export function useChatStreamWorker({
           throwOnError: true,
         });
         // TODO(Douwe): get this from the server instead of emulating it here
-        setSession({
+        const updatedSession = {
           ...session,
           user_recipe_values,
-        });
+        };
+        setSession(updatedSession);
+        await worker.updateSession(sessionId, updatedSession);
       } else {
         setSessionLoadError("can't call setRecipeParams without a session");
       }
     },
-    [sessionId, session]
+    [sessionId, session, worker]
   );
 
   useEffect(() => {

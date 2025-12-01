@@ -109,6 +109,19 @@ self.onmessage = async (event: MessageEvent<WorkerCommand>) => {
         break;
       }
 
+      case 'UPDATE_SESSION': {
+        const state = sessionManager.getSessionState(message.sessionId);
+        if (state) {
+          state.session = message.session;
+          postMessage({
+            type: 'SESSION_UPDATE',
+            sessionId: message.sessionId,
+            state: { session: message.session },
+          } as WorkerResponse);
+        }
+        break;
+      }
+
       case 'GET_ALL_SESSIONS': {
         const sessions = sessionManager.getAllSessions();
         postMessage({

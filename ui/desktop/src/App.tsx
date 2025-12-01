@@ -55,8 +55,10 @@ const PairRouteWrapper = ({
   activeSessions,
   setActiveSessions,
 }: {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
-  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: string }>) => void;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
+  setActiveSessions: (
+    sessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>
+  ) => void;
 }) => {
   const location = useLocation();
   const routeState =
@@ -67,7 +69,6 @@ const PairRouteWrapper = ({
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeId = searchParams.get('recipeId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
-
   const initialMessage = routeState.initialMessage;
 
   useEffect(() => {
@@ -78,7 +79,8 @@ const PairRouteWrapper = ({
       !isCreatingSession
     ) {
       console.log(
-        '[PairRouteWrapper] Creating new session for initialMessage, recipeId, or recipeDeeplink from config'
+        '[PairRouteWrapper] Creating new session for initialMessage, recipeId, or recipeDeeplink from config',
+        { initialMessage, recipeId, recipeDeeplinkFromConfig }
       );
       setIsCreatingSession(true);
 
@@ -89,8 +91,16 @@ const PairRouteWrapper = ({
             recipeDeeplink: recipeDeeplinkFromConfig,
           });
 
-          // Add to active sessions
-          setActiveSessions([...activeSessions, { sessionId: newSession.id, initialMessage }]);
+          // Add to active sessions and mark as new so the initial message gets submitted
+          // Only new sessions should have initialMessage
+          setActiveSessions([
+            ...activeSessions,
+            {
+              sessionId: newSession.id,
+              initialMessage, // Only for new sessions
+              isNewSession: true,
+            },
+          ]);
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
@@ -116,10 +126,17 @@ const PairRouteWrapper = ({
   ]);
 
   // Add resumed session to active sessions if not already there
-  // Include the initialMessage from route state when adding the session
+  // Don't include initialMessage for resumed sessions - they already have their messages
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
-      setActiveSessions([...activeSessions, { sessionId: resumeSessionId, initialMessage }]);
+      const resumedSession = {
+        sessionId: resumeSessionId,
+        initialMessage: undefined, // Explicitly undefined to prevent re-submission
+        isNewSession: false,
+      };
+
+      // For resumed sessions, explicitly set initialMessage to undefined and mark as not new
+      setActiveSessions([...activeSessions, resumedSession]);
     }
   }, [resumeSessionId, activeSessions, setActiveSessions, initialMessage]);
 
@@ -337,8 +354,62 @@ export function AppInner() {
   });
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: string }>
+    Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>
   >([]);
+
+  useEffect(() => {
+    const handleAddActiveSession = (event: CustomEvent) => {
+      const { sessionId, initialMessage, isNewSession } = event.detail;
+
+      setActiveSessions((prev) => {
+        const existingSession = prev.find((s) => s.sessionId === sessionId);
+        if (existingSession) {
+          return prev;
+        }
+
+        const newSession = { sessionId, initialMessage, isNewSession: isNewSession || false };
+
+        return [...prev, newSession];
+      });
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    window.addEventListener('add-active-session', handleAddActiveSession as any);
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      window.removeEventListener('add-active-session', handleAddActiveSession as any);
+    };
+  }, []);
+
+  // Listen for when a session's initial message has been submitted
+  useEffect(() => {
+    const handleSessionInitialMessageSubmitted = (event: CustomEvent) => {
+      const { sessionId } = event.detail;
+
+      setActiveSessions((prev) => {
+        return prev.map((session) => {
+          if (session.sessionId === sessionId) {
+            // Clear the isNewSession flag and initialMessage to prevent re-submission
+            return { ...session, isNewSession: false, initialMessage: undefined };
+          }
+          return session;
+        });
+      });
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    window.addEventListener(
+      'session-initial-message-submitted',
+      handleSessionInitialMessageSubmitted as any
+    );
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      window.removeEventListener(
+        'session-initial-message-submitted',
+        handleSessionInitialMessageSubmitted as any
+      );
+    };
+  }, []);
 
   const { addExtension } = useConfig();
   const { loadCurrentChat } = useAgent();
