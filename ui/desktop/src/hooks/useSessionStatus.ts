@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSessionWorkerContext } from '../contexts/SessionWorkerContext';
-import { StreamState } from '../workers/types';
+import { useState, useCallback, useRef, useEffect } from 'react';
+
+export type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
 
 export interface SessionStatus {
   sessionId: string;
@@ -12,11 +12,11 @@ export interface SessionStatus {
 }
 
 /**
- * Hook to track status of all sessions in the worker
+ * Hook to track status of all sessions
  * Provides streaming state, message counts, and unread indicators
+ * Sessions update their own status via global events
  */
 export function useSessionStatus() {
-  const worker = useSessionWorkerContext();
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
@@ -26,16 +26,73 @@ export function useSessionStatus() {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
 
-  const trackSession = useCallback(
-    (sessionId: string) => {
-      if (trackedSessionsRef.current.has(sessionId)) {
-        return;
-      }
-
-      trackedSessionsRef.current.add(sessionId);
+  // Listen for session status updates from BaseChat components
+  useEffect(() => {
+    const handleSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { sessionId, streamState, messageCount } = customEvent.detail;
 
       setSessionStatuses((prev) => {
         const newMap = new Map(prev);
+        const existing = newMap.get(sessionId) || {
+          sessionId,
+          streamState: 'idle' as StreamState,
+          messageCount: 0,
+          lastUpdated: Date.now(),
+          hasUnreadActivity: false,
+          lastMarkedActiveAt: undefined,
+        };
+
+        const wasStreaming = existing.streamState === 'streaming';
+        const isNowStreaming = streamState === 'streaming';
+        const isNowIdle = streamState === 'idle';
+        const streamJustFinished = wasStreaming && isNowIdle;
+        const streamJustStarted = !wasStreaming && isNowStreaming;
+        const hasNewMessages = messageCount > existing.messageCount;
+        const isBackgroundSession = sessionId !== activeSessionIdRef.current;
+
+        // Don't set unread if session was just marked active (within last 2 seconds)
+        const now = Date.now();
+        const wasRecentlyMarkedActive =
+          existing.lastMarkedActiveAt && now - existing.lastMarkedActiveAt < 2000;
+
+        // Set unread if: background session AND NOT recently marked active AND (stream just finished OR has new messages OR stream just started)
+        const shouldSetUnread =
+          isBackgroundSession &&
+          !wasRecentlyMarkedActive &&
+          (streamJustFinished || streamJustStarted || hasNewMessages);
+
+        const newStatus: SessionStatus = {
+          ...existing,
+          streamState: streamState || existing.streamState,
+          messageCount: messageCount ?? existing.messageCount,
+          lastUpdated: Date.now(),
+          hasUnreadActivity: existing.hasUnreadActivity || shouldSetUnread,
+          lastMarkedActiveAt: existing.lastMarkedActiveAt,
+        };
+
+        newMap.set(sessionId, newStatus);
+        return newMap;
+      });
+    };
+
+    // Listen for session updates from BaseChat components
+    window.addEventListener('session-status-update', handleSessionUpdate);
+    return () => {
+      window.removeEventListener('session-status-update', handleSessionUpdate);
+    };
+  }, []);
+
+  const trackSession = useCallback((sessionId: string) => {
+    if (trackedSessionsRef.current.has(sessionId)) {
+      return;
+    }
+
+    trackedSessionsRef.current.add(sessionId);
+
+    setSessionStatuses((prev) => {
+      const newMap = new Map(prev);
+      if (!newMap.has(sessionId)) {
         newMap.set(sessionId, {
           sessionId,
           streamState: 'idle',
@@ -43,60 +100,10 @@ export function useSessionStatus() {
           lastUpdated: Date.now(),
           hasUnreadActivity: false,
         });
-        return newMap;
-      });
-
-      if (worker.isReady) {
-        worker.subscribeToSession(sessionId, (update) => {
-          setSessionStatuses((prev) => {
-            const newMap = new Map(prev);
-            const existing = newMap.get(sessionId) || {
-              sessionId,
-              streamState: 'idle' as StreamState,
-              messageCount: 0,
-              lastUpdated: Date.now(),
-              hasUnreadActivity: false,
-            };
-
-            const wasStreaming = existing.streamState === 'streaming';
-            const isNowStreaming = update.streamState === 'streaming';
-            const isNowIdle = update.streamState === 'idle';
-            const streamJustFinished = wasStreaming && isNowIdle;
-            const streamJustStarted = !wasStreaming && isNowStreaming;
-            const hasNewMessages =
-              update.messages !== undefined && update.messages.length > existing.messageCount;
-            const isBackgroundSession = sessionId !== activeSessionIdRef.current;
-
-            // Don't set unread if session was just marked active (within last 2 seconds)
-            // This prevents race conditions where updates arrive after marking active
-            const now = Date.now();
-            const wasRecentlyMarkedActive =
-              existing.lastMarkedActiveAt && now - existing.lastMarkedActiveAt < 2000;
-
-            // Calculate if we should SET unread (but never clear it here - only markSessionActive clears)
-            // Set unread if: background session AND NOT recently marked active AND (stream just finished OR has new messages OR stream just started)
-            const shouldSetUnread =
-              isBackgroundSession &&
-              !wasRecentlyMarkedActive &&
-              (streamJustFinished || streamJustStarted || hasNewMessages);
-
-            const newStatus: SessionStatus = {
-              ...existing,
-              streamState: update.streamState || existing.streamState,
-              messageCount: update.messages?.length ?? existing.messageCount,
-              lastUpdated: Date.now(),
-              hasUnreadActivity: existing.hasUnreadActivity || shouldSetUnread,
-              lastMarkedActiveAt: existing.lastMarkedActiveAt,
-            };
-
-            newMap.set(sessionId, newStatus);
-            return newMap;
-          });
-        });
       }
-    },
-    [worker]
-  );
+      return newMap;
+    });
+  }, []);
 
   const setActiveSession = useCallback(
     (sessionId: string) => {
@@ -143,15 +150,6 @@ export function useSessionStatus() {
     },
     [trackSession]
   );
-
-  useEffect(() => {
-    if (!worker.isReady) return;
-    const subscriptions = new Map<string, () => void>();
-    return () => {
-      subscriptions.forEach((unsubscribe) => unsubscribe());
-      subscriptions.clear();
-    };
-  }, [worker.isReady, worker, activeSessionId]);
 
   const getSessionStatus = useCallback(
     (sessionId: string): SessionStatus | undefined => {

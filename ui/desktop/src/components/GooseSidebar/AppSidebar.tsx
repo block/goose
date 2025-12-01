@@ -216,18 +216,16 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
         try {
           const response = await listSessions<true>({ throwOnError: true });
-          const newSessions = response.data.sessions.slice(0, 10);
+          const sessions = response.data.sessions.slice(0, 10);
+          setRecentSessions(sessions);
 
-          setRecentSessions(newSessions);
-
-          const sessionWithDefaultName = newSessions.find((s) => {
-            const hasDefaultName =
+          const sessionWithDefaultName = sessions.find(
+            (s) =>
               s.name === DEFAULT_CHAT_TITLE ||
               s.name === 'Pair Chat' ||
               s.name === 'New Chat' ||
-              s.name.startsWith('New chat ');
-            return hasDefaultName;
-          });
+              s.name.startsWith('New chat ')
+          );
 
           const shouldContinue = pollCount < maxPolls && (sessionWithDefaultName || pollCount < 5);
 

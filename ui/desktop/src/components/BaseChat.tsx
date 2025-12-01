@@ -22,7 +22,7 @@ import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
-import { useChatStreamWorker } from '../hooks/useChatStreamWorker';
+import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -113,10 +113,37 @@ function BaseChatContent({
     tokenState,
     notifications: toolCallNotifications,
     onMessageUpdate,
-  } = useChatStreamWorker({
+  } = useChatStream({
     sessionId,
     onStreamFinish,
   });
+
+  // Emit session status updates for the sidebar
+  useEffect(() => {
+    // Map ChatState to StreamState
+    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    if (chatState === ChatState.LoadingConversation) {
+      streamState = 'loading';
+    } else if (
+      chatState === ChatState.Streaming ||
+      chatState === ChatState.Thinking ||
+      chatState === ChatState.Compacting
+    ) {
+      streamState = 'streaming';
+    } else if (sessionLoadError) {
+      streamState = 'error';
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('session-status-update', {
+        detail: {
+          sessionId,
+          streamState,
+          messageCount: messages.length,
+        },
+      })
+    );
+  }, [sessionId, chatState, messages.length, sessionLoadError]);
 
   // Generate command history from user messages (most recent first)
   const commandHistory = useMemo(() => {
@@ -138,7 +165,9 @@ function BaseChatContent({
       return;
     }
 
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+    const currentSessionId = searchParams.get('resumeSessionId');
+    const isCurrentSession = currentSessionId === sessionId;
+    const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
 
     // Handle different scenarios:
     // 1. Forked session with edited message - shouldStartAgent is true and we have initialMessage

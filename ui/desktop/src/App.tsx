@@ -40,9 +40,7 @@ import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
-import { SessionWorkerProvider } from './contexts/SessionWorkerContext';
 import { SessionStatusProvider } from './contexts/SessionStatusContext';
-import { WorkerConfig } from './workers/types';
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -320,34 +318,10 @@ export function AppInner() {
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
-  const [workerConfig, setWorkerConfig] = useState<WorkerConfig | null>(null);
 
   const navigate = useNavigate();
   const setView = useNavigation();
   const location = useLocation();
-
-  // Initialize worker config
-  useEffect(() => {
-    (async () => {
-      try {
-        const apiHost = window.appConfig?.get('GOOSE_API_HOST') as string;
-        const port = window.appConfig?.get('GOOSE_PORT') as number;
-        const secretKey = await window.electron.getSecretKey();
-
-        if (apiHost && port && secretKey) {
-          setWorkerConfig({
-            apiBaseUrl: `${apiHost}:${port}`,
-            secretKey,
-            maxConcurrentSessions: 10,
-            maxMessagesPerSession: 1000,
-          });
-          console.log('[App] Worker config initialized:', { apiHost, port });
-        }
-      } catch (error) {
-        console.error('[App] Failed to initialize worker config:', error);
-      }
-    })();
-  }, []);
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -640,105 +614,95 @@ export function AppInner() {
     return <ErrorUI error={errorMessage(fatalError)} />;
   }
 
-  if (!workerConfig) {
-    return (
-      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex items-center justify-center">
-        <div className="text-text-default">Initializing...</div>
-      </div>
-    );
-  }
-
   return (
-    <SessionWorkerProvider config={workerConfig}>
-      <SessionStatusProvider>
-        <ToastContainer
-          aria-label="Toast notifications"
-          toastClassName={() =>
-            `relative min-h-16 mb-4 p-2 rounded-lg
+    <SessionStatusProvider>
+      <ToastContainer
+        aria-label="Toast notifications"
+        toastClassName={() =>
+          `relative min-h-16 mb-4 p-2 rounded-lg
                flex justify-between overflow-hidden cursor-pointer
                text-text-on-accent bg-background-inverse
               `
-          }
-          style={{ width: '450px' }}
-          className="mt-6"
-          position="top-right"
-          autoClose={3000}
-          closeOnClick
-          pauseOnHover
-        />
-        <ExtensionInstallModal addExtension={addExtension} setView={setView} />
-        <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
-          <div className="titlebar-drag-region" />
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <Routes>
-              <Route path="launcher" element={<LauncherView />} />
+        }
+        style={{ width: '450px' }}
+        className="mt-6"
+        position="top-right"
+        autoClose={3000}
+        closeOnClick
+        pauseOnHover
+      />
+      <ExtensionInstallModal addExtension={addExtension} setView={setView} />
+      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
+        <div className="titlebar-drag-region" />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <Routes>
+            <Route path="launcher" element={<LauncherView />} />
+            <Route
+              path="welcome"
+              element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
+            />
+            <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+            <Route
+              path="/"
+              element={
+                <ProviderGuard didSelectProvider={didSelectProvider}>
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="hub"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
+                    <AppLayout activeSessions={activeSessions} />
+                  </ChatProvider>
+                </ProviderGuard>
+              }
+            >
               <Route
-                path="welcome"
-                element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
+                index
+                element={<HubRouteWrapper isExtensionsLoading={isExtensionsLoading} />}
               />
-              <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
               <Route
-                path="/"
+                path="pair"
                 element={
-                  <ProviderGuard didSelectProvider={didSelectProvider}>
-                    <ChatProvider
-                      chat={chat}
-                      setChat={setChat}
-                      contextKey="hub"
-                      agentWaitingMessage={agentWaitingMessage}
-                    >
-                      <AppLayout activeSessions={activeSessions} />
-                    </ChatProvider>
-                  </ProviderGuard>
+                  <PairRouteWrapper
+                    activeSessions={activeSessions}
+                    setActiveSessions={setActiveSessions}
+                  />
                 }
-              >
-                <Route
-                  index
-                  element={<HubRouteWrapper isExtensionsLoading={isExtensionsLoading} />}
-                />
-                <Route
-                  path="pair"
-                  element={
-                    <PairRouteWrapper
-                      activeSessions={activeSessions}
-                      setActiveSessions={setActiveSessions}
-                    />
-                  }
-                />
-                <Route path="settings" element={<SettingsRoute />} />
-                <Route
-                  path="extensions"
-                  element={
-                    <ChatProvider
-                      chat={chat}
-                      setChat={setChat}
-                      contextKey="extensions"
-                      agentWaitingMessage={agentWaitingMessage}
-                    >
-                      <ExtensionsRoute />
-                    </ChatProvider>
-                  }
-                />
-                <Route path="sessions" element={<SessionsRoute />} />
-                <Route path="schedules" element={<SchedulesRoute />} />
-                <Route path="recipes" element={<RecipesRoute />} />
-                <Route
-                  path="shared-session"
-                  element={
-                    <SharedSessionRouteWrapper
-                      isLoadingSharedSession={isLoadingSharedSession}
-                      setIsLoadingSharedSession={setIsLoadingSharedSession}
-                      sharedSessionError={sharedSessionError}
-                    />
-                  }
-                />
-                <Route path="permission" element={<PermissionRoute />} />
-              </Route>
-            </Routes>
-          </div>
+              />
+              <Route path="settings" element={<SettingsRoute />} />
+              <Route
+                path="extensions"
+                element={
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="extensions"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
+                    <ExtensionsRoute />
+                  </ChatProvider>
+                }
+              />
+              <Route path="sessions" element={<SessionsRoute />} />
+              <Route path="schedules" element={<SchedulesRoute />} />
+              <Route path="recipes" element={<RecipesRoute />} />
+              <Route
+                path="shared-session"
+                element={
+                  <SharedSessionRouteWrapper
+                    isLoadingSharedSession={isLoadingSharedSession}
+                    setIsLoadingSharedSession={setIsLoadingSharedSession}
+                    sharedSessionError={sharedSessionError}
+                  />
+                }
+              />
+              <Route path="permission" element={<PermissionRoute />} />
+            </Route>
+          </Routes>
         </div>
-      </SessionStatusProvider>
-    </SessionWorkerProvider>
+      </div>
+    </SessionStatusProvider>
   );
 }
 

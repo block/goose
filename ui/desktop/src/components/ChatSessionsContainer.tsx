@@ -8,9 +8,9 @@ interface ChatSessionsContainerProps {
 }
 
 /**
- * Container that mounts only the active chat session to reduce DOM overhead.
- * The web worker continues to manage all session states in the background,
- * allowing multiple sessions to stream simultaneously.
+ * Container that mounts ALL active chat sessions to keep them alive.
+ * Uses CSS to show/hide sessions based on the current URL parameter.
+ * This allows multiple sessions to stream simultaneously in the background.
  */
 export default function ChatSessionsContainer({
   setChat,
@@ -18,29 +18,42 @@ export default function ChatSessionsContainer({
 }: ChatSessionsContainerProps) {
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
-  const activeSession = activeSessions.find((s) => s.sessionId === currentSessionId);
 
-  // If we have a currentSessionId but no activeSession, we still want to render BaseChat
-  // This handles the case where we refresh the page on a session URL
+  // If no current session, don't render anything
   if (!currentSessionId) {
     return null;
   }
 
-  // If we have an activeSession in our state, use its data
-  // Otherwise, we're resuming a session after refresh - BaseChat will handle loading
-  const sessionId = activeSession?.sessionId || currentSessionId;
-  // Pass initial message if it exists - BaseChat will determine whether to submit it
-  // based on whether the session has messages already
-  const initialMessage = activeSession?.initialMessage;
+  // Check if the current session is in our active sessions
+  const isActiveSession = activeSessions.some((s) => s.sessionId === currentSessionId);
+
+  // If the current session isn't in active sessions, we need to render it anyway
+  // (handles page refresh case)
+  const sessionsToRender = isActiveSession
+    ? activeSessions
+    : [...activeSessions, { sessionId: currentSessionId }];
 
   return (
-    <BaseChat
-      key={sessionId}
-      setChat={setChat}
-      sessionId={sessionId}
-      initialMessage={initialMessage}
-      suppressEmptyState={false}
-      isActiveSession={true}
-    />
+    <div className="relative w-full h-full">
+      {sessionsToRender.map((session) => {
+        const isVisible = session.sessionId === currentSessionId;
+
+        return (
+          <div
+            key={session.sessionId}
+            className={`absolute inset-0 ${isVisible ? 'block' : 'hidden'}`}
+            data-session-id={session.sessionId}
+          >
+            <BaseChat
+              setChat={setChat}
+              sessionId={session.sessionId}
+              initialMessage={session.initialMessage}
+              suppressEmptyState={false}
+              isActiveSession={isVisible}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }
