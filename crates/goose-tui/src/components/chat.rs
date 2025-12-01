@@ -2,7 +2,7 @@ use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, InputMode};
-use crate::utils::ascii_art::GOOSE_LOGO;
+use crate::utils::ascii_art::render_logo_with_gradient;
 use crate::utils::sanitize::sanitize_line;
 use crate::utils::styles::{breathing_color, Theme};
 use crate::utils::termimad_renderer::MarkdownRenderer;
@@ -315,20 +315,21 @@ impl ChatComponent {
 
     fn render_empty_state(&self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
-        let base_color = if state.is_working {
-            theme.status.thinking
+        let start_color = if state.is_working {
+            theme.base.border
         } else {
             match state.input_mode {
                 InputMode::Editing => theme.base.border_active,
                 InputMode::Normal => theme.base.border,
             }
         };
-        let logo_color = breathing_color(base_color, self.frame_count, state.is_working);
+        let end_color = theme.status.thinking;
 
-        let logo_lines: Vec<Line> = GOOSE_LOGO
-            .lines()
-            .map(|l| Line::from(Span::styled(l, Style::default().fg(logo_color))))
-            .collect();
+        let start_breathing = breathing_color(start_color, self.frame_count, state.is_working);
+        let end_breathing = breathing_color(end_color, self.frame_count, state.is_working);
+
+        let logo_lines = render_logo_with_gradient(start_breathing, end_breathing);
+
         let hints = [
             "Tips for getting started:",
             "1. Ask questions, edit files, or run commands.",
@@ -349,7 +350,6 @@ impl ChatComponent {
 
         let inner_area = block.inner(area);
 
-        // Render at top-left, with 2 units of padding from left and top
         let logo_start_y = inner_area.y + 1;
         let logo_start_x = inner_area.x + 2;
 

@@ -35,6 +35,7 @@ pub enum Action {
     OpenSessionPicker,
     ResumeSession(String),
     CreateNewSession,
+    PreviewTheme(String),
     ChangeTheme(String),
     OpenThemePicker,
     ClearChat,

@@ -188,6 +188,11 @@ fn handle_misc(state: &mut AppState, action: &Action) -> bool {
             state.flash_message = Some((message.clone(), Instant::now() + FLASH_DURATION_NORMAL));
             true
         }
+        Action::PreviewTheme(name) => {
+            state.config.theme = crate::utils::styles::Theme::from_name(name);
+            state.needs_refresh = true;
+            true
+        }
         Action::ChangeTheme(name) => {
             state.config.theme = crate::utils::styles::Theme::from_name(name);
             let _ = state.config.save_theme();

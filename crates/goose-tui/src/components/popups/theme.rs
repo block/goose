@@ -15,6 +15,7 @@ use ratatui::Frame;
 
 pub struct ThemePopup {
     list_state: ListState,
+    original_theme: Option<String>,
 }
 
 impl Default for ThemePopup {
@@ -27,14 +28,20 @@ impl ThemePopup {
     pub fn new() -> Self {
         Self {
             list_state: ListState::default().with_selected(Some(0)),
+            original_theme: None,
         }
     }
 
-    fn navigate(&mut self, delta: i32) {
-        let count = Theme::all_names().len();
+    fn navigate(&mut self, delta: i32) -> Option<Action> {
+        let names = Theme::all_names();
+        let count = names.len();
         if let Some(next) = navigate_list(self.list_state.selected(), delta, count) {
             self.list_state.select(Some(next));
+            if let Some(name) = names.get(next) {
+                return Some(Action::PreviewTheme(name.clone()));
+            }
         }
+        None
     }
 }
 
@@ -44,15 +51,29 @@ impl Component for ThemePopup {
             return Ok(None);
         }
 
+        if self.original_theme.is_none() {
+            self.original_theme = Some(state.config.theme.name.clone());
+        }
+
         match event {
             Event::Input(key) => match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
-                KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => self.navigate(1),
-                KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => self.navigate(-1),
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    if let Some(original) = self.original_theme.take() {
+                        return Ok(Some(Action::PreviewTheme(original)));
+                    }
+                    return Ok(Some(Action::ClosePopup));
+                }
+                KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => {
+                    return Ok(self.navigate(1));
+                }
+                KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => {
+                    return Ok(self.navigate(-1));
+                }
                 KeyCode::Enter => {
                     let names = Theme::all_names();
                     if let Some(idx) = self.list_state.selected() {
                         if let Some(name) = names.get(idx) {
+                            self.original_theme = None;
                             return Ok(Some(Action::ChangeTheme(name.clone())));
                         }
                     }
@@ -60,8 +81,8 @@ impl Component for ThemePopup {
                 _ => {}
             },
             Event::Mouse(m) => match m.kind {
-                MouseEventKind::ScrollDown => self.navigate(1),
-                MouseEventKind::ScrollUp => self.navigate(-1),
+                MouseEventKind::ScrollDown => return Ok(self.navigate(1)),
+                MouseEventKind::ScrollUp => return Ok(self.navigate(-1)),
                 _ => {}
             },
             _ => {}
