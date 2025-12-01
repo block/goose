@@ -39,6 +39,7 @@ pub struct DeclarativeProviderConfig {
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
+    pub supports_tool_calling: Option<bool>,
 }
 
 impl DeclarativeProviderConfig {
@@ -121,6 +122,7 @@ pub fn create_custom_provider(
         headers,
         timeout_seconds: None,
         supports_streaming,
+        supports_tool_calling: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -173,6 +175,7 @@ pub fn update_custom_provider(
             headers: existing_config.headers,
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming,
+            supports_tool_calling: existing_config.supports_tool_calling,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", id));
