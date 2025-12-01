@@ -1,3 +1,4 @@
+#[cfg(not(test))]
 use crate::config::Config;
 use crate::conversation::Conversation;
 use crate::session::session_manager::{Session, SessionType};
