@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone } from './icons';
+import { Attach, Send, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -30,6 +30,7 @@ import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import AttachmentSummary from './AttachmentSummary';
 
 interface QueuedMessage {
   id: string;
@@ -1016,9 +1017,54 @@ export default function ChatInput({
   const handleFileSelect = async () => {
     const path = await window.electron.selectFileOrDirectory();
     if (path) {
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
+      // Add the file to the dropped files list instead of the text input
+      try {
+        // Check if it's a file (not a directory) by trying to get file info
+        const pathObj = path.split('/');
+        const fileName = pathObj[pathObj.length - 1];
+        const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileExtension);
+
+        const newFile: DroppedFile = {
+          id: `selected-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          path,
+          name: fileName,
+          type: isImage
+            ? `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`
+            : 'application/octet-stream',
+          isImage,
+          isLoading: isImage, // Will load preview if it's an image
+        };
+
+        setLocalDroppedFiles((prev) => [...prev, newFile]);
+
+        // For images, we'll let the AttachmentSummary component handle loading previews
+        // The path will be available for the LLM to process
+        if (!isImage) {
+          // Mark non-images as ready immediately
+          setLocalDroppedFiles((prev) =>
+            prev.map((f) => (f.id === newFile.id ? { ...f, isLoading: false } : f))
+          );
+        } else {
+          // For images, try to load preview via Electron IPC if available
+          // For now, just mark as not loading - preview can be added later if needed
+          setLocalDroppedFiles((prev) =>
+            prev.map((f) => (f.id === newFile.id ? { ...f, isLoading: false } : f))
+          );
+        }
+      } catch (error) {
+        console.error('Error processing selected file:', error);
+        // Fallback: if we can't process it, add it as a simple file reference
+        const newFile: DroppedFile = {
+          id: `selected-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          path,
+          name: path.split('/').pop() || 'Unknown file',
+          type: 'application/octet-stream',
+          isImage: false,
+          isLoading: false,
+        };
+        setLocalDroppedFiles((prev) => [...prev, newFile]);
+      }
       textAreaRef.current?.focus();
     }
   };
@@ -1337,115 +1383,14 @@ export default function ChatInput({
         </div>
       </form>
 
-      {/* Combined files and images preview */}
-      {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
-          {/* Render pasted images first */}
-          {pastedImages.map((img) => (
-            <div key={img.id} className="relative group w-20 h-20">
-              {img.dataUrl && (
-                <img
-                  src={img.dataUrl}
-                  alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                />
-              )}
-              {img.isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                </div>
-              )}
-              {img.error && !img.isLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                  <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
-                    {img.error.substring(0, 50)}
-                  </p>
-                  {img.dataUrl && (
-                    <Button
-                      type="button"
-                      onClick={() => handleRetryImageSave(img.id)}
-                      title="Retry saving image"
-                      variant="outline"
-                      size="xs"
-                    >
-                      Retry
-                    </Button>
-                  )}
-                </div>
-              )}
-              {!img.isLoading && (
-                <Button
-                  type="button"
-                  shape="round"
-                  onClick={() => handleRemovePastedImage(img.id)}
-                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove image"
-                  variant="outline"
-                  size="xs"
-                >
-                  <Close />
-                </Button>
-              )}
-            </div>
-          ))}
-
-          {/* Render dropped files after pasted images */}
-          {allDroppedFiles.map((file) => (
-            <div key={file.id} className="relative group">
-              {file.isImage ? (
-                // Image preview
-                <div className="w-20 h-20">
-                  {file.dataUrl && (
-                    <img
-                      src={file.dataUrl}
-                      alt={file.name}
-                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
-                    />
-                  )}
-                  {file.isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                    </div>
-                  )}
-                  {file.error && !file.isLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                      <p className="text-red-400 text-[10px] leading-tight break-all">
-                        {file.error.substring(0, 30)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
-                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
-                    {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-textStandard truncate" title={file.name}>
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
-                  </div>
-                </div>
-              )}
-              {!file.isLoading && (
-                <Button
-                  type="button"
-                  shape="round"
-                  onClick={() => handleRemoveDroppedFile(file.id)}
-                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove file"
-                  variant="outline"
-                  size="xs"
-                >
-                  <Close />
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Attachment summary with expandable paths */}
+      <AttachmentSummary
+        images={pastedImages}
+        files={allDroppedFiles}
+        onRemoveImage={handleRemovePastedImage}
+        onRemoveFile={handleRemoveDroppedFile}
+        onRetryImage={handleRetryImageSave}
+      />
 
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
