@@ -152,9 +152,7 @@ export default function SessionSharingSection() {
     }
   };
 
-  const externalSessionsEnabled =
-    config['GOOSE_ENABLE_EXTERNAL_SESSIONS'] === true ||
-    config['GOOSE_ENABLE_EXTERNAL_SESSIONS'] === 'true';
+  const externalSessionsEnabled = config['GOOSE_ENABLE_EXTERNAL_SESSIONS'] === true;
 
   const toggleExternalSessions = async () => {
     await upsert('GOOSE_ENABLE_EXTERNAL_SESSIONS', !externalSessionsEnabled, false);

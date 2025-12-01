@@ -25,6 +25,14 @@ struct ClaudeMessageWrapper {
     content: serde_json::Value,
 }
 
+#[derive(Debug, Clone)]
+pub struct ClaudeSession {
+    pub id: String,
+    pub working_dir: PathBuf,
+    pub updated_at: DateTime<Utc>,
+    file_path: PathBuf,
+}
+
 fn get_home_dir() -> Option<PathBuf> {
     std::env::var("HOME")
         .ok()
@@ -32,14 +40,11 @@ fn get_home_dir() -> Option<PathBuf> {
         .or_else(dirs::home_dir)
 }
 
-pub fn list_claude_code_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
+fn find_all_sessions() -> Result<Vec<ClaudeSession>> {
     let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
     let projects_dir = home.join(".claude").join("projects");
 
-    tracing::debug!("Checking for Claude Code sessions in: {:?}", projects_dir);
-
     if !projects_dir.exists() {
-        tracing::debug!("Claude projects directory does not exist");
         return Ok(Vec::new());
     }
 
@@ -62,31 +67,31 @@ pub fn list_claude_code_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>
             }
 
             let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
             if file_name.starts_with("agent-") || !file_name.ends_with(".jsonl") {
                 continue;
             }
 
-            if let Ok((session_id, working_dir, updated_at)) = parse_session_metadata(&file_path) {
-                tracing::debug!(
-                    "Found Claude session: {} updated at {}",
-                    session_id,
-                    updated_at
-                );
-                sessions.push((session_id, working_dir, updated_at));
+            if let Ok(session) = parse_session_metadata(&file_path) {
+                sessions.push(session);
             }
         }
     }
 
-    tracing::debug!("Total Claude sessions found: {}", sessions.len());
-
-    sessions.sort_by(|a, b| b.2.cmp(&a.2));
+    sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     sessions.truncate(10);
 
     Ok(sessions)
 }
 
-fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateTime<Utc>)> {
+pub fn list_claude_code_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
+    let sessions = find_all_sessions()?;
+    Ok(sessions
+        .into_iter()
+        .map(|s| (s.id, s.working_dir, s.updated_at))
+        .collect())
+}
+
+fn parse_session_metadata(file_path: &PathBuf) -> Result<ClaudeSession> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
@@ -111,42 +116,25 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateT
         }
     }
 
-    let session_id = session_id.ok_or_else(|| anyhow::anyhow!("No session ID found"))?;
-    let working_dir = working_dir.ok_or_else(|| anyhow::anyhow!("No working dir found"))?;
-    let updated_at = latest_timestamp.unwrap_or_else(Utc::now);
-
-    Ok((session_id, PathBuf::from(working_dir), updated_at))
+    Ok(ClaudeSession {
+        id: session_id.ok_or_else(|| anyhow::anyhow!("No session ID found"))?,
+        working_dir: PathBuf::from(
+            working_dir.ok_or_else(|| anyhow::anyhow!("No working dir found"))?,
+        ),
+        updated_at: latest_timestamp.unwrap_or_else(Utc::now),
+        file_path: file_path.clone(),
+    })
 }
 
 pub fn load_claude_code_session(session_id: &str) -> Result<Conversation> {
-    let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
-    let projects_dir = home.join(".claude").join("projects");
+    let sessions = find_all_sessions()?;
 
-    for entry in std::fs::read_dir(projects_dir)? {
-        let entry = entry?;
-        let project_path = entry.path();
+    let session = sessions
+        .into_iter()
+        .find(|s| s.id == session_id)
+        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
-        if !project_path.is_dir() {
-            continue;
-        }
-
-        for file_entry in std::fs::read_dir(&project_path)? {
-            let file_entry = file_entry?;
-            let file_path = file_entry.path();
-
-            if !file_path.is_file() {
-                continue;
-            }
-
-            let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-            if file_name.contains(session_id) && file_name.ends_with(".jsonl") {
-                return parse_conversation(&file_path);
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!("Session not found"))
+    parse_conversation(&session.file_path)
 }
 
 fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
@@ -251,10 +239,9 @@ mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(SAMPLE_CLAUDE_JSONL.as_bytes()).unwrap();
 
-        let (session_id, working_dir, _timestamp) =
-            parse_session_metadata(&temp_file.path().to_path_buf()).unwrap();
-        assert_eq!(session_id, "f601a187-ac89-4568-9328-c564f9f0d455");
-        assert_eq!(working_dir, PathBuf::from("/Users/test/project"));
+        let session = parse_session_metadata(&temp_file.path().to_path_buf()).unwrap();
+        assert_eq!(session.id, "f601a187-ac89-4568-9328-c564f9f0d455");
+        assert_eq!(session.working_dir, PathBuf::from("/Users/test/project"));
 
         let conversation = parse_conversation(&temp_file.path().to_path_buf()).unwrap();
         assert_eq!(conversation.messages().len(), 2);

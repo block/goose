@@ -31,6 +31,14 @@ struct ResponseItem {
     content: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone)]
+struct CodexSession {
+    id: String,
+    working_dir: PathBuf,
+    updated_at: DateTime<Utc>,
+    file_path: PathBuf,
+}
+
 fn get_home_dir() -> Option<PathBuf> {
     std::env::var("HOME")
         .ok()
@@ -38,14 +46,11 @@ fn get_home_dir() -> Option<PathBuf> {
         .or_else(dirs::home_dir)
 }
 
-pub fn list_codex_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
+fn find_all_sessions() -> Result<Vec<CodexSession>> {
     let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
     let sessions_dir = home.join(".codex").join("sessions");
 
-    tracing::debug!("Checking for Codex sessions in: {:?}", sessions_dir);
-
     if !sessions_dir.exists() {
-        tracing::debug!("Codex sessions directory does not exist");
         return Ok(Vec::new());
     }
 
@@ -84,35 +89,33 @@ pub fn list_codex_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
                     }
 
                     let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
                     if !file_name.starts_with("rollout-") || !file_name.ends_with(".jsonl") {
                         continue;
                     }
 
-                    if let Ok((session_id, working_dir, updated_at)) =
-                        parse_session_metadata(&file_path)
-                    {
-                        tracing::debug!(
-                            "Found Codex session: {} updated at {}",
-                            session_id,
-                            updated_at
-                        );
-                        sessions.push((session_id, working_dir, updated_at));
+                    if let Ok(session) = parse_session_metadata(&file_path) {
+                        sessions.push(session);
                     }
                 }
             }
         }
     }
 
-    tracing::debug!("Total Codex sessions found: {}", sessions.len());
-
-    sessions.sort_by(|a, b| b.2.cmp(&a.2));
+    sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     sessions.truncate(10);
 
     Ok(sessions)
 }
 
-fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateTime<Utc>)> {
+pub fn list_codex_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
+    let sessions = find_all_sessions()?;
+    Ok(sessions
+        .into_iter()
+        .map(|s| (s.id, s.working_dir, s.updated_at))
+        .collect())
+}
+
+fn parse_session_metadata(file_path: &PathBuf) -> Result<CodexSession> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
@@ -123,7 +126,6 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateT
     for line in reader.lines() {
         let line = line?;
         if let Ok(entry) = serde_json::from_str::<CodexJsonLine>(&line) {
-            // Parse session metadata from first line
             if entry.entry_type == "session_meta" {
                 if let Ok(meta) = serde_json::from_value::<SessionMeta>(entry.payload.clone()) {
                     session_id = Some(meta.id);
@@ -137,7 +139,6 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateT
                 }
             }
 
-            // Update latest timestamp from any entry
             if let Some(ts) = entry.timestamp {
                 if let Ok(dt) = DateTime::parse_from_rfc3339(&ts) {
                     latest_timestamp = Some(dt.with_timezone(&Utc));
@@ -146,61 +147,25 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<(String, PathBuf, DateT
         }
     }
 
-    let session_id = session_id.ok_or_else(|| anyhow::anyhow!("No session ID found"))?;
-    let working_dir = working_dir.ok_or_else(|| anyhow::anyhow!("No working dir found"))?;
-    let updated_at = latest_timestamp.unwrap_or_else(Utc::now);
-
-    Ok((session_id, PathBuf::from(working_dir), updated_at))
+    Ok(CodexSession {
+        id: session_id.ok_or_else(|| anyhow::anyhow!("No session ID found"))?,
+        working_dir: PathBuf::from(
+            working_dir.ok_or_else(|| anyhow::anyhow!("No working dir found"))?,
+        ),
+        updated_at: latest_timestamp.unwrap_or_else(Utc::now),
+        file_path: file_path.clone(),
+    })
 }
 
 pub fn load_codex_session(session_id: &str) -> Result<Conversation> {
-    let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
-    let sessions_dir = home.join(".codex").join("sessions");
+    let sessions = find_all_sessions()?;
 
-    // Walk through all directories to find the session file
-    for year_entry in std::fs::read_dir(&sessions_dir)? {
-        let year_entry = year_entry?;
-        let year_path = year_entry.path();
+    let session = sessions
+        .into_iter()
+        .find(|s| s.id == session_id)
+        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
-        if !year_path.is_dir() {
-            continue;
-        }
-
-        for month_entry in std::fs::read_dir(&year_path)? {
-            let month_entry = month_entry?;
-            let month_path = month_entry.path();
-
-            if !month_path.is_dir() {
-                continue;
-            }
-
-            for day_entry in std::fs::read_dir(&month_path)? {
-                let day_entry = day_entry?;
-                let day_path = day_entry.path();
-
-                if !day_path.is_dir() {
-                    continue;
-                }
-
-                for file_entry in std::fs::read_dir(&day_path)? {
-                    let file_entry = file_entry?;
-                    let file_path = file_entry.path();
-
-                    if !file_path.is_file() {
-                        continue;
-                    }
-
-                    let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-                    if file_name.contains(session_id) && file_name.ends_with(".jsonl") {
-                        return parse_conversation(&file_path);
-                    }
-                }
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!("Session not found"))
+    parse_conversation(&session.file_path)
 }
 
 fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
@@ -212,10 +177,8 @@ fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
     for line in reader.lines() {
         let line = line?;
         if let Ok(entry) = serde_json::from_str::<CodexJsonLine>(&line) {
-            // Only process response_item entries
             if entry.entry_type == "response_item" {
                 if let Ok(item) = serde_json::from_value::<ResponseItem>(entry.payload.clone()) {
-                    // Only process message types
                     if item.item_type == "message" {
                         if let Some(role_str) = item.role {
                             let role = match role_str.as_str() {
@@ -227,7 +190,6 @@ fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
                             if let Some(content_value) = item.content {
                                 let content = parse_message_content(&content_value);
 
-                                // Skip environment context messages
                                 if !content.is_empty() {
                                     let text = content
                                         .iter()
@@ -264,13 +226,11 @@ fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
 fn parse_message_content(content_value: &serde_json::Value) -> Vec<MessageContent> {
     let mut result = Vec::new();
 
-    // Handle string content
     if let Some(text) = content_value.as_str() {
         result.push(MessageContent::text(text.to_string()));
         return result;
     }
 
-    // Handle array content
     if let Some(content_array) = content_value.as_array() {
         for item in content_array {
             if let Some(obj) = item.as_object() {
@@ -303,10 +263,9 @@ mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(SAMPLE_CODEX_JSONL.as_bytes()).unwrap();
 
-        let (session_id, working_dir, _timestamp) =
-            parse_session_metadata(&temp_file.path().to_path_buf()).unwrap();
-        assert_eq!(session_id, "019aa37b-9321-7fa3-9b75-eaf925a29a3c");
-        assert_eq!(working_dir, PathBuf::from("/Users/test/project"));
+        let session = parse_session_metadata(&temp_file.path().to_path_buf()).unwrap();
+        assert_eq!(session.id, "019aa37b-9321-7fa3-9b75-eaf925a29a3c");
+        assert_eq!(session.working_dir, PathBuf::from("/Users/test/project"));
 
         let conversation = parse_conversation(&temp_file.path().to_path_buf()).unwrap();
         assert_eq!(conversation.messages().len(), 2);
