@@ -3112,6 +3112,7 @@ dependencies = [
  "chrono",
  "clap",
  "config",
+ "fs2",
  "futures",
  "goose",
  "goose-mcp",

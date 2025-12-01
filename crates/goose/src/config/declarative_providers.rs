@@ -92,6 +92,7 @@ pub fn create_custom_provider(
     api_key: String,
     models: Vec<String>,
     supports_streaming: Option<bool>,
+    headers: Option<HashMap<String, String>>,
 ) -> Result<DeclarativeProviderConfig> {
     let id = generate_id(&display_name);
     let api_key_name = generate_api_key_name(&id);
@@ -117,7 +118,7 @@ pub fn create_custom_provider(
         api_key_env: api_key_name,
         base_url: api_url,
         models: model_infos,
-        headers: None,
+        headers,
         timeout_seconds: None,
         supports_streaming,
     };
