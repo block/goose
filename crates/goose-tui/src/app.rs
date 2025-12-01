@@ -49,7 +49,7 @@ impl<'a> App<'a> {
             info: InfoComponent::new(),
             status: StatusComponent::new(),
             todo_popup: TodoPopup::new(),
-            help_popup: HelpPopup,
+            help_popup: HelpPopup::new(),
             session_popup: SessionPopup::new(),
             builder_popup: BuilderPopup::new(),
             message_popup: MessagePopup::new(),

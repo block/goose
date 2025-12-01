@@ -1,40 +1,72 @@
-use super::popup_block;
+use super::{popup_block, render_hints, PopupScrollState};
 use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{ActivePopup, AppState};
 use crate::utils::layout::centered_rect;
 use anyhow::Result;
-use crossterm::event::KeyCode;
-use ratatui::layout::Rect;
+use crossterm::event::{KeyCode, MouseEventKind};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
-pub struct HelpPopup;
+pub struct HelpPopup {
+    scroll_state: PopupScrollState,
+}
+
+impl Default for HelpPopup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HelpPopup {
+    pub fn new() -> Self {
+        Self {
+            scroll_state: PopupScrollState::new(),
+        }
+    }
+}
 
 impl Component for HelpPopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
         if state.active_popup != ActivePopup::Help {
+            self.scroll_state.reset();
             return Ok(None);
         }
 
-        if let Event::Input(key) = event {
-            match key.code {
+        match event {
+            Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_state.scroll_by(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_state.scroll_by(-1),
                 _ => {}
-            }
+            },
+            Event::Mouse(m) => match m.kind {
+                MouseEventKind::ScrollDown => self.scroll_state.scroll_by(3),
+                MouseEventKind::ScrollUp => self.scroll_state.scroll_by(-3),
+                _ => {}
+            },
+            _ => {}
         }
         Ok(None)
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
-        let area = centered_rect(60, 60, area);
+        let area = centered_rect(60, 70, area);
         f.render_widget(Clear, area);
 
-        let text = vec![
+        let [content_area, hints_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+                .margin(1)
+                .areas(area);
+
+        f.render_widget(popup_block(" Help ", theme), area);
+
+        let lines = vec![
             Line::from(Span::styled(
                 "Goose TUI Help",
                 Style::default()
@@ -105,8 +137,17 @@ impl Component for HelpPopup {
             )),
         ];
 
-        let block = popup_block(" Help (Esc to close) ", theme);
-        f.render_widget(Paragraph::new(text).block(block), area);
+        self.scroll_state.content_height = lines.len() as u16;
+        self.scroll_state.viewport_height = content_area.height;
+        self.scroll_state.clamp();
+
+        let p = Paragraph::new(lines).scroll((self.scroll_state.scroll, 0));
+        f.render_widget(p, content_area);
+
+        self.scroll_state
+            .render_transient_scrollbar(f, content_area);
+
+        render_hints(f, hints_area, theme, &[("↑↓", "scroll"), ("Esc", "close")]);
     }
 }
 
