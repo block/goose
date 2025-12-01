@@ -113,7 +113,7 @@ export RUST_LOG=goose::providers::lead_worker=info
 ```
 
 ## Planning Mode Compatibility
-The lead/worker model is an automatic alternative to the [goose CLI's `/plan` command](/docs/guides/multi-model/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
+The lead/worker model is an automatic alternative to the [goose CLI's `/plan` command](/docs/guides/creating-plans). You can assign separate models to use as the lead/worker and planning models. For example:
 
 ```bash
 export GOOSE_PROVIDER="openai"
