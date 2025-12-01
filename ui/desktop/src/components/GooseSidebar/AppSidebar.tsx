@@ -20,6 +20,7 @@ import { resumeSession, startNewSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSessionStatusContext } from '../../contexts/SessionStatusContext';
+import { isDefaultSessionName } from '../../sessions';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -91,6 +92,9 @@ const SessionList = React.memo<{
           const isStreaming = status?.streamState === 'streaming';
           const hasError = status?.streamState === 'error';
           const hasUnread = status?.hasUnreadActivity ?? false;
+          const displayName = isDefaultSessionName(session.name)
+            ? DEFAULT_CHAT_TITLE
+            : session.name;
 
           return (
             <button
@@ -101,9 +105,9 @@ const SessionList = React.memo<{
                   ? 'bg-background-medium text-text-default'
                   : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
               }`}
-              title={session.name}
+              title={displayName}
             >
-              <span className="flex-1 truncate min-w-0 block">{session.name}</span>
+              <span className="flex-1 truncate min-w-0 block">{displayName}</span>
               <SessionIndicators
                 isStreaming={isStreaming}
                 hasUnread={hasUnread}
@@ -175,13 +179,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         const sessions = response.data.sessions.slice(0, 10);
         setRecentSessions(sessions);
 
-        const hasSessionWithDefaultName = sessions.some(
-          (s) =>
-            s.name === DEFAULT_CHAT_TITLE ||
-            s.name === 'Pair Chat' ||
-            s.name === 'New Chat' ||
-            s.name.startsWith('New chat ')
-        );
+        const hasSessionWithDefaultName = sessions.some((s) => isDefaultSessionName(s.name));
 
         if (hasSessionWithDefaultName) {
           window.dispatchEvent(new CustomEvent('session-needs-name-update'));
@@ -219,13 +217,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           const sessions = response.data.sessions.slice(0, 10);
           setRecentSessions(sessions);
 
-          const sessionWithDefaultName = sessions.find(
-            (s) =>
-              s.name === DEFAULT_CHAT_TITLE ||
-              s.name === 'Pair Chat' ||
-              s.name === 'New Chat' ||
-              s.name.startsWith('New chat ')
-          );
+          const sessionWithDefaultName = sessions.find((s) => isDefaultSessionName(s.name));
 
           const shouldContinue = pollCount < maxPolls && (sessionWithDefaultName || pollCount < 5);
 

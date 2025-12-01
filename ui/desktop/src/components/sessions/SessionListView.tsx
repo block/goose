@@ -30,6 +30,8 @@ import {
   Session,
   updateSessionName,
 } from '../../api';
+import { isDefaultSessionName } from '../../sessions';
+import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -547,6 +549,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      const displayName = isDefaultSessionName(session.name) ? DEFAULT_CHAT_TITLE : session.name;
+
       return (
         <Card
           onClick={handleCardClick}
@@ -554,7 +558,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
+            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 onClick={handleOpenInNewWindowClick}

@@ -19,6 +19,7 @@ import {
   NotificationEvent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { isDefaultSessionName } from '../sessions';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -187,30 +188,20 @@ export function useChatStream({
 
       // After first AI response, check if session name was updated
       // This happens when the AI generates a title for a new conversation
-      if (session && messagesRef.current.length > 0) {
-        const isNewSession =
-          session.name === 'New Chat' ||
-          session.name === 'Pair Chat' ||
-          session.name === 'No Session' ||
-          session.name?.startsWith('New chat ');
+      if (session && messagesRef.current.length > 0 && isDefaultSessionName(session.name)) {
+        try {
+          const { getSession } = await import('../api');
+          const response = await getSession({
+            path: { session_id: sessionId },
+            throwOnError: true,
+          });
 
-        if (isNewSession) {
-          // Fetch updated session to get the new name
-          try {
-            const { getSession } = await import('../api');
-            const response = await getSession({
-              path: { session_id: sessionId },
-              throwOnError: true,
-            });
-
-            if (response.data && response.data.name !== session.name) {
-              setSession(response.data);
-              // Dispatch event to update sidebar
-              window.dispatchEvent(new CustomEvent('session-needs-name-update'));
-            }
-          } catch (error) {
-            console.error('Failed to fetch updated session:', error);
+          if (response.data && response.data.name !== session.name) {
+            setSession(response.data);
+            window.dispatchEvent(new CustomEvent('session-needs-name-update'));
           }
+        } catch (error) {
+          console.error('Failed to fetch updated session:', error);
         }
       }
 

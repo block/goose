@@ -26,7 +26,7 @@ import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
-import { ChatProvider } from './contexts/ChatContext';
+import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import LauncherView from './components/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -323,7 +323,7 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    name: 'Pair Chat',
+    name: DEFAULT_CHAT_TITLE,
     messages: [],
     messageHistoryIndex: 0,
     recipe: null,
