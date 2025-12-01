@@ -9,7 +9,7 @@ import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 
 interface AppLayoutContentProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
@@ -126,7 +126,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 };
 
 interface AppLayoutProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {

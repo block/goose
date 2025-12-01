@@ -140,12 +140,18 @@ function BaseChatContent({
 
     const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
-    if (initialMessage) {
-      // Submit the initial message (e.g., from fork)
+    // Only submit initial message if:
+    // 1. We have an initial message
+    // 2. The session has no messages yet (truly new)
+    // 3. We haven't already submitted (hasAutoSubmittedRef)
+    if (initialMessage && session.message_count === 0 && messages.length === 0) {
+      // Submit the initial message only for brand new sessions
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
+
+      // Clear the initial message from active sessions to prevent re-submission
       window.dispatchEvent(
-        new CustomEvent('session-initial-message-submitted', {
+        new CustomEvent('clear-initial-message', {
           detail: { sessionId },
         })
       );
@@ -154,7 +160,7 @@ function BaseChatContent({
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit, sessionId]);
+  }, [session, initialMessage, searchParams, handleSubmit, sessionId, messages.length]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;

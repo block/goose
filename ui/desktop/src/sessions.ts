@@ -5,11 +5,9 @@ export function resumeSession(session: Session, setView: setViewType) {
   const eventDetail = {
     sessionId: session.id,
     initialMessage: undefined,
-    isNewSession: false,
   };
 
   // Dispatch event to add session to activeSessions
-  // Don't set isNewSession since this is resuming an existing session
   window.dispatchEvent(
     new CustomEvent('add-active-session', {
       detail: eventDetail,
@@ -67,10 +65,9 @@ export async function startNewSession(
   const eventDetail = {
     sessionId: session.id,
     initialMessage: initialText,
-    isNewSession: true,
   };
 
-  // Mark as isNewSession: true so the initial message gets submitted
+  // Add session to active sessions with initial message
   window.dispatchEvent(
     new CustomEvent('add-active-session', {
       detail: eventDetail,

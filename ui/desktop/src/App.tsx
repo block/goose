@@ -55,10 +55,8 @@ const PairRouteWrapper = ({
   activeSessions,
   setActiveSessions,
 }: {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
-  setActiveSessions: (
-    sessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>
-  ) => void;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: string }>) => void;
 }) => {
   const location = useLocation();
   const routeState =
@@ -91,14 +89,13 @@ const PairRouteWrapper = ({
             recipeDeeplink: recipeDeeplinkFromConfig,
           });
 
-          // Add to active sessions and mark as new so the initial message gets submitted
+          // Add to active sessions
           // Only new sessions should have initialMessage
           setActiveSessions([
             ...activeSessions,
             {
               sessionId: newSession.id,
               initialMessage, // Only for new sessions
-              isNewSession: true,
             },
           ]);
 
@@ -132,10 +129,9 @@ const PairRouteWrapper = ({
       const resumedSession = {
         sessionId: resumeSessionId,
         initialMessage: undefined, // Explicitly undefined to prevent re-submission
-        isNewSession: false,
       };
 
-      // For resumed sessions, explicitly set initialMessage to undefined and mark as not new
+      // For resumed sessions, explicitly set initialMessage to undefined
       setActiveSessions([...activeSessions, resumedSession]);
     }
   }, [resumeSessionId, activeSessions, setActiveSessions, initialMessage]);
@@ -354,12 +350,12 @@ export function AppInner() {
   });
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>
+    Array<{ sessionId: string; initialMessage?: string }>
   >([]);
 
   useEffect(() => {
     const handleAddActiveSession = (event: CustomEvent) => {
-      const { sessionId, initialMessage, isNewSession } = event.detail;
+      const { sessionId, initialMessage } = event.detail;
 
       setActiveSessions((prev) => {
         const existingSession = prev.find((s) => s.sessionId === sessionId);
@@ -367,30 +363,20 @@ export function AppInner() {
           return prev;
         }
 
-        const newSession = { sessionId, initialMessage, isNewSession: isNewSession || false };
+        const newSession = { sessionId, initialMessage };
 
         return [...prev, newSession];
       });
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.addEventListener('add-active-session', handleAddActiveSession as any);
-    return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      window.removeEventListener('add-active-session', handleAddActiveSession as any);
-    };
-  }, []);
-
-  // Listen for when a session's initial message has been submitted
-  useEffect(() => {
-    const handleSessionInitialMessageSubmitted = (event: CustomEvent) => {
+    const handleClearInitialMessage = (event: CustomEvent) => {
       const { sessionId } = event.detail;
 
       setActiveSessions((prev) => {
         return prev.map((session) => {
           if (session.sessionId === sessionId) {
-            // Clear the isNewSession flag and initialMessage to prevent re-submission
-            return { ...session, isNewSession: false, initialMessage: undefined };
+            // Clear the initial message after it's been submitted
+            return { ...session, initialMessage: undefined };
           }
           return session;
         });
@@ -398,16 +384,14 @@ export function AppInner() {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.addEventListener(
-      'session-initial-message-submitted',
-      handleSessionInitialMessageSubmitted as any
-    );
+    window.addEventListener('add-active-session', handleAddActiveSession as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    window.addEventListener('clear-initial-message', handleClearInitialMessage as any);
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      window.removeEventListener(
-        'session-initial-message-submitted',
-        handleSessionInitialMessageSubmitted as any
-      );
+      window.removeEventListener('add-active-session', handleAddActiveSession as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      window.removeEventListener('clear-initial-message', handleClearInitialMessage as any);
     };
   }, []);
 

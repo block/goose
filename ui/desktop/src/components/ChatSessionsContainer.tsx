@@ -4,7 +4,7 @@ import { ChatType } from '../types/chat';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{ sessionId: string; initialMessage?: string; isNewSession?: boolean }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
 }
 
 /**
@@ -29,16 +29,16 @@ export default function ChatSessionsContainer({
   // If we have an activeSession in our state, use its data
   // Otherwise, we're resuming a session after refresh - BaseChat will handle loading
   const sessionId = activeSession?.sessionId || currentSessionId;
-  // Only pass initial message for brand new sessions that were just created
-  // This prevents re-submitting when resuming existing sessions
-  const shouldPassInitialMessage = activeSession?.isNewSession && activeSession.initialMessage;
+  // Pass initial message if it exists - BaseChat will determine whether to submit it
+  // based on whether the session has messages already
+  const initialMessage = activeSession?.initialMessage;
 
   return (
     <BaseChat
       key={sessionId}
       setChat={setChat}
       sessionId={sessionId}
-      initialMessage={shouldPassInitialMessage ? activeSession.initialMessage : undefined}
+      initialMessage={initialMessage}
       suppressEmptyState={false}
       isActiveSession={true}
     />

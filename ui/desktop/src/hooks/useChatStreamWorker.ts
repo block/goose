@@ -72,15 +72,10 @@ export function useChatStreamWorker({
         setSessionLoadError(error);
       }
 
-      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
-      if (isNewSession) {
-        window.dispatchEvent(new CustomEvent('message-stream-finished'));
-      }
-
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId]
+    [onStreamFinish]
   );
 
   // Load session on mount or sessionId change
