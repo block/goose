@@ -1053,7 +1053,13 @@ where
                     if !delta.is_empty() {
                         content.push(MessageContent::text(&delta));
                     }
-                    let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                    let mut msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+
+                    // Add ID so desktop client knows these deltas are part of the same message
+                    if let Some(id) = &response_id {
+                        msg = msg.with_id(id.clone());
+                    }
+
                     yield (Some(msg), None);
                 }
 
