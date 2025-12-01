@@ -280,18 +280,21 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
-  const handleNewChat = async () => {
+  const handleNewChat = React.useCallback(async () => {
     await startNewSession('', setView);
-  };
+  }, [setView]);
 
-  const handleSessionClick = async (session: Session) => {
-    markSessionActive(session.id);
-    resumeSession(session, setView);
-  };
+  const handleSessionClick = React.useCallback(
+    async (session: Session) => {
+      markSessionActive(session.id);
+      resumeSession(session, setView);
+    },
+    [markSessionActive, setView]
+  );
 
-  const handleViewAllClick = () => {
+  const handleViewAllClick = React.useCallback(() => {
     navigate('/sessions');
-  };
+  }, [navigate]);
 
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {
