@@ -1050,8 +1050,8 @@ where
 
                     // Yield incremental text updates for true streaming
                     let mut content = Vec::new();
-                    if !accumulated_text.is_empty() {
-                        content.push(MessageContent::text(&accumulated_text));
+                    if !delta.is_empty() {
+                        content.push(MessageContent::text(&delta));
                     }
                     let msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
                     yield (Some(msg), None);
