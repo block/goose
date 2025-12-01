@@ -7,7 +7,6 @@ export function resumeSession(session: Session, setView: setViewType) {
     initialMessage: undefined,
   };
 
-  // Dispatch event to add session to activeSessions
   window.dispatchEvent(
     new CustomEvent('add-active-session', {
       detail: eventDetail,
@@ -34,18 +33,14 @@ export async function createSession(options?: {
 
   if (options?.recipeId) {
     body.recipe_id = options.recipeId;
-    console.log('[createSession] Using recipe_id:', options.recipeId);
   } else if (options?.recipeDeeplink) {
     body.recipe_deeplink = options.recipeDeeplink;
-    console.log('[createSession] Using recipe_deeplink:', options.recipeDeeplink);
   }
 
-  console.log('[createSession] Calling startAgent with body:', body);
   const newAgent = await startAgent({
     body,
     throwOnError: true,
   });
-  console.log('[createSession] Response from startAgent:', newAgent.data);
   return newAgent.data;
 }
 
@@ -59,7 +54,6 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(options);
 
-  // Dispatch event so sidebar can refresh the session list
   window.dispatchEvent(new CustomEvent('session-created'));
 
   const eventDetail = {
@@ -67,7 +61,6 @@ export async function startNewSession(
     initialMessage: initialText,
   };
 
-  // Add session to active sessions with initial message
   window.dispatchEvent(
     new CustomEvent('add-active-session', {
       detail: eventDetail,

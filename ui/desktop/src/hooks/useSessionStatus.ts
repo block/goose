@@ -26,7 +26,6 @@ export function useSessionStatus() {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
 
-  // Listen for session status updates from BaseChat components
   useEffect(() => {
     const handleSessionUpdate = (event: Event) => {
       const customEvent = event as CustomEvent;

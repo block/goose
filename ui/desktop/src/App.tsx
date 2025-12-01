@@ -87,13 +87,11 @@ const PairRouteWrapper = ({
             recipeDeeplink: recipeDeeplinkFromConfig,
           });
 
-          // Add to active sessions
-          // Only new sessions should have initialMessage
           setActiveSessions([
             ...activeSessions,
             {
               sessionId: newSession.id,
-              initialMessage, // Only for new sessions
+              initialMessage,
             },
           ]);
 

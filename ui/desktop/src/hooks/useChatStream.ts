@@ -108,7 +108,6 @@ async function streamFromResponse(
           return;
         }
         case 'Finish': {
-          // Check if session name needs update after first response
           if (updateTokenState) {
             updateTokenState(event.token_state);
           }
