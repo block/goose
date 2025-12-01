@@ -96,14 +96,14 @@ const SessionList = React.memo<{
             <button
               key={session.id}
               onClick={() => onSessionClick(session)}
-              className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+              className={`w-full text-left px-3 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-2 min-w-0 ${
                 activeSessionId === session.id
                   ? 'bg-background-medium text-text-default'
                   : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
               }`}
               title={session.name}
             >
-              <span className="flex-1 truncate">{session.name}</span>
+              <span className="flex-1 truncate min-w-0 block">{session.name}</span>
               <SessionIndicators
                 isStreaming={isStreaming}
                 hasUnread={hasUnread}
@@ -304,7 +304,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const IconComponent = entry.icon;
 
     return (
-      <SidebarGroup key={entry.path}>
+      <SidebarGroup key={entry.path} className="px-2">
         <SidebarGroupContent className="space-y-1">
           <div className="sidebar-item">
             <SidebarMenuItem>
@@ -330,7 +330,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       <SidebarContent className="pt-16">
         <SidebarMenu>
           {/* Home */}
-          <SidebarGroup>
+          <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
                 <SidebarMenuItem>
@@ -352,7 +352,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           <SidebarSeparator />
 
           {/* New Chat Button */}
-          <SidebarGroup>
+          <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
                 <SidebarMenuItem>
@@ -371,7 +371,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           </SidebarGroup>
 
           {/* Recent Sessions */}
-          <SidebarGroup>
+          <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               {isLoadingSessions ? (
                 <div className="text-xs text-text-muted px-3 py-1">Loading...</div>
