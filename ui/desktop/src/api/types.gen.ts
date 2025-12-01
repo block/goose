@@ -935,6 +935,9 @@ export type UpdateCustomProviderRequest = {
     api_url: string;
     display_name: string;
     engine: string;
+    headers?: {
+        [key: string]: string;
+    } | null;
     models: Array<string>;
     supports_streaming?: boolean | null;
 };
