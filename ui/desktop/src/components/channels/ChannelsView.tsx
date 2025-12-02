@@ -214,17 +214,31 @@ const EditChannelModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   channel: Channel;
-  onEdit: (roomId: string, name: string, topic: string) => Promise<void>;
+  onEdit: (roomId: string, name: string, topic: string, coverPhotoFile?: File) => Promise<void>;
 }> = ({ isOpen, onClose, channel, onEdit }) => {
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic || '');
+  const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
+  const [coverPhotoPreview, setCoverPhotoPreview] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   // Update local state when channel prop changes
   useEffect(() => {
     setName(channel.name);
     setTopic(channel.topic || '');
+    setCoverPhotoFile(null);
+    setCoverPhotoPreview(null);
   }, [channel]);
+
+  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverPhotoFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setCoverPhotoPreview(previewUrl);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,7 +246,7 @@ const EditChannelModal: React.FC<{
 
     setIsEditing(true);
     try {
-      await onEdit(channel.roomId, name.trim(), topic.trim());
+      await onEdit(channel.roomId, name.trim(), topic.trim(), coverPhotoFile || undefined);
       onClose();
     } catch (error) {
       console.error('Failed to edit channel:', error);
@@ -271,6 +285,50 @@ const EditChannelModal: React.FC<{
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Cover Photo Upload */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-2">
+              Cover Photo (optional)
+            </label>
+            <div className="relative">
+              {/* Preview */}
+              <div className="w-full h-32 rounded-lg overflow-hidden bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 mb-2">
+                {coverPhotoPreview ? (
+                  <img
+                    src={coverPhotoPreview}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : channel.coverPhotoUrl ? (
+                  <img
+                    src={channel.coverPhotoUrl}
+                    alt="Current cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-white text-sm">No cover photo</span>
+                  </div>
+                )}
+              </div>
+              {/* File Input */}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleCoverPhotoChange}
+                disabled={isEditing}
+                className="block w-full text-sm text-text-muted
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-sm file:font-medium
+                  file:bg-background-accent file:text-text-on-accent
+                  hover:file:bg-background-accent/80
+                  file:cursor-pointer cursor-pointer
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </div>
+          </div>
+
           {/* Channel Name */}
           <div>
             <label className="block text-sm font-medium text-text-default mb-2">
@@ -486,7 +544,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     currentUser,
     rooms,
     setRoomName,
-    setRoomTopic
+    setRoomTopic,
+    setRoomAvatar
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -573,7 +632,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     setShowEditModal(true);
   };
 
-  const handleSaveChannelEdit = async (roomId: string, name: string, topic: string) => {
+  const handleSaveChannelEdit = async (roomId: string, name: string, topic: string, coverPhotoFile?: File) => {
     try {
       // Update room name if changed
       const currentChannel = channels.find(c => c.roomId === roomId);
@@ -584,6 +643,12 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       // Update room topic if changed
       if (currentChannel && topic !== (currentChannel.topic || '')) {
         await setRoomTopic(roomId, topic);
+      }
+      
+      // Update cover photo if a new file was selected
+      if (coverPhotoFile) {
+        console.log('📸 Uploading cover photo for room:', roomId);
+        await setRoomAvatar(roomId, coverPhotoFile);
       }
       
       console.log('✅ Channel updated successfully');
