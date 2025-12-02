@@ -132,23 +132,8 @@ const ChannelCard: React.FC<{
         </div>
       </div>
 
-      {/* Channel icon/avatar - overlapping cover and content */}
-      <div className="absolute top-[50%] left-6 -translate-y-1/2 z-10">
-        <div className="w-16 h-16 bg-background-default rounded-full flex items-center justify-center overflow-hidden border-4 border-background-default shadow-lg">
-          {channel.avatarUrl ? (
-            <img
-              src={channel.avatarUrl}
-              alt={channel.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Hash className="w-8 h-8 text-background-accent" />
-          )}
-        </div>
-      </div>
-
       {/* Content Section - Bottom half */}
-      <div className="flex-1 px-6 pt-10 pb-6 flex flex-col justify-end">
+      <div className="flex-1 px-6 pt-6 pb-6 flex flex-col justify-end">
         <h3 className="text-lg font-light text-text-default truncate mb-1">
           {channel.name}
         </h3>
