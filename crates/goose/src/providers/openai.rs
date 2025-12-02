@@ -17,7 +17,7 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{
     create_request, create_responses_request, get_responses_usage, get_usage, response_to_message,
-    responses_api_to_message, responses_api_to_streaming_message, response_to_streaming_message,
+    response_to_streaming_message, responses_api_to_message, responses_api_to_streaming_message,
     ResponsesApiResponse,
 };
 use super::retry::ProviderRetry;
@@ -190,8 +190,7 @@ impl OpenAiProvider {
     }
 
     fn uses_responses_api(model_name: &str) -> bool {
-        model_name.starts_with("gpt-5-codex")
-            || model_name.starts_with("gpt-5.1-codex")
+        model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {

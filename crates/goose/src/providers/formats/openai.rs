@@ -165,10 +165,7 @@ pub enum ResponsesStreamEvent {
         response: ResponseMetadata,
     },
     #[serde(rename = "response.failed")]
-    ResponseFailed {
-        sequence_number: i32,
-        error: Value,
-    },
+    ResponseFailed { sequence_number: i32, error: Value },
     #[serde(rename = "response.function_call_arguments.delta")]
     FunctionCallArgumentsDelta {
         sequence_number: i32,
@@ -186,9 +183,7 @@ pub enum ResponsesStreamEvent {
         arguments: String,
     },
     #[serde(rename = "error")]
-    Error {
-        error: Value,
-    },
+    Error { error: Value },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
