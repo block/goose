@@ -2,14 +2,19 @@ use super::Component;
 use crate::state::{AppState, InputMode};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
+use unicode_width::UnicodeWidthStr;
 
 fn get_git_branch() -> Option<String> {
     let repo = git2::Repository::discover(".").ok()?;
     let head = repo.head().ok()?;
     head.shorthand().map(String::from)
+}
+
+fn spans_width(spans: &[Span]) -> usize {
+    spans.iter().map(|s| s.content.width()).sum()
 }
 
 pub struct StatusComponent;
@@ -24,36 +29,67 @@ impl StatusComponent {
     pub fn new() -> Self {
         Self
     }
-}
 
-impl Component for StatusComponent {
-    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+    pub fn height(&self, width: u16, state: &AppState) -> u16 {
         let theme = &state.config.theme;
-        let mut spans = self.get_mode_spans(state, theme);
+        let (main_spans, hint_spans) = self.build_spans(state, theme);
+        let total_width = spans_width(&main_spans) + spans_width(&hint_spans);
+        if total_width > width as usize {
+            2
+        } else {
+            1
+        }
+    }
+
+    fn build_spans(
+        &self,
+        state: &AppState,
+        theme: &crate::utils::styles::Theme,
+    ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+        let mut main_spans = self.get_mode_spans(state, theme);
 
         if state.copy_mode {
-            spans.push(Span::styled(
+            main_spans.push(Span::styled(
                 " COPY ",
                 Style::default()
                     .bg(theme.status.success)
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD),
             ));
-            spans.push(Span::raw(" "));
+            main_spans.push(Span::raw(" "));
         }
 
-        spans.extend(self.get_info_spans(state, theme));
+        main_spans.extend(self.get_info_spans(state, theme));
 
+        let mut hint_spans = Vec::new();
         let hints = self.get_hints(state, theme);
         for (i, hint) in hints.into_iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+                hint_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
-            spans.push(hint);
+            hint_spans.push(hint);
         }
 
+        (main_spans, hint_spans)
+    }
+}
+
+impl Component for StatusComponent {
+    fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
+        let theme = &state.config.theme;
+        let (main_spans, hint_spans) = self.build_spans(state, theme);
+        let total_width = spans_width(&main_spans) + spans_width(&hint_spans);
+
+        let text = if total_width > area.width as usize && area.height >= 2 {
+            Text::from(vec![Line::from(main_spans), Line::from(hint_spans)])
+        } else {
+            let mut all_spans = main_spans;
+            all_spans.extend(hint_spans);
+            Text::from(Line::from(all_spans))
+        };
+
         f.render_widget(
-            Paragraph::new(Line::from(spans))
+            Paragraph::new(text)
                 .block(Block::default().style(Style::default().bg(theme.base.selection))),
             area,
         );

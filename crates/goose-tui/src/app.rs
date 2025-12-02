@@ -206,14 +206,15 @@ impl<'a> Component for App<'a> {
 
         let max_input_height = (f.area().height / 2).max(3);
         let input_height = self.input.height(max_input_height);
+        let status_height = self.status.height(area.width, state);
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),               // Chat
-                Constraint::Length(1),            // Info Line (Puns/Todos)
-                Constraint::Length(input_height), // Input
-                Constraint::Length(1),            // Status Bar
+                Constraint::Min(1),
+                Constraint::Length(1),
+                Constraint::Length(input_height),
+                Constraint::Length(status_height),
             ])
             .split(area);
 
