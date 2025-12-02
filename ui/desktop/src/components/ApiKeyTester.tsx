@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { detectProvider } from '../api';
+import { detectCloudProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
 import { Key } from './icons/Key';
@@ -17,20 +17,7 @@ interface TestResult {
   model?: string;
   totalModels?: number;
   error?: string;
-  detectedFormat?: string;
   suggestions?: string[];
-}
-
-interface ApiError {
-  response?: {
-    status?: number;
-    data?: {
-      error?: string;
-      detected_format?: string;
-      suggestions?: string[];
-    };
-  };
-  message?: string;
 }
 
 export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTesterProps) {
@@ -41,50 +28,9 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
   const { upsert } = useConfig();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Enhanced format detection with validation
-  const detectKeyFormat = (apiKey: string): { provider: string; valid: boolean; reason?: string } | null => {
-    const trimmed = apiKey.trim();
-    
-    if (trimmed.startsWith('sk-ant-')) {
-      if (trimmed.length < 100) {
-        return { provider: 'Anthropic', valid: false, reason: 'Key appears too short for Anthropic format' };
-      }
-      return { provider: 'Anthropic', valid: true };
-    }
-    
-    if (trimmed.startsWith('sk-or-')) {
-      if (trimmed.length < 40) {
-        return { provider: 'OpenRouter', valid: false, reason: 'Key appears too short for OpenRouter format' };
-      }
-      return { provider: 'OpenRouter', valid: true };
-    }
-    
-    if (trimmed.startsWith('sk-') && !trimmed.startsWith('sk-ant-') && !trimmed.startsWith('sk-or-')) {
-      if (trimmed.length < 40) {
-        return { provider: 'OpenAI', valid: false, reason: 'Key appears too short for OpenAI format' };
-      }
-      return { provider: 'OpenAI', valid: true };
-    }
-    
-    if (trimmed.startsWith('AIza')) {
-      return { provider: 'Google', valid: trimmed.length > 30 };
-    }
-    
-    if (trimmed.startsWith('gsk_')) {
-      return { provider: 'Groq', valid: trimmed.length > 40 };
-    }
-    
-    if (trimmed.startsWith('xai-')) {
-      return { provider: 'xAI', valid: trimmed.length > 40 };
-    }
-    
-    return null;
-  };
-
   const testApiKey = async () => {
-    // Get the actual input value directly from the DOM element
     const actualValue = inputRef.current?.value || apiKey;
-    
+
     if (!actualValue.trim()) {
       toastService.error({
         title: 'API Key Required',
@@ -94,173 +40,31 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       return;
     }
 
-    // Notify parent that user is actively testing
     onStartTesting?.();
-    
-    const formatCheck = detectKeyFormat(actualValue);
 
     setIsLoading(true);
     setTestResults([]);
     setShowResults(true);
 
-    // If we can't detect the format, show error immediately
-    if (!formatCheck) {
-      setTestResults([{
-        provider: 'Unknown',
-        success: false,
-        error: 'Unrecognized API key format',
-        suggestions: [
-          'Make sure you are using a valid API key from OpenAI, Anthropic, Google, Groq, xAI, or OpenRouter',
-          'Check that the key is complete and not truncated',
-          'For local Ollama setup, use the "Other Providers" section below'
-        ],
-      }]);
-
-      toastService.error({
-        title: 'Unrecognized Key Format',
-        msg: 'The API key format is not recognized. Please check that you are using a supported provider.',
-        traceback: '',
-      });
-      
-      setIsLoading(false);
-      return;
-    }
-
-    // If format is detected but appears invalid, show warning
-    if (!formatCheck.valid) {
-      setTestResults([{
-        provider: formatCheck.provider,
-        success: false,
-        error: formatCheck.reason || 'Key format appears invalid',
-        suggestions: [
-          `Check that your ${formatCheck.provider} API key is complete`,
-          `Verify you copied the entire key from your ${formatCheck.provider} dashboard`,
-          'Make sure there are no extra spaces or characters'
-        ],
-      }]);
-
-      toastService.error({
-        title: `${formatCheck.provider} Key Format Issue`,
-        msg: formatCheck.reason || 'The key format appears to be invalid.',
-        traceback: '',
-      });
-      
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      // Call backend API to detect provider
-      const response = await detectProvider({ 
+      // Call backend API to detect provider (cloud providers only, no Ollama)
+      const response = await detectCloudProvider({
         body: { api_key: actualValue },
-        throwOnError: true 
+        throwOnError: true,
       });
 
       if (response.data) {
         const { provider_name, models } = response.data;
 
-        // Quick Setup should not use Ollama - reject it
-        if (provider_name === 'ollama') {
-          // For known providers that fall back to Ollama, configure them directly
-          if (formatCheck.provider === 'Anthropic') {
-            const anthropicModel = 'claude-sonnet-4-0';
-            setTestResults([{
-              provider: 'anthropic',
-              success: true,
-              model: anthropicModel,
-              totalModels: 3,
-            }]);
-
-            await upsert('ANTHROPIC_API_KEY', actualValue, true);
-            await upsert('GOOSE_PROVIDER', 'anthropic', false);
-            await upsert('GOOSE_MODEL', anthropicModel, false);
-
-            toastService.success({
-              title: 'Success!',
-              msg: 'Configured Anthropic with Claude Sonnet model',
-            });
-
-            onSuccess('anthropic', anthropicModel);
-            setIsLoading(false);
-            return;
-          }
-          
-          if (formatCheck.provider === 'OpenAI') {
-            const openaiModel = 'gpt-4.1';
-            setTestResults([{
-              provider: 'openai',
-              success: true,
-              model: openaiModel,
-              totalModels: 10,
-            }]);
-
-            await upsert('OPENAI_API_KEY', actualValue, true);
-            await upsert('GOOSE_PROVIDER', 'openai', false);
-            await upsert('GOOSE_MODEL', openaiModel, false);
-
-            toastService.success({
-              title: 'Success!',
-              msg: 'Configured OpenAI with GPT-4.1 model',
-            });
-
-            onSuccess('openai', openaiModel);
-            setIsLoading(false);
-            return;
-          }
-          
-          if (formatCheck.provider === 'OpenRouter') {
-            const openrouterModel = 'anthropic/claude-sonnet-4-0';
-            setTestResults([{
-              provider: 'openrouter',
-              success: true,
-              model: openrouterModel,
-              totalModels: 100,
-            }]);
-
-            await upsert('OPENROUTER_API_KEY', actualValue, true);
-            await upsert('GOOSE_PROVIDER', 'openrouter', false);
-            await upsert('GOOSE_MODEL', openrouterModel, false);
-
-            toastService.success({
-              title: 'Success!',
-              msg: 'Configured OpenRouter with Claude Sonnet model',
-            });
-
-            onSuccess('openrouter', openrouterModel);
-            setIsLoading(false);
-            return;
-          }
-          
-          // For other providers, show the normal error
-          setTestResults([{
-            provider: formatCheck.provider,
-            success: false,
-            error: `${formatCheck.provider} key detected but backend fell back to Ollama`,
-            suggestions: [
-              `Your ${formatCheck.provider} key format is correct but validation failed`,
-              `Check that your ${formatCheck.provider} API key is active and has credits`,
-              `Verify the key has the necessary permissions`,
-              'Try testing the key directly in your provider\'s dashboard'
-            ],
-          }]);
-
-          toastService.error({
-            title: `${formatCheck.provider} Key Validation Failed`,
-            msg: `${formatCheck.provider} key format detected but validation failed. Please check your key is active.`,
-            traceback: '',
-          });
-          
-          setIsLoading(false);
-          return;
-        }
-
-        // Show success for successful backend detection
-        setTestResults([{
-          provider: provider_name,
-          success: true,
-          model: models[0],
-          totalModels: models.length,
-        }]);
+        // Show success
+        setTestResults([
+          {
+            provider: provider_name,
+            success: true,
+            model: models[0],
+            totalModels: models.length,
+          },
+        ]);
 
         // Store the API key
         const keyName = `${provider_name.toUpperCase()}_API_KEY`;
@@ -278,120 +82,26 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         onSuccess(provider_name, models[0]);
       }
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      
-      // Handle 404 (no provider found) and other errors
-      if (apiError.response?.status === 404) {
-        // For known providers that get 404, configure them directly
-        if (formatCheck.provider === 'Anthropic') {
-          const anthropicModel = 'claude-sonnet-4-0';
-          setTestResults([{
-            provider: 'anthropic',
-            success: true,
-            model: anthropicModel,
-            totalModels: 3,
-          }]);
-
-          await upsert('ANTHROPIC_API_KEY', actualValue, true);
-          await upsert('GOOSE_PROVIDER', 'anthropic', false);
-          await upsert('GOOSE_MODEL', anthropicModel, false);
-
-          toastService.success({
-            title: 'Success!',
-            msg: 'Configured Anthropic with Claude Sonnet model',
-          });
-
-          onSuccess('anthropic', anthropicModel);
-          setIsLoading(false);
-          return;
-        }
-        
-        if (formatCheck.provider === 'OpenAI') {
-          const openaiModel = 'gpt-4.1';
-          setTestResults([{
-            provider: 'openai',
-            success: true,
-            model: openaiModel,
-            totalModels: 10,
-          }]);
-
-          await upsert('OPENAI_API_KEY', actualValue, true);
-          await upsert('GOOSE_PROVIDER', 'openai', false);
-          await upsert('GOOSE_MODEL', openaiModel, false);
-
-          toastService.success({
-            title: 'Success!',
-            msg: 'Configured OpenAI with GPT-4.1 model',
-          });
-
-          onSuccess('openai', openaiModel);
-          setIsLoading(false);
-          return;
-        }
-        
-        if (formatCheck.provider === 'OpenRouter') {
-          const openrouterModel = 'anthropic/claude-sonnet-4-0';
-          setTestResults([{
-            provider: 'openrouter',
-            success: true,
-            model: openrouterModel,
-            totalModels: 100,
-          }]);
-
-          await upsert('OPENROUTER_API_KEY', actualValue, true);
-          await upsert('GOOSE_PROVIDER', 'openrouter', false);
-          await upsert('GOOSE_MODEL', openrouterModel, false);
-
-          toastService.success({
-            title: 'Success!',
-            msg: 'Configured OpenRouter with Claude Sonnet model',
-          });
-
-          onSuccess('openrouter', openrouterModel);
-          setIsLoading(false);
-          return;
-        }
-        
-        // For other providers, show the normal error
-        setTestResults([{
-          provider: formatCheck.provider,
+      // Detection failed - show helpful error message
+      setTestResults([
+        {
+          provider: 'Unknown',
           success: false,
-          error: `${formatCheck.provider} API key validation failed`,
+          error: 'Could not detect provider from API key',
           suggestions: [
-            `Your ${formatCheck.provider} key format is correct but validation failed`,
-            `Check that your ${formatCheck.provider} API key is active and has sufficient credits`,
-            `Verify your ${formatCheck.provider} account is in good standing`,
-            `Ensure the API key has the necessary permissions for ${formatCheck.provider}`,
-            'Try generating a new API key from your provider dashboard'
+            'Make sure you are using a valid API key from OpenAI, Anthropic, Google, Groq, or xAI',
+            'Check that the key is complete and not truncated',
+            'Verify your API key is active and has sufficient credits',
+            'For local Ollama setup, use the "Other Providers" section below',
           ],
-        }]);
+        },
+      ]);
 
-        toastService.error({
-          title: `${formatCheck.provider} Key Invalid`,
-          msg: `${formatCheck.provider} API key format detected but validation failed. Please check your key is active and valid.`,
-          traceback: '',
-        });
-      } else {
-        // Other errors
-        const errorMessage = apiError.message || 'Could not detect provider. Please check your API key.';
-        
-        setTestResults([{
-          provider: formatCheck.provider,
-          success: false,
-          error: errorMessage,
-          suggestions: [
-            'Check your internet connection',
-            'Verify the API key is correct and complete',
-            'Try again in a few moments'
-          ],
-        }]);
-
-        toastService.error({
-          title: 'Detection Failed',
-          msg: 'Could not validate API key. Please check the key and try again.',
-          traceback: error instanceof Error ? error.stack || '' : '',
-        });
-      }
+      toastService.error({
+        title: 'Detection Failed',
+        msg: 'Could not detect provider. Please check your API key and try again.',
+        traceback: error instanceof Error ? error.stack || '' : '',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -402,7 +112,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     // Only allow valid API key characters to prevent console log injection
-    if (value.length === 0 || /^[a-zA-Z0-9\-_\.]+$/.test(value)) {
+    if (value.length === 0 || /^[a-zA-Z0-9\-_.]+$/.test(value)) {
       setApiKey(value);
     }
   };
@@ -411,7 +121,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
     e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
     // Only allow valid API key characters
-    if (/^[a-zA-Z0-9\-_\.]+$/.test(pastedText)) {
+    if (/^[a-zA-Z0-9\-_.]+$/.test(pastedText)) {
       setApiKey(pastedText);
     } else {
       toastService.error({
@@ -430,7 +140,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
           Recommended
         </span>
       </div>
-      
+
       <div className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
@@ -440,7 +150,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
             </h3>
           </div>
         </div>
-        
+
         <p className="text-text-muted text-sm sm:text-base mb-4">
           Enter your API key and we'll automatically detect which provider it works with.
         </p>
@@ -453,7 +163,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
               value={apiKey}
               onChange={handleInputChange}
               onPaste={handlePaste}
-              placeholder="Enter your API key (OpenAI, Anthropic, Google, OpenRouter, etc.)"
+              placeholder="Enter your API key (OpenAI, Anthropic, Google, etc.)"
               className="flex-1 px-3 py-2 border border-background-hover rounded-lg bg-background-default text-text-standard placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isLoading}
               onKeyDown={(e) => {
@@ -465,7 +175,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
             <Button
               onClick={testApiKey}
               disabled={isLoading || !hasInput}
-              variant={hasInput && !isLoading ? "default" : "secondary"}
+              variant={hasInput && !isLoading ? 'default' : 'secondary'}
               className="h-auto py-2 px-4"
             >
               {isLoading ? (
@@ -482,7 +192,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
               <p className="text-sm text-text-muted">Testing API key...</p>
               <div className="flex items-center gap-2 px-3 py-2 bg-background-muted rounded text-sm">
                 <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                <span>Validating key format and testing connection...</span>
+                <span>Detecting provider and validating key...</span>
               </div>
             </div>
           )}
@@ -503,8 +213,9 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
                       <span>{result.success ? '✅' : '❌'}</span>
                       <div className="flex-1">
                         <div className="font-medium">
-                          {result.success ? `Detected ${result.provider}` : 
-                           `${result.provider} Key Issue`}
+                          {result.success
+                            ? `Detected ${result.provider}`
+                            : 'Provider Detection Failed'}
                         </div>
                         {result.success && result.model && (
                           <div className="text-green-600 dark:text-green-400 text-xs mt-1">

@@ -558,24 +558,6 @@ pub async fn detect_provider(
     }
 }
 
-fn detect_key_format(api_key: &str) -> Option<String> {
-    let trimmed_key = api_key.trim();
-
-    if trimmed_key.starts_with("sk-ant-") {
-        Some("Anthropic".to_string())
-    } else if trimmed_key.starts_with("sk-") {
-        Some("OpenAI".to_string())
-    } else if trimmed_key.starts_with("AIza") {
-        Some("Google".to_string())
-    } else if trimmed_key.starts_with("gsk_") {
-        Some("Groq".to_string())
-    } else if trimmed_key.starts_with("xai-") {
-        Some("xAI".to_string())
-    } else {
-        None
-    }
-}
-
 #[utoipa::path(
     post,
     path = "/config/backup",

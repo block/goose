@@ -328,6 +328,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::status::diagnostics,
         super::routes::config_management::backup_config,
         super::routes::config_management::detect_provider,
+        super::routes::config_management::detect_cloud_provider,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,
         super::routes::config_management::init_config,
