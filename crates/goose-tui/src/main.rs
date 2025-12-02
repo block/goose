@@ -17,7 +17,7 @@ use services::config::TuiConfig;
 use services::events::EventHandler;
 use state::AppState;
 use std::fs;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Read};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -96,12 +96,34 @@ fn setup_tui_logging() -> Result<WorkerGuard> {
     Ok(guard)
 }
 
+/// Read stdin if it's piped (not a TTY), returns None otherwise.
+fn read_stdin_if_piped() -> Option<String> {
+    if std::io::stdin().is_terminal() {
+        return None;
+    }
+
+    let mut input = String::new();
+    if std::io::stdin().read_to_string(&mut input).is_err() {
+        return None;
+    }
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(Commands::Mcp { name }) = cli.command {
         return run_mcp_server(name);
     }
+
+    // Read stdin before starting async runtime (must be done synchronously)
+    let stdin_input = read_stdin_if_piped();
 
     let secret_key = Uuid::new_v4().to_string();
     std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
@@ -111,6 +133,7 @@ fn main() -> Result<()> {
         cli.session,
         cli.recipe,
         cli.headless,
+        stdin_input,
         secret_key,
     ))
 }
@@ -148,6 +171,7 @@ async fn run_tui(
     session: Option<String>,
     recipe: Option<PathBuf>,
     headless: bool,
+    stdin_input: Option<String>,
     secret_key: String,
 ) -> Result<()> {
     let _guard = setup_tui_logging()?;
@@ -172,8 +196,11 @@ async fn run_tui(
     let client = Client::new(port, secret_key);
     let cwd = std::env::current_dir()?;
 
+    // Priority: recipe > stdin > interactive
     let result = if let Some(recipe_path) = recipe {
         run_recipe_mode(client, cwd, recipe_path, headless).await
+    } else if let Some(prompt) = stdin_input {
+        run_stdin_mode(client, cwd, session, prompt).await
     } else {
         run_interactive_mode(client, cwd, session).await
     };
@@ -211,6 +238,28 @@ async fn run_recipe_mode(
     } else {
         run_recipe_tui_mode(client, initial_session, prompt).await
     }
+}
+
+async fn run_stdin_mode(
+    client: Client,
+    cwd: std::path::PathBuf,
+    session: Option<String>,
+    prompt: String,
+) -> Result<()> {
+    info!("Running with stdin input");
+
+    let initial_session = if let Some(id) = session {
+        info!("Resuming session: {}", id);
+        client.resume_agent(&id).await?
+    } else {
+        client
+            .start_agent(cwd.to_string_lossy().to_string())
+            .await?
+    };
+
+    configure_session_from_global(&client, &initial_session.id).await;
+
+    headless::run_headless(client, initial_session.id, prompt).await
 }
 
 async fn run_recipe_tui_mode(
