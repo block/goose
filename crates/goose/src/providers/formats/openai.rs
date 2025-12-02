@@ -1068,19 +1068,20 @@ where
                 }
 
                 ResponsesStreamEvent::ResponseCompleted { response, .. } => {
-                    // Collect final usage data
-                    if let Some(usage) = response.usage {
-                        if let Some(model) = &model_name {
-                            final_usage = Some(ProviderUsage {
-                                usage: Usage::new(
-                                    Some(usage.input_tokens),
-                                    Some(usage.output_tokens),
-                                    Some(usage.total_tokens),
-                                ),
-                                model: model.clone(),
-                            });
-                        }
-                    }
+                    // Always set final usage (use default if not provided)
+                    let model = model_name.as_ref().unwrap_or(&response.model);
+                    let usage = response.usage.as_ref().map_or_else(
+                        Usage::default,
+                        |u| Usage::new(
+                            Some(u.input_tokens),
+                            Some(u.output_tokens),
+                            Some(u.total_tokens),
+                        ),
+                    );
+                    final_usage = Some(ProviderUsage {
+                        usage,
+                        model: model.clone(),
+                    });
 
                     // For complete output, use the response output items
                     if !response.output.is_empty() {
@@ -1109,69 +1110,67 @@ where
             }
         }
 
-        // Yield final message if we have tool calls or non-text output
-        if !is_text_response || !output_items.is_empty() {
-            let mut content = Vec::new();
+        // Process final output items and yield usage data
+        let mut content = Vec::new();
 
-            // Process output items for tool calls
-            for item in output_items {
-                match item {
-                    ResponseOutputItemInfo::Reasoning { .. } => {
-                        // Skip reasoning items
-                    }
-                    ResponseOutputItemInfo::Message { content: parts, .. } => {
-                        for part in parts {
-                            match part {
-                                ContentPart::OutputText { text, .. } => {
-                                    if !text.is_empty() && !is_text_response {
-                                        content.push(MessageContent::text(&text));
-                                    }
+        // Process output items for tool calls
+        for item in output_items {
+            match item {
+                ResponseOutputItemInfo::Reasoning { .. } => {
+                    // Skip reasoning items
+                }
+                ResponseOutputItemInfo::Message { content: parts, .. } => {
+                    for part in parts {
+                        match part {
+                            ContentPart::OutputText { text, .. } => {
+                                if !text.is_empty() && !is_text_response {
+                                    content.push(MessageContent::text(&text));
                                 }
-                                ContentPart::ToolCall { id, name, arguments } => {
-                                    let parsed_args = if arguments.is_empty() {
-                                        json!({})
-                                    } else {
-                                        serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                                    };
+                            }
+                            ContentPart::ToolCall { id, name, arguments } => {
+                                let parsed_args = if arguments.is_empty() {
+                                    json!({})
+                                } else {
+                                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                                };
 
-                                    content.push(MessageContent::tool_request(
-                                        id,
-                                        Ok(CallToolRequestParam {
-                                            name: name.into(),
-                                            arguments: Some(object(parsed_args)),
-                                        }),
-                                    ));
-                                }
+                                content.push(MessageContent::tool_request(
+                                    id,
+                                    Ok(CallToolRequestParam {
+                                        name: name.into(),
+                                        arguments: Some(object(parsed_args)),
+                                    }),
+                                ));
                             }
                         }
                     }
-                    ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
-                        let parsed_args = if arguments.is_empty() {
-                            json!({})
-                        } else {
-                            serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                        };
+                }
+                ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
+                    let parsed_args = if arguments.is_empty() {
+                        json!({})
+                    } else {
+                        serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                    };
 
-                        content.push(MessageContent::tool_request(
-                            call_id,
-                            Ok(CallToolRequestParam {
-                                name: name.into(),
-                                arguments: Some(object(parsed_args)),
-                            }),
-                        ));
-                    }
+                    content.push(MessageContent::tool_request(
+                        call_id,
+                        Ok(CallToolRequestParam {
+                            name: name.into(),
+                            arguments: Some(object(parsed_args)),
+                        }),
+                    ));
                 }
             }
+        }
 
-            if !content.is_empty() {
-                let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
-                if let Some(id) = response_id {
-                    message = message.with_id(id);
-                }
-                yield (Some(message), final_usage);
-            } else if let Some(usage) = final_usage {
-                yield (None, Some(usage));
+        if !content.is_empty() {
+            let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+            if let Some(id) = response_id {
+                message = message.with_id(id);
             }
+            yield (Some(message), final_usage);
+        } else if let Some(usage) = final_usage {
+            yield (None, Some(usage));
         }
     }
 }
