@@ -687,13 +687,9 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
         const avatarUrl = await setRoomAvatar(roomId, coverPhotoFile);
         console.log('✅ Cover photo uploaded successfully, MXC URL:', avatarUrl);
         
-        // Wait longer for the server to process and sync the upload
-        console.log('⏳ Waiting for Matrix server to sync avatar...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
         // Verify the upload
         const httpUrl = convertMxcToHttp(avatarUrl);
-        console.log('🔍 Verifying upload at HTTP URL:', httpUrl);
+        console.log('🔍 Verified upload at HTTP URL:', httpUrl);
       }
       
       // Update room name if changed
