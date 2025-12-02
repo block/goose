@@ -256,12 +256,7 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         if Self::uses_responses_api(&model_config.model_name) {
-            let payload = create_responses_request(
-                model_config,
-                system,
-                messages,
-                tools
-            )?;
+            let payload = create_responses_request(model_config, system, messages, tools)?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
             let json_response = self
@@ -373,12 +368,7 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if Self::uses_responses_api(&self.model.model_name) {
-            let mut payload = create_responses_request(
-                &self.model,
-                system,
-                messages,
-                tools
-            )?;
+            let mut payload = create_responses_request(&self.model, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(true);
 
             let mut log = RequestLog::start(&self.model, &payload)?;
