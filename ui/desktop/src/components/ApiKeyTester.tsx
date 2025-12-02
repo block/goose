@@ -105,26 +105,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
   const hasInput = apiKey.trim().length > 0;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Only allow valid API key characters to prevent console log injection
-    if (value.length === 0 || /^[a-zA-Z0-9\-_.]+$/.test(value)) {
-      setApiKey(value);
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedText = e.clipboardData.getData('text');
-    // Only allow valid API key characters
-    if (/^[a-zA-Z0-9\-_.]+$/.test(pastedText)) {
-      setApiKey(pastedText);
-    } else {
-      toastService.error({
-        title: 'Invalid Characters',
-        msg: 'API keys should only contain letters, numbers, hyphens, underscores, and dots.',
-        traceback: '',
-      });
-    }
+    setApiKey(e.target.value);
   };
 
   return (
@@ -157,7 +138,6 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
               type="password"
               value={apiKey}
               onChange={handleInputChange}
-              onPaste={handlePaste}
               placeholder="Enter your API key (OpenAI, Anthropic, Google, etc.)"
               className="flex-1 px-3 py-2 border border-background-hover rounded-lg bg-background-default text-text-standard placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isLoading}
