@@ -641,7 +641,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       console.log('📱 Opening channel:', channel);
       
       // Open a new tab/chat session with Matrix room parameters
-      openMatrixChat(channel.roomId, currentUser?.userId || '');
+      // Pass the channel name so it appears in the tab title
+      openMatrixChat(channel.roomId, currentUser?.userId || '', channel.name);
       
       // Navigate to the pair view where the tabs are displayed
       navigate('/pair');
