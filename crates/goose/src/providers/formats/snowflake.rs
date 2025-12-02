@@ -50,9 +50,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {
-                    // Skip tool confirmation requests
-                }
+                MessageContent::ToolConfirmationRequest(_) => {}
+                MessageContent::ActionRequired(_) => {}
                 MessageContent::SystemNotification(_) => {
                     // Skip
                 }

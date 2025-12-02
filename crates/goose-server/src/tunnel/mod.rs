@@ -4,8 +4,11 @@ pub mod lapstone;
 mod lapstone_test;
 
 use crate::configuration::Settings;
-use goose::config::Config;
+use fs2::FileExt as _;
+use goose::config::{paths::Paths, Config};
 use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use utoipa::ToSchema;
@@ -13,6 +16,53 @@ use utoipa::ToSchema;
 fn get_server_port() -> anyhow::Result<u16> {
     let settings = Settings::new()?;
     Ok(settings.port)
+}
+
+fn get_lock_path() -> std::path::PathBuf {
+    Paths::config_dir().join("tunnel.lock")
+}
+
+fn try_acquire_tunnel_lock() -> anyhow::Result<File> {
+    let lock_path = get_lock_path();
+
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&lock_path)?;
+
+    file.try_lock_exclusive()
+        .map_err(|_| anyhow::anyhow!("Another goose instance is already running the tunnel"))?;
+
+    writeln!(file, "{}", std::process::id())?;
+    file.sync_all()?;
+
+    Ok(file)
+}
+
+fn is_tunnel_locked_by_another() -> bool {
+    let lock_path = get_lock_path();
+
+    let file = match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+    {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+
+    if file.try_lock_exclusive().is_err() {
+        return true;
+    }
+
+    // Lock released when file is dropped
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
@@ -40,6 +90,7 @@ pub struct TunnelManager {
     lapstone_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    lock_file: Arc<std::sync::Mutex<Option<File>>>,
 }
 
 impl Default for TunnelManager {
@@ -56,6 +107,7 @@ impl TunnelManager {
             lapstone_handle: Arc::new(RwLock::new(None)),
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
+            lock_file: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
@@ -78,13 +130,20 @@ impl TunnelManager {
         let state = self.state.read().await.clone();
 
         if auto_start && state == TunnelState::Idle {
+            if is_tunnel_locked_by_another() {
+                tracing::info!(
+                    "Tunnel already running on another goose instance, skipping auto-start"
+                );
+                return;
+            }
+
             tracing::info!("Auto-starting tunnel");
             match self.start().await {
                 Ok(info) => {
                     tracing::info!("Tunnel auto-started successfully: {:?}", info.url);
                 }
                 Err(e) => {
-                    tracing::error!("Failed to auto-start tunnel: {}", e);
+                    tracing::info!("Tunnel auto-start skipped: {}", e);
                 }
             }
         }
@@ -117,12 +176,20 @@ impl TunnelManager {
                 tunnel_info.state = state;
                 tunnel_info
             }
-            None => TunnelInfo {
-                state,
-                url: String::new(),
-                hostname: String::new(),
-                secret: String::new(),
-            },
+            None => {
+                let effective_state = if state == TunnelState::Idle && is_tunnel_locked_by_another()
+                {
+                    TunnelState::Running
+                } else {
+                    state
+                };
+                TunnelInfo {
+                    state: effective_state,
+                    url: String::new(),
+                    hostname: String::new(),
+                    secret: String::new(),
+                }
+            }
         }
     }
 
@@ -182,6 +249,10 @@ impl TunnelManager {
         if *state != TunnelState::Idle {
             anyhow::bail!("Tunnel is already running or starting");
         }
+
+        let lock = try_acquire_tunnel_lock()?;
+        *self.lock_file.lock().unwrap() = Some(lock);
+
         *state = TunnelState::Starting;
         drop(state);
 
@@ -230,6 +301,7 @@ impl TunnelManager {
                 Ok(info)
             }
             Err(e) => {
+                self.release_lock();
                 *self.state.write().await = TunnelState::Error;
                 Err(e)
             }
@@ -243,6 +315,14 @@ impl TunnelManager {
             lapstone_handle: self.lapstone_handle.clone(),
             restart_tx: self.restart_tx.clone(),
             watchdog_handle: self.watchdog_handle.clone(),
+            lock_file: self.lock_file.clone(),
+        }
+    }
+
+    fn release_lock(&self) {
+        if let Ok(mut guard) = self.lock_file.lock() {
+            // Dropping the file releases the lock
+            guard.take();
         }
     }
 
@@ -254,6 +334,8 @@ impl TunnelManager {
         *self.restart_tx.write().await = None;
 
         lapstone::stop(self.lapstone_handle.clone()).await;
+
+        self.release_lock();
 
         *self.state.write().await = TunnelState::Idle;
         *self.info.write().await = None;
