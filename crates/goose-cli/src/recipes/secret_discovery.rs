@@ -129,13 +129,11 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_recipe_with_extensions() -> Recipe {
-        Recipe {
-            version: "1.0.0".to_string(),
-            title: "Test Recipe".to_string(),
-            description: "A test recipe with MCP extensions".to_string(),
-            instructions: Some("Test instructions".to_string()),
-            prompt: None,
-            extensions: Some(vec![
+        Recipe::builder()
+            .title("Test Recipe")
+            .description("A test recipe with MCP extensions")
+            .instructions("Test instructions")
+            .extensions(vec![
                 ExtensionConfig::Sse {
                     name: "github-mcp".to_string(),
                     uri: "sse://example.com".to_string(),
@@ -165,15 +163,9 @@ mod tests {
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            ]),
-            settings: None,
-            activities: None,
-            author: None,
-            parameters: None,
-            response: None,
-            sub_recipes: None,
-            retry: None,
-        }
+            ])
+            .build()
+            .unwrap()
     }
 
     #[test]
@@ -202,21 +194,12 @@ mod tests {
 
     #[test]
     fn test_discover_recipe_secrets_empty_recipe() {
-        let recipe = Recipe {
-            version: "1.0.0".to_string(),
-            title: "Empty Recipe".to_string(),
-            description: "A recipe with no extensions".to_string(),
-            instructions: Some("Test instructions".to_string()),
-            prompt: None,
-            extensions: None,
-            settings: None,
-            activities: None,
-            author: None,
-            parameters: None,
-            response: None,
-            sub_recipes: None,
-            retry: None,
-        };
+        let recipe = Recipe::builder()
+            .title("Empty Recipe")
+            .description("A recipe with no extensions")
+            .instructions("Test instructions")
+            .build()
+            .unwrap();
 
         let secrets = discover_recipe_secrets(&recipe);
         assert_eq!(secrets.len(), 0);
@@ -224,13 +207,11 @@ mod tests {
 
     #[test]
     fn test_discover_recipe_secrets_deduplication() {
-        let recipe = Recipe {
-            version: "1.0.0".to_string(),
-            title: "Test Recipe".to_string(),
-            description: "A test recipe with duplicate secrets".to_string(),
-            instructions: Some("Test instructions".to_string()),
-            prompt: None,
-            extensions: Some(vec![
+        let recipe = Recipe::builder()
+            .title("Test Recipe")
+            .description("A test recipe with duplicate secrets")
+            .instructions("Test instructions")
+            .extensions(vec![
                 ExtensionConfig::Sse {
                     name: "service-a".to_string(),
                     uri: "sse://example.com".to_string(),
@@ -246,21 +227,15 @@ mod tests {
                     cmd: "service-b".to_string(),
                     args: vec![],
                     envs: Envs::new(HashMap::new()),
-                    env_keys: vec!["API_KEY".to_string()], // Same original key, different extension
+                    env_keys: vec!["API_KEY".to_string()],
                     timeout: None,
                     description: "service-b".to_string(),
                     bundled: None,
                     available_tools: Vec::new(),
                 },
-            ]),
-            settings: None,
-            activities: None,
-            author: None,
-            parameters: None,
-            response: None,
-            sub_recipes: None,
-            retry: None,
-        };
+            ])
+            .build()
+            .unwrap();
 
         let secrets = discover_recipe_secrets(&recipe);
         assert_eq!(secrets.len(), 1);
@@ -283,13 +258,11 @@ mod tests {
     fn test_discover_recipe_secrets_with_sub_recipes() {
         use goose::recipe::SubRecipe;
 
-        let recipe = Recipe {
-            version: "1.0.0".to_string(),
-            title: "Parent Recipe".to_string(),
-            description: "A recipe with sub-recipes".to_string(),
-            instructions: Some("Test instructions".to_string()),
-            prompt: None,
-            extensions: Some(vec![ExtensionConfig::Sse {
+        let recipe = Recipe::builder()
+            .title("Parent Recipe")
+            .description("A recipe with sub-recipes")
+            .instructions("Test instructions")
+            .extensions(vec![ExtensionConfig::Sse {
                 name: "parent-ext".to_string(),
                 uri: "sse://parent.com".to_string(),
                 envs: Envs::new(HashMap::new()),
@@ -298,21 +271,16 @@ mod tests {
                 timeout: None,
                 bundled: None,
                 available_tools: Vec::new(),
-            }]),
-            sub_recipes: Some(vec![SubRecipe {
+            }])
+            .sub_recipes(vec![SubRecipe {
                 name: "child-recipe".to_string(),
                 path: "path/to/child.yaml".to_string(),
                 values: None,
                 sequential_when_repeated: false,
                 description: None,
-            }]),
-            settings: None,
-            activities: None,
-            author: None,
-            parameters: None,
-            response: None,
-            retry: None,
-        };
+            }])
+            .build()
+            .unwrap();
 
         let secrets = discover_recipe_secrets(&recipe);
 

@@ -51,15 +51,10 @@ fn test_tool_description_includes_subrecipe_params_and_filters_presets() {
     preset.insert("second".to_string(), "preset_value".to_string());
     let with_presets = make_subrecipe(path, "deploy", Some(preset));
     let tool = create_subagent_tool(&[with_presets]);
-    let params_section = tool
-        .description
-        .as_ref()
-        .unwrap()
-        .split("(params:")
-        .nth(1)
-        .unwrap_or("");
-    assert!(params_section.contains("first"));
-    assert!(!params_section.contains("second"));
+    let desc = tool.description.as_ref().unwrap();
+    let deploy_line = desc.lines().find(|l| l.contains("deploy")).unwrap();
+    assert!(deploy_line.contains("first"));
+    assert!(!deploy_line.contains("second"));
 }
 
 #[test]

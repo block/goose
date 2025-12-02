@@ -15,6 +15,9 @@ use crate::agents::tool_execution::ToolCallResult;
 use crate::config::GooseMode;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
+use crate::recipe::bundled_subrecipes::{
+    build_recipe_from_bundled, is_bundled_subrecipe, list_bundled_subrecipes,
+};
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
 use crate::session::SessionManager;
@@ -114,8 +117,33 @@ fn build_tool_description(sub_recipes: &[SubRecipe]) -> String {
          For parallel execution, make multiple `subagent` tool calls in the same message.",
     );
 
+    let bundled = list_bundled_subrecipes();
+    if !bundled.is_empty() {
+        desc.push_str("\n\nBuilt-in subrecipes:");
+        for sr in bundled {
+            let params_info: String = sr
+                .parameters
+                .iter()
+                .map(|(key, _desc)| format!("{} [required]", key))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            desc.push_str(&format!(
+                "\n• {} - {}{}",
+                sr.name,
+                sr.description,
+                if params_info.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (params: {})", params_info)
+                }
+            ));
+        }
+    }
+
+    // Add user-defined subrecipes from the current recipe
     if !sub_recipes.is_empty() {
-        desc.push_str("\n\nAvailable subrecipes:");
+        desc.push_str("\n\nUser-defined subrecipes:");
         for sr in sub_recipes {
             let params_info = get_subrecipe_params_description(sr);
             let sequential_hint = if sr.sequential_when_repeated {
@@ -305,8 +333,20 @@ fn build_subrecipe(
     params: &SubagentParams,
     sub_recipes: &HashMap<String, SubRecipe>,
 ) -> Result<Recipe> {
+    // First, check if this is a bundled subrecipe
+    if is_bundled_subrecipe(subrecipe_name) {
+        return build_bundled_subrecipe(subrecipe_name, params);
+    }
+
+    // Otherwise, look for a user-defined subrecipe
     let sub_recipe = sub_recipes.get(subrecipe_name).ok_or_else(|| {
-        let available: Vec<_> = sub_recipes.keys().cloned().collect();
+        let mut available: Vec<_> = sub_recipes.keys().cloned().collect();
+        // Include bundled subrecipes in the error message
+        available.extend(
+            crate::recipe::bundled_subrecipes::bundled_subrecipe_names()
+                .into_iter()
+                .map(|s| s.to_string()),
+        );
         anyhow!(
             "Unknown subrecipe '{}'. Available: {}",
             subrecipe_name,
@@ -345,6 +385,54 @@ fn build_subrecipe(
 
     // Merge prompt into instructions so the subagent gets the actual task.
     // The subagent handler uses `instructions` as the user message.
+    let mut combined = String::new();
+
+    if let Some(instructions) = &recipe.instructions {
+        combined.push_str(instructions);
+    }
+
+    if let Some(prompt) = &recipe.prompt {
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str(prompt);
+    }
+
+    if let Some(extra_instructions) = &params.instructions {
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str("Additional context from parent agent:\n");
+        combined.push_str(extra_instructions);
+    }
+
+    if !combined.is_empty() {
+        recipe.instructions = Some(combined);
+    }
+
+    Ok(recipe)
+}
+
+fn build_bundled_subrecipe(subrecipe_name: &str, params: &SubagentParams) -> Result<Recipe> {
+    // Convert parameters from Value to String
+    let param_map: HashMap<String, String> = params
+        .parameters
+        .as_ref()
+        .map(|p| {
+            p.iter()
+                .map(|(k, v)| {
+                    let value_str = match v {
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    (k.clone(), value_str)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut recipe = build_recipe_from_bundled(subrecipe_name, &param_map)?;
+
     let mut combined = String::new();
 
     if let Some(instructions) = &recipe.instructions {
@@ -461,11 +549,11 @@ mod tests {
         let tool = create_subagent_tool(&[]);
         assert_eq!(tool.name, "subagent");
         assert!(tool.description.as_ref().unwrap().contains("Ad-hoc"));
-        assert!(!tool
+        assert!(tool
             .description
             .as_ref()
             .unwrap()
-            .contains("Available subrecipes"));
+            .contains("Built-in subrecipes"));
     }
 
     #[test]
@@ -483,7 +571,7 @@ mod tests {
             .description
             .as_ref()
             .unwrap()
-            .contains("Available subrecipes"));
+            .contains("User-defined subrecipes"));
         assert!(tool.description.as_ref().unwrap().contains("test_recipe"));
     }
 
@@ -511,7 +599,6 @@ mod tests {
 
         assert!(desc.contains("parallel_ok"));
         assert!(!desc.contains("parallel_ok [run sequentially"));
-
         assert!(desc.contains("sequential_only [run sequentially, not in parallel]"));
     }
 
@@ -532,5 +619,61 @@ mod tests {
         assert!(params.parameters.is_some());
         assert_eq!(params.extensions, Some(vec!["developer".to_string()]));
         assert!(!params.summary);
+    }
+
+    #[test]
+    fn test_bundled_subrecipes_in_tool_description() {
+        let tool = create_subagent_tool(&[]);
+        let desc = tool.description.as_ref().unwrap();
+
+        assert!(desc.contains("Built-in subrecipes"));
+        assert!(desc.contains("investigator"));
+    }
+
+    #[test]
+    fn test_build_bundled_subrecipe() {
+        let params = SubagentParams {
+            instructions: None,
+            subrecipe: Some("investigator".to_string()),
+            parameters: Some(HashMap::from([(
+                "objective".to_string(),
+                Value::String("Find all usages of the foo function".to_string()),
+            )])),
+            extensions: None,
+            settings: None,
+            summary: true,
+        };
+
+        let recipe = build_bundled_subrecipe("investigator", &params);
+        assert!(
+            recipe.is_ok(),
+            "Should build bundled subrecipe: {:?}",
+            recipe.err()
+        );
+
+        let recipe = recipe.unwrap();
+        assert!(recipe.instructions.is_some());
+        let instructions = recipe.instructions.unwrap();
+        assert!(instructions.contains("Find all usages of the foo function"));
+        assert!(instructions.contains("Investigator"));
+    }
+
+    #[test]
+    fn test_build_subrecipe_prefers_bundled() {
+        let params = SubagentParams {
+            instructions: None,
+            subrecipe: Some("investigator".to_string()),
+            parameters: Some(HashMap::from([(
+                "objective".to_string(),
+                Value::String("Test objective".to_string()),
+            )])),
+            extensions: None,
+            settings: None,
+            summary: true,
+        };
+
+        let sub_recipes = HashMap::new();
+        let recipe = build_subrecipe("investigator", &params, &sub_recipes);
+        assert!(recipe.is_ok());
     }
 }

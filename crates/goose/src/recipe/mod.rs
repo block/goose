@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 pub mod build_recipe;
+pub mod bundled_subrecipes;
 pub mod local_recipes;
 pub mod read_recipe_file_content;
 mod recipe_extension_adapter;
@@ -73,6 +74,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -194,13 +198,10 @@ pub struct RecipeParameter {
 
 /// Builder for creating Recipe instances
 pub struct RecipeBuilder {
-    // Required fields with default values
     version: String,
     title: Option<String>,
     description: Option<String>,
     instructions: Option<String>,
-
-    // Optional fields
     prompt: Option<String>,
     extensions: Option<Vec<ExtensionConfig>>,
     settings: Option<Settings>,
@@ -210,6 +211,7 @@ pub struct RecipeBuilder {
     response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
     retry: Option<RetryConfig>,
+    max_turns: Option<u32>,
 }
 
 impl Recipe {
@@ -255,6 +257,7 @@ impl Recipe {
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         }
     }
 
@@ -379,6 +382,7 @@ impl RecipeBuilder {
             response: self.response,
             sub_recipes: self.sub_recipes,
             retry: self.retry,
+            max_turns: self.max_turns,
         })
     }
 }
@@ -717,6 +721,7 @@ isGlobal: true"#;
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         };
 
         assert!(!recipe.check_for_security_warnings());
