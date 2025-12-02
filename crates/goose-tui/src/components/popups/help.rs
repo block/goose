@@ -102,11 +102,11 @@ impl Component for HelpPopup {
             help_line("/session", "Open session picker", theme),
             help_line("/theme", "Change theme (e.g. /theme light)", theme),
             help_line("/alias", "Create custom command", theme),
-            Line::from(""),
-            Line::from(Span::styled(
-                "  Custom commands can be defined via /alias.",
-                Style::default().fg(theme.base.border),
-            )),
+            help_line(
+                "/mode",
+                "Set mode (auto, approve, chat, smart_approve)",
+                theme,
+            ),
             Line::from(""),
             Line::from(Span::styled(
                 "Tips:",

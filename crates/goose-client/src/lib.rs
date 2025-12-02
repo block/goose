@@ -336,6 +336,18 @@ impl Client {
             .context("Failed to import session")
     }
 
+    pub async fn update_session_name(&self, session_id: &str, name: &str) -> Result<()> {
+        self.http
+            .put(format!("{}/sessions/{}/name", self.base_url, session_id))
+            .json(&serde_json::json!({ "name": name }))
+            .send()
+            .await
+            .context("Request failed")?
+            .error_for_status()
+            .context("Failed to update session name")?;
+        Ok(())
+    }
+
     pub async fn reply(
         &self,
         messages: Vec<Message>,

@@ -27,6 +27,7 @@ pub enum Event {
     },
     ConfigLoaded(serde_json::Value),
     Error(String),
+    Flash(String),
 }
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,

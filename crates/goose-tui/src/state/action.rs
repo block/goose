@@ -59,4 +59,5 @@ pub enum Action {
 
     ToggleCopyMode,
     ForkFromMessage(usize),
+    SetGooseMode(String),
 }

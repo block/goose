@@ -79,6 +79,7 @@ impl<'a> InputComponent<'a> {
             ("/theme", true),
             ("/copy", false),
             ("/copymode", false),
+            ("/mode", true),
         ];
 
         let custom: Vec<(String, bool)> = state
@@ -174,7 +175,15 @@ impl<'a> InputComponent<'a> {
                     Some(Action::OpenThemePicker)
                 }
             }
-            // Custom Commands
+            "/mode" => {
+                if trailing_args.is_empty() {
+                    Some(Action::ShowFlash(
+                        "Usage: /mode <auto|approve|chat|smart_approve>".to_string(),
+                    ))
+                } else {
+                    Some(Action::SetGooseMode(trailing_args.to_lowercase()))
+                }
+            }
             _ => {
                 let cmd_name = cmd.strip_prefix('/').unwrap_or(cmd);
                 if let Some(custom) = state
@@ -274,6 +283,7 @@ impl<'a> Component for InputComponent<'a> {
                                         "/alias",
                                         "/copy",
                                         "/copymode",
+                                        "/mode",
                                     ];
 
                                     if safe_commands.contains(&cmd) {

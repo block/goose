@@ -59,11 +59,29 @@ struct Cli {
     #[arg(long, help = "Resume an existing session by ID")]
     session: Option<String>,
 
+    #[arg(short = 'n', long, value_name = "NAME", help = "Name for the session")]
+    name: Option<String>,
+
+    #[arg(
+        short = 'r',
+        long,
+        help = "Resume the most recent session (or by --name)"
+    )]
+    resume: bool,
+
     #[arg(long, value_name = "FILE", help = "Run a recipe file")]
     recipe: Option<PathBuf>,
 
     #[arg(long, help = "Run in headless mode (plain text output, no TUI)")]
     headless: bool,
+
+    #[arg(
+        short = 't',
+        long = "text",
+        value_name = "TEXT",
+        help = "Input text to send directly"
+    )]
+    text: Option<String>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -122,8 +140,8 @@ fn main() -> Result<()> {
         return run_mcp_server(name);
     }
 
-    // Read stdin before starting async runtime (must be done synchronously)
     let stdin_input = read_stdin_if_piped();
+    let text_input = cli.text.or(stdin_input);
 
     let secret_key = Uuid::new_v4().to_string();
     std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
@@ -131,9 +149,11 @@ fn main() -> Result<()> {
 
     tokio::runtime::Runtime::new()?.block_on(run_tui(
         cli.session,
+        cli.name,
+        cli.resume,
         cli.recipe,
         cli.headless,
-        stdin_input,
+        text_input,
         secret_key,
     ))
 }
@@ -167,11 +187,50 @@ fn load_recipe(path: &PathBuf) -> Result<goose::recipe::Recipe> {
     goose::recipe::validate_recipe::validate_recipe_template_from_content(&content, recipe_dir)
 }
 
+async fn resolve_session_id(
+    client: &Client,
+    session_id: Option<String>,
+    name: Option<String>,
+    resume: bool,
+) -> Result<Option<String>> {
+    if let Some(id) = session_id {
+        return Ok(Some(id));
+    }
+
+    if let Some(ref session_name) = name {
+        let sessions = client.list_sessions().await?;
+        let found = sessions
+            .iter()
+            .find(|s| s.name == *session_name || s.id == *session_name);
+
+        if let Some(existing) = found {
+            if resume {
+                return Ok(Some(existing.id.clone()));
+            }
+        } else if resume {
+            anyhow::bail!("No session found with name '{}'", session_name);
+        }
+    }
+
+    if resume && name.is_none() {
+        let sessions = client.list_sessions().await?;
+        let session_id = sessions
+            .first()
+            .map(|s| s.id.clone())
+            .ok_or_else(|| anyhow::anyhow!("No sessions found to resume"))?;
+        return Ok(Some(session_id));
+    }
+
+    Ok(None)
+}
+
 async fn run_tui(
     session: Option<String>,
+    name: Option<String>,
+    resume: bool,
     recipe: Option<PathBuf>,
     headless: bool,
-    stdin_input: Option<String>,
+    text_input: Option<String>,
     secret_key: String,
 ) -> Result<()> {
     let _guard = setup_tui_logging()?;
@@ -196,13 +255,14 @@ async fn run_tui(
     let client = Client::new(port, secret_key);
     let cwd = std::env::current_dir()?;
 
-    // Priority: recipe > stdin > interactive
+    let resolved_session = resolve_session_id(&client, session, name.clone(), resume).await?;
+
     let result = if let Some(recipe_path) = recipe {
         run_recipe_mode(client, cwd, recipe_path, headless).await
-    } else if let Some(prompt) = stdin_input {
-        run_stdin_mode(client, cwd, session, prompt).await
+    } else if let Some(prompt) = text_input {
+        run_text_mode(client, cwd, resolved_session, prompt).await
     } else {
-        run_interactive_mode(client, cwd, session).await
+        run_interactive_mode(client, cwd, resolved_session, name).await
     };
 
     shutdown_token.cancel();
@@ -240,13 +300,13 @@ async fn run_recipe_mode(
     }
 }
 
-async fn run_stdin_mode(
+async fn run_text_mode(
     client: Client,
     cwd: std::path::PathBuf,
     session: Option<String>,
     prompt: String,
 ) -> Result<()> {
-    info!("Running with stdin input");
+    info!("Running with text input");
 
     let initial_session = if let Some(id) = session {
         info!("Resuming session: {}", id);
@@ -289,14 +349,26 @@ async fn run_interactive_mode(
     client: Client,
     cwd: std::path::PathBuf,
     session: Option<String>,
+    name: Option<String>,
 ) -> Result<()> {
     let initial_session = if let Some(id) = session {
         info!("Resuming agent session: {}", id);
         client.resume_agent(&id).await?
     } else {
-        client
+        let new_session = client
             .start_agent(cwd.to_string_lossy().to_string())
-            .await?
+            .await?;
+
+        if let Some(ref session_name) = name {
+            if let Err(e) = client
+                .update_session_name(&new_session.id, session_name)
+                .await
+            {
+                tracing::warn!("Failed to set session name: {}", e);
+            }
+        }
+
+        new_session
     };
 
     let (provider, model) = configure_session_from_global(&client, &initial_session.id).await;

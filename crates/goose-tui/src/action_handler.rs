@@ -40,6 +40,9 @@ pub fn handle_action(
         Action::ForkFromMessage(msg_idx) => {
             handle_fork_from_message(*msg_idx, state, client, tx);
         }
+        Action::SetGooseMode(mode) => {
+            handle_set_goose_mode(mode, client, tx);
+        }
         Action::Quit => {
             return true;
         }
@@ -380,4 +383,40 @@ fn handle_fork_from_message(
             }
         }
     });
+}
+
+fn handle_set_goose_mode(mode: &str, client: &Client, tx: &mpsc::UnboundedSender<Event>) {
+    use goose::config::GooseMode;
+    use std::str::FromStr;
+
+    let mode_str = mode.to_string();
+    let client = client.clone();
+    let tx = tx.clone();
+
+    match GooseMode::from_str(&mode_str) {
+        Ok(mode) => {
+            let mode_name = match mode {
+                GooseMode::Auto => "auto",
+                GooseMode::Approve => "approve",
+                GooseMode::Chat => "chat",
+                GooseMode::SmartApprove => "smart_approve",
+            };
+
+            tokio::spawn(async move {
+                if let Err(e) = client
+                    .upsert_config("GOOSE_MODE", serde_json::json!(mode_name), false)
+                    .await
+                {
+                    let _ = tx.send(Event::Error(format!("Failed to set mode: {e}")));
+                } else {
+                    let _ = tx.send(Event::Flash(format!("Mode set to: {mode_name}")));
+                }
+            });
+        }
+        Err(_) => {
+            let _ = tx.send(Event::Error(
+                "Invalid mode. Use: auto, approve, chat, smart_approve".to_string(),
+            ));
+        }
+    }
 }
