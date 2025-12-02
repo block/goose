@@ -162,10 +162,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
 
     const handleRoomAvatarUpdated = () => {
       console.log('🖼️ MatrixContext: Room avatar updated, refreshing data...');
-      // Add a small delay to ensure the Matrix server has synced the change
+      // Add a delay to ensure the Matrix server has synced the change
+      // Increased to 1500ms to give more time for the server to process
       setTimeout(() => {
         updateData();
-      }, 500);
+      }, 1500);
     };
 
     // Add event listeners

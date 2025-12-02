@@ -665,20 +665,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     console.log('🔧 handleSaveChannelEdit called with:', { roomId, name, topic, hasCoverPhoto: !!coverPhotoFile });
     
     try {
-      // Update room name if changed
-      const currentChannel = channels.find(c => c.roomId === roomId);
-      if (currentChannel && name !== currentChannel.name) {
-        console.log('📝 Updating room name...');
-        await setRoomName(roomId, name);
-      }
-      
-      // Update room topic if changed
-      if (currentChannel && topic !== (currentChannel.topic || '')) {
-        console.log('📝 Updating room topic...');
-        await setRoomTopic(roomId, topic);
-      }
-      
-      // Update cover photo if a new file was selected
+      // Update cover photo FIRST if a new file was selected
+      // This ensures the avatar is set before name/topic changes
       if (coverPhotoFile) {
         console.log('📸 Uploading cover photo for room:', roomId, {
           name: coverPhotoFile.name,
@@ -699,12 +687,26 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
         const avatarUrl = await setRoomAvatar(roomId, coverPhotoFile);
         console.log('✅ Cover photo uploaded successfully, MXC URL:', avatarUrl);
         
-        // Wait a moment for the server to process the upload
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait longer for the server to process and sync the upload
+        console.log('⏳ Waiting for Matrix server to sync avatar...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Verify the upload
         const httpUrl = convertMxcToHttp(avatarUrl);
         console.log('🔍 Verifying upload at HTTP URL:', httpUrl);
+      }
+      
+      // Update room name if changed
+      const currentChannel = channels.find(c => c.roomId === roomId);
+      if (currentChannel && name !== currentChannel.name) {
+        console.log('📝 Updating room name...');
+        await setRoomName(roomId, name);
+      }
+      
+      // Update room topic if changed
+      if (currentChannel && topic !== (currentChannel.topic || '')) {
+        console.log('📝 Updating room topic...');
+        await setRoomTopic(roomId, topic);
       }
       
       console.log('✅ Channel updated successfully');
