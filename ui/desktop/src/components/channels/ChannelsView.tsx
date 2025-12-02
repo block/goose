@@ -674,9 +674,31 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       
       // Update cover photo if a new file was selected
       if (coverPhotoFile) {
-        console.log('📸 Uploading cover photo for room:', roomId, 'File:', coverPhotoFile.name, coverPhotoFile.type, coverPhotoFile.size);
+        console.log('📸 Uploading cover photo for room:', roomId, {
+          name: coverPhotoFile.name,
+          type: coverPhotoFile.type,
+          size: coverPhotoFile.size,
+          sizeKB: (coverPhotoFile.size / 1024).toFixed(2) + ' KB'
+        });
+        
+        // Validate file before upload
+        if (coverPhotoFile.size > 10 * 1024 * 1024) { // 10MB limit
+          throw new Error('Cover photo must be smaller than 10MB');
+        }
+        
+        if (!coverPhotoFile.type.startsWith('image/')) {
+          throw new Error('Cover photo must be an image file');
+        }
+        
         const avatarUrl = await setRoomAvatar(roomId, coverPhotoFile);
-        console.log('✅ Cover photo uploaded successfully, URL:', avatarUrl);
+        console.log('✅ Cover photo uploaded successfully, MXC URL:', avatarUrl);
+        
+        // Wait a moment for the server to process the upload
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verify the upload
+        const httpUrl = convertMxcToHttp(avatarUrl);
+        console.log('🔍 Verifying upload at HTTP URL:', httpUrl);
       }
       
       console.log('✅ Channel updated successfully');
