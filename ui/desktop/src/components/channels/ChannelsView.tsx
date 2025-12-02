@@ -25,8 +25,10 @@ interface Channel {
   isPublic: boolean;
   memberCount: number;
   avatarUrl?: string;
+  coverPhotoUrl?: string;
   lastActivity?: Date;
   unreadCount?: number;
+  isFavorite?: boolean;
 }
 
 interface ChannelsViewProps {
@@ -37,58 +39,88 @@ const ChannelCard: React.FC<{
   channel: Channel; 
   onOpenChannel: (channel: Channel) => void;
   onEditChannel: (channel: Channel) => void;
-}> = ({ channel, onOpenChannel, onEditChannel }) => {
+  onToggleFavorite: (channel: Channel) => void;
+}> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      onClick={() => onOpenChannel(channel)}
       className="
         relative cursor-pointer group
         bg-background-default
-        px-6 py-6
         transition-colors duration-200
         hover:bg-background-medium
         aspect-square
-        flex flex-col justify-between
+        flex flex-col
         rounded-2xl
+        overflow-hidden
       "
     >
-      {/* Channel icon/avatar in top left */}
-      <div className="relative w-fit" onClick={() => onOpenChannel(channel)}>
-        <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
-          {channel.avatarUrl ? (
-            <img
-              src={channel.avatarUrl}
-              alt={channel.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Hash className="w-6 h-6 text-text-on-accent" />
-          )}
+      {/* Cover Photo Section - Top half */}
+      {channel.coverPhotoUrl ? (
+        <div className="relative w-full h-[60%] bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 overflow-hidden">
+          <img
+            src={channel.coverPhotoUrl}
+            alt={channel.name}
+            className="w-full h-full object-cover"
+          />
+          {/* Overlay for better text visibility */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
         </div>
-      </div>
+      ) : (
+        /* Default gradient background if no cover photo */
+        <div className="relative w-full h-[60%] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 overflow-hidden">
+          {/* Animated background pattern */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.8),transparent_50%)]" />
+          </div>
+        </div>
+      )}
 
-      {/* Privacy indicator and Edit button in top right */}
-      <div className="absolute top-4 right-4 flex items-center gap-1">
+      {/* Favorite button - top left */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(channel);
+        }}
+        className={`absolute top-4 left-4 z-10 p-1.5 rounded-full backdrop-blur-sm transition-all ${
+          channel.isFavorite
+            ? 'bg-yellow-500/90 text-white'
+            : 'bg-black/30 text-white hover:bg-black/50'
+        }`}
+        title={channel.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        <Star className={`w-4 h-4 ${channel.isFavorite ? 'fill-current' : ''}`} />
+      </button>
+
+      {/* Edit and Privacy buttons - top right */}
+      <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
         {/* Edit button - shown on hover */}
-        <button
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
           onClick={(e) => {
             e.stopPropagation();
             onEditChannel(channel);
           }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-background-muted hover:bg-background-accent hover:text-text-on-accent"
+          className="p-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors"
           title="Edit channel"
         >
           <Edit2 className="w-3 h-3" />
-        </button>
+        </motion.button>
         
         {/* Privacy indicator */}
-        <div className={`p-1.5 rounded-full ${
+        <div className={`p-1.5 rounded-full backdrop-blur-sm ${
           channel.isPublic 
-            ? 'bg-green-100 text-green-700' 
-            : 'bg-orange-100 text-orange-700'
+            ? 'bg-green-500/90 text-white' 
+            : 'bg-orange-500/90 text-white'
         }`}>
           {channel.isPublic ? (
             <Globe className="w-3 h-3" />
@@ -98,8 +130,23 @@ const ChannelCard: React.FC<{
         </div>
       </div>
 
-      {/* Channel name and info at bottom */}
-      <div className="mt-auto w-full" onClick={() => onOpenChannel(channel)}>
+      {/* Channel icon/avatar - overlapping cover and content */}
+      <div className="absolute top-[50%] left-6 -translate-y-1/2 z-10">
+        <div className="w-16 h-16 bg-background-default rounded-full flex items-center justify-center overflow-hidden border-4 border-background-default shadow-lg">
+          {channel.avatarUrl ? (
+            <img
+              src={channel.avatarUrl}
+              alt={channel.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Hash className="w-8 h-8 text-background-accent" />
+          )}
+        </div>
+      </div>
+
+      {/* Content Section - Bottom half */}
+      <div className="flex-1 px-6 pt-10 pb-6 flex flex-col justify-end">
         <h3 className="text-lg font-light text-text-default truncate mb-1">
           {channel.name}
         </h3>
@@ -449,6 +496,20 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('channelFavorites');
+    if (stored) {
+      try {
+        const favoriteIds = JSON.parse(stored);
+        setFavorites(new Set(favoriteIds));
+      } catch (error) {
+        console.error('Failed to load favorites:', error);
+      }
+    }
+  }, []);
 
   // Show Matrix auth if not connected
   useEffect(() => {
@@ -457,7 +518,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
-  // Filter channels (non-DM rooms) from Matrix rooms
+  // Filter channels (non-DM rooms) from Matrix rooms and add favorite status
   const channels: Channel[] = rooms
     .filter(room => !room.isDirectMessage)
     .map(room => ({
@@ -469,7 +530,14 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       avatarUrl: room.avatarUrl,
       lastActivity: room.lastActivity,
       unreadCount: 0, // TODO: Implement unread count
-    }));
+      isFavorite: favorites.has(room.roomId),
+    }))
+    // Sort: favorites first, then by name
+    .sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   // Filter channels based on search query
   const filteredChannels = searchQuery
@@ -522,6 +590,18 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       console.error('Failed to update channel:', error);
       throw error; // Re-throw to let the modal handle the error
     }
+  };
+
+  const handleToggleFavorite = (channel: Channel) => {
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(channel.roomId)) {
+      newFavorites.delete(channel.roomId);
+    } else {
+      newFavorites.add(channel.roomId);
+    }
+    setFavorites(newFavorites);
+    // Save to localStorage
+    localStorage.setItem('channelFavorites', JSON.stringify(Array.from(newFavorites)));
   };
 
   // Show Matrix authentication modal
@@ -619,6 +699,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     channel={channel}
                     onOpenChannel={handleOpenChannel}
                     onEditChannel={handleEditChannel}
+                    onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
                 {/* Empty tiles for creating new channels - fill remaining space */}
