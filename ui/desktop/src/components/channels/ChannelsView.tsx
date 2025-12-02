@@ -18,6 +18,7 @@ import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
+import { matrixService } from '../../services/MatrixService';
 
 interface Channel {
   roomId: string;
@@ -578,6 +579,22 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
+  // Helper function to convert MXC URL to HTTP URL
+  const convertMxcToHttp = (mxcUrl: string | undefined): string | undefined => {
+    if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
+      return mxcUrl;
+    }
+    
+    // Use the Matrix client to convert MXC to HTTP
+    const client = (matrixService as any).client;
+    if (client && client.mxcUrlToHttp) {
+      // Get full-size image for cover photos
+      return client.mxcUrlToHttp(mxcUrl, 800, 800, 'scale', false) || mxcUrl;
+    }
+    
+    return mxcUrl;
+  };
+
   // Filter channels (non-DM rooms) from Matrix rooms and add favorite status
   const channels: Channel[] = rooms
     .filter(room => !room.isDirectMessage)
@@ -587,8 +604,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       topic: room.topic,
       isPublic: room.isPublic || false,
       memberCount: room.members.length,
-      avatarUrl: room.avatarUrl,
-      coverPhotoUrl: room.avatarUrl, // Use room avatar as cover photo
+      avatarUrl: convertMxcToHttp(room.avatarUrl),
+      coverPhotoUrl: convertMxcToHttp(room.avatarUrl), // Use room avatar as cover photo
       lastActivity: room.lastActivity,
       unreadCount: 0, // TODO: Implement unread count
       isFavorite: favorites.has(room.roomId),
