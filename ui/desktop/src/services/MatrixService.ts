@@ -1512,6 +1512,50 @@ export class MatrixService extends EventEmitter {
     }
   }
 
+  /**
+   * Update room name
+   */
+  async setRoomName(roomId: string, name: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setRoomName(roomId, name);
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomNameUpdated', { roomId, name });
+      console.log('✅ Room name updated:', roomId, '→', name);
+    } catch (error) {
+      console.error('Failed to set room name:', error);
+      throw new Error('Failed to update room name');
+    }
+  }
+
+  /**
+   * Update room topic
+   */
+  async setRoomTopic(roomId: string, topic: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setRoomTopic(roomId, topic);
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomTopicUpdated', { roomId, topic });
+      console.log('✅ Room topic updated:', roomId, '→', topic);
+    } catch (error) {
+      console.error('Failed to set room topic:', error);
+      throw new Error('Failed to update room topic');
+    }
+  }
+
   // ===== GOOSE-TO-GOOSE COMMUNICATION METHODS =====
 
   /**
