@@ -6,6 +6,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
 
+fn get_git_branch() -> Option<String> {
+    let repo = git2::Repository::discover(".").ok()?;
+    let head = repo.head().ok()?;
+    head.shorthand().map(String::from)
+}
+
 pub struct StatusComponent;
 
 impl Default for StatusComponent {
@@ -133,6 +139,13 @@ impl StatusComponent {
                     cwd_str.to_string(),
                     Style::default().fg(theme.base.foreground),
                 ));
+                if let Some(branch) = get_git_branch() {
+                    spans.push(Span::styled(" ⎇ ", Style::default().fg(Color::DarkGray)));
+                    spans.push(Span::styled(
+                        branch,
+                        Style::default().fg(theme.base.foreground),
+                    ));
+                }
                 spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             }
         }
