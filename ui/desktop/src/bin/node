@@ -7,10 +7,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the common setup script
-source "$SCRIPT_DIR/node-setup-common.sh"
+source "${SCRIPT_DIR}/node-setup-common.sh"
 
 # Final step: Execute node with passed arguments
-log "Executing 'node' command with arguments: $*"
-node "$@" || log "Failed to execute 'node' with arguments: $*"
+log "Executing 'node' command with arguments: ${*}"
+node "${@}" || log "Failed to execute 'node' with arguments: ${*}"
 
 log "node script completed successfully."
