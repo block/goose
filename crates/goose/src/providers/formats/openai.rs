@@ -1203,7 +1203,11 @@ fn process_streaming_output_items(
                                 content.push(MessageContent::text(&text));
                             }
                         }
-                        ContentPart::ToolCall { id, name, arguments } => {
+                        ContentPart::ToolCall {
+                            id,
+                            name,
+                            arguments,
+                        } => {
                             let parsed_args = if arguments.is_empty() {
                                 json!({})
                             } else {
@@ -1221,7 +1225,12 @@ fn process_streaming_output_items(
                     }
                 }
             }
-            ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
+            ResponseOutputItemInfo::FunctionCall {
+                call_id,
+                name,
+                arguments,
+                ..
+            } => {
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
