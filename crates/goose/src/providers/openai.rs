@@ -6,7 +6,6 @@ use reqwest::StatusCode;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io;
-use std::sync::{Arc, Mutex};
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -62,8 +61,6 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    #[serde(skip)]
-    last_response_id: Arc<Mutex<Option<String>>>,
 }
 
 impl OpenAiProvider {
@@ -118,7 +115,6 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: Self::metadata().name,
-            last_response_id: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -133,7 +129,6 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: Self::metadata().name,
-            last_response_id: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -191,7 +186,6 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
-            last_response_id: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -262,21 +256,11 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         if Self::uses_responses_api(&model_config.model_name) {
-            // Get the previous response ID if available
-            let prev_id = self.last_response_id.lock().unwrap().clone();
-
-            // Clear the stored ID after retrieving it (single-use for tool responses)
-            if prev_id.is_some() {
-                tracing::debug!("Using previous_response_id: {:?}", prev_id);
-                *self.last_response_id.lock().unwrap() = None;
-            }
-
             let payload = create_responses_request(
                 model_config,
                 system,
                 messages,
-                tools,
-                prev_id.as_deref()
+                tools
             )?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
@@ -297,10 +281,6 @@ impl Provider for OpenAiProvider {
                         e
                     ))
                 })?;
-
-            // Store the response ID for potential follow-up requests
-            tracing::debug!("Storing response ID: {}", responses_api_response.id);
-            *self.last_response_id.lock().unwrap() = Some(responses_api_response.id.clone());
 
             let message = responses_api_to_message(&responses_api_response)?;
             let usage = get_responses_usage(&responses_api_response);
@@ -393,14 +373,11 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if Self::uses_responses_api(&self.model.model_name) {
-            // Get the previous response ID if available
-            let prev_id = self.last_response_id.lock().unwrap().clone();
             let mut payload = create_responses_request(
                 &self.model,
                 system,
                 messages,
-                tools,
-                prev_id.as_deref()
+                tools
             )?;
             payload["stream"] = serde_json::Value::Bool(true);
 

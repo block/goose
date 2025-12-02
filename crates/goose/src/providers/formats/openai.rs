@@ -839,7 +839,6 @@ pub fn create_responses_request(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
-    previous_response_id: Option<&str>,
 ) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
@@ -891,10 +890,14 @@ pub fn create_responses_request(
                 continue;
             }
 
+            // Only User and Assistant roles are valid here
+            if message.role != Role::User && message.role != Role::Assistant {
+                continue;
+            }
+
             let role = match message.role {
                 Role::User => "user",
                 Role::Assistant => "assistant",
-                _ => continue,
             };
 
             let mut content_items = Vec::new();
@@ -978,10 +981,14 @@ pub fn create_responses_request(
         // Send full conversation history (no active tool calls)
         // Convert messages to structured input items
         for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        // Only User and Assistant messages - others are filtered or handled separately
+        if message.role != Role::User && message.role != Role::Assistant {
+            continue;
+        }
+
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
-            _ => continue, // Skip other roles
         };
 
         let mut content_items = Vec::new();
@@ -1038,16 +1045,8 @@ pub fn create_responses_request(
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
-        "store": false,  // Don't store responses on server
+        "store": false,  // Don't store responses on server (we replay history ourselves)
     });
-
-    // Add previous_response_id if provided (for tool call continuations)
-    if let Some(prev_id) = previous_response_id {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("previous_response_id".to_string(), json!(prev_id));
-    }
 
     if !tools.is_empty() {
         let tools_spec: Vec<Value> = tools
@@ -2008,7 +2007,7 @@ mod tests {
             Message::user().with_text("What's the weather?"),
         ];
 
-        let request = create_responses_request(&model_config, "You are a helpful assistant", &messages, &[], None)?;
+        let request = create_responses_request(&model_config, "You are a helpful assistant", &messages, &[])?;
         let obj = request.as_object().unwrap();
 
         // Verify basic structure
@@ -2094,7 +2093,7 @@ mod tests {
         // Add final assistant response
         messages.push(Message::assistant().with_text("The weather in San Francisco is 72°F and sunny!"));
 
-        let request = create_responses_request(&model_config, "You are a weather assistant", &messages, &[tool], None)?;
+        let request = create_responses_request(&model_config, "You are a weather assistant", &messages, &[tool])?;
         let obj = request.as_object().unwrap();
 
         // Verify tools are included
