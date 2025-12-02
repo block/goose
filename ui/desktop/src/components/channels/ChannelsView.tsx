@@ -589,8 +589,9 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     // Use the Matrix client to convert MXC to HTTP
     const client = (matrixService as any).client;
     if (client && client.mxcUrlToHttp) {
-      // Get full-size image for cover photos
-      const httpUrl = client.mxcUrlToHttp(mxcUrl, 800, 800, 'scale', false);
+      // Use download endpoint (no size params) to get the full image
+      // This avoids 404 errors with thumbnail endpoint
+      const httpUrl = client.mxcUrlToHttp(mxcUrl);
       console.log('🖼️ convertMxcToHttp: Converted', mxcUrl, '→', httpUrl);
       return httpUrl || mxcUrl;
     }
