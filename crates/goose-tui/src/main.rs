@@ -261,6 +261,8 @@ async fn run_tui(
         run_recipe_mode(client, cwd, recipe_path, headless).await
     } else if let Some(prompt) = text_input {
         run_text_mode(client, cwd, resolved_session, prompt).await
+    } else if headless {
+        anyhow::bail!("--headless requires either --recipe or --text (or piped stdin)")
     } else {
         run_interactive_mode(client, cwd, resolved_session, name).await
     };
