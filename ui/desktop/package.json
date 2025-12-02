@@ -106,7 +106,7 @@
     "@electron/remote": "^2.1.3",
     "@eslint/js": "^9.33.0",
     "@hey-api/openapi-ts": "^0.85.2",
-    "@modelcontextprotocol/sdk": "^1.20.1",
+    "@modelcontextprotocol/sdk": "^1.24.0",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/line-clamp": "^0.4.4",
     "@tailwindcss/typography": "^0.5.19",
