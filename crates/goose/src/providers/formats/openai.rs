@@ -839,29 +839,117 @@ pub fn create_responses_request(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    previous_response_id: Option<&str>,
 ) -> anyhow::Result<Value, Error> {
-    let mut conversation_parts = Vec::new();
+    let mut input_items = Vec::new();
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        for content in &message.content {
-            match content {
-                MessageContent::Text(text) if !text.text.is_empty() => {
-                    let role_str = if message.role == Role::User {
-                        "User"
-                    } else {
-                        "Assistant"
-                    };
-                    conversation_parts.push(format!("{}: {}", role_str, text.text));
+    // Add system message as first item if present
+    if !system.is_empty() {
+        input_items.push(json!({
+            "role": "system",
+            "content": [{
+                "type": "input_text",
+                "text": system
+            }]
+        }));
+    }
+
+    // Check if we have fresh tool responses that need to be sent
+    // Fresh = last assistant message has tool requests, followed by tool responses, with no assistant text after
+    let has_fresh_tool_responses = if let Some(last_idx) = messages.iter().rposition(|m| m.role == Role::Assistant) {
+        let last_assistant = &messages[last_idx];
+        let has_tool_requests = last_assistant.content.iter().any(|c| matches!(c, MessageContent::ToolRequest(_)));
+
+        if has_tool_requests {
+            // Check if there are tool responses after this and no assistant text response
+            let after_assistant = &messages[last_idx + 1..];
+            let has_tool_responses = after_assistant.iter().any(|m| {
+                m.content.iter().any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            });
+            let has_text_after = after_assistant.iter().any(|m| {
+                m.role == Role::Assistant && m.content.iter().any(|c| matches!(c, MessageContent::Text(_)))
+            });
+            has_tool_responses && !has_text_after
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    // If we have fresh tool responses, replay the function_call + output
+    // (store: false means server has no memory, so we must provide context)
+    if has_fresh_tool_responses {
+        // First, add conversation history UP TO the tool calls (so model has context)
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+            // Skip messages that only contain tool requests or responses - we'll add those specially
+            let has_only_tool_content = message.content.iter().all(|c| {
+                matches!(c, MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_))
+            });
+
+            if has_only_tool_content {
+                continue;
+            }
+
+            let role = match message.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+                _ => continue,
+            };
+
+            let mut content_items = Vec::new();
+            for content in &message.content {
+                match content {
+                    MessageContent::Text(text) if !text.text.is_empty() => {
+                        let content_type = if message.role == Role::Assistant {
+                            "output_text"
+                        } else {
+                            "input_text"
+                        };
+                        content_items.push(json!({
+                            "type": content_type,
+                            "text": text.text
+                        }));
+                    }
+                    _ => {}
                 }
-                MessageContent::ToolRequest(request) => {
-                    if let Ok(tool_call) = &request.tool_call {
-                        conversation_parts.push(format!(
-                            "Tool Call: {} with arguments {:?}",
-                            tool_call.name, tool_call.arguments
-                        ));
+            }
+
+            if !content_items.is_empty() {
+                input_items.push(json!({
+                    "role": role,
+                    "content": content_items
+                }));
+            }
+        }
+
+        // Step 1: Add function_call items (the tool invocations from assistant)
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+            if message.role == Role::Assistant {
+                for content in &message.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        if let Ok(tool_call) = &request.tool_call {
+                            let arguments_str = tool_call.arguments.as_ref()
+                                .map(|args| serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string()))
+                                .unwrap_or_else(|| "{}".to_string());
+
+                            tracing::debug!("Replaying function_call with call_id: {}, name: {}", request.id, tool_call.name);
+                            input_items.push(json!({
+                                "type": "function_call",
+                                "call_id": request.id,
+                                "name": tool_call.name,
+                                "arguments": arguments_str
+                            }));
+                        }
                     }
                 }
-                MessageContent::ToolResponse(response) => {
+            }
+        }
+
+        // Step 2: Add function_call_output items (the tool results)
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+            for content in &message.content {
+                if let MessageContent::ToolResponse(response) = content {
                     if let Ok(contents) = &response.tool_result {
                         let text_content: Vec<String> = contents
                             .iter()
@@ -873,28 +961,93 @@ pub fn create_responses_request(
                                 }
                             })
                             .collect();
+
                         if !text_content.is_empty() {
-                            conversation_parts
-                                .push(format!("Tool Result: {}", text_content.join(" ")));
+                            tracing::debug!("Sending function_call_output with call_id: {}", response.id);
+                            input_items.push(json!({
+                                "type": "function_call_output",
+                                "call_id": response.id,
+                                "output": text_content.join("\n")
+                            }));
                         }
                     }
+                }
+            }
+        }
+    } else {
+        // Send full conversation history (no active tool calls)
+        // Convert messages to structured input items
+        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let role = match message.role {
+            Role::User => "user",
+            Role::Assistant => "assistant",
+            _ => continue, // Skip other roles
+        };
+
+        let mut content_items = Vec::new();
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(text) if !text.text.is_empty() => {
+                    let content_type = if message.role == Role::Assistant {
+                        "output_text"
+                    } else {
+                        "input_text"
+                    };
+                    content_items.push(json!({
+                        "type": content_type,
+                        "text": text.text
+                    }));
+                }
+                MessageContent::ToolRequest(_request) => {
+                    // Tool calls from assistant are not included in input
+                    // They are represented implicitly by the tool results that follow
+                    // The model will generate new tool calls in its response if needed
+                    continue;
+                }
+                MessageContent::ToolResponse(_response) => {
+                    // Tool responses are not included in history
+                    // They're handled separately in the if block above
+                    continue;
                 }
                 _ => {}
             }
         }
-    }
 
-    let input = if conversation_parts.is_empty() {
-        "Hello".to_string()
-    } else {
-        conversation_parts.join("\n\n")
-    };
+        // Only add the message if it has content
+        if !content_items.is_empty() {
+            input_items.push(json!({
+                "role": role,
+                "content": content_items
+            }));
+        }
+    }
+    } // end of else block
+
+    // If no messages, provide a minimal input
+    if input_items.is_empty() {
+        input_items.push(json!({
+            "role": "user",
+            "content": [{
+                "type": "input_text",
+                "text": "Hello"
+            }]
+        }));
+    }
 
     let mut payload = json!({
         "model": model_config.model_name,
-        "input": input,
-        "instructions": system,
+        "input": input_items,
+        "store": false,  // Don't store responses on server
     });
+
+    // Add previous_response_id if provided (for tool call continuations)
+    if let Some(prev_id) = previous_response_id {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("previous_response_id".to_string(), json!(prev_id));
+    }
 
     if !tools.is_empty() {
         let tools_spec: Vec<Value> = tools
@@ -969,6 +1122,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
+                tracing::debug!("Received FunctionCall with id: {}, name: {}", id, name);
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -1833,6 +1987,143 @@ mod tests {
             spec[0]["content"],
             "--- Resource: file:///test.md ---\n# Test\n\n---\n\n What is in the file?"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_responses_request_basic() -> anyhow::Result<()> {
+        let model_config = ModelConfig {
+            model_name: "gpt-5.1-codex".to_string(),
+            context_limit: Some(400_000),
+            temperature: Some(0.7),
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+        };
+
+        let messages = vec![
+            Message::user().with_text("Hello, how are you?"),
+            Message::assistant().with_text("I'm doing well, thank you!"),
+            Message::user().with_text("What's the weather?"),
+        ];
+
+        let request = create_responses_request(&model_config, "You are a helpful assistant", &messages, &[], None)?;
+        let obj = request.as_object().unwrap();
+
+        // Verify basic structure
+        assert_eq!(obj.get("model").unwrap().as_str().unwrap(), "gpt-5.1-codex");
+        assert_eq!(obj.get("store").unwrap().as_bool().unwrap(), false);
+        assert!((obj.get("temperature").unwrap().as_f64().unwrap() - 0.7).abs() < 0.01); // Float comparison
+        assert_eq!(obj.get("max_output_tokens").unwrap().as_i64().unwrap(), 1024);
+
+        // Verify input is an array
+        let input = obj.get("input").unwrap().as_array().unwrap();
+        assert_eq!(input.len(), 4); // system + 3 messages
+
+        // Verify system message
+        assert_eq!(input[0]["role"].as_str().unwrap(), "system");
+        assert_eq!(input[0]["content"][0]["type"].as_str().unwrap(), "input_text");
+        assert_eq!(input[0]["content"][0]["text"].as_str().unwrap(), "You are a helpful assistant");
+
+        // Verify user message
+        assert_eq!(input[1]["role"].as_str().unwrap(), "user");
+        assert_eq!(input[1]["content"][0]["type"].as_str().unwrap(), "input_text");
+        assert_eq!(input[1]["content"][0]["text"].as_str().unwrap(), "Hello, how are you?");
+
+        // Verify assistant message
+        assert_eq!(input[2]["role"].as_str().unwrap(), "assistant");
+        assert_eq!(input[2]["content"][0]["type"].as_str().unwrap(), "output_text");
+        assert_eq!(input[2]["content"][0]["text"].as_str().unwrap(), "I'm doing well, thank you!");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_responses_request_with_tools() -> anyhow::Result<()> {
+        let model_config = ModelConfig {
+            model_name: "gpt-5.1-codex".to_string(),
+            context_limit: Some(400_000),
+            temperature: None,
+            max_tokens: Some(2048),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+        };
+
+        let tool = Tool::new(
+            "get_weather",
+            "Get the current weather",
+            object!({
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City name"
+                    }
+                },
+                "required": ["location"]
+            }),
+        );
+
+        let mut messages = vec![Message::user().with_text("What's the weather in SF?")];
+
+        // Add a tool call from the assistant (will be skipped in input, represented by tool result)
+        let msg_with_tool = Message::assistant().with_tool_request(
+            "call_1",
+            Ok(CallToolRequestParam {
+                name: "get_weather".into(),
+                arguments: Some(object!({"location": "San Francisco"})),
+            }),
+        );
+        messages.push(msg_with_tool);
+
+        // Get the tool request ID
+        let tool_id = if let MessageContent::ToolRequest(req) = &messages[1].content[0] {
+            req.id.clone()
+        } else {
+            panic!("Expected tool request");
+        };
+
+        // Add tool response
+        messages.push(Message::user().with_tool_response(
+            tool_id.clone(),
+            Ok(vec![Content::text("72°F and sunny")]),
+        ));
+
+        // Add final assistant response
+        messages.push(Message::assistant().with_text("The weather in San Francisco is 72°F and sunny!"));
+
+        let request = create_responses_request(&model_config, "You are a weather assistant", &messages, &[tool], None)?;
+        let obj = request.as_object().unwrap();
+
+        // Verify tools are included
+        let tools = obj.get("tools").unwrap().as_array().unwrap();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["type"].as_str().unwrap(), "function");
+        assert_eq!(tools[0]["name"].as_str().unwrap(), "get_weather");
+
+        // Verify input structure
+        let input = obj.get("input").unwrap().as_array().unwrap();
+
+        // Should have: system, user question, assistant response
+        // Tool calls and tool responses are NOT included in history (they're internal to previous turns)
+        // Only the assistant's final text response is included
+
+        // Verify no function_call_output in history (they're only for immediate responses)
+        let has_tool_output = input.iter().any(|item| {
+            item["type"].as_str() == Some("function_call_output")
+        });
+        assert!(!has_tool_output, "Tool responses should not be in conversation history");
+
+        // Verify final assistant response is present
+        let assistant_msg = input.iter().find(|item| {
+            item["role"].as_str() == Some("assistant")
+        }).unwrap();
+
+        assert_eq!(assistant_msg["content"][0]["type"].as_str().unwrap(), "output_text");
+        assert!(assistant_msg["content"][0]["text"].as_str().unwrap().contains("72°F"));
+
         Ok(())
     }
 

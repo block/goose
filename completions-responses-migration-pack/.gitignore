@@ -1,0 +1,32 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+.history/
+*.log
+node_modules/
+dist/
+build/
+coverage/
+
+# Environments
+.env*
+!.env.example
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+
+# Next.js / web
+.next/
+.turbo/
+.vercel/
+
+# Misc
+*.bak
+*.orig
+*.rej
+
+
