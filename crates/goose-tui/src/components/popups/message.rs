@@ -43,84 +43,141 @@ impl MessagePopup {
         theme: &Theme,
     ) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
-
         for content in &message.content {
             match content {
-                MessageContent::Text(t) => {
-                    for line in t.text.lines() {
-                        lines.push(Line::from(Span::styled(
-                            line.to_string(),
-                            Style::default().fg(theme.base.foreground),
-                        )));
-                    }
-                }
+                MessageContent::Text(t) => Self::render_text_content(&mut lines, t, theme),
                 MessageContent::ToolRequest(req) => {
-                    lines.push(Line::from(Span::styled(
-                        "Tool Request:",
-                        Style::default()
-                            .fg(theme.status.warning)
-                            .add_modifier(Modifier::BOLD),
-                    )));
-                    if let Ok(call) = &req.tool_call {
-                        lines.push(Line::from(Span::styled(
-                            format!("Name: {}", call.name),
-                            Style::default().fg(theme.status.info),
-                        )));
-                        if let Some(args) = &call.arguments {
-                            let json_str = serde_json::to_string_pretty(args).unwrap_or_default();
-                            for line in json_str.lines() {
-                                lines.push(Line::from(Span::styled(
-                                    line.to_string(),
-                                    Style::default().fg(theme.base.foreground),
-                                )));
-                            }
-                        }
-                    }
+                    Self::render_tool_request(&mut lines, req, theme)
                 }
                 MessageContent::ToolResponse(resp) => {
-                    lines.push(Line::from(Span::styled(
-                        "Tool Output:",
-                        Style::default()
-                            .fg(theme.status.warning)
-                            .add_modifier(Modifier::BOLD),
-                    )));
-                    if let Ok(contents) = &resp.tool_result {
-                        for content in contents {
-                            if let Some(audience) = content.audience() {
-                                if !audience.contains(&rmcp::model::Role::User) {
-                                    continue;
-                                }
-                            }
-                            if let rmcp::model::Content {
-                                raw: rmcp::model::RawContent::Text(text_content),
-                                ..
-                            } = content
-                            {
-                                let text = &text_content.text;
-                                let display_string = if let Ok(v) =
-                                    serde_json::from_str::<serde_json::Value>(text)
-                                {
-                                    serde_json::to_string_pretty(&v)
-                                        .unwrap_or_else(|_| text.to_string())
-                                } else {
-                                    text.to_string()
-                                };
-                                for line in display_string.lines() {
-                                    let (sanitized, _) = sanitize_line(line);
-                                    lines.push(Line::from(Span::styled(
-                                        sanitized,
-                                        Style::default().fg(theme.base.foreground),
-                                    )));
-                                }
-                            }
-                        }
-                    }
+                    Self::render_tool_response(&mut lines, resp, theme)
+                }
+                MessageContent::ToolConfirmationRequest(req) => {
+                    Self::render_tool_confirmation(&mut lines, req, theme)
                 }
                 _ => {}
             }
             lines.push(Line::from(""));
         }
         lines
+    }
+
+    fn render_text_content(
+        lines: &mut Vec<Line<'static>>,
+        t: &rmcp::model::TextContent,
+        theme: &Theme,
+    ) {
+        for line in t.text.lines() {
+            lines.push(Line::from(Span::styled(
+                line.to_string(),
+                Style::default().fg(theme.base.foreground),
+            )));
+        }
+    }
+
+    fn render_tool_request(
+        lines: &mut Vec<Line<'static>>,
+        req: &goose::conversation::message::ToolRequest,
+        theme: &Theme,
+    ) {
+        lines.push(Line::from(Span::styled(
+            "Tool Request:",
+            Style::default()
+                .fg(theme.status.warning)
+                .add_modifier(Modifier::BOLD),
+        )));
+        if let Ok(call) = &req.tool_call {
+            lines.push(Line::from(Span::styled(
+                format!("Name: {}", call.name),
+                Style::default().fg(theme.status.info),
+            )));
+            if let Some(args) = &call.arguments {
+                Self::render_json_lines(lines, args, theme);
+            }
+        }
+    }
+
+    fn render_tool_response(
+        lines: &mut Vec<Line<'static>>,
+        resp: &goose::conversation::message::ToolResponse,
+        theme: &Theme,
+    ) {
+        lines.push(Line::from(Span::styled(
+            "Tool Output:",
+            Style::default()
+                .fg(theme.status.warning)
+                .add_modifier(Modifier::BOLD),
+        )));
+        let Ok(contents) = &resp.tool_result else {
+            return;
+        };
+        for content in contents {
+            if let Some(audience) = content.audience() {
+                if !audience.contains(&rmcp::model::Role::User) {
+                    continue;
+                }
+            }
+            if let rmcp::model::Content {
+                raw: rmcp::model::RawContent::Text(text_content),
+                ..
+            } = content
+            {
+                let text = &text_content.text;
+                let display = serde_json::from_str::<serde_json::Value>(text)
+                    .ok()
+                    .and_then(|v| serde_json::to_string_pretty(&v).ok())
+                    .unwrap_or_else(|| text.to_string());
+                for line in display.lines() {
+                    let (sanitized, _) = sanitize_line(line);
+                    lines.push(Line::from(Span::styled(
+                        sanitized,
+                        Style::default().fg(theme.base.foreground),
+                    )));
+                }
+            }
+        }
+    }
+
+    fn render_tool_confirmation(
+        lines: &mut Vec<Line<'static>>,
+        req: &goose::conversation::message::ToolConfirmationRequest,
+        theme: &Theme,
+    ) {
+        lines.push(Line::from(Span::styled(
+            "Tool Confirmation Request:",
+            Style::default()
+                .fg(theme.status.warning)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("Tool: {}", req.tool_name),
+            Style::default().fg(theme.status.info),
+        )));
+        if let Some(warning) = &req.prompt {
+            lines.push(Line::from(Span::styled(
+                format!("⚠ {warning}"),
+                Style::default().fg(theme.status.error),
+            )));
+        }
+        lines.push(Line::from(Span::styled(
+            "Arguments:",
+            Style::default().fg(theme.base.foreground),
+        )));
+        Self::render_json_lines(lines, &req.arguments, theme);
+    }
+
+    fn render_json_lines<T: serde::Serialize>(
+        lines: &mut Vec<Line<'static>>,
+        value: &T,
+        theme: &Theme,
+    ) {
+        let json_str = serde_json::to_string_pretty(value).unwrap_or_default();
+        for line in json_str.lines() {
+            lines.push(Line::from(Span::styled(
+                line.to_string(),
+                Style::default().fg(theme.base.foreground),
+            )));
+        }
     }
 
     fn copy_to_clipboard(&self) -> Result<(), String> {
@@ -141,6 +198,22 @@ impl Component for MessagePopup {
         match event {
             Event::Input(key) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::ClosePopup)),
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    if let Some(pending) = &state.pending_confirmation {
+                        return Ok(Some(Action::ConfirmToolCall {
+                            id: pending.id.clone(),
+                            approved: true,
+                        }));
+                    }
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') => {
+                    if let Some(pending) = &state.pending_confirmation {
+                        return Ok(Some(Action::ConfirmToolCall {
+                            id: pending.id.clone(),
+                            approved: false,
+                        }));
+                    }
+                }
                 KeyCode::Char('c') => {
                     return match self.copy_to_clipboard() {
                         Ok(()) => Ok(Some(Action::ShowFlash("Copied to clipboard".to_string()))),

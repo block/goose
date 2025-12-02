@@ -60,4 +60,8 @@ pub enum Action {
     ToggleCopyMode,
     ForkFromMessage(usize),
     SetGooseMode(String),
+    ConfirmToolCall {
+        id: String,
+        approved: bool,
+    },
 }

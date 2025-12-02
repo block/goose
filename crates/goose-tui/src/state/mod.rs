@@ -14,6 +14,16 @@ pub enum InputMode {
     Editing,
 }
 
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct PendingToolConfirmation {
+    pub id: String,
+    pub tool_name: String,
+    pub arguments: serde_json::Map<String, serde_json::Value>,
+    pub security_warning: Option<String>,
+    pub message_index: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ActivePopup {
     #[default]
@@ -54,6 +64,7 @@ pub struct AppState {
     pub active_model: Option<String>,
     pub needs_refresh: bool,
     pub copy_mode: bool,
+    pub pending_confirmation: Option<PendingToolConfirmation>,
 }
 
 impl AppState {
@@ -84,6 +95,7 @@ impl AppState {
             active_model,
             needs_refresh: false,
             copy_mode: false,
+            pending_confirmation: None,
         }
     }
 }

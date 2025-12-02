@@ -1,6 +1,6 @@
 use super::action::Action;
-use crate::state::{ActivePopup, AppState, InputMode, TodoItem};
-use goose::conversation::message::{Message, MessageContent};
+use crate::state::{ActivePopup, AppState, InputMode, PendingToolConfirmation, TodoItem};
+use goose::conversation::message::{Message, MessageContent, ToolConfirmationRequest};
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
 use goose_server::routes::reply::MessageEvent;
@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 
 const FLASH_DURATION_SHORT: Duration = Duration::from_secs(2);
 const FLASH_DURATION_NORMAL: Duration = Duration::from_secs(3);
-const FLASH_DURATION_ERROR: Duration = Duration::from_secs(5);
+const FLASH_DURATION_LONG: Duration = Duration::from_secs(5);
+const FLASH_DURATION_APPROVAL: Duration = Duration::from_secs(10);
 
 pub fn update(state: &mut AppState, action: Action) {
     match action {
@@ -58,6 +59,27 @@ fn handle_data_loaded(state: &mut AppState, action: &Action) -> bool {
             state.todos.clear();
             state.active_popup = ActivePopup::None;
             state.is_working = false;
+            state.pending_confirmation = None;
+
+            let pending = state.messages.last().and_then(|last_msg| {
+                extract_tool_confirmation(last_msg).map(|req| PendingToolConfirmation {
+                    id: req.id.clone(),
+                    tool_name: req.tool_name.clone(),
+                    arguments: req.arguments.clone(),
+                    security_warning: req.prompt.clone(),
+                    message_index: state.messages.len() - 1,
+                })
+            });
+
+            if pending.is_some() {
+                state.pending_confirmation = pending;
+                state.is_working = false;
+                state.flash_message = Some((
+                    "⚠ Tool approval required - press Y to allow, N to deny".to_string(),
+                    Instant::now() + FLASH_DURATION_APPROVAL,
+                ));
+            }
+
             true
         }
         Action::SessionsListLoaded(sessions) => {
@@ -101,6 +123,7 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
             state.todos.clear();
             state.token_state = goose::conversation::message::TokenState::default();
             state.has_worked = false;
+            state.pending_confirmation = None;
             true
         }
         Action::CreateNewSession | Action::ResumeSession(_) | Action::ForkFromMessage(_) => {
@@ -108,11 +131,27 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
             state.active_popup = ActivePopup::None;
             state.messages.clear();
             state.todos.clear();
+            state.pending_confirmation = None;
+            true
+        }
+        Action::ConfirmToolCall { id, approved } => {
+            if let Some(pending) = &state.pending_confirmation {
+                if pending.id == *id {
+                    let tool_name = pending.tool_name.clone();
+                    state.pending_confirmation = None;
+                    state.is_working = true;
+                    let action_str = if *approved { "allowed" } else { "denied" };
+                    state.flash_message = Some((
+                        format!("Tool {tool_name} {action_str}"),
+                        Instant::now() + FLASH_DURATION_SHORT,
+                    ));
+                }
+            }
             true
         }
         Action::Error(e) => {
             state.flash_message =
-                Some((format!("Error: {e}"), Instant::now() + FLASH_DURATION_ERROR));
+                Some((format!("Error: {e}"), Instant::now() + FLASH_DURATION_LONG));
             state.is_working = false;
             true
         }
@@ -283,6 +322,11 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
                 state.todos = todos;
             }
 
+            if let Some(req) = extract_tool_confirmation(message) {
+                let msg_idx = state.messages.len();
+                set_pending_confirmation(state, req, msg_idx);
+            }
+
             if let Some(last_msg) = state.messages.last_mut() {
                 if last_msg.id == message.id {
                     for content in message.content.clone() {
@@ -307,13 +351,13 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
             state.messages = conversation.messages().clone();
             state.flash_message = Some((
                 "Context compaction complete".to_string(),
-                Instant::now() + FLASH_DURATION_ERROR,
+                Instant::now() + FLASH_DURATION_LONG,
             ));
         }
         MessageEvent::Error { error } => {
             state.flash_message = Some((
                 format!("Server Error: {error}"),
-                Instant::now() + FLASH_DURATION_ERROR,
+                Instant::now() + FLASH_DURATION_LONG,
             ));
             state.is_working = false;
         }
@@ -323,6 +367,35 @@ fn handle_server_message(state: &mut AppState, msg: Arc<MessageEvent>) {
         }
         _ => {}
     }
+}
+
+fn extract_tool_confirmation(message: &Message) -> Option<&ToolConfirmationRequest> {
+    message.content.iter().find_map(|c| {
+        if let MessageContent::ToolConfirmationRequest(req) = c {
+            Some(req)
+        } else {
+            None
+        }
+    })
+}
+
+fn set_pending_confirmation(
+    state: &mut AppState,
+    req: &ToolConfirmationRequest,
+    message_index: usize,
+) {
+    state.pending_confirmation = Some(PendingToolConfirmation {
+        id: req.id.clone(),
+        tool_name: req.tool_name.clone(),
+        arguments: req.arguments.clone(),
+        security_warning: req.prompt.clone(),
+        message_index,
+    });
+    state.is_working = false;
+    state.flash_message = Some((
+        "⚠ Tool approval required - press Y to allow, N to deny".to_string(),
+        Instant::now() + FLASH_DURATION_APPROVAL,
+    ));
 }
 
 fn extract_todos_from_message(message: &Message) -> Option<Vec<TodoItem>> {

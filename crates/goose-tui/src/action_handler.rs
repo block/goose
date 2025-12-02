@@ -43,6 +43,9 @@ pub fn handle_action(
         Action::SetGooseMode(mode) => {
             handle_set_goose_mode(mode, client, tx);
         }
+        Action::ConfirmToolCall { id, approved } => {
+            handle_confirm_tool_call(id, *approved, state, client, tx);
+        }
         Action::Quit => {
             return true;
         }
@@ -419,4 +422,27 @@ fn handle_set_goose_mode(mode: &str, client: &Client, tx: &mpsc::UnboundedSender
             ));
         }
     }
+}
+
+fn handle_confirm_tool_call(
+    id: &str,
+    approved: bool,
+    state: &AppState,
+    client: &Client,
+    tx: &mpsc::UnboundedSender<Event>,
+) {
+    let client = client.clone();
+    let tx = tx.clone();
+    let session_id = state.session_id.clone();
+    let request_id = id.to_string();
+    let action = if approved { "allow_once" } else { "deny" };
+
+    tokio::spawn(async move {
+        if let Err(e) = client
+            .confirm_tool_permission(&session_id, &request_id, action)
+            .await
+        {
+            let _ = tx.send(Event::Error(format!("Failed to confirm tool: {e}")));
+        }
+    });
 }

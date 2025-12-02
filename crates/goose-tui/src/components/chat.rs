@@ -1,14 +1,14 @@
 use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::{AppState, InputMode};
+use crate::state::{AppState, InputMode, PendingToolConfirmation};
 use crate::utils::ascii_art::render_logo_with_gradient;
 use crate::utils::sanitize::sanitize_line;
 use crate::utils::styles::{breathing_color, Theme};
 use crate::utils::termimad_renderer::MarkdownRenderer;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
-use goose::conversation::message::MessageContent;
+use goose::conversation::message::{MessageContent, ToolConfirmationRequest};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -60,14 +60,20 @@ impl ChatComponent {
         width: usize,
         theme: &Theme,
         last_tool_context: &mut HashMap<String, (String, String)>,
+        pending_confirmation: Option<&PendingToolConfirmation>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         match message.role {
             rmcp::model::Role::User => {
                 Self::render_user_message(msg_idx, message, width, theme, last_tool_context)
             }
-            rmcp::model::Role::Assistant => {
-                Self::render_assistant_message(msg_idx, message, width, theme, last_tool_context)
-            }
+            rmcp::model::Role::Assistant => Self::render_assistant_message(
+                msg_idx,
+                message,
+                width,
+                theme,
+                last_tool_context,
+                pending_confirmation,
+            ),
         }
     }
 
@@ -258,6 +264,7 @@ impl ChatComponent {
         width: usize,
         theme: &Theme,
         last_tool_context: &mut HashMap<String, (String, String)>,
+        pending_confirmation: Option<&PendingToolConfirmation>,
     ) -> (Vec<ListItem<'static>>, Vec<usize>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
@@ -293,6 +300,15 @@ impl ChatComponent {
                         map.push(msg_idx);
                     }
                 }
+                MessageContent::ToolConfirmationRequest(req) => {
+                    let is_pending = pending_confirmation
+                        .map(|p| p.id == req.id)
+                        .unwrap_or(false);
+                    let (conf_items, conf_map) =
+                        Self::render_tool_confirmation(msg_idx, req, width, theme, is_pending);
+                    items.extend(conf_items);
+                    map.extend(conf_map);
+                }
                 MessageContent::Thinking(t) => {
                     items.push(ListItem::new(Line::from(vec![
                         Span::styled("🤔 ", Style::default()),
@@ -311,6 +327,107 @@ impl ChatComponent {
         items.push(ListItem::new(Line::from("")));
         map.push(msg_idx);
         (items, map)
+    }
+
+    fn render_tool_confirmation(
+        msg_idx: usize,
+        req: &ToolConfirmationRequest,
+        width: usize,
+        theme: &Theme,
+        is_pending: bool,
+    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+        let mut items = Vec::new();
+        let mut map = Vec::new();
+
+        let border_color = if is_pending {
+            theme.status.warning
+        } else {
+            Color::DarkGray
+        };
+
+        if let Some(warning) = &req.prompt {
+            let warning_line = Line::from(vec![
+                Span::styled(
+                    "⚠ Security: ",
+                    Style::default()
+                        .fg(theme.status.error)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(warning.clone(), Style::default().fg(theme.status.warning)),
+            ]);
+            items.push(ListItem::new(warning_line));
+            map.push(msg_idx);
+        }
+
+        let status = if is_pending {
+            "AWAITING APPROVAL"
+        } else {
+            "CONFIRMED"
+        };
+        let header_text = format!("┌─ {} ─ {} ", req.tool_name, status);
+        let header_width = UnicodeWidthStr::width(header_text.as_str());
+        let padding = width.saturating_sub(header_width + 1);
+
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(
+                header_text,
+                Style::default()
+                    .fg(border_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{:─<w$}┐", "", w = padding),
+                Style::default().fg(border_color),
+            ),
+        ])));
+        map.push(msg_idx);
+
+        let args_str = serde_json::to_string(&req.arguments).unwrap_or_default();
+        let preview = if args_str.len() > 60 {
+            format!("{}...", &args_str[..57])
+        } else {
+            args_str
+        };
+
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("│ ", Style::default().fg(border_color)),
+            Span::styled(preview, Style::default().fg(Color::Gray)),
+        ])));
+        map.push(msg_idx);
+
+        if is_pending {
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(border_color)),
+                Span::styled(
+                    "Press Y to allow, N to deny",
+                    Style::default().fg(theme.status.info),
+                ),
+            ])));
+            map.push(msg_idx);
+        }
+
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("└{:─<w$}┘", "", w = width.saturating_sub(2)),
+            Style::default().fg(border_color),
+        ))));
+        map.push(msg_idx);
+
+        (items, map)
+    }
+
+    fn check_confirmation_keys(&self, key: KeyCode, state: &AppState) -> Option<Action> {
+        let pending = state.pending_confirmation.as_ref()?;
+        match key {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Some(Action::ConfirmToolCall {
+                id: pending.id.clone(),
+                approved: true,
+            }),
+            KeyCode::Char('n') | KeyCode::Char('N') => Some(Action::ConfirmToolCall {
+                id: pending.id.clone(),
+                approved: false,
+            }),
+            _ => None,
+        }
     }
 
     fn render_empty_state(&self, f: &mut Frame, area: Rect, state: &AppState) {
@@ -460,6 +577,10 @@ impl Component for ChatComponent {
             },
             Event::Input(key) => {
                 if state.input_mode == InputMode::Normal {
+                    if let Some(action) = self.check_confirmation_keys(key.code, state) {
+                        return Ok(Some(action));
+                    }
+
                     match key.code {
                         KeyCode::Char('k') | KeyCode::Up => {
                             self.stick_to_bottom = false;
@@ -548,6 +669,7 @@ impl Component for ChatComponent {
                     width,
                     theme,
                     &mut self.last_tool_context,
+                    state.pending_confirmation.as_ref(),
                 );
                 self.cached_items.extend(items);
                 self.cached_mapping.extend(map);
@@ -555,7 +677,6 @@ impl Component for ChatComponent {
             self.sealed_count = new_sealed_count;
         }
 
-        // Prepare Display List (Cache + Dynamic)
         let mut display_items = self.cached_items.clone();
         let mut display_map = self.cached_mapping.clone();
 
@@ -571,6 +692,7 @@ impl Component for ChatComponent {
                     width,
                     theme,
                     &mut ctx,
+                    state.pending_confirmation.as_ref(),
                 );
                 display_items.extend(items);
                 display_map.extend(map);

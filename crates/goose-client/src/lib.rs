@@ -348,6 +348,23 @@ impl Client {
         Ok(())
     }
 
+    pub async fn confirm_tool_permission(
+        &self,
+        session_id: &str,
+        request_id: &str,
+        action: &str,
+    ) -> Result<()> {
+        self.post("/confirm")
+            .json(&serde_json::json!({
+                "session_id": session_id,
+                "id": request_id,
+                "action": action
+            }))
+            .send_empty()
+            .await
+            .context("Failed to confirm tool permission")
+    }
+
     pub async fn reply(
         &self,
         messages: Vec<Message>,

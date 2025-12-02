@@ -203,6 +203,22 @@ impl StatusComponent {
     ) -> Vec<Span<'static>> {
         let mut hints = Vec::new();
 
+        if state.pending_confirmation.is_some() {
+            hints.push(Span::styled(
+                "Y: Allow",
+                Style::default()
+                    .fg(theme.status.success)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            hints.push(Span::styled(
+                "N: Deny",
+                Style::default()
+                    .fg(theme.status.error)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            return hints;
+        }
+
         if state.is_working {
             hints.push(Span::styled(
                 "Ctrl+C Interrupt",

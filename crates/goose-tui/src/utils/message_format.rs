@@ -46,6 +46,17 @@ pub fn message_to_plain_text(message: &Message) -> String {
                     }
                 }
             }
+            MessageContent::ToolConfirmationRequest(req) => {
+                lines.push("Tool Confirmation Request:".to_string());
+                lines.push(format!("Tool: {}", req.tool_name));
+                if let Some(warning) = &req.prompt {
+                    lines.push(format!("Warning: {warning}"));
+                }
+                lines.push("Arguments:".to_string());
+                if let Ok(json_str) = serde_json::to_string_pretty(&req.arguments) {
+                    lines.push(json_str);
+                }
+            }
             _ => {}
         }
         lines.push(String::new());
