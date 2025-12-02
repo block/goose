@@ -1100,24 +1100,36 @@ export class MatrixService extends EventEmitter {
 
     console.log('getRooms - fetching fresh room data');
     
-    this.cachedRooms = this.client.getRooms().map(room => ({
-      roomId: room.roomId,
-      name: room.name,
-      topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic,
-      members: room.getMembers().map(member => {
-        // Get MXC avatar URL and ensure it's stable
-        const mxcAvatarUrl = member.getMxcAvatarUrl();
-        
-        return {
-          userId: member.userId,
-          displayName: member.name,
-          avatarUrl: mxcAvatarUrl || null, // Ensure null instead of undefined
-          presence: this.client?.getUser(member.userId)?.presence,
-        };
-      }),
-      isDirectMessage: this.isDirectMessageRoom(room), // Use improved DM detection
-      lastActivity: new Date(room.getLastActiveTimestamp()),
-    }));
+    this.cachedRooms = this.client.getRooms().map(room => {
+      // Get room avatar from state events
+      const avatarEvent = room.currentState.getStateEvents('m.room.avatar', '');
+      const avatarUrl = avatarEvent?.getContent()?.url || null;
+      
+      // Debug logging for avatar URLs
+      if (avatarUrl) {
+        console.log('🖼️ getRooms: Found avatar for room', room.roomId.substring(0, 20) + '...', '→', avatarUrl);
+      }
+      
+      return {
+        roomId: room.roomId,
+        name: room.name,
+        topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic,
+        avatarUrl: avatarUrl, // Room avatar (cover photo)
+        members: room.getMembers().map(member => {
+          // Get MXC avatar URL and ensure it's stable
+          const mxcAvatarUrl = member.getMxcAvatarUrl();
+          
+          return {
+            userId: member.userId,
+            displayName: member.name,
+            avatarUrl: mxcAvatarUrl || null, // Ensure null instead of undefined
+            presence: this.client?.getUser(member.userId)?.presence,
+          };
+        }),
+        isDirectMessage: this.isDirectMessageRoom(room), // Use improved DM detection
+        lastActivity: new Date(room.getLastActiveTimestamp()),
+      };
+    });
 
     console.log('getRooms - cached new room data:', this.cachedRooms.length);
     return this.cachedRooms;
@@ -1509,6 +1521,126 @@ export class MatrixService extends EventEmitter {
     } catch (error) {
       console.error('Failed to set display name:', error);
       throw new Error('Failed to update display name');
+    }
+  }
+
+  /**
+   * Update room name
+   */
+  async setRoomName(roomId: string, name: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setRoomName(roomId, name);
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomNameUpdated', { roomId, name });
+      console.log('✅ Room name updated:', roomId, '→', name);
+    } catch (error) {
+      console.error('Failed to set room name:', error);
+      throw new Error('Failed to update room name');
+    }
+  }
+
+  /**
+   * Update room topic
+   */
+  async setRoomTopic(roomId: string, topic: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.setRoomTopic(roomId, topic);
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomTopicUpdated', { roomId, topic });
+      console.log('✅ Room topic updated:', roomId, '→', topic);
+    } catch (error) {
+      console.error('Failed to set room topic:', error);
+      throw new Error('Failed to update room topic');
+    }
+  }
+
+  /**
+   * Upload and set room avatar (cover photo)
+   */
+  async setRoomAvatar(roomId: string, file: File): Promise<string> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      console.log('setRoomAvatar - uploading file for room:', roomId, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        fileSizeKB: (file.size / 1024).toFixed(2) + ' KB'
+      });
+      
+      // Upload the file to Matrix media repository
+      const uploadResponse = await this.client.uploadContent(file, {
+        name: file.name,
+        type: file.type,
+      });
+
+      console.log('setRoomAvatar - full upload response:', JSON.stringify(uploadResponse, null, 2));
+      
+      const avatarUrl = uploadResponse.content_uri;
+      console.log('setRoomAvatar - extracted MXC URL:', avatarUrl);
+      
+      // Validate the MXC URL format
+      if (!avatarUrl || !avatarUrl.startsWith('mxc://')) {
+        throw new Error(`Invalid MXC URL returned from upload: ${avatarUrl}`);
+      }
+
+      // Set the avatar URL for the room
+      await this.client.sendStateEvent(roomId, 'm.room.avatar', {
+        url: avatarUrl,
+      }, '');
+      
+      console.log('setRoomAvatar - room avatar URL set');
+
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+
+      // Emit room avatar updated event
+      this.emit('roomAvatarUpdated', { roomId, avatarUrl });
+
+      return avatarUrl;
+    } catch (error) {
+      console.error('Failed to set room avatar:', error);
+      throw new Error('Failed to upload and set room avatar');
+    }
+  }
+
+  /**
+   * Remove room avatar
+   */
+  async removeRoomAvatar(roomId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.sendStateEvent(roomId, 'm.room.avatar', {
+        url: '',
+      }, '');
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomAvatarUpdated', { roomId, avatarUrl: null });
+      console.log('✅ Room avatar removed:', roomId);
+    } catch (error) {
+      console.error('Failed to remove room avatar:', error);
+      throw new Error('Failed to remove room avatar');
     }
   }
 
