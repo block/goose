@@ -834,6 +834,201 @@ where
 // Responses API Helper Functions
 // ============================================================================
 
+/// Check if we have fresh tool responses that need to be sent
+/// Fresh = last assistant message has tool requests, followed by tool responses, with no assistant text after
+fn has_fresh_tool_responses(messages: &[Message]) -> bool {
+    if let Some(last_idx) = messages.iter().rposition(|m| m.role == Role::Assistant) {
+        let last_assistant = &messages[last_idx];
+        let has_tool_requests = last_assistant
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::ToolRequest(_)));
+
+        if has_tool_requests {
+            let after_assistant = &messages[last_idx + 1..];
+            let has_tool_responses = after_assistant.iter().any(|m| {
+                m.content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            });
+            let has_text_after = after_assistant.iter().any(|m| {
+                m.role == Role::Assistant
+                    && m.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::Text(_)))
+            });
+            has_tool_responses && !has_text_after
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// Add conversation history (text messages only, excluding tool content)
+fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        // Skip messages that only contain tool requests or responses
+        let has_only_tool_content = message.content.iter().all(|c| {
+            matches!(
+                c,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        });
+
+        if has_only_tool_content {
+            continue;
+        }
+
+        // Only User and Assistant roles are valid
+        if message.role != Role::User && message.role != Role::Assistant {
+            continue;
+        }
+
+        let role = match message.role {
+            Role::User => "user",
+            Role::Assistant => "assistant",
+        };
+
+        let mut content_items = Vec::new();
+        for content in &message.content {
+            if let MessageContent::Text(text) = content {
+                if !text.text.is_empty() {
+                    let content_type = if message.role == Role::Assistant {
+                        "output_text"
+                    } else {
+                        "input_text"
+                    };
+                    content_items.push(json!({
+                        "type": content_type,
+                        "text": text.text
+                    }));
+                }
+            }
+        }
+
+        if !content_items.is_empty() {
+            input_items.push(json!({
+                "role": role,
+                "content": content_items
+            }));
+        }
+    }
+}
+
+/// Add function_call items (tool invocations from assistant)
+fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        if message.role == Role::Assistant {
+            for content in &message.content {
+                if let MessageContent::ToolRequest(request) = content {
+                    if let Ok(tool_call) = &request.tool_call {
+                        let arguments_str = tool_call
+                            .arguments
+                            .as_ref()
+                            .map(|args| {
+                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
+                            })
+                            .unwrap_or_else(|| "{}".to_string());
+
+                        tracing::debug!(
+                            "Replaying function_call with call_id: {}, name: {}",
+                            request.id,
+                            tool_call.name
+                        );
+                        input_items.push(json!({
+                            "type": "function_call",
+                            "call_id": request.id,
+                            "name": tool_call.name,
+                            "arguments": arguments_str
+                        }));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Add function_call_output items (tool results)
+fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message]) {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        for content in &message.content {
+            if let MessageContent::ToolResponse(response) = content {
+                if let Ok(contents) = &response.tool_result {
+                    let text_content: Vec<String> = contents
+                        .iter()
+                        .filter_map(|c| {
+                            if let RawContent::Text(t) = c.deref() {
+                                Some(t.text.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if !text_content.is_empty() {
+                        tracing::debug!(
+                            "Sending function_call_output with call_id: {}",
+                            response.id
+                        );
+                        input_items.push(json!({
+                            "type": "function_call_output",
+                            "call_id": response.id,
+                            "output": text_content.join("\n")
+                        }));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Add full conversation (all message history, excluding tool requests/responses)
+fn add_full_conversation(input_items: &mut Vec<Value>, messages: &[Message]) {
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        // Only User and Assistant messages
+        if message.role != Role::User && message.role != Role::Assistant {
+            continue;
+        }
+
+        let role = match message.role {
+            Role::User => "user",
+            Role::Assistant => "assistant",
+        };
+
+        let mut content_items = Vec::new();
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(text) if !text.text.is_empty() => {
+                    let content_type = if message.role == Role::Assistant {
+                        "output_text"
+                    } else {
+                        "input_text"
+                    };
+                    content_items.push(json!({
+                        "type": content_type,
+                        "text": text.text
+                    }));
+                }
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_) => {
+                    // Skip tool content in full conversation mode
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        if !content_items.is_empty() {
+            input_items.push(json!({
+                "role": role,
+                "content": content_items
+            }));
+        }
+    }
+}
+
 pub fn create_responses_request(
     model_config: &ModelConfig,
     system: &str,
@@ -853,206 +1048,15 @@ pub fn create_responses_request(
         }));
     }
 
-    // Check if we have fresh tool responses that need to be sent
-    // Fresh = last assistant message has tool requests, followed by tool responses, with no assistant text after
-    let has_fresh_tool_responses =
-        if let Some(last_idx) = messages.iter().rposition(|m| m.role == Role::Assistant) {
-            let last_assistant = &messages[last_idx];
-            let has_tool_requests = last_assistant
-                .content
-                .iter()
-                .any(|c| matches!(c, MessageContent::ToolRequest(_)));
-
-            if has_tool_requests {
-                // Check if there are tool responses after this and no assistant text response
-                let after_assistant = &messages[last_idx + 1..];
-                let has_tool_responses = after_assistant.iter().any(|m| {
-                    m.content
-                        .iter()
-                        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
-                });
-                let has_text_after = after_assistant.iter().any(|m| {
-                    m.role == Role::Assistant
-                        && m.content
-                            .iter()
-                            .any(|c| matches!(c, MessageContent::Text(_)))
-                });
-                has_tool_responses && !has_text_after
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
     // If we have fresh tool responses, replay the function_call + output
     // (store: false means server has no memory, so we must provide context)
-    if has_fresh_tool_responses {
-        // First, add conversation history UP TO the tool calls (so model has context)
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            // Skip messages that only contain tool requests or responses - we'll add those specially
-            let has_only_tool_content = message.content.iter().all(|c| {
-                matches!(
-                    c,
-                    MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
-                )
-            });
-
-            if has_only_tool_content {
-                continue;
-            }
-
-            // Only User and Assistant roles are valid here
-            if message.role != Role::User && message.role != Role::Assistant {
-                continue;
-            }
-
-            let role = match message.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-
-            let mut content_items = Vec::new();
-            for content in &message.content {
-                match content {
-                    MessageContent::Text(text) if !text.text.is_empty() => {
-                        let content_type = if message.role == Role::Assistant {
-                            "output_text"
-                        } else {
-                            "input_text"
-                        };
-                        content_items.push(json!({
-                            "type": content_type,
-                            "text": text.text
-                        }));
-                    }
-                    _ => {}
-                }
-            }
-
-            if !content_items.is_empty() {
-                input_items.push(json!({
-                    "role": role,
-                    "content": content_items
-                }));
-            }
-        }
-
-        // Step 1: Add function_call items (the tool invocations from assistant)
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            if message.role == Role::Assistant {
-                for content in &message.content {
-                    if let MessageContent::ToolRequest(request) = content {
-                        if let Ok(tool_call) = &request.tool_call {
-                            let arguments_str = tool_call
-                                .arguments
-                                .as_ref()
-                                .map(|args| {
-                                    serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
-                                })
-                                .unwrap_or_else(|| "{}".to_string());
-
-                            tracing::debug!(
-                                "Replaying function_call with call_id: {}, name: {}",
-                                request.id,
-                                tool_call.name
-                            );
-                            input_items.push(json!({
-                                "type": "function_call",
-                                "call_id": request.id,
-                                "name": tool_call.name,
-                                "arguments": arguments_str
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-
-        // Step 2: Add function_call_output items (the tool results)
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            for content in &message.content {
-                if let MessageContent::ToolResponse(response) = content {
-                    if let Ok(contents) = &response.tool_result {
-                        let text_content: Vec<String> = contents
-                            .iter()
-                            .filter_map(|c| {
-                                if let RawContent::Text(t) = c.deref() {
-                                    Some(t.text.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-
-                        if !text_content.is_empty() {
-                            tracing::debug!(
-                                "Sending function_call_output with call_id: {}",
-                                response.id
-                            );
-                            input_items.push(json!({
-                                "type": "function_call_output",
-                                "call_id": response.id,
-                                "output": text_content.join("\n")
-                            }));
-                        }
-                    }
-                }
-            }
-        }
+    if has_fresh_tool_responses(messages) {
+        add_conversation_history(&mut input_items, messages);
+        add_function_calls(&mut input_items, messages);
+        add_function_call_outputs(&mut input_items, messages);
     } else {
-        // Send full conversation history (no active tool calls)
-        // Convert messages to structured input items
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            // Only User and Assistant messages - others are filtered or handled separately
-            if message.role != Role::User && message.role != Role::Assistant {
-                continue;
-            }
-
-            let role = match message.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-
-            let mut content_items = Vec::new();
-
-            for content in &message.content {
-                match content {
-                    MessageContent::Text(text) if !text.text.is_empty() => {
-                        let content_type = if message.role == Role::Assistant {
-                            "output_text"
-                        } else {
-                            "input_text"
-                        };
-                        content_items.push(json!({
-                            "type": content_type,
-                            "text": text.text
-                        }));
-                    }
-                    MessageContent::ToolRequest(_request) => {
-                        // Tool calls from assistant are not included in input
-                        // They are represented implicitly by the tool results that follow
-                        // The model will generate new tool calls in its response if needed
-                        continue;
-                    }
-                    MessageContent::ToolResponse(_response) => {
-                        // Tool responses are not included in history
-                        // They're handled separately in the if block above
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-
-            // Only add the message if it has content
-            if !content_items.is_empty() {
-                input_items.push(json!({
-                    "role": role,
-                    "content": content_items
-                }));
-            }
-        }
-    } // end of else block
+        add_full_conversation(&mut input_items, messages);
+    }
 
     // If no messages, provide a minimal input
     if input_items.is_empty() {
@@ -1177,6 +1181,65 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
             Some(u.total_tokens),
         )
     })
+}
+
+/// Process output items and create message content from tool calls
+fn process_streaming_output_items(
+    output_items: Vec<ResponseOutputItemInfo>,
+    is_text_response: bool,
+) -> Vec<MessageContent> {
+    let mut content = Vec::new();
+
+    for item in output_items {
+        match item {
+            ResponseOutputItemInfo::Reasoning { .. } => {
+                // Skip reasoning items
+            }
+            ResponseOutputItemInfo::Message { content: parts, .. } => {
+                for part in parts {
+                    match part {
+                        ContentPart::OutputText { text, .. } => {
+                            if !text.is_empty() && !is_text_response {
+                                content.push(MessageContent::text(&text));
+                            }
+                        }
+                        ContentPart::ToolCall { id, name, arguments } => {
+                            let parsed_args = if arguments.is_empty() {
+                                json!({})
+                            } else {
+                                serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                            };
+
+                            content.push(MessageContent::tool_request(
+                                id,
+                                Ok(CallToolRequestParam {
+                                    name: name.into(),
+                                    arguments: Some(object(parsed_args)),
+                                }),
+                            ));
+                        }
+                    }
+                }
+            }
+            ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
+                let parsed_args = if arguments.is_empty() {
+                    json!({})
+                } else {
+                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                };
+
+                content.push(MessageContent::tool_request(
+                    call_id,
+                    Ok(CallToolRequestParam {
+                        name: name.into(),
+                        arguments: Some(object(parsed_args)),
+                    }),
+                ));
+            }
+        }
+    }
+
+    content
 }
 
 pub fn responses_api_to_streaming_message<S>(
@@ -1305,57 +1368,7 @@ where
         }
 
         // Process final output items and yield usage data
-        let mut content = Vec::new();
-
-        // Process output items for tool calls
-        for item in output_items {
-            match item {
-                ResponseOutputItemInfo::Reasoning { .. } => {
-                    // Skip reasoning items
-                }
-                ResponseOutputItemInfo::Message { content: parts, .. } => {
-                    for part in parts {
-                        match part {
-                            ContentPart::OutputText { text, .. } => {
-                                if !text.is_empty() && !is_text_response {
-                                    content.push(MessageContent::text(&text));
-                                }
-                            }
-                            ContentPart::ToolCall { id, name, arguments } => {
-                                let parsed_args = if arguments.is_empty() {
-                                    json!({})
-                                } else {
-                                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                                };
-
-                                content.push(MessageContent::tool_request(
-                                    id,
-                                    Ok(CallToolRequestParam {
-                                        name: name.into(),
-                                        arguments: Some(object(parsed_args)),
-                                    }),
-                                ));
-                            }
-                        }
-                    }
-                }
-                ResponseOutputItemInfo::FunctionCall { call_id, name, arguments, .. } => {
-                    let parsed_args = if arguments.is_empty() {
-                        json!({})
-                    } else {
-                        serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                    };
-
-                    content.push(MessageContent::tool_request(
-                        call_id,
-                        Ok(CallToolRequestParam {
-                            name: name.into(),
-                            arguments: Some(object(parsed_args)),
-                        }),
-                    ));
-                }
-            }
-        }
+        let content = process_streaming_output_items(output_items, is_text_response);
 
         if !content.is_empty() {
             let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
