@@ -1577,7 +1577,12 @@ export class MatrixService extends EventEmitter {
     }
 
     try {
-      console.log('setRoomAvatar - uploading file for room:', roomId, file.name, file.type);
+      console.log('setRoomAvatar - uploading file for room:', roomId, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        fileSizeKB: (file.size / 1024).toFixed(2) + ' KB'
+      });
       
       // Upload the file to Matrix media repository
       const uploadResponse = await this.client.uploadContent(file, {
@@ -1585,8 +1590,15 @@ export class MatrixService extends EventEmitter {
         type: file.type,
       });
 
+      console.log('setRoomAvatar - full upload response:', JSON.stringify(uploadResponse, null, 2));
+      
       const avatarUrl = uploadResponse.content_uri;
-      console.log('setRoomAvatar - upload response MXC URL:', avatarUrl);
+      console.log('setRoomAvatar - extracted MXC URL:', avatarUrl);
+      
+      // Validate the MXC URL format
+      if (!avatarUrl || !avatarUrl.startsWith('mxc://')) {
+        throw new Error(`Invalid MXC URL returned from upload: ${avatarUrl}`);
+      }
 
       // Set the avatar URL for the room
       await this.client.sendStateEvent(roomId, 'm.room.avatar', {
