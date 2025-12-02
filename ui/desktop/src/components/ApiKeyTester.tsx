@@ -47,7 +47,6 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
     setShowResults(true);
 
     try {
-      // Call backend API to detect provider (cloud providers only, no Ollama)
       const response = await detectCloudProvider({
         body: { api_key: actualValue },
         throwOnError: true,
@@ -56,7 +55,6 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       if (response.data) {
         const { provider_name, models } = response.data;
 
-        // Show success
         setTestResults([
           {
             provider: provider_name,
@@ -66,11 +64,9 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
           },
         ]);
 
-        // Store the API key
         const keyName = `${provider_name.toUpperCase()}_API_KEY`;
         await upsert(keyName, actualValue, true);
 
-        // Configure Goose with detected provider
         await upsert('GOOSE_PROVIDER', provider_name, false);
         await upsert('GOOSE_MODEL', models[0], false);
 
@@ -82,7 +78,6 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         onSuccess(provider_name, models[0]);
       }
     } catch (error: unknown) {
-      // Detection failed - show helpful error message
       setTestResults([
         {
           provider: 'Unknown',

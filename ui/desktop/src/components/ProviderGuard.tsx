@@ -32,7 +32,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     showRetry: boolean;
     autoClose?: number;
   } | null>(null);
-  
+
   const [tetrateSetupState, setTetrateSetupState] = useState<{
     show: boolean;
     title: string;
@@ -77,8 +77,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleApiKeySuccess = (_provider: string, _model: string) => {
-    // Mark as having provider and close setup
-    console.log("✅ API key success - clearing userInActiveSetup and redirecting");
     setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);
@@ -120,7 +118,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
-
   const handleOllamaComplete = () => {
     setShowOllamaSetup(false);
     setShowFirstTimeSetup(false);
@@ -156,24 +153,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
         const hasConfiguredProvider = provider.trim() !== '';
 
-        console.log('🔍 ProviderGuard checkProvider:', {
-          userInActiveSetup,
-          hasConfiguredProvider,
-          didSelectProvider,
-          provider
-        });
-
         // If user is actively testing keys, don't redirect
         if (userInActiveSetup) {
-          console.log('🚫 User in active setup - staying on setup screen');
           setHasProvider(false);
           setShowFirstTimeSetup(true);
         } else if (hasConfiguredProvider || didSelectProvider) {
-          console.log('✅ Has provider or did select - redirecting to app');
           setHasProvider(true);
           setShowFirstTimeSetup(false);
         } else {
-          console.log('❌ No provider - showing setup screen');
           setHasProvider(false);
           setShowFirstTimeSetup(true);
         }
@@ -203,9 +190,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   }
 
   if (showOllamaSetup) {
-    return (
-      <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />
-    );
+    return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
   }
 
   if (!hasProvider && showFirstTimeSetup) {
@@ -223,15 +208,18 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
                 <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get you setup with a provider so we can 
+                  Since it's your first time here, let's get you setup with a provider so we can
                   make incredible work together.
                 </p>
               </div>
 
-              {/* API Key Tester - Only grey container */}
-              <ApiKeyTester onSuccess={handleApiKeySuccess} onStartTesting={() => { console.log("🔧 Setting userInActiveSetup = true"); setUserInActiveSetup(true); }} />
+              <ApiKeyTester
+                onSuccess={handleApiKeySuccess}
+                onStartTesting={() => {
+                  setUserInActiveSetup(true);
+                }}
+              />
 
-              {/* Provider options - Grid layout */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 {/* Tetrate Card */}
                 <div
@@ -273,7 +261,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 >
                   {/* Subtle shimmer effect */}
                   <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
-                  
+
                   <div className="relative flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <OpenRouter className="w-5 h-5 mb-3 text-text-standard" />
