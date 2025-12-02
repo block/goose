@@ -10,6 +10,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  GitFork,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -30,6 +31,7 @@ import {
   Session,
   updateSessionName,
 } from '../../api';
+import { useForkSession } from '../../hooks/useForkSession';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -460,6 +462,19 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       toast.success('Session exported successfully');
     }, []);
 
+    const { forkAndOpenWindow } = useForkSession();
+
+    const handleForkSession = useCallback(
+      async (session: Session, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const forkedSession = await forkAndOpenWindow(session.id);
+        if (forkedSession) {
+          await loadSessions();
+        }
+      },
+      [forkAndOpenWindow, loadSessions]
+    );
+
     const handleImportClick = useCallback(() => {
       fileInputRef.current?.click();
     }, []);
@@ -505,12 +520,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       onEditClick,
       onDeleteClick,
       onExportClick,
+      onForkClick,
       onOpenInNewWindow,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
       onExportClick: (session: Session, e: React.MouseEvent) => void;
+      onForkClick: (session: Session, e: React.MouseEvent) => void;
       onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
@@ -547,6 +564,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      const handleForkClick = useCallback(
+        (e: React.MouseEvent) => {
+          onForkClick(session, e);
+        },
+        [onForkClick, session]
+      );
+
       return (
         <Card
           onClick={handleCardClick}
@@ -562,6 +586,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 title="Open in new window"
               >
                 <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+              <button
+                onClick={handleForkClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Fork session"
+              >
+                <GitFork className="w-3 h-3 text-textSubtle hover:text-textStandard" />
               </button>
               <button
                 onClick={handleEditClick}
@@ -702,6 +733,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onEditClick={handleEditSession}
                     onDeleteClick={handleDeleteSession}
                     onExportClick={handleExportSession}
+                    onForkClick={handleForkSession}
                     onOpenInNewWindow={handleOpenInNewWindow}
                   />
                 ))}

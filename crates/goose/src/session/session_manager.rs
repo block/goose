@@ -321,6 +321,10 @@ impl SessionManager {
             .await
     }
 
+    pub async fn fork_session(session_id: &str) -> Result<Session> {
+        Self::instance().await?.fork_session(session_id).await
+    }
+
     pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
         Self::instance()
             .await?
@@ -1261,11 +1265,19 @@ impl SessionStorage {
             )
             .await?;
 
-        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+        let mut builder = SessionUpdateBuilder::new(new_session.id.clone())
             .extension_data(original_session.extension_data)
             .schedule_id(original_session.schedule_id)
             .recipe(original_session.recipe)
             .user_recipe_values(original_session.user_recipe_values);
+
+        if let Some(provider_name) = original_session.provider_name {
+            builder = builder.provider_name(provider_name);
+        }
+
+        if let Some(model_config) = original_session.model_config {
+            builder = builder.model_config(model_config);
+        }
 
         self.apply_update(builder).await?;
 
@@ -1275,6 +1287,11 @@ impl SessionStorage {
         }
 
         self.get_session(&new_session.id, true).await
+    }
+
+    async fn fork_session(&self, session_id: &str) -> Result<Session> {
+        let original = self.get_session(session_id, false).await?;
+        self.copy_session(session_id, original.name).await
     }
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
@@ -1513,5 +1530,64 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_fork_session() {
+        const ORIGINAL_NAME: &str = "Original session";
+        const USER_MESSAGE: &str = "test message";
+        const ASSISTANT_MESSAGE: &str = "test response";
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_fork.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let original = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                ORIGINAL_NAME.to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &original.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text(USER_MESSAGE)],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &original.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text(ASSISTANT_MESSAGE)],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let forked = storage.fork_session(&original.id).await.unwrap();
+
+        assert_eq!(forked.name, ORIGINAL_NAME);
+        assert_ne!(forked.id, original.id);
+        assert_eq!(forked.working_dir, original.working_dir);
+
+        let conversation = forked.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 2);
+        assert_eq!(conversation.messages()[0].role, Role::User);
+        assert_eq!(conversation.messages()[1].role, Role::Assistant);
     }
 }

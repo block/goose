@@ -78,6 +78,7 @@ jsonl' -> '20250325_200615')."
 async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
+    fork: bool,
     no_session: bool,
 ) -> Result<Option<String>> {
     if no_session {
@@ -85,7 +86,14 @@ async fn get_or_create_session_id(
     }
 
     let Some(id) = identifier else {
-        return if resume {
+        return if fork {
+            let sessions = SessionManager::list_sessions().await?;
+            let source_session = sessions
+                .first()
+                .ok_or_else(|| anyhow::anyhow!("No session found to fork"))?;
+            let forked_session = SessionManager::fork_session(&source_session.id).await?;
+            Ok(Some(forked_session.id))
+        } else if resume {
             let sessions = SessionManager::list_sessions().await?;
             let session_id = sessions
                 .first()
@@ -104,9 +112,22 @@ async fn get_or_create_session_id(
     };
 
     if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
+        if fork {
+            let forked_session = SessionManager::fork_session(&session_id).await?;
+            Ok(Some(forked_session.id))
+        } else {
+            Ok(Some(session_id))
+        }
     } else if let Some(name) = id.name {
-        if resume {
+        if fork {
+            let sessions = SessionManager::list_sessions().await?;
+            let source_session = sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
+            let forked_session = SessionManager::fork_session(&source_session.id).await?;
+            Ok(Some(forked_session.id))
+        } else if resume {
             let sessions = SessionManager::list_sessions().await?;
             let session_id = sessions
                 .into_iter()
@@ -135,7 +156,12 @@ async fn get_or_create_session_id(
             .and_then(|s| s.to_str())
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
+        if fork {
+            let forked_session = SessionManager::fork_session(&session_id).await?;
+            Ok(Some(forked_session.id))
+        } else {
+            Ok(Some(session_id))
+        }
     } else {
         let session = SessionManager::create_session(
             std::env::current_dir()?,
@@ -456,6 +482,15 @@ enum Command {
             long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise resumes the most recently used session."
         )]
         resume: bool,
+
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
 
         /// Show message history when resuming
         #[arg(
@@ -986,6 +1021,7 @@ pub async fn cli() -> anyhow::Result<()> {
             command,
             identifier,
             resume,
+            fork,
             history,
             debug,
             max_tool_repetitions,
@@ -1055,7 +1091,13 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
                 None => {
                     let session_start = std::time::Instant::now();
-                    let session_type = if resume { "resumed" } else { "new" };
+                    let session_type = if fork {
+                        "forked"
+                    } else if resume {
+                        "resumed"
+                    } else {
+                        "new"
+                    };
 
                     tracing::info!(
                         counter.goose.session_starts = 1,
@@ -1075,12 +1117,14 @@ pub async fn cli() -> anyhow::Result<()> {
                         }
                     }
 
-                    let session_id = get_or_create_session_id(identifier, resume, false).await?;
+                    let session_id =
+                        get_or_create_session_id(identifier, resume, fork, false).await?;
 
                     // Run session command by default
                     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
                         session_id,
                         resume,
+                        fork,
                         no_session: false,
                         extensions,
                         remote_extensions,
@@ -1287,11 +1331,13 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
             }
 
-            let session_id = get_or_create_session_id(identifier, resume, no_session).await?;
+            let session_id =
+                get_or_create_session_id(identifier, resume, false, no_session).await?;
 
             let mut session = build_session(SessionBuilderConfig {
                 session_id,
                 resume,
+                fork: false,
                 no_session,
                 extensions,
                 remote_extensions,
@@ -1496,11 +1542,12 @@ pub async fn cli() -> anyhow::Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let session_id = get_or_create_session_id(None, false, false).await?;
+                let session_id = get_or_create_session_id(None, false, false, false).await?;
 
                 let mut session = build_session(SessionBuilderConfig {
                     session_id,
                     resume: false,
+                    fork: false,
                     no_session: false,
                     extensions: Vec::new(),
                     remote_extensions: Vec::new(),
