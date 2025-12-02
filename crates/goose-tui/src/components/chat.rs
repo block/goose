@@ -151,13 +151,37 @@ impl ChatComponent {
             .get(&resp.id)
             .cloned()
             .unwrap_or(("Unknown".to_string(), "".to_string()));
-        let is_success = resp.tool_result.is_ok();
-        let color = if is_success {
+        let color = if resp.tool_result.is_ok() {
             theme.status.success
         } else {
             theme.status.error
         };
 
+        Self::render_tool_response_header(
+            &tool_name, &tool_args, width, color, items, map, msg_idx,
+        );
+
+        if let Ok(contents) = &resp.tool_result {
+            Self::render_tool_response_body(contents, width, items, map, msg_idx);
+        }
+
+        let footer = format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));
+        items.push(ListItem::new(Line::from(Span::styled(
+            footer,
+            Style::default().fg(Color::DarkGray),
+        ))));
+        map.push(msg_idx);
+    }
+
+    fn render_tool_response_header(
+        tool_name: &str,
+        tool_args: &str,
+        width: usize,
+        color: Color,
+        items: &mut Vec<ListItem<'static>>,
+        map: &mut Vec<usize>,
+        msg_idx: usize,
+    ) {
         let max_args = 50;
         let display_args = if tool_args.chars().count() > max_args {
             format!(
@@ -165,18 +189,18 @@ impl ChatComponent {
                 tool_args.chars().take(max_args).collect::<String>()
             )
         } else {
-            tool_args
+            tool_args.to_string()
         };
 
         let header = format!("{tool_name} {display_args}");
         let header_width = UnicodeWidthStr::width(header.as_str());
-        let fixed = 5; // "╭─ " (3) + " " (1) + "╮" (1)
+        let fixed = 5;
         let padding = width.saturating_sub(header_width + fixed);
 
         let header_line = Line::from(vec![
             Span::styled("╭─ ", Style::default().fg(Color::DarkGray)),
             Span::styled(
-                tool_name,
+                tool_name.to_string(),
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -190,72 +214,82 @@ impl ChatComponent {
         ]);
         items.push(ListItem::new(header_line));
         map.push(msg_idx);
+    }
 
-        if let Ok(contents) = &resp.tool_result {
-            let mut line_count = 0;
-            let max_lines = 10;
-            // Inner width: width - "│ " (2) - "│" (1) = width - 3
-            let content_width = width.saturating_sub(3);
+    fn render_tool_response_body(
+        contents: &[rmcp::model::Content],
+        width: usize,
+        items: &mut Vec<ListItem<'static>>,
+        map: &mut Vec<usize>,
+        msg_idx: usize,
+    ) {
+        let max_lines = 10;
+        let content_width = width.saturating_sub(3);
+        let mut line_count = 0;
 
-            for content in contents {
-                if let rmcp::model::Content {
-                    raw: rmcp::model::RawContent::Text(text_content),
-                    ..
-                } = content
-                {
-                    for line in text_content.text.lines() {
-                        if line_count >= max_lines {
-                            break;
-                        }
+        let user_content: Vec<_> = contents
+            .iter()
+            .filter(|c| {
+                c.audience()
+                    .is_none_or(|aud| aud.contains(&rmcp::model::Role::User))
+            })
+            .collect();
+        let display_content: Vec<_> = if user_content.is_empty() {
+            contents.iter().collect()
+        } else {
+            user_content
+        };
 
-                        let (sanitized, line_width) = sanitize_line(line);
-
-                        let (truncated_line, truncated_width) = if line_width > content_width {
-                            let mut w = 0;
-                            let mut s = String::new();
-                            for c in sanitized.chars() {
-                                let cw = UnicodeWidthStr::width(c.to_string().as_str());
-                                if w + cw > content_width {
-                                    break;
-                                }
-                                w += cw;
-                                s.push(c);
-                            }
-                            (s, w)
-                        } else {
-                            (sanitized, line_width)
-                        };
-
-                        let pad = content_width.saturating_sub(truncated_width);
-                        let box_line = format!("│ {}{: <width$}│", truncated_line, "", width = pad);
-
-                        items.push(ListItem::new(Line::from(Span::styled(
-                            box_line,
-                            Style::default().fg(Color::Gray),
-                        ))));
-                        map.push(msg_idx);
-                        line_count += 1;
+        for content in display_content {
+            if let rmcp::model::Content {
+                raw: rmcp::model::RawContent::Text(text_content),
+                ..
+            } = content
+            {
+                for line in text_content.text.lines() {
+                    if line_count >= max_lines {
+                        break;
                     }
+                    let box_line = Self::format_box_line(line, content_width);
+                    items.push(ListItem::new(Line::from(Span::styled(
+                        box_line,
+                        Style::default().fg(Color::Gray),
+                    ))));
+                    map.push(msg_idx);
+                    line_count += 1;
                 }
             }
-            if line_count >= max_lines {
-                let content = "... (truncated)";
-                let content_w = UnicodeWidthStr::width(content);
-                let pad = content_width.saturating_sub(content_w);
-                let box_line = format!("│ {}{: <width$}│", content, "", width = pad);
-                items.push(ListItem::new(Line::from(Span::styled(
-                    box_line,
-                    Style::default().fg(Color::DarkGray),
-                ))));
-                map.push(msg_idx);
-            }
         }
-        let footer = format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));
-        items.push(ListItem::new(Line::from(Span::styled(
-            footer,
-            Style::default().fg(Color::DarkGray),
-        ))));
-        map.push(msg_idx);
+
+        if line_count >= max_lines {
+            let truncated = Self::format_box_line("... (truncated)", content_width);
+            items.push(ListItem::new(Line::from(Span::styled(
+                truncated,
+                Style::default().fg(Color::DarkGray),
+            ))));
+            map.push(msg_idx);
+        }
+    }
+
+    fn format_box_line(line: &str, content_width: usize) -> String {
+        let (sanitized, line_width) = sanitize_line(line);
+        let (truncated_line, truncated_width) = if line_width > content_width {
+            let mut w = 0;
+            let mut s = String::new();
+            for c in sanitized.chars() {
+                let cw = UnicodeWidthStr::width(c.to_string().as_str());
+                if w + cw > content_width {
+                    break;
+                }
+                w += cw;
+                s.push(c);
+            }
+            (s, w)
+        } else {
+            (sanitized, line_width)
+        };
+        let pad = content_width.saturating_sub(truncated_width);
+        format!("│ {}{: <width$}│", truncated_line, "", width = pad)
     }
 
     fn render_assistant_message(
