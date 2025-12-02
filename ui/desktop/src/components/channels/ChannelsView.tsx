@@ -588,6 +588,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       isPublic: room.isPublic || false,
       memberCount: room.members.length,
       avatarUrl: room.avatarUrl,
+      coverPhotoUrl: room.avatarUrl, // Use room avatar as cover photo
       lastActivity: room.lastActivity,
       unreadCount: 0, // TODO: Implement unread count
       isFavorite: favorites.has(room.roomId),
@@ -633,27 +634,36 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   };
 
   const handleSaveChannelEdit = async (roomId: string, name: string, topic: string, coverPhotoFile?: File) => {
+    console.log('🔧 handleSaveChannelEdit called with:', { roomId, name, topic, hasCoverPhoto: !!coverPhotoFile });
+    
     try {
       // Update room name if changed
       const currentChannel = channels.find(c => c.roomId === roomId);
       if (currentChannel && name !== currentChannel.name) {
+        console.log('📝 Updating room name...');
         await setRoomName(roomId, name);
       }
       
       // Update room topic if changed
       if (currentChannel && topic !== (currentChannel.topic || '')) {
+        console.log('📝 Updating room topic...');
         await setRoomTopic(roomId, topic);
       }
       
       // Update cover photo if a new file was selected
       if (coverPhotoFile) {
-        console.log('📸 Uploading cover photo for room:', roomId);
-        await setRoomAvatar(roomId, coverPhotoFile);
+        console.log('📸 Uploading cover photo for room:', roomId, 'File:', coverPhotoFile.name, coverPhotoFile.type, coverPhotoFile.size);
+        const avatarUrl = await setRoomAvatar(roomId, coverPhotoFile);
+        console.log('✅ Cover photo uploaded successfully, URL:', avatarUrl);
       }
       
       console.log('✅ Channel updated successfully');
     } catch (error) {
-      console.error('Failed to update channel:', error);
+      console.error('❌ Failed to update channel:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       throw error; // Re-throw to let the modal handle the error
     }
   };
