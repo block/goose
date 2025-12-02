@@ -1,5 +1,10 @@
-import { Session, startAgent } from './api';
+import { Session, startAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
+import {
+  getHubExtensionConfigs,
+  clearHubExtensionOverrides,
+} from './components/bottom_menu/BottomMenuExtensionSelection';
+import type { FixedExtensionEntry } from './components/ConfigContext';
 
 export function resumeSession(session: Session, setView: setViewType) {
   setView('pair', {
@@ -11,11 +16,13 @@ export function resumeSession(session: Session, setView: setViewType) {
 export async function createSession(options?: {
   recipeId?: string;
   recipeDeeplink?: string;
+  allExtensions?: FixedExtensionEntry[];
 }): Promise<Session> {
   const body: {
     working_dir: string;
     recipe_id?: string;
     recipe_deeplink?: string;
+    extension_overrides?: ExtensionConfig[];
   } = {
     working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
   };
@@ -24,6 +31,16 @@ export async function createSession(options?: {
     body.recipe_id = options.recipeId;
   } else if (options?.recipeDeeplink) {
     body.recipe_deeplink = options.recipeDeeplink;
+  }
+
+  // Get hub extension configs with any overrides applied
+  if (options?.allExtensions) {
+    const extensionConfigs = getHubExtensionConfigs(options.allExtensions);
+    if (extensionConfigs.length > 0) {
+      body.extension_overrides = extensionConfigs;
+    }
+    // Clear the overrides after using them
+    clearHubExtensionOverrides();
   }
 
   const newAgent = await startAgent({

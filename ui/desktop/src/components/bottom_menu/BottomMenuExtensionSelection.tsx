@@ -1,24 +1,71 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { FixedExtensionEntry, useConfig } from '../ConfigContext';
-import { toggleExtension } from '../settings/extensions/extension-manager';
 import { toastService } from '../../toasts';
 import { getFriendlyTitle } from '../settings/extensions/subcomponents/ExtensionList';
+import { ExtensionConfig, getSessionExtensions } from '../../api';
+import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string;
 }
 
+// Store hub-specific extension state globally so it persists across component re-renders
+let hubExtensionOverrides: Map<string, boolean> = new Map();
+
 export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const { extensionsList, addExtension } = useConfig();
+  const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
+  const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0); // Force re-render for hub updates
+  const { extensionsList: allExtensions } = useConfig();
+  const isHubView = !sessionId; // True when in hub/new chat view
+
+  // Fetch session-specific extensions or use global defaults
+  useEffect(() => {
+    const fetchExtensions = async () => {
+      if (!sessionId) {
+        // In hub view, don't fetch, we'll use global + overrides
+        return;
+      }
+
+      try {
+        const response = await getSessionExtensions({
+          path: { session_id: sessionId },
+        });
+
+        if (response.data?.extensions) {
+          setSessionExtensions(response.data.extensions);
+        }
+      } catch (error) {
+        console.error('Failed to fetch session extensions:', error);
+      }
+    };
+
+    fetchExtensions();
+  }, [sessionId, isOpen]); // Refetch when dropdown opens
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
+      if (isHubView) {
+        // In hub view, just track the override locally
+        const currentState =
+          hubExtensionOverrides.get(extensionConfig.name) ?? extensionConfig.enabled;
+        hubExtensionOverrides.set(extensionConfig.name, !currentState);
+
+        // Force re-render by incrementing the trigger
+        setHubUpdateTrigger((prev) => prev + 1);
+
+        toastService.success({
+          title: 'Extension Updated',
+          msg: `${extensionConfig.name} will be ${!currentState ? 'enabled' : 'disabled'} in new chats`,
+        });
+        return;
+      }
+
       if (!sessionId) {
         toastService.error({
           title: 'Extension Toggle Error',
@@ -29,15 +76,22 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }
 
       try {
-        const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
+        if (extensionConfig.enabled) {
+          // Disable extension - only in session, not global config
+          await removeFromAgent(extensionConfig.name, sessionId, true);
+        } else {
+          // Enable extension - only in session, not global config
+          await addToAgent(extensionConfig, sessionId, true);
+        }
 
-        await toggleExtension({
-          toggle: toggleDirection,
-          extensionConfig: extensionConfig,
-          addToConfig: addExtension,
-          toastOptions: { silent: false },
-          sessionId: sessionId,
+        // Refetch extensions after toggle
+        const response = await getSessionExtensions({
+          path: { session_id: sessionId },
         });
+
+        if (response.data?.extensions) {
+          setSessionExtensions(response.data.extensions);
+        }
       } catch (error) {
         toastService.error({
           title: 'Extension Error',
@@ -46,8 +100,36 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         });
       }
     },
-    [sessionId, addExtension]
+    [sessionId, isHubView]
   );
+
+  // Merge all available extensions with session-specific or hub override state
+  const extensionsList = useMemo(() => {
+    if (isHubView) {
+      // In hub view, show global extension states with local overrides
+      return allExtensions.map(
+        (ext) =>
+          ({
+            ...ext,
+            enabled: hubExtensionOverrides.has(ext.name)
+              ? hubExtensionOverrides.get(ext.name)!
+              : ext.enabled,
+          }) as FixedExtensionEntry
+      );
+    }
+
+    // In session view, show session-specific states
+    const sessionExtensionNames = new Set(sessionExtensions.map((ext) => ext.name));
+
+    return allExtensions.map(
+      (ext) =>
+        ({
+          ...ext,
+          enabled: sessionExtensionNames.has(ext.name),
+        }) as FixedExtensionEntry
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allExtensions, sessionExtensions, isHubView, hubUpdateTrigger]);
 
   const filteredExtensions = useMemo(() => {
     return extensionsList.filter((ext) => {
@@ -115,6 +197,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             className="h-8 text-sm"
             autoFocus
           />
+          <p className="text-xs text-text-default/60 mt-1.5">
+            {isHubView ? 'Extensions for new chats' : 'Extensions for this chat session'}
+          </p>
         </div>
         <div className="max-h-[400px] overflow-y-auto">
           {sortedExtensions.length === 0 ? (
@@ -144,4 +229,37 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       </DropdownMenuContent>
     </DropdownMenu>
   );
+};
+
+// Export function to get hub extension configs for passing to new session
+export const getHubExtensionConfigs = (allExtensions: FixedExtensionEntry[]): ExtensionConfig[] => {
+  if (hubExtensionOverrides.size === 0) {
+    // No overrides, return global enabled extensions
+    return allExtensions
+      .filter((ext) => ext.enabled)
+      .map((ext) => {
+        const { enabled: _enabled, ...config } = ext;
+        return config as ExtensionConfig;
+      });
+  }
+
+  // Apply overrides
+  return allExtensions
+    .filter((ext) => {
+      // Check if we have an override for this extension
+      if (hubExtensionOverrides.has(ext.name)) {
+        return hubExtensionOverrides.get(ext.name);
+      }
+      // Otherwise use the global enabled state
+      return ext.enabled;
+    })
+    .map((ext) => {
+      const { enabled: _enabled, ...config } = ext;
+      return config as ExtensionConfig;
+    });
+};
+
+// Export function to clear hub overrides after session starts
+export const clearHubExtensionOverrides = (): void => {
+  hubExtensionOverrides.clear();
 };

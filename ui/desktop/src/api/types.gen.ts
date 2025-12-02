@@ -763,6 +763,13 @@ export type SessionDisplayInfo = {
     workingDir: string;
 };
 
+export type SessionExtensionsResponse = {
+    /**
+     * List of extensions configured for this session
+     */
+    extensions: Array<ExtensionConfig>;
+};
+
 export type SessionInsights = {
     totalSessions: number;
     totalTokens: number;
@@ -813,6 +820,7 @@ export type SlashCommandsResponse = {
 };
 
 export type StartAgentRequest = {
+    extension_overrides?: Array<ExtensionConfig> | null;
     recipe?: Recipe | null;
     recipe_deeplink?: string | null;
     recipe_id?: string | null;
@@ -2662,6 +2670,42 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type GetSessionExtensionsData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions';
+};
+
+export type GetSessionExtensionsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionExtensionsResponses = {
+    /**
+     * Session extensions retrieved successfully
+     */
+    200: SessionExtensionsResponse;
+};
+
+export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
 
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;

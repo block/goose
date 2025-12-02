@@ -2124,6 +2124,51 @@
         ]
       }
     },
+    "/sessions/{session_id}/extensions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_extensions",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/name": {
       "put": {
         "tags": [
@@ -4787,6 +4832,21 @@
           }
         }
       },
+      "SessionExtensionsResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "description": "List of extensions configured for this session"
+          }
+        }
+      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -4943,6 +5003,13 @@
           "working_dir"
         ],
         "properties": {
+          "extension_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "nullable": true
+          },
           "recipe": {
             "allOf": [
               {

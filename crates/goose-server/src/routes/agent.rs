@@ -19,6 +19,7 @@ use goose::prompt_template::render_global_file;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use goose::{
@@ -65,6 +66,8 @@ pub struct StartAgentRequest {
     recipe_id: Option<String>,
     #[serde(default)]
     recipe_deeplink: Option<String>,
+    #[serde(default)]
+    extension_overrides: Option<Vec<ExtensionConfig>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -110,6 +113,7 @@ async fn start_agent(
         recipe,
         recipe_id,
         recipe_deeplink,
+        extension_overrides,
     } = payload;
 
     let original_recipe = if let Some(deeplink) = recipe_deeplink {
@@ -154,6 +158,27 @@ async fn start_agent(
                     status: StatusCode::BAD_REQUEST,
                 }
             })?;
+
+    // Initialize session with extensions (either overrides from hub or global defaults)
+    let extensions_to_use =
+        extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+    let mut extension_data = session.extension_data.clone();
+    let extensions_state = goose::session::EnabledExtensionsState::new(extensions_to_use);
+    if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+        warn!("Failed to initialize session with extensions: {}", e);
+    } else {
+        SessionManager::update_session(&session.id)
+            .extension_data(extension_data.clone())
+            .apply()
+            .await
+            .map_err(|err| {
+                error!("Failed to save initial extension state: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to save initial extension state: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
 
     if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)
@@ -260,7 +285,13 @@ async fn resume_agent(
         };
 
         let extensions_result = async {
-            let enabled_configs = goose::config::get_enabled_extensions();
+            // Try to load session-specific extensions first, fall back to global config
+            let enabled_configs = goose::session::EnabledExtensionsState::from_extension_data(
+                &session.extension_data,
+            )
+            .map(|state| state.extensions)
+            .unwrap_or_else(goose::config::get_enabled_extensions);
+
             let agent_clone = agent.clone();
 
             let extension_futures = enabled_configs
@@ -576,11 +607,24 @@ async fn agent_add_extension(
         }
     }
 
-    let agent = state.get_agent(request.session_id).await?;
+    let agent = state.get_agent(request.session_id.clone()).await?;
     agent
         .add_extension(request.config)
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
+
+    // Save the updated extension state to the session
+    let session_config = goose::agents::types::SessionConfig {
+        id: request.session_id.clone(),
+        max_turns: None,
+        retry_config: None,
+        schedule_id: None,
+    };
+    agent
+        .save_extension_state(&session_config)
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to save extension state: {}", e)))?;
+
     Ok(StatusCode::OK)
 }
 
@@ -599,8 +643,21 @@ async fn agent_remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let agent = state.get_agent(request.session_id).await?;
+    let agent = state.get_agent(request.session_id.clone()).await?;
     agent.remove_extension(&request.name).await?;
+
+    // Save the updated extension state to the session
+    let session_config = goose::agents::types::SessionConfig {
+        id: request.session_id.clone(),
+        max_turns: None,
+        retry_config: None,
+        schedule_id: None,
+    };
+    agent
+        .save_extension_state(&session_config)
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to save extension state: {}", e)))?;
+
     Ok(StatusCode::OK)
 }
 
