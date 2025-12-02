@@ -36,6 +36,9 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { EditConversationBanner } from './EditConversationBanner';
+import { ContextUsageUpdateModal } from './ContextUsageUpdateModal';
+import { getApiUrl } from '../config';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -86,6 +89,12 @@ function BaseChatContent({
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
   const hasAutoSubmittedRef = useRef(false);
 
+  // Conversation editing state
+  const [isEditingConversation, setIsEditingConversation] = useState(false);
+  const [messageCheckboxStates, setMessageCheckboxStates] = useState<Map<string, boolean>>(new Map());
+  const [isContextUsageModalOpen, setIsContextUsageModalOpen] = useState(false);
+  const [contextUsageData, setContextUsageData] = useState<{ before: number; after: number } | null>(null);
+
   // Reset auto-submit flag when session changes
   useEffect(() => {
     hasAutoSubmittedRef.current = false;
@@ -102,6 +111,7 @@ function BaseChatContent({
     tokenState,
     notifications: toolCallNotifications,
     onMessageUpdate,
+    reloadSession,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -264,6 +274,143 @@ function BaseChatContent({
     });
   };
 
+  // Calculate tokens for agent-visible messages
+  const calculateAgentVisibleTokens = useCallback((messagesToCount: Message[]): number => {
+    let totalTokens = 0;
+    messagesToCount.forEach((message) => {
+      // Only count messages that are visible to the agent
+      if (message.metadata?.agentVisible !== false) {
+        const textContent = getTextContent(message);
+        if (textContent) {
+          // Rough token estimation: ~4 characters per token
+          totalTokens += Math.ceil(textContent.length / 4);
+        }
+      }
+    });
+    return totalTokens;
+  }, []);
+
+  // Handle checkbox change for conversation editing
+  const handleCheckboxChange = useCallback(
+    (messageId: string, checked: boolean) => {
+      setMessageCheckboxStates((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(messageId, checked);
+
+        // If a user message is checked/unchecked, update all subsequent messages until next user message
+        const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+        if (messageIndex !== -1 && messages[messageIndex].role === 'user') {
+          // Find all messages after this user message until the next user message
+          // Note: Tool response messages have role='user' but should be treated as part of the assistant's turn
+          const hasOnlyToolResponses = (msg: Message) =>
+            msg.content.length > 0 && msg.content.every((c) => c.type === 'toolResponse');
+          
+          for (let i = messageIndex + 1; i < messages.length; i++) {
+            const msg = messages[i];
+            // Stop at next user message that isn't just tool responses
+            if (msg.role === 'user' && !hasOnlyToolResponses(msg)) {
+              break;
+            }
+            // Update all assistant messages and tool calls/responses to match the user message state
+            if (msg.id) {
+              newMap.set(msg.id, checked);
+            }
+          }
+        }
+
+        return newMap;
+      });
+    },
+    [messages]
+  );
+
+  // Initialize checkbox states when entering edit mode
+  useEffect(() => {
+    if (isEditingConversation) {
+      const initialState = new Map<string, boolean>();
+      messages.forEach((msg) => {
+        if (msg.id) {
+          // Initialize with current agentVisible state (default to true if not set)
+          initialState.set(msg.id, msg.metadata?.agentVisible !== false);
+        }
+      });
+      setMessageCheckboxStates(initialState);
+    }
+  }, [isEditingConversation, messages]);
+
+  // Handle saving conversation with updated metadata
+  const handleSaveConversation = useCallback(async () => {
+    try {
+      // Calculate tokens before update
+      const beforeTokens = calculateAgentVisibleTokens(messages);
+
+      // Update messages with agentVisible=false for unchecked messages
+      const updatedMessages = messages.map((msg) => {
+        if (!msg.id) return msg;
+
+        // Check if this message is unchecked (default to true if not in map)
+        const isChecked = messageCheckboxStates.get(msg.id) ?? (msg.metadata?.agentVisible !== false);
+
+        if (!isChecked) {
+          // Set agentVisible=false for unchecked messages
+          return {
+            ...msg,
+            metadata: {
+              ...msg.metadata,
+              agentVisible: false,
+            },
+          };
+        }
+
+        // Ensure agentVisible is true for checked messages
+        return {
+          ...msg,
+          metadata: {
+            ...msg.metadata,
+            agentVisible: true,
+          },
+        };
+      });
+
+      // Calculate tokens after update
+      const afterTokens = calculateAgentVisibleTokens(updatedMessages);
+
+      // Persist to database via API endpoint
+      const apiUrl = getApiUrl(`/sessions/${sessionId}/conversation`);
+      const secretKey = await window.electron.getSecretKey();
+
+      const response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': secretKey,
+        },
+        body: JSON.stringify({
+          conversation: updatedMessages,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Failed to update conversation: HTTP ${response.status} - ${errorText}`);
+      }
+
+      // Reload session to get updated messages
+      await reloadSession();
+
+      // Show modal with token usage update
+      setContextUsageData({ before: beforeTokens, after: afterTokens });
+      setIsContextUsageModalOpen(true);
+
+      // Clear checkbox states and exit edit mode
+      setMessageCheckboxStates(new Map());
+      setIsEditingConversation(false);
+    } catch (error) {
+      console.error('Error in Save handler:', error);
+      // Show error in console, user can see it there
+    }
+  }, [messages, messageCheckboxStates, sessionId, calculateAgentVisibleTokens, reloadSession]);
+
   const renderProgressiveMessageList = (chat: ChatType) => (
     <>
       <ProgressiveMessageList
@@ -274,6 +421,9 @@ function BaseChatContent({
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}
         onMessageUpdate={onMessageUpdate}
+        isEditingConversation={isEditingConversation}
+        messageCheckboxStates={messageCheckboxStates}
+        onCheckboxChange={handleCheckboxChange}
       />
     </>
   );
@@ -340,6 +490,11 @@ function BaseChatContent({
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
+        {isEditingConversation && (
+          <div className="pt-12">
+            <EditConversationBanner onSave={handleSaveConversation} />
+          </div>
+        )}
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
@@ -425,6 +580,8 @@ function BaseChatContent({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
+            isEditingConversation={isEditingConversation}
+            onEditingConversationChange={setIsEditingConversation}
             {...customChatInputProps}
           />
         </div>
@@ -458,6 +615,18 @@ function BaseChatContent({
         sessionId={chat.sessionId}
         onRecipeCreated={handleRecipeCreated}
       />
+
+      {contextUsageData && (
+        <ContextUsageUpdateModal
+          isOpen={isContextUsageModalOpen}
+          onClose={() => {
+            setIsContextUsageModalOpen(false);
+            setContextUsageData(null);
+          }}
+          beforeTokens={contextUsageData.before}
+          afterTokens={contextUsageData.after}
+        />
+      )}
     </div>
   );
 }

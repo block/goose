@@ -256,25 +256,46 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 : alert.progress!.total}
             </span>
           </div>
-          {alert.showCompactButton && alert.onCompact && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                alert.onCompact!();
-              }}
-              disabled={alert.compactButtonDisabled}
-              className={cn(
-                'flex items-center gap-1.5 text-[11px] outline-none mt-1',
-                alert.compactButtonDisabled
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:opacity-80 cursor-pointer'
-              )}
-            >
-              {alert.compactIcon}
-              <span>Compact now</span>
-            </button>
-          )}
+          <div className="flex items-center justify-between mt-1">
+            {alert.showCompactButton && alert.onCompact && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  alert.onCompact!();
+                }}
+                disabled={alert.compactButtonDisabled}
+                className={cn(
+                  'flex items-center gap-1.5 text-[11px] outline-none',
+                  alert.compactButtonDisabled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:opacity-80 cursor-pointer'
+                )}
+              >
+                {alert.compactIcon}
+                <span>Compact now</span>
+              </button>
+            )}
+            {alert.showEditButton && alert.onEdit && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  alert.onEdit!();
+                }}
+                disabled={alert.editButtonDisabled}
+                className={cn(
+                  'flex items-center gap-1.5 text-[11px] outline-none ml-auto',
+                  alert.editButtonDisabled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:opacity-80 cursor-pointer'
+                )}
+              >
+                {alert.editIcon}
+                <span>Edit Conversation</span>
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <>

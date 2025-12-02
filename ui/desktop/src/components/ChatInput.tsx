@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, ScrollText, ChefHat } from 'lucide-react';
+import { Bug, ScrollText, Settings, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -90,6 +90,8 @@ interface ChatInputProps {
   toolCount: number;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
+  isEditingConversation?: boolean;
+  onEditingConversationChange?: (isEditing: boolean) => void;
 }
 
 export default function ChatInput({
@@ -115,11 +117,22 @@ export default function ChatInput({
   toolCount,
   append: _append,
   isExtensionsLoading = false,
+  isEditingConversation: _externalIsEditingConversation,
+  onEditingConversationChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [_internalIsEditingConversation, setInternalIsEditingConversation] = useState(false);
+  
+  const setIsEditingConversation = (value: boolean) => {
+    if (onEditingConversationChange) {
+      onEditingConversationChange(value);
+    } else {
+      setInternalIsEditingConversation(value);
+    }
+  };
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -478,6 +491,13 @@ export default function ChatInput({
           handleSubmit(customEvent);
         },
         compactIcon: <ScrollText size={12} />,
+        showEditButton: true,
+        editButtonDisabled: false,
+        onEdit: () => {
+          window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+          setIsEditingConversation(true);
+        },
+        editIcon: <Settings size={12} />,
       });
     }
 

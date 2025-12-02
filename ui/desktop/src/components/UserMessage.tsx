@@ -12,15 +12,71 @@ import { Button } from './ui/button';
 interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string, editType?: 'fork' | 'edit') => void;
+  isEditingConversation?: boolean;
+  onMetadataUpdate?: (messageId: string, metadata: Partial<Message['metadata']>) => void;
+  messages?: Message[];
+  onCheckboxChange?: (messageId: string, checked: boolean) => void;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+export default function UserMessage({ message, onMessageUpdate, isEditingConversation = false, onMetadataUpdate, messages = [], onCheckboxChange, messageCheckboxStates }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Determine checkbox state - check checkbox states first (for real-time editing), then fall back to metadata
+  const isSelected = useMemo(() => {
+    if (messageCheckboxStates && message.id) {
+      const checkboxState = messageCheckboxStates.get(message.id);
+      if (checkboxState !== undefined) {
+        return checkboxState;
+      }
+    }
+    // Fall back to metadata if not in checkbox states
+    return message.metadata?.agentVisible !== false;
+  }, [messageCheckboxStates, message.id, message.metadata?.agentVisible]);
+
+  // Handle checkbox change
+  const handleCheckboxChange = useCallback((checked: boolean) => {
+    if (onCheckboxChange && message.id) {
+      // Update checkbox states map (this will trigger re-render with updated styling)
+      onCheckboxChange(message.id, checked);
+    }
+    
+    // Also update metadata for persistence (if callback provided)
+    if (onMetadataUpdate && message.id) {
+      // Update this message
+      onMetadataUpdate(message.id, { agentVisible: checked });
+      
+      // Find all subsequent assistant messages until we hit another user message
+      // Note: Tool response messages have role='user' but should be treated as part of the assistant's turn
+      const hasOnlyToolResponses = (msg: Message) =>
+        msg.content.length > 0 && msg.content.every((c) => c.type === 'toolResponse');
+      
+      if (messages.length > 0) {
+        const currentIndex = messages.findIndex(m => m.id === message.id);
+        if (currentIndex !== -1) {
+          for (let i = currentIndex + 1; i < messages.length; i++) {
+            const msg = messages[i];
+            // Stop when we hit another user message that isn't just tool responses
+            if (msg.role === 'user' && !hasOnlyToolResponses(msg)) {
+              break;
+            }
+            // Update all assistant messages and tool response messages
+            if (msg.id) {
+              onMetadataUpdate(msg.id, { agentVisible: checked });
+            }
+          }
+        }
+      }
+    }
+  }, [onCheckboxChange, onMetadataUpdate, message.id, messages]);
+
+  // Determine if message should be greyed out/struck through
+  const isDeselected = !isSelected;
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -85,6 +141,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     window.electron.logInfo(`Content changed: ${newContent}`);
   }, []);
 
+  // Handle save action
   const handleSave = useCallback(
     (editType: 'fork' | 'edit' = 'fork') => {
       if (editContent.trim().length === 0) {
@@ -207,9 +264,25 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         ) : (
           // Normal message display
           <div className="message flex justify-end w-full">
-            <div className="flex-col max-w-[85%] w-fit">
+            {/* Checkbox for edit conversation mode - positioned next to message */}
+            {isEditingConversation && (
+              <div className="flex-shrink-0 pt-3 pr-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => handleCheckboxChange(e.target.checked)}
+                  className="w-4 h-4 rounded border-2 border-border-default bg-background-default checked:bg-background-accent checked:border-background-accent focus:ring-0 focus:ring-offset-0 cursor-pointer transition-colors accent-background-accent"
+                  style={{
+                    accentColor: 'var(--background-accent)',
+                  }}
+                  aria-label="Select message"
+                />
+              </div>
+            )}
+            
+            <div className={`flex-col max-w-[85%] w-fit ${isDeselected ? 'opacity-50' : ''}`}>
               <div className="flex flex-col group">
-                <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
+                <div className={`flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4 ${isDeselected ? 'line-through' : ''}`}>
                   <div ref={contentRef}>
                     <MarkdownContent
                       content={displayText}

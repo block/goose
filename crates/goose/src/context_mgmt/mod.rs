@@ -169,7 +169,7 @@ pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
     threshold_override: Option<f64>,
-    session: &crate::session::Session,
+    _session: &crate::session::Session,
 ) -> Result<bool> {
     let messages = conversation.messages();
     let config = Config::global();
@@ -181,22 +181,18 @@ pub async fn check_if_compaction_needed(
 
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
-        None => {
-            let token_counter = create_token_counter()
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+    let token_counter = create_token_counter()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
-            let token_counts: Vec<_> = messages
-                .iter()
-                .filter(|m| m.is_agent_visible())
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .collect();
+    let token_counts: Vec<usize> = messages
+        .iter()
+        .filter(|m| m.is_agent_visible())
+        .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+        .collect();
 
-            (token_counts.iter().sum(), "estimated")
-        }
-    };
+    let current_tokens: usize = token_counts.iter().sum();
+    let token_source = "estimated";
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 

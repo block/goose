@@ -38,6 +38,9 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  isEditingConversation?: boolean; // Whether the conversation is being edited
+  onCheckboxChange?: (messageId: string, checked: boolean) => void;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
 export default function ProgressiveMessageList({
@@ -53,6 +56,9 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  isEditingConversation = false,
+  onCheckboxChange,
+  messageCheckboxStates,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -207,7 +213,13 @@ export default function ProgressiveMessageList({
           >
             {isUser ? (
               !hasOnlyToolResponses(message) && (
-                <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                <UserMessage 
+                  message={message} 
+                  onMessageUpdate={onMessageUpdate}
+                  isEditingConversation={isEditingConversation}
+                  onCheckboxChange={onCheckboxChange}
+                  messageCheckboxStates={messageCheckboxStates}
+                />
               )
             ) : (
               <GooseMessage
@@ -223,6 +235,8 @@ export default function ProgressiveMessageList({
                   index === messagesToRender.length - 1 &&
                   message.role === 'assistant'
                 }
+                isEditingConversation={isEditingConversation}
+                messageCheckboxStates={messageCheckboxStates}
               />
             )}
           </div>
@@ -240,6 +254,9 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,
+    isEditingConversation,
+    onCheckboxChange,
+    messageCheckboxStates,
   ]);
 
   return (

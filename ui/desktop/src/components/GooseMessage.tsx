@@ -28,6 +28,8 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  isEditingConversation?: boolean;
+  messageCheckboxStates?: Map<string, boolean>;
 }
 
 export default function GooseMessage({
@@ -38,9 +40,24 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   isStreaming = false,
+  isEditingConversation: _isEditingConversation = false,
+  messageCheckboxStates,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const handledToolConfirmations = useRef<Set<string>>(new Set());
+
+  // Determine if message should be greyed out/struck through
+  // Check checkbox states first (for real-time editing), then fall back to metadata
+  const isDeselected = useMemo(() => {
+    if (messageCheckboxStates && message.id) {
+      const checkboxState = messageCheckboxStates.get(message.id);
+      if (checkboxState !== undefined) {
+        return !checkboxState; // Deselected if checkbox is unchecked
+      }
+    }
+    // Fall back to metadata if not in checkbox states
+    return message.metadata?.agentVisible === false;
+  }, [messageCheckboxStates, message.id, message.metadata?.agentVisible]);
 
   let textContent = getTextContent(message);
 
@@ -140,8 +157,8 @@ export default function GooseMessage({
   ]);
 
   return (
-    <div className="goose-message flex w-[90%] justify-start min-w-0">
-      <div className="flex flex-col w-full min-w-0">
+    <div className={`goose-message flex w-[90%] justify-start min-w-0 ${isDeselected ? 'opacity-50' : ''}`}>
+      <div className={`flex flex-col w-full min-w-0 ${isDeselected ? 'line-through' : ''}`}>
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-textSubtle select-none">

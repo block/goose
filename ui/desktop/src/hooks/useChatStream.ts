@@ -43,6 +43,7 @@ interface UseChatStreamReturn {
     newContent: string,
     editType?: 'fork' | 'edit'
   ) => Promise<void>;
+  reloadSession: () => Promise<void>;
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
@@ -416,6 +417,28 @@ export function useChatStream({
     [sessionId, handleSubmit, updateMessages]
   );
 
+  const reloadSession = useCallback(async () => {
+    if (!sessionId) return;
+
+    resultsCache.delete(sessionId);
+
+    try {
+      const response = await resumeAgent({
+        body: {
+          session_id: sessionId,
+          load_model_and_extensions: false,
+        },
+        throwOnError: true,
+      });
+
+      const updatedSession = response.data;
+      setSession(updatedSession);
+      updateMessages(updatedSession?.conversation || []);
+    } catch (error) {
+      console.error('Failed to reload session:', error);
+    }
+  }, [sessionId, updateMessages]);
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = session ? messages : cached?.messages || [];
   const maybe_cached_session = session ?? cached?.session;
@@ -442,5 +465,6 @@ export function useChatStream({
     tokenState,
     notifications: notificationsMap,
     onMessageUpdate,
+    reloadSession,
   };
 }

@@ -21,4 +21,8 @@ export interface Alert {
   onCompact?: () => void;
   compactIcon?: React.ReactNode;
   onThresholdChange?: (threshold: number) => void;
+  showEditButton?: boolean;
+  editButtonDisabled?: boolean;
+  onEdit?: () => void;
+  editIcon?: React.ReactNode;
 }
