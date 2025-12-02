@@ -292,41 +292,43 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   
   // Render the main content area
   const mainContent = (
-    <div className="flex-1 overflow-hidden">
-      {panels.length > 0 ? (
-        useMultiPanel && panels.length > 1 ? (
-          <MultiPanelSplitter
-            leftContent={<Outlet />}
-            panels={panels}
-            layoutMode={layoutMode}
-            onLayoutModeChange={handleLayoutModeChange}
-            onPanelResize={handlePanelResize}
-            onPanelReorder={handlePanelReorder}
-            initialLeftWidth={chatWidth}
-            className="h-full"
-          />
+    <div className="flex-1 overflow-hidden p-1">
+      <div className="h-full w-full bg-background-default rounded-2xl overflow-hidden">
+        {panels.length > 0 ? (
+          useMultiPanel && panels.length > 1 ? (
+            <MultiPanelSplitter
+              leftContent={<Outlet />}
+              panels={panels}
+              layoutMode={layoutMode}
+              onLayoutModeChange={handleLayoutModeChange}
+              onPanelResize={handlePanelResize}
+              onPanelReorder={handlePanelReorder}
+              initialLeftWidth={chatWidth}
+              className="h-full"
+            />
+          ) : (
+            <ResizableSplitter
+              leftContent={<Outlet />}
+              rightContent={
+                <EnhancedBentoBox
+                  containers={bentoBoxContainers}
+                  onRemoveContainer={handleRemoveFromBentoBox}
+                  onAddContainer={handleAddToBentoBox}
+                  onReorderContainers={handleReorderBentoBox}
+                />
+              }
+              initialLeftWidth={chatWidth}
+              minLeftWidth={30}
+              maxLeftWidth={80}
+              onResize={setChatWidth}
+              className="h-full"
+              floatingRight={true}
+            />
+          )
         ) : (
-          <ResizableSplitter
-            leftContent={<Outlet />}
-            rightContent={
-              <EnhancedBentoBox
-                containers={bentoBoxContainers}
-                onRemoveContainer={handleRemoveFromBentoBox}
-                onAddContainer={handleAddToBentoBox}
-                onReorderContainers={handleReorderBentoBox}
-              />
-            }
-            initialLeftWidth={chatWidth}
-            minLeftWidth={30}
-            maxLeftWidth={80}
-            onResize={setChatWidth}
-            className="h-full"
-            floatingRight={true}
-          />
-        )
-      ) : (
-        <Outlet />
-      )}
+          <Outlet />
+        )}
+      </div>
     </div>
   );
 
