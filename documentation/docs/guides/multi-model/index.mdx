@@ -8,6 +8,7 @@ import Card from '@site/src/components/Card';
 import styles from '@site/src/components/Card/styles.module.css';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import VideoCarousel from '@site/src/components/VideoCarousel';
 
 <h1 className={styles.pageTitle}>Multi-Model Configuration</h1>
 <p className={styles.pageDescription}>
@@ -18,19 +19,14 @@ import TabItem from '@theme/TabItem';
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
   <div className={styles.cardGrid}>
     <Card 
-      title="Automatic Multi-Model Switching"
-      description="Intelligent switching between models based on conversation content, complexity, and tool usage patterns."
-      link="/docs/guides/multi-model/autopilot"
-    />
-    <Card 
       title="Lead/Worker Multi-Model Setup"
       description="Automatic switching between models using a lead model for initial turns and a worker model for execution."
       link="/docs/tutorials/lead-worker"
     />
     <Card 
       title="Creating Plans Before Working"
-      description="Manual planning mode that uses a dedicated model to break complex projects into detailed, actionable steps."
-      link="/docs/guides/multi-model/creating-plans"
+      description="Manual planning mode that optionally uses a dedicated model to break complex projects into detailed, actionable steps."
+      link="/docs/guides/creating-plans"
     />
     <Card 
       title="Planning Complex Tasks"
@@ -56,3 +52,26 @@ import TabItem from '@theme/TabItem';
   </div>
 </div>
 
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://www.youtube.com/embed/ZyhUTsChFUw',
+      title: 'goose\'s Multi-Model Setup',
+      description: 'Learn about lead/worker mode, from configuration to best practices',
+      duration: '5:01'
+    },
+    { 
+      type: 'iframe', 
+      src: 'https://www.youtube.com/embed/SJ6EZpyCKrk',
+      title: 'Livestream - LLM Tag Team: Who Plans, Who Executes?',
+      description: 'Using lead/worker mode to add features to the goose docs in real time',
+      duration: '9:36'
+    }
+  ]}
+/>
+</div>

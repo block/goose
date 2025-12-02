@@ -92,12 +92,13 @@ pub fn create_custom_provider(
     api_key: String,
     models: Vec<String>,
     supports_streaming: Option<bool>,
+    headers: Option<HashMap<String, String>>,
 ) -> Result<DeclarativeProviderConfig> {
     let id = generate_id(&display_name);
     let api_key_name = generate_api_key_name(&id);
 
     let config = Config::global();
-    config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
+    config.set_secret(&api_key_name, &api_key)?;
 
     let model_infos: Vec<ModelInfo> = models
         .into_iter()
@@ -117,7 +118,7 @@ pub fn create_custom_provider(
         api_key_env: api_key_name,
         base_url: api_url,
         models: model_infos,
-        headers: None,
+        headers,
         timeout_seconds: None,
         supports_streaming,
     };
@@ -147,10 +148,7 @@ pub fn update_custom_provider(
 
     let config = Config::global();
     if !api_key.is_empty() {
-        config.set_secret(
-            &existing_config.api_key_env,
-            serde_json::Value::String(api_key),
-        )?;
+        config.set_secret(&existing_config.api_key_env, &api_key)?;
     }
 
     if editable {

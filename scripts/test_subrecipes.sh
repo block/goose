@@ -20,8 +20,9 @@ SCRIPT_DIR=$(pwd)
 export PATH="$SCRIPT_DIR/target/release:$PATH"
 
 # Set default provider and model if not already set
+# Use fast model for CI to speed up tests
 export GOOSE_PROVIDER="${GOOSE_PROVIDER:-anthropic}"
-export GOOSE_MODEL="${GOOSE_MODEL:-claude-sonnet-4-5-20250929}"
+export GOOSE_MODEL="${GOOSE_MODEL:-claude-3-5-haiku-20241022}"
 
 echo "Using provider: $GOOSE_PROVIDER"
 echo "Using model: $GOOSE_MODEL"
@@ -35,7 +36,39 @@ echo "Copied test recipes from scripts/test-subrecipes-examples"
 
 echo ""
 echo "=== Testing Subrecipe Workflow ==="
-echo "Recipe: $TESTDIR/travel_planner.yaml"
+echo "Recipe: $TESTDIR/project_analyzer.yaml"
+echo ""
+
+# Create sample code files for analysis
+echo "Creating sample code files for testing..."
+cat > "$TESTDIR/sample.rs" << 'EOF'
+// TODO: Add error handling
+fn calculate(x: i32, y: i32) -> i32 {
+    x + y
+}
+
+#[test]
+fn test_calculate() {
+    assert_eq!(calculate(2, 2), 4);
+}
+EOF
+
+cat > "$TESTDIR/sample.py" << 'EOF'
+# FIXME: Optimize this function
+def process_data(items):
+    """Process a list of items"""
+    return [item * 2 for item in items]
+
+def test_process_data():
+    assert process_data([1, 2, 3]) == [2, 4, 6]
+EOF
+
+cat > "$TESTDIR/README.md" << 'EOF'
+# Sample Project
+This is a test project for analyzing code patterns.
+## TODO
+- Add more tests
+EOF
 echo ""
 
 RESULTS=()
@@ -52,8 +85,8 @@ check_recipe_output() {
     RESULTS+=("✗ Subrecipe tool invocation ($mode)")
   fi
   
-  if grep -q "weather_data" "$tmpfile" && grep -q "activity_suggestions" "$tmpfile"; then
-    echo "✓ SUCCESS: Both subrecipes (weather_data, activity_suggestions) found in output"
+  if grep -q "file_stats" "$tmpfile" && grep -q "code_patterns" "$tmpfile"; then
+    echo "✓ SUCCESS: Both subrecipes (file_stats, code_patterns) found in output"
     RESULTS+=("✓ Both subrecipes present ($mode)")
   else
     echo "✗ FAILED: Not all subrecipes found in output"
@@ -69,37 +102,11 @@ check_recipe_output() {
   fi
 }
 
-echo "Test 1: Running recipe with session..."
+echo "Running recipe with parallel subrecipes..."
 TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe travel_planner.yaml 2>&1) | tee "$TMPFILE"; then
+if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
   echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (with session)")
-  check_recipe_output "$TMPFILE" "with session"
-else
-  echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (with session)")
-fi
-rm "$TMPFILE"
-echo ""
-
-echo "Test 2: Running recipe in --no-session mode..."
-TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe travel_planner.yaml --no-session 2>&1) | tee "$TMPFILE"; then
-  echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (--no-session)")
-  check_recipe_output "$TMPFILE" "--no-session"
-else
-  echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (--no-session)")
-fi
-rm "$TMPFILE"
-echo ""
-
-echo "Test 3: Running recipe with parallel subrecipes..."
-TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe travel_planner_parallel.yaml 2>&1) | tee "$TMPFILE"; then
-  echo "✓ SUCCESS: Recipe completed successfully"
-  RESULTS+=("✓ Recipe exit code (parallel)")
+  RESULTS+=("✓ Recipe exit code")
   check_recipe_output "$TMPFILE" "parallel"
   
   if grep -q "execution_mode: parallel" "$TMPFILE"; then
@@ -111,7 +118,7 @@ if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe travel_plan
   fi
 else
   echo "✗ FAILED: Recipe execution failed"
-  RESULTS+=("✗ Recipe exit code (parallel)")
+  RESULTS+=("✗ Recipe exit code")
 fi
 rm "$TMPFILE"
 echo ""

@@ -52,10 +52,6 @@ export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
 
-:::info Automatic Multi-Model Switching
-The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
-:::
-
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
@@ -88,7 +84,7 @@ export GOOSE_LEAD_FALLBACK_TURNS=2
 
 ### Planning Mode Configuration
 
-These variables control goose's [planning functionality](/docs/guides/multi-model/creating-plans).
+These variables control goose's [planning functionality](/docs/guides/creating-plans).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -152,6 +148,7 @@ These variables control how goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
@@ -175,6 +172,9 @@ export GOOSE_MAX_TURNS=25
 
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
+
+# Customize subagent turn limit
+export GOOSE_SUBAGENT_MAX_TURNS=50
 
 # Use multiple context files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
@@ -201,7 +201,7 @@ These variables allow you to override the default context window size (token lim
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
 | `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
-| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/multi-model/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 
 **Examples**
 
@@ -232,6 +232,7 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
 | `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "1", "true" (case insensitive) to enable | false |
+| `GOOSE_SEARCH_PATHS` | Additional directories to search for executables when running extensions | JSON array of paths (e.g., `["/usr/local/bin", "~/custom/bin"]`) | System PATH only | No |
 
 **Examples**
 
@@ -245,7 +246,12 @@ export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
+
+# Add custom tool directories for extensions
+export GOOSE_SEARCH_PATHS='["/usr/local/bin", "~/custom/tools", "/opt/homebrew/bin"]'
 ```
+
+These paths are prepended to the system PATH when extensions execute commands, ensuring your custom tools are found without modifying your global PATH.
 
 ### Enhanced Code Editing
 
@@ -296,7 +302,7 @@ When the keyring is disabled, secrets are stored here:
 
 ## Observability
 
-Beyond Goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
+Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
 
 ### OpenTelemetry Protocol (OTLP)
 
@@ -309,7 +315,7 @@ OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry]
 | `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
 
 **When to use OTLP:**
-- Diagnosing slow tool execution or LLM response times when goose 
+- Diagnosing slow tool execution or LLM response times
 - Understanding intermittent failures across multiple sessions
 - Monitoring goose performance in production or CI/CD environments
 - Tracking usage patterns, costs, and resource consumption over time
@@ -374,6 +380,37 @@ export ALPHA_FEATURES=true
 
 # Or enable for a single session
 ALPHA_FEATURES=true goose session
+```
+
+## Development & Testing
+
+These variables are primarily used for development, testing, and debugging goose itself.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PATH_ROOT` | Override the root directory for all goose data, config, and state files | Absolute path to directory | Platform-specific defaults |
+
+**Default locations:**
+- macOS: `~/Library/Application Support/Block/goose/`
+- Linux: `~/.local/share/goose/`
+- Windows: `%APPDATA%\Block\goose\`
+
+When set, goose creates `config/`, `data/`, and `state/` subdirectories under the specified path. Useful for isolating test environments, running multiple configurations, or CI/CD pipelines.
+
+**Examples**
+
+```bash
+# Temporary test environment
+export GOOSE_PATH_ROOT="/tmp/goose-test"
+
+# Isolated environment for a single command
+GOOSE_PATH_ROOT="/tmp/goose-isolated" goose run --recipe my-recipe.yaml
+
+# CI/CD usage
+GOOSE_PATH_ROOT="$(mktemp -d)" goose run --recipe integration-test.yaml
+
+# Use with developer tools
+GOOSE_PATH_ROOT="/tmp/goose-test" ./scripts/goose-db-helper.sh status
 ```
 
 ## Variables Controlled by goose

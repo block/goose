@@ -251,7 +251,7 @@ async fn transcribe_elevenlabs_handler(
                             // Migrate to secret storage
                             if let Err(e) = config.set(
                                 "ELEVENLABS_API_KEY",
-                                serde_json::Value::String(key.clone()),
+                                &serde_json::Value::String(key.clone()),
                                 true,
                             ) {
                                 tracing::error!("Failed to migrate ElevenLabs API key: {:?}", e);

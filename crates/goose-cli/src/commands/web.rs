@@ -3,7 +3,7 @@ use axum::response::Redirect;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Request, State,
+        Query, Request, State,
     },
     http::StatusCode,
     middleware::{self, Next},
@@ -15,12 +15,13 @@ use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
+use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::error;
 use webbrowser;
 
@@ -31,6 +32,7 @@ struct AppState {
     agent: Arc<Agent>,
     cancellations: CancellationStore,
     auth_token: Option<String>,
+    ws_token: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -86,17 +88,14 @@ async fn auth_middleware(
     req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Skip auth for health check
     if req.uri().path() == "/api/health" {
         return Ok(next.run(req).await);
     }
 
-    // If no auth token is configured, skip authentication entirely
     let Some(ref expected_token) = state.auth_token else {
         return Ok(next.run(req).await);
     };
 
-    // Check for Bearer token first
     if let Some(auth_header) = req.headers().get("authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
@@ -105,7 +104,6 @@ async fn auth_middleware(
                 }
             }
 
-            // Check for Basic auth (password-only, ignore username)
             if let Some(basic_token) = auth_str.strip_prefix("Basic ") {
                 if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(basic_token) {
                     if let Ok(credentials) = String::from_utf8(decoded) {
@@ -118,7 +116,6 @@ async fn auth_middleware(
         }
     }
 
-    // Authentication failed - return 401 with WWW-Authenticate header
     let mut response = Response::new("Authentication required".into());
     *response.status_mut() = StatusCode::UNAUTHORIZED;
     response.headers_mut().insert(
@@ -134,12 +131,11 @@ pub async fn handle_web(
     open: bool,
     auth_token: Option<String>,
 ) -> Result<()> {
-    // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
     let config = goose::config::Config::global();
 
-    let provider_name: String = match config.get_param("GOOSE_PROVIDER") {
+    let provider_name: String = match config.get_goose_provider() {
         Ok(p) => p,
         Err(_) => {
             eprintln!("No provider configured. Run 'goose configure' first");
@@ -147,7 +143,7 @@ pub async fn handle_web(
         }
     };
 
-    let model: String = match config.get_param("GOOSE_MODEL") {
+    let model: String = match config.get_goose_model() {
         Ok(m) => m,
         Err(_) => {
             eprintln!("No model configured. Run 'goose configure' first");
@@ -157,12 +153,17 @@ pub async fn handle_web(
 
     let model_config = goose::model::ModelConfig::new(&model)?;
 
-    // Create the agent
+    let init_session = SessionManager::create_session(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        "Web Agent Initialization".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
     let agent = Agent::new();
     let provider = goose::providers::create(&provider_name, model_config).await?;
-    agent.update_provider(provider).await?;
+    agent.update_provider(provider, &init_session.id).await?;
 
-    // Load and enable extensions from config
     let enabled_configs = goose::config::get_enabled_extensions();
     for config in enabled_configs {
         if let Err(e) = agent.add_extension(config.clone()).await {
@@ -170,13 +171,36 @@ pub async fn handle_web(
         }
     }
 
+    let ws_token = if auth_token.is_none() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        String::new()
+    };
+
     let state = AppState {
         agent: Arc::new(agent),
         cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
-        auth_token,
+        auth_token: auth_token.clone(),
+        ws_token,
     };
 
-    // Build router
+    let cors_layer = if auth_token.is_none() {
+        let allowed_origins = [
+            "http://localhost:3000".parse().unwrap(),
+            "http://127.0.0.1:3000".parse().unwrap(),
+            format!("http://{}:{}", host, port).parse().unwrap(),
+        ];
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::list(allowed_origins))
+            .allow_methods(Any)
+            .allow_headers(Any)
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
+
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/session/{session_name}", get(serve_session))
@@ -189,12 +213,7 @@ pub async fn handle_web(
             state.clone(),
             auth_middleware,
         ))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(cors_layer)
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
@@ -209,7 +228,6 @@ pub async fn handle_web(
     println!("   Press Ctrl+C to stop\n");
 
     if open {
-        // Open browser
         let url = format!("http://{}", addr);
         if let Err(e) = webbrowser::open(&url) {
             eprintln!("Failed to open browser: {}", e);
@@ -226,6 +244,7 @@ async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
+        SessionType::User,
     )
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
@@ -235,14 +254,15 @@ async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
 
 async fn serve_session(
     axum::extract::Path(session_name): axum::extract::Path<String>,
+    State(state): State<AppState>,
 ) -> Html<String> {
     let html = include_str!("../../static/index.html");
-    // Inject the session name into the HTML so JavaScript can use it
     let html_with_session = html.replace(
         "<script src=\"/static/script.js\"></script>",
         &format!(
-            "<script>window.GOOSE_SESSION_NAME = '{}';</script>\n    <script src=\"/static/script.js\"></script>",
-            session_name
+            "<script>window.GOOSE_SESSION_NAME = '{}'; window.GOOSE_WS_TOKEN = '{}';</script>\n    <script src=\"/static/script.js\"></script>",
+            session_name,
+            state.ws_token
         )
     );
     Html(html_with_session)
@@ -318,11 +338,25 @@ async fn get_session(
     }
 }
 
+#[derive(Deserialize)]
+struct WsQuery {
+    token: Option<String>,
+}
+
 async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    Query(query): Query<WsQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if state.auth_token.is_none() {
+        let provided_token = query.token.as_deref().unwrap_or("");
+        if provided_token != state.ws_token {
+            tracing::warn!("WebSocket connection rejected: invalid token");
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
+    Ok(ws.on_upgrade(|socket| handle_socket(socket, state)))
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
@@ -467,27 +501,20 @@ async fn process_message_streaming(
 
     let session = SessionManager::get_session(&session_id, true).await?;
     let mut messages = session.conversation.unwrap_or_default();
-    messages.push(user_message);
+    messages.push(user_message.clone());
 
     let session_config = SessionConfig {
         id: session.id.clone(),
-        working_dir: session.working_dir,
         schedule_id: None,
-        execution_mode: None,
         max_turns: None,
         retry_config: None,
     };
 
-    match agent
-        .reply(messages.clone(), Some(session_config), None)
-        .await
-    {
+    match agent.reply(user_message, session_config, None).await {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {
                     Ok(AgentEvent::Message(message)) => {
-                        SessionManager::add_message(&session_id, &message).await?;
-
                         for content in &message.content {
                             match content {
                                 MessageContent::Text(text) => {

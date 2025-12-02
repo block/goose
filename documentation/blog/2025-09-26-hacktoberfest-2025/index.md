@@ -34,7 +34,7 @@ To help you make the most of each of your contributions, below is a quick guide 
 
 ## ✅ Key Rules
 1. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
-2. Refer to the [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/ai-assisted-coding-guide.md), [Contributing Guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/block/goose/blob/main/README.md) for your contributions.
+2. Refer to the [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md), [Contributing Guide](https://github.com/block/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/block/goose/blob/main/README.md) for your contributions.
 3. Choose a task from this project's Hacktoberfest [Project Hub](https://github.com/block/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
 4. Comment ".take" on the corresponding issue to get assigned the task.
 5. Fork the repository and create a new branch for your work.

@@ -33,7 +33,11 @@ pub async fn execute_tasks(
             }
         }
         ExecutionMode::Parallel => {
-            if tasks.iter().any(|task| task.get_sequential_when_repeated()) {
+            let any_sequential = tasks
+                .iter()
+                .any(|task| task.payload.sequential_when_repeated);
+
+            if any_sequential {
                 Ok(json!(
                     {
                         "execution_mode": ExecutionMode::Sequential,

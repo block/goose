@@ -11,6 +11,7 @@ interface ExtensionItemProps {
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean; // to not allow users to edit configuration
+  isPendingActivation?: boolean;
 }
 
 export default function ExtensionItem({
@@ -18,6 +19,7 @@ export default function ExtensionItem({
   onToggle,
   onConfigure,
   isStatic,
+  isPendingActivation = false,
 }: ExtensionItemProps) {
   // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
@@ -79,7 +81,17 @@ export default function ExtensionItem({
       onClick={() => handleToggle(extension)}
     >
       <CardHeader>
-        <CardTitle className="">{getFriendlyTitle(extension)}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          {getFriendlyTitle(extension)}
+          {isPendingActivation && (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-700"
+              title="Extension will be activated when you start a new chat session"
+            >
+              Pending
+            </span>
+          )}
+        </CardTitle>
 
         <CardAction onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-2">

@@ -80,7 +80,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                     style={{ fontSize: "12px" }}
                     className="text-textSubtle leading-normal"
                   >
-                    Can be enabled on the Extensions page in Goose
+                    Can be enabled on the Extensions page in goose
                   </span>
                   </div>
                 )}

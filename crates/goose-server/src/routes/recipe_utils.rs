@@ -5,31 +5,35 @@ use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
-use axum::http::StatusCode;
-
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
+use anyhow::Result;
+use axum::http::StatusCode;
 use goose::agents::Agent;
 use goose::prompt_template::render_global_file;
 use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
+use serde::Serialize;
 use serde_json::Value;
-use serde_yaml;
 use tracing::error;
+use utoipa::ToSchema;
 
 pub struct RecipeValidationError {
     pub status: StatusCode,
     pub message: String,
 }
 
-pub struct RecipeManifestWithPath {
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RecipeManifest {
     pub id: String,
     pub recipe: Recipe,
+    #[schema(value_type = String)]
     pub file_path: PathBuf,
     pub last_modified: String,
+    pub schedule_cron: Option<String>,
+    pub slash_command: Option<String>,
 }
 
 pub fn short_id_from_path(path: &str) -> String {
@@ -39,7 +43,7 @@ pub fn short_id_from_path(path: &str) -> String {
     format!("{:016x}", h)
 }
 
-pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
+pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifest>> {
     let recipes_with_path = list_local_recipes()?;
     let mut recipe_manifests_with_path = Vec::new();
     for (file_path, recipe) in recipes_with_path {
@@ -49,11 +53,13 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
             continue;
         };
 
-        let manifest_with_path = RecipeManifestWithPath {
+        let manifest_with_path = RecipeManifest {
             id: short_id_from_path(file_path.to_string_lossy().as_ref()),
             recipe,
             file_path,
             last_modified,
+            schedule_cron: None,
+            slash_command: None,
         };
         recipe_manifests_with_path.push(manifest_with_path);
     }
@@ -63,7 +69,7 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
 }
 
 pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
-    let recipe_yaml = serde_yaml::to_string(recipe).map_err(|err| {
+    let recipe_yaml = recipe.to_yaml().map_err(|err| {
         let message = err.to_string();
         error!("Failed to serialize recipe for validation: {}", message);
         RecipeValidationError {
@@ -132,7 +138,7 @@ pub async fn build_recipe_with_parameter_values(
     original_recipe: &Recipe,
     user_recipe_values: HashMap<String, String>,
 ) -> Result<Option<Recipe>> {
-    let recipe_content = serde_yaml::to_string(&original_recipe)?;
+    let recipe_content = original_recipe.to_yaml()?;
 
     let recipe_dir = get_recipe_library_dir(true);
     let params = user_recipe_values.into_iter().collect();
@@ -156,15 +162,13 @@ pub async fn apply_recipe_to_agent(
     recipe: &Recipe,
     include_final_output_tool: bool,
 ) -> Option<String> {
-    if let Some(sub_recipes) = &recipe.sub_recipes {
-        agent.add_sub_recipes(sub_recipes.clone()).await;
-    }
-
-    if include_final_output_tool {
-        if let Some(response) = &recipe.response {
-            agent.add_final_output_tool(response.clone()).await;
-        }
-    }
+    agent
+        .apply_recipe_components(
+            recipe.sub_recipes.clone(),
+            recipe.response.clone(),
+            include_final_output_tool,
+        )
+        .await;
 
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();

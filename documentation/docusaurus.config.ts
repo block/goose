@@ -29,7 +29,12 @@ const config: Config = {
   projectName: "goose", // Usually your repo name.
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -38,6 +43,19 @@ const config: Config = {
     defaultLocale: "en",
     locales: ["en"],
   },
+
+
+  headTags: [
+    {
+      tagName: "link",
+      attributes: {
+        rel: "alternate",
+        type: "text/plain",
+        title: "LLM context",
+        href: "/goose/llms.txt",
+      },
+    },
+  ],
 
   presets: [
     [
@@ -159,8 +177,8 @@ const config: Config = {
             to: '/docs/tutorials/goose-in-docker'
           },
           {
-            from: '/docs/guides/creating-plans',
-            to: '/docs/guides/multi-model/creating-plans'
+            from: '/docs/guides/multi-model/creating-plans',
+            to: '/docs/guides/creating-plans'
           },
           {
             from: '/docs/guides/config-file',
@@ -315,6 +333,12 @@ const config: Config = {
       },
     ],
     tailwindPlugin,
+    [
+      require.resolve("./plugins/markdown-export.cjs"),
+      {
+        enabled: true,
+      },
+    ],
   ],
   themes: ["@inkeep/docusaurus/chatButton", "@inkeep/docusaurus/searchBar"],
   themeConfig: {
@@ -484,13 +508,21 @@ const config: Config = {
       },
     },
     announcementBar: {
-      id: 'goose-grants',
+      id: 'advent-of-ai',
       content:
-        '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
+        '❄️ Level up your AI skills with <a target="_blank" rel="noopener noreferrer" href="https://adventofai.dev">Advent of AI</a> ❄️',
       backgroundColor: '#20232a',
       textColor: '#fff',
       isCloseable: false,
     },
+    // announcementBar: {
+    //   id: 'goose-grants',
+    //   content:
+    //     '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
+    //   backgroundColor: '#20232a',
+    //   textColor: '#fff',
+    //   isCloseable: false,
+    // },
   } satisfies Preset.ThemeConfig,
 };
 

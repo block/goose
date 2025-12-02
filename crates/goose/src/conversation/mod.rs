@@ -371,7 +371,7 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     (messages, issues)
 }
 
-fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     let mut issues = Vec::new();
     let mut merged_messages: Vec<Message> = Vec::new();
 

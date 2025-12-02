@@ -1,24 +1,53 @@
-import { Session } from './api';
+import { Session, startAgent } from './api';
+import type { setViewType } from './hooks/useNavigation';
 
-export function resumeSession(
-  session: Session,
-  navigateInSameWindow?: (sessionId: string) => void
-) {
-  const workingDir = session.working_dir;
-  if (!workingDir) {
-    throw new Error('Cannot resume session: working directory is missing in session');
+export function resumeSession(session: Session, setView: setViewType) {
+  setView('pair', {
+    disableAnimation: true,
+    resumeSessionId: session.id,
+  });
+}
+
+export async function createSession(options?: {
+  recipeId?: string;
+  recipeDeeplink?: string;
+}): Promise<Session> {
+  const body: {
+    working_dir: string;
+    recipe_id?: string;
+    recipe_deeplink?: string;
+  } = {
+    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+  };
+
+  if (options?.recipeId) {
+    body.recipe_id = options.recipeId;
+  } else if (options?.recipeDeeplink) {
+    body.recipe_deeplink = options.recipeDeeplink;
   }
 
-  // When ALPHA is true and we have a navigation callback, resume in the same window
-  // Otherwise, open in a new window (old behavior)
-  if (process.env.ALPHA && navigateInSameWindow) {
-    navigateInSameWindow(session.id);
-  } else {
-    window.electron.createChatWindow(
-      undefined, // query
-      workingDir,
-      undefined, // version
-      session.id
-    );
+  const newAgent = await startAgent({
+    body,
+    throwOnError: true,
+  });
+  return newAgent.data;
+}
+
+export async function startNewSession(
+  initialText: string | undefined,
+  setView: setViewType,
+  options?: {
+    recipeId?: string;
+    recipeDeeplink?: string;
   }
+): Promise<Session> {
+  const session = await createSession(options);
+
+  setView('pair', {
+    disableAnimation: true,
+    initialMessage: initialText,
+    resumeSessionId: session.id,
+  });
+
+  return session;
 }

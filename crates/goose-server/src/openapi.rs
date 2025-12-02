@@ -4,9 +4,10 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights};
+use goose::session::{Session, SessionInsights, SessionType};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -18,11 +19,12 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
-    ToolConfirmationRequest, ToolRequest, ToolResponse,
+    ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
+    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
+    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
+use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -326,6 +328,7 @@ derive_utoipa!(Icon as IconSchema);
     paths(
         super::routes::status::status,
         super::routes::status::diagnostics,
+        super::routes::mcp_ui_proxy::mcp_ui_proxy,
         super::routes::config_management::backup_config,
         super::routes::config_management::detect_provider,
         super::routes::config_management::detect_cloud_provider,
@@ -341,11 +344,14 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
         super::routes::config_management::get_provider_models,
+        super::routes::config_management::get_slash_commands,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::get_custom_provider,
         super::routes::config_management::update_custom_provider,
         super::routes::config_management::remove_custom_provider,
+        super::routes::config_management::check_provider,
+        super::routes::config_management::set_config_provider,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
@@ -354,7 +360,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
-        super::routes::reply::confirm_permission,
+        super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
         super::routes::session::get_session,
@@ -364,6 +370,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::export_session,
         super::routes::session::import_session,
         super::routes::session::update_session_user_recipe_values,
+        super::routes::session::edit_message,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -380,10 +387,15 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::recipe::schedule_recipe,
+        super::routes::recipe::set_recipe_slash_command,
         super::routes::recipe::save_recipe,
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
+        super::routes::tunnel::start_tunnel,
+        super::routes::tunnel::stop_tunnel,
+        super::routes::tunnel::get_tunnel_status,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -394,18 +406,26 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ConfigResponse,
         super::routes::config_management::ProvidersResponse,
         super::routes::config_management::ProviderDetails,
+        super::routes::config_management::SlashCommandsResponse,
+        super::routes::config_management::SlashCommand,
+        super::routes::config_management::CommandType,
         super::routes::config_management::ExtensionResponse,
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
         super::routes::config_management::UpdateCustomProviderRequest,
-        super::routes::reply::PermissionConfirmationRequest,
+        super::routes::config_management::CheckProviderRequest,
+        super::routes::config_management::SetProviderRequest,
+        super::routes::action_required::ConfirmToolActionRequest,
         super::routes::reply::ChatRequest,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
+        super::routes::session::EditType,
+        super::routes::session::EditMessageRequest,
+        super::routes::session::EditMessageResponse,
         Message,
         MessageContent,
         MessageMetadata,
@@ -423,6 +443,8 @@ derive_utoipa!(Icon as IconSchema);
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
+        ActionRequired,
+        ActionRequiredData,
         ThinkingContent,
         RedactedThinkingContent,
         FrontendToolRequest,
@@ -441,14 +463,17 @@ derive_utoipa!(Icon as IconSchema);
         ExtensionConfig,
         ConfigKey,
         Envs,
+        RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
         ToolInfo,
         PermissionLevel,
         PrincipalType,
         ModelInfo,
+        ModelConfig,
         Session,
         SessionInsights,
+        SessionType,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,
@@ -470,8 +495,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
-        super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
+        super::routes::recipe::ScheduleRecipeRequest,
+        super::routes::recipe::SetSlashCommandRequest,
         super::routes::recipe::DeleteRecipeRequest,
         super::routes::recipe::SaveRecipeRequest,
         super::routes::recipe::SaveRecipeResponse,
@@ -497,6 +523,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::AddExtensionRequest,
         super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
+        super::tunnel::TunnelInfo,
+        super::tunnel::TunnelState,
     ))
 )]
 pub struct ApiDoc;

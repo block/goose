@@ -145,7 +145,7 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
    │  ○ Add Extension 
    │  ○ Toggle Extensions 
    │  ○ Remove Extension 
-   │  ○ Goose Settings 
+   │  ○ goose settings 
    └  
    ```
    3. Choose a model provider. For this quickstart, select `Tetrate Agent Router Service` and press Enter. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. For information about other providers, see [Configure LLM Provider](/docs/getting-started/providers).
@@ -305,4 +305,4 @@ Here are some ideas for next steps:
 * Continue your session with goose and improve your game (styling, functionality, etc).
 * Browse other available [extensions](/extensions) and install more to enhance goose's functionality even further.
 * Provide goose with a [set of hints](/docs/guides/using-goosehints) to use within your sessions.
-
+* See how you can set up [access controls](/docs/mcp/developer-mcp#configuring-access-controls) if you don't want goose to work autonomously.

@@ -7,6 +7,7 @@ use std::path::Path;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
 use crate::recipe::read_recipe_file_content::read_recipe_file;
+use crate::recipe::yaml_format_utils::reformat_fields_with_multiline_values;
 use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ pub mod read_recipe_file_content;
 mod recipe_extension_adapter;
 pub mod template_recipe;
 pub mod validate_recipe;
+pub mod yaml_format_utils;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
@@ -50,9 +52,6 @@ pub struct Recipe {
         deserialize_with = "recipe_extension_adapter::deserialize_recipe_extensions"
     )]
     pub extensions: Option<Vec<ExtensionConfig>>, // a list of extensions to enable
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<Vec<String>>, // any additional context
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<Settings>, // settings for the recipe
@@ -204,7 +203,6 @@ pub struct RecipeBuilder {
     // Optional fields
     prompt: Option<String>,
     extensions: Option<Vec<ExtensionConfig>>,
-    context: Option<Vec<String>>,
     settings: Option<Settings>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
@@ -234,6 +232,14 @@ impl Recipe {
         false
     }
 
+    pub fn to_yaml(&self) -> Result<String> {
+        let recipe_yaml = serde_yaml::to_string(self)
+            .map_err(|err| anyhow::anyhow!("Failed to serialize recipe: {}", err))?;
+        let formatted_recipe_yaml =
+            reformat_fields_with_multiline_values(&recipe_yaml, &["prompt", "instructions"]);
+        Ok(formatted_recipe_yaml)
+    }
+
     pub fn builder() -> RecipeBuilder {
         RecipeBuilder {
             version: default_version(),
@@ -242,7 +248,6 @@ impl Recipe {
             instructions: None,
             prompt: None,
             extensions: None,
-            context: None,
             settings: None,
             activities: None,
             author: None,
@@ -317,11 +322,6 @@ impl RecipeBuilder {
         self
     }
 
-    pub fn context(mut self, context: Vec<String>) -> Self {
-        self.context = Some(context);
-        self
-    }
-
     pub fn settings(mut self, settings: Settings) -> Self {
         self.settings = Some(settings);
         self
@@ -372,7 +372,6 @@ impl RecipeBuilder {
             instructions: self.instructions,
             prompt: self.prompt,
             extensions: self.extensions,
-            context: self.context,
             settings: self.settings,
             activities: self.activities,
             author: self.author,
@@ -711,7 +710,6 @@ isGlobal: true"#;
             instructions: Some("clean instructions".to_string()),
             prompt: Some("clean prompt".to_string()),
             extensions: None,
-            context: None,
             settings: None,
             activities: Some(vec!["clean activity 1".to_string()]),
             author: None,

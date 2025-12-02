@@ -10,12 +10,18 @@ use rmcp::model::{
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
     ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
-use rmcp::object;
+use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "todo";
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct TodoWriteParams {
+    content: String,
+}
 
 pub struct TodoClient {
     info: InitializeResult,
@@ -47,16 +53,19 @@ impl TodoClient {
             instructions: Some(indoc! {r#"
                 Task Management
 
-                Use todo_read and todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
+                Use todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
+                Your TODO content is automatically available in your context.
 
                 Workflow:
-                - Start: read → write checklist
-                - During: read → update progress
+                - Start: write initial checklist
+                - During: update progress
                 - End: verify all complete
 
-                Warning: todo_write overwrites entirely; always todo_read first (skipping is an error)
+                Warning: todo_write overwrites entirely; always include ALL content you want to keep
 
-                Keep items short, specific, action-oriented. Not using the todo tools for complex tasks is an error.
+                Keep items short, specific, action-oriented. Not using the todo tool for complex tasks is an error.
+
+                For autonomous work, missing requirements means failure - document all requirements in TODO immediately.
 
                 Template:
                 - [ ] Implement feature X
@@ -73,24 +82,6 @@ impl TodoClient {
             context,
             fallback_content: tokio::sync::RwLock::new(String::new()),
         })
-    }
-
-    async fn handle_read_todo(&self) -> Result<Vec<Content>, String> {
-        if let Some(session_id) = &self.context.session_id {
-            match SessionManager::get_session(session_id, false).await {
-                Ok(metadata) => {
-                    let content =
-                        extension_data::TodoState::from_extension_data(&metadata.extension_data)
-                            .map(|state| state.content)
-                            .unwrap_or_default();
-                    Ok(vec![Content::text(content)])
-                }
-                Err(_) => Ok(vec![Content::text(String::new())]),
-            }
-        } else {
-            let content = self.fallback_content.read().await;
-            Ok(vec![Content::text(content.clone())])
-        }
     }
 
     async fn handle_write_todo(
@@ -154,61 +145,32 @@ impl TodoClient {
     }
 
     fn get_tools() -> Vec<Tool> {
-        vec![
-            Tool::new(
-                "todo_read".to_string(),
-                indoc! {r#"
-                        Read the entire TODO file content.
+        let schema = schema_for!(TodoWriteParams);
+        let schema_value =
+            serde_json::to_value(schema).expect("Failed to serialize TodoWriteParams schema");
 
-                        This tool reads the complete TODO file and returns its content as a string.
-                        Use this to view current tasks, notes, and any other information stored in the TODO file.
+        vec![Tool::new(
+            "todo_write".to_string(),
+            indoc! {r#"
+                    Overwrite the entire TODO content.
 
-                        The tool will return an error if the TODO file doesn't exist or cannot be read.
-                    "#}.to_string(),
-                object!({
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }),
-            ).annotate(ToolAnnotations {
-                title: Some("Read TODO file".to_string()),
-                read_only_hint: Some(true),
-                destructive_hint: Some(false),
-                idempotent_hint: Some(true),
-                open_world_hint: Some(false),
-            }),
-            Tool::new(
-                "todo_write".to_string(),
-                indoc! {r#"
-                    Write or overwrite the entire TODO file content.
+                    The content persists across conversation turns and compaction. Use this for:
+                    - Task tracking and progress updates
+                    - Important notes and reminders
 
-                    This tool replaces the complete TODO file content with the provided string.
-                    Use this to update tasks, add new items, or reorganize the TODO file.
-
-                    WARNING: This operation completely replaces the file content. Make sure to include
+                    WARNING: This operation completely replaces the existing content. Always include
                     all content you want to keep, not just the changes.
-
-                    The tool will create the TODO file if it doesn't exist, or overwrite it if it does.
-                    Returns an error if the file cannot be written due to permissions or other I/O issues.
-                "#}.to_string(),
-                object!({
-                    "type": "object",
-                    "properties": {
-                        "content": {
-                            "type": "string",
-                            "description": "The TODO list content to save"
-                        }
-                    },
-                    "required": ["content"]
-                }),
-            ).annotate(ToolAnnotations {
-                title: Some("Write TODO file".to_string()),
-                read_only_hint: Some(false),
-                destructive_hint: Some(true),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(false),
-            })
-        ]
+                "#}
+            .to_string(),
+            schema_value.as_object().unwrap().clone(),
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Write TODO".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        })]
     }
 }
 
@@ -248,7 +210,6 @@ impl McpClientTrait for TodoClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "todo_read" => self.handle_read_todo().await,
             "todo_write" => self.handle_write_todo(arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
         };
@@ -285,5 +246,17 @@ impl McpClientTrait for TodoClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+
+    async fn get_moim(&self) -> Option<String> {
+        let session_id = self.context.session_id.as_ref()?;
+        let metadata = SessionManager::get_session(session_id, false).await.ok()?;
+        let state = extension_data::TodoState::from_extension_data(&metadata.extension_data)?;
+
+        if state.content.trim().is_empty() {
+            return None;
+        }
+
+        Some(format!("Current tasks and notes:\n{}\n", state.content))
     }
 }

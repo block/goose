@@ -1,0 +1,46 @@
+{
+  "month": "October 2025",
+  "communityStars": [
+    {
+      "name": "Arya Pratap Singh",
+      "handle": "ARYPROGRAMMER"
+    },
+    {
+      "name": "Halimah",
+      "handle": "Lymah123"
+    },
+    {
+      "name": "Dakshata Mishra",
+      "handle": "the-matrixneo"
+    },
+    {
+      "name": "Abhi",
+      "handle": "Better-Boy"
+    },
+    {
+      "name": "Anudhyan Datta",
+      "handle": "Anudhyan"
+    }
+  ],
+  "teamStars": [],
+  "leaderboard": [
+    { "handle": "ARYPROGRAMMER", "rank": 1, "medal": "🥇" },
+    { "handle": "Lymah123", "rank": 2, "medal": "🥈" },
+    { "handle": "the-matrixneo", "rank": 3, "medal": "🥉" },
+    { "handle": "Better-Boy", "rank": 4 },
+    { "handle": "Anudhyan", "rank": 5 },
+    { "handle": "Shreyanshsingh23", "rank": 6 },
+    { "handle": "The-Best-Codes", "rank": 7 },
+    { "handle": "anthonydmays", "rank": 8 },
+    { "handle": "Mohammed-Thaha", "rank": 9 },
+    { "handle": "shiv669", "rank": 10 },
+    { "handle": "aegntic", "rank": 11 },
+    { "handle": "M-A-SAIADITHYAA", "rank": 12 },
+    { "handle": "ki3ani", "rank": 13 },
+    { "handle": "vietbui1999ru", "rank": 14 },
+    { "handle": "Itz-Agasta", "rank": 15 },
+    { "handle": "Shahzebdevv", "rank": 16 },
+    { "handle": "Roshansingh9", "rank": 17 },
+    { "handle": "AdemolaAri", "rank": 18 }
+  ]
+}

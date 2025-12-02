@@ -105,7 +105,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Check that the result is successful by awaiting the future
         let tool_result = result.result.await;
@@ -156,7 +163,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Check that the result fails since text_instruction is no longer supported
         let tool_result = result.result.await;
@@ -197,9 +211,7 @@ mod tests {
         });
 
         let recipe = task_params_to_inline_recipe(&params, &test_loaded_extensions()).unwrap();
-        assert!(recipe.context.is_some());
         assert!(recipe.activities.is_some());
-        assert_eq!(recipe.context.unwrap(), vec!["context1", "context2"]);
         assert_eq!(recipe.activities.unwrap(), vec!["activity1", "activity2"]);
     }
 
@@ -278,7 +290,6 @@ mod tests {
         // Invalid fields should be ignored (None)
         assert!(recipe.settings.is_none());
         assert!(recipe.extensions.is_none());
-        assert!(recipe.context.is_none());
         assert!(recipe.activities.is_none());
     }
 
@@ -357,7 +368,14 @@ mod tests {
             ]
         });
 
-        let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
+        let working_dir = std::path::Path::new("/tmp");
+        let result = create_dynamic_task(
+            params,
+            &tasks_manager,
+            test_loaded_extensions(),
+            working_dir,
+        )
+        .await;
 
         // Should fail on the invalid task
         let tool_result = result.result.await;

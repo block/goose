@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
@@ -29,8 +29,10 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
-use crate::config::{get_enabled_extensions, Config};
-use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
+use crate::config::{get_enabled_extensions, Config, GooseMode};
+use crate::context_mgmt::{
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -39,7 +41,6 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
-use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -55,17 +56,18 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::final_output_tool::FinalOutputTool;
-use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
+use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::SessionManager;
+use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
+    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -73,9 +75,8 @@ pub struct ReplyContext {
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
-    pub goose_mode: String,
+    pub goose_mode: GooseMode,
     pub initial_messages: Vec<Message>,
-    pub config: &'static Config,
 }
 
 pub struct ToolCategorizeResult {
@@ -104,7 +105,6 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
-    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -179,7 +179,6 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
-            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -193,7 +192,7 @@ impl Agent {
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            "smart_approve".to_string(),
+            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
@@ -219,16 +218,20 @@ impl Agent {
         self.retry_manager.get_attempts().await
     }
 
-    /// Handle retry logic for the agent reply loop
     async fn handle_retry_logic(
         &self,
         messages: &mut Conversation,
-        session: &Option<SessionConfig>,
+        session_config: &SessionConfig,
         initial_messages: &[Message],
     ) -> Result<bool> {
         let result = self
             .retry_manager
-            .handle_retry_logic(messages, session, initial_messages, &self.final_output_tool)
+            .handle_retry_logic(
+                messages,
+                session_config,
+                initial_messages,
+                &self.final_output_tool,
+            )
             .await?;
 
         match result {
@@ -242,7 +245,7 @@ impl Agent {
     async fn prepare_reply_context(
         &self,
         unfixed_conversation: Conversation,
-        session: &Option<SessionConfig>,
+        working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
@@ -259,12 +262,12 @@ impl Agent {
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
+        let (tools, toolshim_tools, system_prompt) =
+            self.prepare_tools_and_prompt(working_dir).await?;
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
-        // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode.clone())
+            .update_permission_inspector_mode(goose_mode)
             .await;
 
         Ok(ReplyContext {
@@ -274,7 +277,6 @@ impl Agent {
             system_prompt,
             goose_mode,
             initial_messages,
-            config,
         })
     }
 
@@ -297,9 +299,9 @@ impl Agent {
     async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
-        message_tool_response: Arc<Mutex<Message>>,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: Option<SessionConfig>,
+        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -311,7 +313,7 @@ impl Agent {
                         tool_call,
                         request.id.clone(),
                         cancel_token.clone(),
-                        session.clone(),
+                        session,
                     )
                     .await;
 
@@ -332,19 +334,25 @@ impl Agent {
             }
         }
 
-        // Handle denied tools
-        for request in &permission_check_result.denied {
-            let mut response = message_tool_response.lock().await;
-            *response = response.clone().with_tool_response(
-                request.id.clone(),
-                Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
-            );
-        }
-
+        Self::handle_denied_tools(permission_check_result, request_to_response_map).await;
         Ok(tool_futures)
     }
 
-    /// Set the scheduler service for this agent
+    async fn handle_denied_tools(
+        permission_check_result: &PermissionCheckResult,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
+    ) {
+        for request in &permission_check_result.denied {
+            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                let mut response = response_msg.lock().await;
+                *response = response.clone().with_tool_response(
+                    request.id.clone(),
+                    Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+                );
+            }
+        }
+    }
+
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
@@ -385,6 +393,23 @@ impl Agent {
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
     }
 
+    pub async fn apply_recipe_components(
+        &self,
+        sub_recipes: Option<Vec<SubRecipe>>,
+        response: Option<Response>,
+        include_final_output: bool,
+    ) {
+        if let Some(sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes).await;
+        }
+
+        if include_final_output {
+            if let Some(response) = response {
+                self.add_final_output_tool(response).await;
+            }
+        }
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
@@ -392,8 +417,22 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        session: Option<SessionConfig>,
+        session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if session.session_type == crate::session::SessionType::SubAgent
+            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
+                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+        {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Subagents cannot create other subagents".to_string(),
+                    None,
+                )),
+            );
+        }
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -435,7 +474,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, arguments, &self.tasks_manager)
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    arguments,
+                    &self.tasks_manager,
+                    &session.working_dir,
+                )
                 .await
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = match self.provider().await {
@@ -451,17 +495,13 @@ impl Agent {
                     );
                 }
             };
-            let (parent_session_id, parent_working_dir) = match session.as_ref() {
-                Some(s) => (Some(s.id.clone()), s.working_dir.clone()),
-                None => (None, std::env::current_dir().unwrap_or_default()),
-            };
 
             // Get extensions from the agent's runtime state rather than global config
             // This ensures subagents inherit extensions that were dynamically enabled by the parent
             let extensions = self.get_extension_configs().await;
 
             let task_config =
-                TaskConfig::new(provider, parent_session_id, parent_working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
 
             let arguments = match tool_call.arguments.clone() {
                 Some(args) => Value::Object(args),
@@ -527,7 +567,13 @@ impl Agent {
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(arguments, &self.tasks_manager, loaded_extensions).await
+            create_dynamic_task(
+                arguments,
+                &self.tasks_manager,
+                loaded_extensions,
+                &session.working_dir,
+            )
+            .await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -731,118 +777,135 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
+    #[instrument(skip(self, user_message, session_config), fields(user_message))]
     pub async fn reply(
         &self,
-        unfixed_conversation: Conversation,
-        session: Option<SessionConfig>,
+        user_message: Message,
+        session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let is_manual_compact = unfixed_conversation.messages().last().is_some_and(|msg| {
-            msg.content.iter().any(|c| {
-                if let MessageContent::Text(text) = c {
-                    text.text.trim() == MANUAL_COMPACT_TRIGGER
-                } else {
-                    false
-                }
-            })
-        });
+        let message_text = user_message.as_concat_text();
+        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
 
-        if !is_manual_compact {
-            let session_metadata = if let Some(session_config) = &session {
-                SessionManager::get_session(&session_config.id, false)
-                    .await
-                    .ok()
-            } else {
-                None
-            };
+        let slash_command_recipe = if message_text.trim().starts_with('/') {
+            let command = message_text.split_whitespace().next();
+            command.and_then(crate::slash_commands::resolve_slash_command)
+        } else {
+            None
+        };
 
-            let needs_auto_compact = crate::context_mgmt::check_if_compaction_needed(
-                self,
-                &unfixed_conversation,
+        if let Some(recipe) = slash_command_recipe {
+            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let prompt_message = Message::user()
+                .with_text(prompt)
+                .with_visibility(false, true);
+            SessionManager::add_message(&session_config.id, &prompt_message).await?;
+            SessionManager::add_message(
+                &session_config.id,
+                &user_message.with_visibility(true, false),
+            )
+            .await?;
+        } else {
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
+        let session = SessionManager::get_session(&session_config.id, true).await?;
+        let conversation = session
+            .conversation
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
+
+        let needs_auto_compact = !is_manual_compact
+            && check_if_compaction_needed(
+                self.provider().await?.as_ref(),
+                &conversation,
                 None,
-                session_metadata.as_ref(),
+                &session,
             )
             .await?;
 
-            if !needs_auto_compact {
-                return self
-                    .reply_internal(unfixed_conversation, session, cancel_token)
-                    .await;
-            }
-        }
-
-        let conversation_to_compact = unfixed_conversation.clone();
+        let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            if !is_manual_compact {
-                let config = crate::config::Config::global();
-                let threshold = config
-                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                let threshold_percentage = (threshold * 100.0) as u32;
+            let final_conversation = if !needs_auto_compact && !is_manual_compact {
+                conversation
+            } else {
+                if !is_manual_compact {
+                    let config = crate::config::Config::global();
+                    let threshold = config
+                        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                    let threshold_percentage = (threshold * 100.0) as u32;
 
-                let inline_msg = format!(
-                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                    threshold_percentage
-                );
-
-                yield AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::InlineMessage,
-                        inline_msg,
-                    )
-                );
-            }
-
-            yield AgentEvent::Message(
-                Message::assistant().with_system_notification(
-                    SystemNotificationType::ThinkingMessage,
-                    COMPACTION_THINKING_TEXT,
-                )
-            );
-
-            match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
-                Ok((compacted_conversation, _token_counts, _summarization_usage)) => {
-                    if let Some(session_to_store) = &session {
-                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?;
-                    }
-
-                    yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
+                    let inline_msg = format!(
+                        "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                        threshold_percentage
+                    );
 
                     yield AgentEvent::Message(
                         Message::assistant().with_system_notification(
                             SystemNotificationType::InlineMessage,
-                            "Compaction complete",
+                            inline_msg,
                         )
                     );
+                }
 
-                    if !is_manual_compact {
-                        let mut reply_stream = self.reply_internal(compacted_conversation, session, cancel_token).await?;
-                        while let Some(event) = reply_stream.next().await {
-                            yield event?;
-                        }
+                yield AgentEvent::Message(
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::ThinkingMessage,
+                        COMPACTION_THINKING_TEXT,
+                    )
+                );
+
+                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
+                    Ok((compacted_conversation, summarization_usage)) => {
+                        SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                        Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
+
+                        yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
+
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::InlineMessage,
+                                "Compaction complete",
+                            )
+                        );
+
+                        compacted_conversation
+                    }
+                    Err(e) => {
+                        yield AgentEvent::Message(
+                            Message::assistant().with_text(
+                                format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                            )
+                        );
+                        return;
                     }
                 }
-                Err(e) => {
-                    yield AgentEvent::Message(
-                        Message::assistant().with_text(
-                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                        )
-                    );
+            };
+
+            if !is_manual_compact {
+                let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+                while let Some(event) = reply_stream.next().await {
+                    yield event?;
                 }
             }
         }))
     }
 
-    /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
         conversation: Conversation,
-        session: Option<SessionConfig>,
+        session_config: SessionConfig,
+        session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self.prepare_reply_context(conversation, &session).await?;
+        let context = self
+            .prepare_reply_context(conversation, &session.working_dir)
+            .await?;
         let ReplyContext {
             mut conversation,
             mut tools,
@@ -850,66 +913,23 @@ impl Agent {
             mut system_prompt,
             goose_mode,
             initial_messages,
-            config,
         } = context;
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
-        // This will need further refactoring. In the ideal world we pass the new message into
-        // reply and load the existing conversation. Until we get to that point, fetch the conversation
-        // so far and append the last (user) message that the caller already added.
-        if let Some(session_config) = &session {
-            let stored_conversation = SessionManager::get_session(&session_config.id, true)
-                .await?
-                .conversation
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Session {} has no conversation", session_config.id)
-                })?;
-
-            match conversation.len().cmp(&stored_conversation.len()) {
-                std::cmp::Ordering::Equal => {
-                    if conversation != stored_conversation {
-                        warn!("Session messages mismatch - replacing with incoming");
-                        SessionManager::replace_conversation(&session_config.id, &conversation)
-                            .await?;
-                    }
-                }
-                std::cmp::Ordering::Greater
-                    if conversation.len() == stored_conversation.len() + 1 =>
-                {
-                    let last_message = conversation.last().unwrap();
-                    if let Some(content) = last_message.content.first().and_then(|c| c.as_text()) {
-                        debug!("user_message" = &content);
-                    }
-                    SessionManager::add_message(&session_config.id, last_message).await?;
-                }
-                _ => {
-                    warn!(
-                        "Unexpected session state: stored={}, incoming={}. Replacing.",
-                        stored_conversation.len(),
-                        conversation.len()
-                    );
-                    SessionManager::replace_conversation(&session_config.id, &conversation).await?;
-                }
+        let provider = self.provider().await?;
+        let session_id = session_config.id.clone();
+        let working_dir = session.working_dir.clone();
+        tokio::spawn(async move {
+            if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
+                warn!("Failed to generate session description: {}", e);
             }
-            let provider = self.provider().await?;
-            let session_id = session_config.id.clone();
-            tokio::spawn(async move {
-                if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
-                    warn!("Failed to generate session description: {}", e);
-                }
-            });
-        }
+        });
 
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
-            let max_turns = session
-                .as_ref()
-                .and_then(|s| s.max_turns)
-                .unwrap_or_else(|| {
-                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
-                });
+            let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -936,23 +956,15 @@ impl Agent {
                     break;
                 }
 
-                {
-                    let mut autopilot = self.autopilot.lock().await;
-                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
-                        debug!("AutoPilot switching to {} role with model {}", role, model);
-                        self.update_provider(new_provider).await?;
-
-                        yield AgentEvent::ModelChange {
-                            model: model.clone(),
-                            mode: format!("autopilot:{}", role),
-                        };
-                    }
-                }
+                let conversation_with_moim = super::moim::inject_moim(
+                    conversation.clone(),
+                    &self.extension_manager,
+                ).await;
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    conversation.messages(),
+                    conversation_with_moim.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -990,15 +1002,11 @@ impl Agent {
                                 }
                             }
 
-                            // Record usage for the session
-                            if let Some(ref session_config) = &session {
-                                if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage).await?;
-                                }
+                            if let Some(ref usage) = usage {
+                                Self::update_session_metrics(&session_config, usage, false).await?;
                             }
 
                             if let Some(response) = response {
-                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -1014,34 +1022,44 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
+                                    messages_to_add.push(response.clone());
                                     continue;
                                 }
 
-                                let message_tool_response = Arc::new(Mutex::new(Message::user().with_id(
-                                    format!("msg_{}", Uuid::new_v4())
-                                )));
+                                let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
+                                        format!("msg_{}", Uuid::new_v4())
+                                    ))))
+                                    .collect();
 
-                                let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                                    &frontend_requests,
-                                    message_tool_response.clone(),
-                                );
-
-                                while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                    yield AgentEvent::Message(msg);
+                                let mut request_to_response_map = HashMap::new();
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
                                 }
 
-                                let mode = goose_mode.clone();
-                                if mode.as_str() == "chat" {
-                                    // Skip all tool calls in chat mode
-                                    for request in remaining_requests {
-                                        let mut response = message_tool_response.lock().await;
-                                        *response = response.clone().with_tool_response(
-                                            request.id.clone(),
-                                            Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                                        );
+                                for (idx, request) in frontend_requests.iter().enumerate() {
+                                    let mut frontend_tool_stream = self.handle_frontend_tool_request(
+                                        request,
+                                        tool_response_messages[idx].clone(),
+                                    );
+
+                                    while let Some(msg) = frontend_tool_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
+                                    }
+                                }
+                                if goose_mode == GooseMode::Chat {
+                                    // Skip all remaining tool calls in chat mode
+                                    for request in remaining_requests.iter() {
+                                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                            let mut response = response_msg.lock().await;
+                                            *response = response.clone().with_tool_response(
+                                                request.id.clone(),
+                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                            );
+                                        }
                                     }
                                 } else {
-                                    // Run all tool inspectors (security, repetition, permission, etc.)
+                                    // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &remaining_requests,
@@ -1049,14 +1067,12 @@ impl Agent {
                                         )
                                         .await?;
 
-                                    // Process inspection results into permission decisions using the permission inspector
                                     let permission_check_result = self.tool_inspection_manager
                                         .process_inspection_results_with_permission_inspector(
                                             &remaining_requests,
                                             &inspection_results,
                                         )
                                         .unwrap_or_else(|| {
-                                            // Fallback if permission inspector not found - default to needs approval
                                             let mut result = PermissionCheckResult {
                                                 approved: vec![],
                                                 needs_approval: vec![],
@@ -1066,7 +1082,7 @@ impl Agent {
                                             result
                                         });
 
-                                    // Track extension requests for special handling
+                                    // Track extension requests
                                     let mut enable_extension_request_ids = vec![];
                                     for request in &remaining_requests {
                                         if let Ok(tool_call) = &request.tool_call {
@@ -1078,20 +1094,19 @@ impl Agent {
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
-                                        session.clone(),
+                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
-                                    // Process tools requiring approval
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
-                                        session.clone(),
+                                        &session,
                                         &inspection_results,
                                     );
 
@@ -1125,33 +1140,39 @@ impl Agent {
                                                 {
                                                     all_install_successful = false;
                                                 }
-                                                let mut response = message_tool_response.lock().await;
-                                                *response =
-                                                    response.clone().with_tool_response(request_id, output);
+                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let mut response = response_msg.lock().await;
+                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                }
                                             }
                                             ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((
-                                                    request_id, msg,
-                                                ));
+                                                yield AgentEvent::McpNotification((request_id, msg));
                                             }
                                         }
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
-                                        if let Some(ref session_config) = session {
-                                            if let Err(e) = self.save_extension_state(session_config).await {
-                                                warn!("Failed to save extension state after runtime changes: {}", e);
-                                            }
+                                        if let Err(e) = self.save_extension_state(&session_config).await {
+                                            warn!("Failed to save extension state after runtime changes: {}", e);
                                         }
                                         tools_updated = true;
                                     }
                                 }
 
-                                let final_message_tool_resp = message_tool_response.lock().await.clone();
-                                yield AgentEvent::Message(final_message_tool_resp.clone());
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    if request.tool_call.is_ok() {
+                                        let request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                        messages_to_add.push(request_msg);
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
+                                    }
+                                }
 
                                 no_tools_called = false;
-                                messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
@@ -1168,15 +1189,12 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
-                                Ok((compacted_conversation, _token_counts, _usage)) => {
-                                    if let Some(session_to_store) = &session {
-                                        SessionManager::replace_conversation(&session_to_store.id, &compacted_conversation).await?
-                                    }
-
+                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
+                                Ok((compacted_conversation, usage)) => {
+                                    SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
+                                    Self::update_session_metrics(&session_config, &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
-
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     continue;
                                 }
@@ -1203,7 +1221,8 @@ impl Agent {
                     }
                 }
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                    (tools, toolshim_tools, system_prompt) =
+                        self.prepare_tools_and_prompt(&working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -1222,7 +1241,7 @@ impl Agent {
                     } else if did_recovery_compact_this_iteration {
                         // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
-                        match self.handle_retry_logic(&mut conversation, &session, &initial_messages).await {
+                        match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                             Ok(should_retry) => {
                                 if should_retry {
                                     info!("Retry logic triggered, restarting agent loop");
@@ -1243,10 +1262,8 @@ impl Agent {
                     }
                 }
 
-                if let Some(session_config) = &session {
-                    for msg in &messages_to_add {
-                        SessionManager::add_message(&session_config.id, msg).await?;
-                    }
+                for msg in &messages_to_add {
+                    SessionManager::add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
                 if exit_chat {
@@ -1258,31 +1275,28 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
-        let mode = session.and_then(|s| s.execution_mode.as_deref());
-
-        match mode {
-            Some("foreground") => "chat".to_string(),
-            Some("background") => "auto".to_string(),
-            _ => config
-                .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| "auto".to_string()),
-        }
-    }
-
-    /// Extend the system prompt with one line of additional instruction
     pub async fn extend_system_prompt(&self, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn update_provider(
+        &self,
+        provider: Arc<dyn Provider>,
+        session_id: &str,
+    ) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider), None)
+        self.update_router_tool_selector(Some(provider.clone()), None)
             .await?;
-        Ok(())
+
+        SessionManager::update_session(session_id)
+            .provider_name(provider.get_name())
+            .model_config(provider.get_model_config())
+            .apply()
+            .await
+            .context("Failed to persist provider config to session")
     }
 
     pub async fn update_router_tool_selector(
@@ -1446,17 +1460,9 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
-        tracing::debug!(
-            "Cleaned content for parsing: {}",
-            &clean_content[..std::cmp::min(200, clean_content.len())]
-        );
 
-        // try to parse json response from the LLM
-        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
-                tracing::debug!("Successfully parsed JSON content");
-
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
@@ -1525,7 +1531,7 @@ impl Agent {
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
+            .get_goose_provider()
             .expect("No provider configured. Run 'goose configure' first");
 
         let settings = Settings {

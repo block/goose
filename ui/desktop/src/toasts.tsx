@@ -1,12 +1,20 @@
 import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from './components/ui/Tooltip';
+import Copy from './components/icons/Copy';
+import { startNewSession } from './sessions';
+import { useNavigation } from './hooks/useNavigation';
+import {
+  GroupedExtensionLoadingToast,
+  ExtensionLoadingStatus,
+} from './components/GroupedExtensionLoadingToast';
 
 export interface ToastServiceOptions {
   silent?: boolean;
   shouldThrow?: boolean;
 }
 
-export default class ToastService {
+class ToastService {
   private silent: boolean = false;
   private shouldThrow: boolean = false;
 
@@ -30,13 +38,13 @@ export default class ToastService {
     }
   }
 
-  error({ title, msg, traceback }: { title: string; msg: string; traceback: string }): void {
+  error(props: ToastErrorProps): void {
     if (!this.silent) {
-      toastError({ title, msg, traceback });
+      toastError(props);
     }
 
     if (this.shouldThrow) {
-      throw new Error(msg);
+      throw new Error(props.msg);
     }
   }
 
@@ -62,13 +70,63 @@ export default class ToastService {
   }
 
   /**
+   * Create a grouped extension loading toast that can be updated as extensions load
+   */
+  extensionLoading(
+    extensions: ExtensionLoadingStatus[],
+    totalCount: number,
+    isComplete: boolean = false
+  ): string | number {
+    if (this.silent) {
+      return 'silent';
+    }
+
+    const toastId = 'extension-loading';
+
+    // Check if toast already exists
+    if (toast.isActive(toastId)) {
+      // Update existing toast
+      toast.update(toastId, {
+        render: (
+          <GroupedExtensionLoadingToast
+            extensions={extensions}
+            totalCount={totalCount}
+            isComplete={isComplete}
+          />
+        ),
+        autoClose: isComplete ? 5000 : false,
+        closeButton: true,
+        closeOnClick: false,
+      });
+    } else {
+      // Create new toast
+      toast(
+        <GroupedExtensionLoadingToast
+          extensions={extensions}
+          totalCount={totalCount}
+          isComplete={isComplete}
+        />,
+        {
+          ...commonToastOptions,
+          toastId,
+          autoClose: false,
+          closeButton: true,
+          closeOnClick: false, // Prevent closing when clicking to expand/collapse
+        }
+      );
+    }
+
+    return toastId;
+  }
+
+  /**
    * Handle errors with consistent logging and toast notifications
    * Consolidates the functionality of the original handleError function
    */
   handleError(title: string, message: string, options: ToastServiceOptions = {}): void {
     this.configure(options);
     this.error({
-      title: title || 'Error',
+      title: title,
       msg: message,
       traceback: message,
     });
@@ -77,6 +135,9 @@ export default class ToastService {
 
 // Export a singleton instance for use throughout the app
 export const toastService = ToastService.getInstance();
+
+// Re-export ExtensionLoadingStatus for convenience
+export type { ExtensionLoadingStatus };
 
 const commonToastOptions: ToastOptions = {
   position: 'top-right',
@@ -88,6 +149,7 @@ const commonToastOptions: ToastOptions = {
 };
 
 type ToastSuccessProps = { title?: string; msg?: string; toastOptions?: ToastOptions };
+
 export function toastSuccess({ title, msg, toastOptions = {} }: ToastSuccessProps) {
   return toast.success(
     <div>
@@ -99,26 +161,64 @@ export function toastSuccess({ title, msg, toastOptions = {} }: ToastSuccessProp
 }
 
 type ToastErrorProps = {
-  title?: string;
-  msg?: string;
+  title: string;
+  msg: string;
   traceback?: string;
-  toastOptions?: ToastOptions;
+  recoverHints?: string;
 };
 
-export function toastError({ title, msg, traceback, toastOptions }: ToastErrorProps) {
-  return toast.error(
-    <div className="flex gap-4">
+function ToastErrorContent({
+  title,
+  msg,
+  traceback,
+  recoverHints,
+}: Omit<ToastErrorProps, 'setView'>) {
+  const setView = useNavigation();
+  const showRecovery = recoverHints && setView;
+  const hasBoth = traceback && showRecovery;
+
+  const handleCopyError = async () => {
+    if (traceback) {
+      try {
+        await navigator.clipboard.writeText(traceback);
+      } catch (error) {
+        console.error('Failed to copy error:', error);
+      }
+    }
+  };
+
+  return (
+    <div className="flex gap-4 pr-8">
       <div className="flex-grow">
-        {title ? <strong className="font-medium">{title}</strong> : null}
-        {msg ? <div>{msg}</div> : null}
+        {title && <strong className="font-medium">{title}</strong>}
+        {msg && <div>{msg}</div>}
       </div>
-      <div className="flex-none flex items-center">
-        {traceback ? (
-          <Button onClick={() => navigator.clipboard.writeText(traceback)}>Copy error</Button>
-        ) : null}
+      <div className="flex-none flex items-center gap-2">
+        {showRecovery && (
+          <Button onClick={() => startNewSession(recoverHints, setView)}>Ask goose</Button>
+        )}
+        {hasBoth && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleCopyError} shape="round" aria-label="Copy error">
+                <Copy className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="z-[10000]">
+              Copy error
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {traceback && !hasBoth && <Button onClick={handleCopyError}>Copy error</Button>}
       </div>
-    </div>,
-    { ...commonToastOptions, autoClose: traceback ? false : 5000, ...toastOptions }
+    </div>
+  );
+}
+
+export function toastError({ title, msg, traceback, recoverHints }: ToastErrorProps) {
+  return toast.error(
+    <ToastErrorContent title={title} msg={msg} traceback={traceback} recoverHints={recoverHints} />,
+    { ...commonToastOptions, autoClose: traceback ? false : 5000 }
   );
 }
 
@@ -135,21 +235,5 @@ export function toastLoading({ title, msg, toastOptions }: ToastLoadingProps) {
       {title ? <div>{msg}</div> : null}
     </div>,
     { ...commonToastOptions, autoClose: false, ...toastOptions }
-  );
-}
-
-type ToastInfoProps = {
-  title?: string;
-  msg?: string;
-  toastOptions?: ToastOptions;
-};
-
-export function toastInfo({ title, msg, toastOptions }: ToastInfoProps) {
-  return toast.info(
-    <div>
-      {title ? <strong className="font-medium">{title}</strong> : null}
-      {msg ? <div>{msg}</div> : null}
-    </div>,
-    { ...commonToastOptions, ...toastOptions }
   );
 }

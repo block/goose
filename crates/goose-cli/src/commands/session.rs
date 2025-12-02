@@ -71,7 +71,11 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     Ok(selected_sessions)
 }
 
-pub async fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
+pub async fn handle_session_remove(
+    session_id: Option<String>,
+    name: Option<String>,
+    regex_string: Option<String>,
+) -> Result<()> {
     let all_sessions = match SessionManager::list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
@@ -82,11 +86,20 @@ pub async fn handle_session_remove(id: Option<String>, regex_string: Option<Stri
 
     let matched_sessions: Vec<Session>;
 
-    if let Some(id_val) = id {
+    if let Some(id_val) = session_id {
         if let Some(session) = all_sessions.iter().find(|s| s.id == id_val) {
             matched_sessions = vec![session.clone()];
         } else {
-            return Err(anyhow::anyhow!("Session '{}' not found.", id_val));
+            return Err(anyhow::anyhow!("Session ID '{}' not found.", id_val));
+        }
+    } else if let Some(name_val) = name {
+        if let Some(session) = all_sessions.iter().find(|s| s.name == name_val) {
+            matched_sessions = vec![session.clone()];
+        } else {
+            return Err(anyhow::anyhow!(
+                "Session with name '{}' not found.",
+                name_val
+            ));
         }
     } else if let Some(regex_val) = regex_string {
         let session_regex = Regex::new(&regex_val)

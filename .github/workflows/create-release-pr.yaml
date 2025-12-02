@@ -1,0 +1,85 @@
+name: Release Workflow
+
+on:
+  workflow_call:
+    inputs:
+      bump_type:
+        description: 'Type of version bump (minor or patch)'
+        required: true
+        type: string
+      target_branch:
+        description: 'Target branch for the pull request'
+        required: false
+        type: string
+        default: 'main'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    env:
+      BUMP_TYPE: ${{ inputs.bump_type }}
+      TARGET_BRANCH: ${{ inputs.target_branch }}
+
+    steps:
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+      with:
+        ref: ${{ inputs.target_branch }}
+        fetch-depth: 0 # to generate complete release log
+
+    - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
+    - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+
+    - name: Validate input and set old version
+      run: |
+        if [[ "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "patch" ]]; then
+          echo "Error: bump_type must be 'minor' or 'patch'"
+          exit 1
+        fi
+
+    - name: create release branch
+      run: |
+        PRIOR_VERSION=$(just get-tag-version)
+        if [[ "$BUMP_TYPE" == "minor" ]]; then
+          VERSION=$(just get-next-minor-version)
+        else
+          VERSION=$(just get-next-patch-version)
+        fi
+
+        echo "prior_ref=v$PRIOR_VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_ENV
+        echo "Version: $VERSION"
+
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        just prepare-release $VERSION
+        BRANCH_NAME=$(git branch --show-current)
+        HEAD_REF=$(git rev-parse HEAD)
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "head_ref=$HEAD_REF" >> $GITHUB_ENV
+        echo "Branch: $BRANCH_NAME"
+
+    - name: push release branch
+      run: |
+        git push origin "${{ env.branch_name }}"
+
+    - name: Generate release notes
+      uses: ./.github/actions/generate-release-pr-body
+      with:
+        version: ${{ env.version }}
+        head_ref: ${{ env.head_ref }}
+        prior_ref: ${{ env.prior_ref }}
+
+    - name: Create Pull Request
+      run: |
+        gh pr create \
+          -B "$TARGET_BRANCH" \
+          -H "${{ env.branch_name }}" \
+          --title "chore(release): release version ${{ env.version }} ($BUMP_TYPE)" \
+          --body-file pr_body.txt
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -19,10 +19,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .iter()
         .filter(|m| m.is_agent_visible())
         .filter(|message| {
-            message
-                .content
-                .iter()
-                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+            message.content.iter().any(|content| {
+                !matches!(
+                    content,
+                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                )
+            })
         })
         .map(|message| {
             let role = if message.role == Role::User {
@@ -53,9 +55,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 }
                             }
 
-                            parts.push(json!({
-                                "functionCall": function_call_part
-                            }));
+                            let mut part = Map::new();
+                            part.insert("functionCall".to_string(), json!(function_call_part));
+
+                            if let Some(signature) = &request.thought_signature {
+                                part.insert("thoughtSignature".to_string(), json!(signature));
+                            }
+
+                            parts.push(json!(part));
                         }
                         Err(e) => {
                             parts.push(json!({"text":format!("Error: {}", e)}));
@@ -120,6 +127,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 parts.push(json!({"text":format!("Error: {}", e)}));
                             }
                         }
+                    }
+                    MessageContent::Thinking(thinking) => {
+                        let mut part = Map::new();
+                        part.insert("text".to_string(), json!(thinking.thinking));
+                        part.insert("thoughtSignature".to_string(), json!(thinking.signature));
+                        parts.push(json!(part));
                     }
 
                     _ => {}
@@ -238,7 +251,7 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
                         value.clone()
                     }
                 }
-                _ => value.clone(),
+                _ => process_value(value, Some(key.as_str())),
             };
 
             Some((key.clone(), processed_value))
@@ -269,8 +282,17 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         .unwrap_or(&binding);
 
     for part in parts {
+        let thought_signature = part
+            .get("thoughtSignature")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
-            content.push(MessageContent::text(text.to_string()));
+            if let Some(sig) = thought_signature {
+                content.push(MessageContent::thinking(text.to_string(), sig));
+            } else {
+                content.push(MessageContent::text(text.to_string()));
+            }
         } else if let Some(function_call) = part.get("functionCall") {
             let id: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)
@@ -294,12 +316,13 @@ pub fn response_to_message(response: Value) -> Result<Message> {
             } else {
                 let parameters = function_call.get("args");
                 if let Some(params) = parameters {
-                    content.push(MessageContent::tool_request(
+                    content.push(MessageContent::tool_request_with_signature(
                         id,
                         Ok(CallToolRequestParam {
                             name: name.into(),
                             arguments: Some(object(params.clone())),
                         }),
+                        thought_signature,
                     ));
                 }
             }
@@ -387,11 +410,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_confirmation_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_confirmation_request(
+            vec![MessageContent::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -453,7 +476,7 @@ mod tests {
                     arguments: Some(object(arguments.clone())),
                 },
             ),
-            set_up_tool_confirmation_message(
+            set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
                     name: "tool_name_2".into(),
@@ -857,5 +880,37 @@ mod tests {
         })];
 
         assert_eq!(payload, expected_payload);
+    }
+
+    #[test]
+    fn test_tools_with_nullable_types_converted_to_single_type() {
+        // Test that type arrays like ["string", "null"] are converted to single types
+        let params = object!({
+            "properties": {
+                "nullable_field": {
+                    "type": ["string", "null"],
+                    "description": "A nullable string field"
+                },
+                "regular_field": {
+                    "type": "number",
+                    "description": "A regular number field"
+                }
+            }
+        });
+        let tools = vec![Tool::new("test_tool", "test description", params)];
+        let result = format_tools(&tools);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["name"], "test_tool");
+
+        // Verify that the type array was converted to a single string type
+        let nullable_field = &result[0]["parameters"]["properties"]["nullable_field"];
+        assert_eq!(nullable_field["type"], "string");
+        assert_eq!(nullable_field["description"], "A nullable string field");
+
+        // Verify that regular types are unchanged
+        let regular_field = &result[0]["parameters"]["properties"]["regular_field"];
+        assert_eq!(regular_field["type"], "number");
+        assert_eq!(regular_field["description"], "A regular number field");
     }
 }

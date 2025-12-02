@@ -1,0 +1,26 @@
+title: "❓ Question: [Brief summary]"
+labels:
+  - help
+body:
+  - type: markdown
+    attributes:
+      value: |
+        💡 Before posting, please attach your **diagnostics zip** — it helps the Goose team debug faster and saves everyone time.  
+        [How to capture and share diagnostics](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting/)
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the issue in detail and attach your diagnostics zip if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Tell us how to reproduce the issue — commands, steps, or context.
+  - type: textarea
+    id: version
+    attributes:
+      label: Goose version and environment
+      description: Include your Goose version and operating system if known.

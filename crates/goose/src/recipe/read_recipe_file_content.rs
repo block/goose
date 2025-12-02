@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[derive(Clone)]
 pub struct RecipeFile {
     pub content: String,
     pub parent_dir: PathBuf,

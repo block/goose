@@ -9,8 +9,10 @@ use anyhow::Result;
 use goose::agents::Agent;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
+use goose::session::session_manager::SessionType;
+use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -139,6 +141,8 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
+    goose::agents::moim::SKIP.with(|f| f.set(true));
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
@@ -190,7 +194,6 @@ where
         )
     };
 
-    // Generate messages using the provider
     let messages = vec![message_generator(&*provider_arc)];
 
     let mock_client = weather_client();
@@ -214,15 +217,35 @@ where
         )
         .await;
 
+    let session = SessionManager::create_session(
+        PathBuf::default(),
+        "scenario-runner".to_string(),
+        SessionType::Hidden,
+    )
+    .await?;
+
     agent
-        .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
+        .update_provider(
+            provider_arc as Arc<dyn goose::providers::base::Provider>,
+            &session.id,
+        )
         .await?;
 
-    let mut session = CliSession::new(agent, None, false, None, None, None, None).await;
+    let mut cli_session = CliSession::new(
+        agent,
+        session.id,
+        false,
+        None,
+        None,
+        None,
+        None,
+        "text".to_string(),
+    )
+    .await;
 
     let mut error = None;
     for message in &messages {
-        if let Err(e) = session
+        if let Err(e) = cli_session
             .process_message(message.clone(), CancellationToken::default())
             .await
         {
@@ -230,7 +253,7 @@ where
             break;
         }
     }
-    let updated_messages = session.message_history();
+    let updated_messages = cli_session.message_history();
 
     if let Some(ref err_msg) = error {
         if err_msg.contains("No recorded response found") {
@@ -249,7 +272,7 @@ where
 
     validator(&result)?;
 
-    drop(session);
+    drop(cli_session);
 
     if let Some(provider) = provider_for_saving {
         if result.error.is_none() {

@@ -1,23 +1,21 @@
 ---
-title: Goose Docs Extension
+title: goose Docs Extension
 
-description: Add Goose Docs MCP Server as a Goose Extension
+description: Add goose Docs MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 
-
-This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/idosal/git-mcp) as a Goose extension to enable Goose to answer questions about itself.
+This tutorial covers how to add the [goose Docs MCP Server](https://github.com/idosal/git-mcp) as a goose extension to enable goose to answer questions about itself.
 
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fblock.gitmcp.io%2Fgoose%2F&id=goose-docs&name=Goose%20Docs&description=gitmcp%20for%20Goose%20documentation)
+  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fblock.gitmcp.io%2Fgoose%2F&id=goose-docs&name=goose%20Docs&description=gitmcp%20for%20goose%20documentation)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
@@ -34,8 +32,8 @@ This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/i
   <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
       extensionId="goose-docs"
-      extensionName="Goose Docs"
-      description="GitMCP for Goose documentation"
+      extensionName="goose Docs"
+      description="GitMCP for goose documentation"
       command="npx"
       args={["mcp-remote", "https://block.gitmcp.io/goose/"]}
       cliCommand="npx mcp-remote https://block.gitmcp.io/goose/"
@@ -45,7 +43,8 @@ This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/i
  </TabItem>
   <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
-        name="Goose Docs"
+        name="goose Docs"
+        description="GitMCP for goose documentation"
         command="npx mcp-remote https://block.gitmcp.io/goose/"
         timeout={300}
       />
@@ -54,15 +53,15 @@ This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/i
 
 
 ## Example Usage
-GitMCP allows you to convert any Git repository into a Goose extension. The Goose Docs MCP Server is a great example of this, as it provides a way for Goose to answer questions about itself.
+GitMCP allows you to convert any Git repository into a goose extension. The goose Docs MCP Server is a great example of this, as it provides a way for goose to answer questions about itself.
 
-Let's ask Goose to create a recipe for us! It will use the Goose Docs MCP Server to find the relevant information.
+Let's ask goose to create a recipe for us! It will use the goose Docs MCP Server to find the relevant information.
 
 
-### Goose Prompt
+### goose Prompt
 
 ```
-hey Goose, I want to create a recipe for automated code review that my development team can use. Can you look at the Goose documentation to understand the recipe format, then create a recipe that:
+hey goose, I want to create a recipe for automated code review that my development team can use. Can you look at the goose documentation to understand the recipe format, then create a recipe that:
 
 
 1. Reviews pull requests for:
@@ -80,16 +79,16 @@ hey Goose, I want to create a recipe for automated code review that my developme
 
 3. Should output structured results that can be parsed by CI/CD systems
 
-Please research the recipe format first using the Goose Docs extension, then create a complete recipe file with proper YAML structure, parameters, and any needed extensions. 
+Please research the recipe format first using the goose Docs extension, then create a complete recipe file with proper YAML structure, parameters, and any needed extensions. 
 Make it something a development team could immediately use in their workflow.
 ```
 
 
-### Goose Output
+### goose Output
 
 :::note Desktop
 
-Perfect! I've created a comprehensive automated code review recipe based on the Goose documentation research. Here's what I've built for your development team:
+Perfect! I've created a comprehensive automated code review recipe based on the goose documentation research. Here's what I've built for your development team:
 
 #### 📋 Recipe Overview
 
@@ -165,7 +164,7 @@ The structured JSON output makes it perfect for CI/CD pipelines:
 #### 📁 **File Structure**
 
 The recipe is saved as `automated-code-review.yaml` in your current directory and includes:
-- Proper YAML structure following Goose recipe format
+- Proper YAML structure following goose recipe format
 - Comprehensive parameter definitions with defaults
 - Built-in developer extension for file system access
 - Detailed JSON schema for structured output
@@ -528,7 +527,7 @@ response:
             description: "ISO timestamp of when review was performed"
           reviewer:
             type: string
-            description: "Goose automated code review"
+            description: "goose automated code review"
           language:
             type: string
             description: "Programming language reviewed"

@@ -34,10 +34,11 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::config::search_path::search_path_var;
+use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
+use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
     CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
     ServerInfo, Tool,
@@ -129,9 +130,6 @@ impl ResourceItem {
     }
 }
 
-#[cfg(windows)]
-const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
-
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
 fn normalize(input: String) -> String {
@@ -185,13 +183,11 @@ async fn child_process_client(
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW_FLAG);
+    configure_command_no_window(&mut command);
 
-    command.env(
-        "PATH",
-        search_path_var().map_err(|e| ExtensionError::ConfigError(format!("{}", e)))?,
-    );
+    if let Ok(path) = SearchPaths::builder().path() {
+        command.env("PATH", path);
+    }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
@@ -369,15 +365,56 @@ impl ExtensionManager {
                 timeout,
                 headers,
                 name,
+                envs,
+                env_keys,
                 ..
             } => {
+                // Merge environment variables from direct envs and keychain-stored env_keys
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+
+                // Helper function to substitute environment variables in a string
+                // Supports both ${VAR} and $VAR syntax
+                fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
+                    let mut result = value.to_string();
+
+                    // First handle ${VAR} syntax (with optional whitespace)
+                    let re_braces = regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}")
+                        .expect("valid regex");
+                    for cap in re_braces.captures_iter(value) {
+                        if let Some(var_name) = cap.get(1) {
+                            if let Some(env_value) = env_map.get(var_name.as_str()) {
+                                result = result.replace(&cap[0], env_value);
+                            }
+                        }
+                    }
+
+                    // Then handle $VAR syntax (simple variable without braces)
+                    let re_simple =
+                        regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
+                    for cap in re_simple.captures_iter(&result.clone()) {
+                        if let Some(var_name) = cap.get(1) {
+                            // Only substitute if it wasn't already part of ${VAR} syntax
+                            if !value.contains(&format!("${{{}}}", var_name.as_str())) {
+                                if let Some(env_value) = env_map.get(var_name.as_str()) {
+                                    result = result.replace(&cap[0], env_value);
+                                }
+                            }
+                        }
+                    }
+
+                    result
+                }
+
                 let mut default_headers = HeaderMap::new();
                 for (key, value) in headers {
+                    // Substitute environment variables in header values
+                    let substituted_value = substitute_env_vars(value, &all_envs);
+
                     default_headers.insert(
                         HeaderName::try_from(key).map_err(|_| {
                             ExtensionError::ConfigError(format!("invalid header: {}", key))
                         })?,
-                        value.parse().map_err(|_| {
+                        substituted_value.parse().map_err(|_| {
                             ExtensionError::ConfigError(format!("invalid header value: {}", key))
                         })?,
                     );
@@ -637,6 +674,7 @@ impl ExtensionManager {
                                 output_schema: tool.output_schema,
                                 icons: None,
                                 title: None,
+                                meta: None,
                             });
                         }
                     }
@@ -1126,6 +1164,28 @@ impl ExtensionManager {
             .get(&name.into())
             .map(|ext| ext.get_client())
     }
+
+    pub async fn collect_moim(&self) -> Option<String> {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+
+        let extensions = self.extensions.lock().await;
+        for (name, extension) in extensions.iter() {
+            if let ExtensionConfig::Platform { .. } = &extension.config {
+                let client = extension.get_client();
+                let client_guard = client.lock().await;
+                if let Some(moim_content) = client_guard.get_moim().await {
+                    tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
+                    content.push('\n');
+                    content.push_str(&moim_content);
+                }
+            }
+        }
+
+        content.push_str("\n</info-msg>");
+
+        Some(content)
+    }
 }
 
 #[cfg(test)]
@@ -1538,5 +1598,73 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_streamable_http_header_env_substitution() {
+        use std::collections::HashMap;
+
+        // Test the substitute_env_vars helper function (which is defined inside add_extension)
+        // We'll recreate it here for testing purposes
+        fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
+            let mut result = value.to_string();
+
+            // First handle ${VAR} syntax (with optional whitespace)
+            let re_braces =
+                regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex");
+            for cap in re_braces.captures_iter(value) {
+                if let Some(var_name) = cap.get(1) {
+                    if let Some(env_value) = env_map.get(var_name.as_str()) {
+                        result = result.replace(&cap[0], env_value);
+                    }
+                }
+            }
+
+            // Then handle $VAR syntax (simple variable without braces)
+            let re_simple = regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
+            for cap in re_simple.captures_iter(&result.clone()) {
+                if let Some(var_name) = cap.get(1) {
+                    // Only substitute if it wasn't already part of ${VAR} syntax
+                    if !value.contains(&format!("${{{}}}", var_name.as_str())) {
+                        if let Some(env_value) = env_map.get(var_name.as_str()) {
+                            result = result.replace(&cap[0], env_value);
+                        }
+                    }
+                }
+            }
+
+            result
+        }
+
+        let mut env_map = HashMap::new();
+        env_map.insert("AUTH_TOKEN".to_string(), "secret123".to_string());
+        env_map.insert("API_KEY".to_string(), "key456".to_string());
+
+        // Test ${VAR} syntax
+        let result = substitute_env_vars("Bearer ${ AUTH_TOKEN }", &env_map);
+        assert_eq!(result, "Bearer secret123");
+
+        // Test ${VAR} syntax without spaces
+        let result = substitute_env_vars("Bearer ${AUTH_TOKEN}", &env_map);
+        assert_eq!(result, "Bearer secret123");
+
+        // Test $VAR syntax
+        let result = substitute_env_vars("Bearer $AUTH_TOKEN", &env_map);
+        assert_eq!(result, "Bearer secret123");
+
+        // Test multiple substitutions
+        let result = substitute_env_vars("Key: $API_KEY, Token: ${AUTH_TOKEN}", &env_map);
+        assert_eq!(result, "Key: key456, Token: secret123");
+
+        // Test no substitution when variable doesn't exist
+        let result = substitute_env_vars("Bearer ${UNKNOWN_VAR}", &env_map);
+        assert_eq!(result, "Bearer ${UNKNOWN_VAR}");
+
+        // Test mixed content
+        let result = substitute_env_vars(
+            "Authorization: Bearer ${AUTH_TOKEN} and API ${API_KEY}",
+            &env_map,
+        );
+        assert_eq!(result, "Authorization: Bearer secret123 and API key456");
     }
 }

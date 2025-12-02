@@ -1,6 +1,6 @@
 ---
 title: Container Use Extension
-description: Use Container-Use MCP as a Goose Extension
+description: Use Container-Use MCP as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/X3tf61_Tak0" />
 
-This tutorial covers how to add the [Container Use MCP Server](https://container-use.com) as a Goose extension enabling Goose to work in an isolated environment.
+This tutorial covers how to add the [Container Use MCP Server](https://container-use.com) as a goose extension enabling goose to work in an isolated environment.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -52,6 +52,7 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
       <TabItem value="cli" label="goose CLI">
           <CLIExtensionInstructions
             name="Container Use"
+            description="Run container automation with container-use"
             command="npx -y mcp-remote https://container-use.com/mcp"
             timeout={300}
           />
@@ -77,6 +78,7 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
       <TabItem value="cli" label="goose CLI">
           <CLIExtensionInstructions
             name="Container Use"
+            description="Run container automation with container-use"
             command="container-use stdio"
             timeout={300}
           />
@@ -96,7 +98,7 @@ Here's a simple example of updating a file-based to-do app to use a SQLite datab
 Run a container agent to add a feature to save my to-do list data in sqlite, build and run tests, but use a separate Git branch so my main code stays safe.
 ```
 
-#### Goose Output
+#### goose Output
 
 ```
 I'll help you create a container environment to add SQLite functionality to your to-do list application on a separate Git branch. Let me start by creating the environment and examining your current code structure.

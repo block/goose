@@ -14,21 +14,21 @@
  * - Configurable batch size and delay
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { SystemNotificationInline } from './context_management/SystemNotificationInline';
-import { NotificationEvent } from '../hooks/useMessageStream';
+import { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
+import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaining';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
   chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
-  appendMessage?: (message: Message) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
   batchSize?: number;
   batchDelay?: number;
@@ -45,7 +45,6 @@ export default function ProgressiveMessageList({
   chat,
   toolCallNotifications = new Map(),
   append = () => {},
-  appendMessage = () => {},
   isUserMessage,
   batchSize = 20,
   batchDelay = 20,
@@ -161,6 +160,9 @@ export default function ProgressiveMessageList({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLoading, messages.length]);
 
+  // Detect tool call chains
+  const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
+
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
@@ -185,7 +187,7 @@ export default function ProgressiveMessageList({
         if (hasInlineSystemNotification(message)) {
           return (
             <div
-              key={message.id || `message-${index}-${message.role || "unknown"}`}
+              key={message.id || `message-${index}-${message.role || 'unknown'}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
@@ -195,11 +197,12 @@ export default function ProgressiveMessageList({
         }
 
         const isUser = isUserMessage(message);
+        const messageIsInChain = isInChain(index, toolCallChains);
 
         return (
           <div
-            key={message.id || `message-${index}-${message.role || "unknown"}`}
-            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
+            key={message.id || `message-${index}-${message.role || 'unknown'}`}
+            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
             data-testid="message-container"
           >
             {isUser ? (
@@ -213,7 +216,6 @@ export default function ProgressiveMessageList({
                 message={message}
                 messages={messages}
                 append={append}
-                appendMessage={appendMessage}
                 toolCallNotifications={toolCallNotifications}
                 isStreaming={
                   isStreamingMessage &&
@@ -234,10 +236,10 @@ export default function ProgressiveMessageList({
     isUserMessage,
     chat,
     append,
-    appendMessage,
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
+    toolCallChains,
   ]);
 
   return (

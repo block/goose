@@ -2,23 +2,18 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
-// Types
 export interface EnvToggles {
   GOOSE_SERVER__MEMORY: boolean;
   GOOSE_SERVER__COMPUTER_CONTROLLER: boolean;
 }
 
-export type SchedulingEngine = 'builtin-cron' | 'temporal';
-
 export interface Settings {
   envToggles: EnvToggles;
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
-  schedulingEngine: SchedulingEngine;
   enableWakelock: boolean;
 }
 
-// Constants
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 const defaultSettings: Settings = {
@@ -28,7 +23,6 @@ const defaultSettings: Settings = {
   },
   showMenuBarIcon: true,
   showDockIcon: true,
-  schedulingEngine: 'builtin-cron',
   enableWakelock: false,
 };
 
@@ -53,7 +47,6 @@ export function saveSettings(settings: Settings): void {
   }
 }
 
-// Environment management
 export function updateEnvironmentVariables(envToggles: EnvToggles): void {
   if (envToggles.GOOSE_SERVER__MEMORY) {
     process.env.GOOSE_SERVER__MEMORY = 'true';
@@ -65,14 +58,5 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
     process.env.GOOSE_SERVER__COMPUTER_CONTROLLER = 'true';
   } else {
     delete process.env.GOOSE_SERVER__COMPUTER_CONTROLLER;
-  }
-}
-
-export function updateSchedulingEngineEnvironment(schedulingEngine: SchedulingEngine): void {
-  // Set GOOSE_SCHEDULER_TYPE based on the scheduling engine setting
-  if (schedulingEngine === 'temporal') {
-    process.env.GOOSE_SCHEDULER_TYPE = 'temporal';
-  } else {
-    process.env.GOOSE_SCHEDULER_TYPE = 'legacy';
   }
 }

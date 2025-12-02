@@ -1,3 +1,4 @@
+use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
@@ -369,6 +370,10 @@ impl<'a> ApiRequestBuilder<'a> {
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(self.headers.clone());
 
+        if let Some(session_id) = crate::session_context::current_session_id() {
+            request = request.header(SESSION_ID_HEADER, session_id);
+        }
+
         request = match &self.client.auth {
             AuthMethod::BearerToken(token) => {
                 request.header("Authorization", format!("Bearer {}", token))
@@ -396,5 +401,57 @@ impl fmt::Debug for ApiClient {
             .field("timeout", &self.timeout)
             .field("default_headers", &self.default_headers)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_session_id_header_injection() {
+        let client = ApiClient::new(
+            "http://localhost:8080".to_string(),
+            AuthMethod::BearerToken("test-token".to_string()),
+        )
+        .unwrap();
+
+        // Execute request within session context
+        crate::session_context::with_session_id(Some("test-session-456".to_string()), async {
+            let builder = client.request("/test");
+            let request = builder
+                .send_request(|url, client| client.get(url))
+                .await
+                .unwrap();
+
+            let headers = request.build().unwrap().headers().clone();
+
+            assert!(headers.contains_key(SESSION_ID_HEADER));
+            assert_eq!(
+                headers.get(SESSION_ID_HEADER).unwrap().to_str().unwrap(),
+                "test-session-456"
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_no_session_id_header_when_absent() {
+        let client = ApiClient::new(
+            "http://localhost:8080".to_string(),
+            AuthMethod::BearerToken("test-token".to_string()),
+        )
+        .unwrap();
+
+        // Build a request without session context
+        let builder = client.request("/test");
+        let request = builder
+            .send_request(|url, client| client.get(url))
+            .await
+            .unwrap();
+
+        let headers = request.build().unwrap().headers().clone();
+
+        assert!(!headers.contains_key(SESSION_ID_HEADER));
     }
 }

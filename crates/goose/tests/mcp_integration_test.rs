@@ -1,18 +1,25 @@
 use serde::Deserialize;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::{env, fs};
 
-use rmcp::model::{CallToolRequestParam, Content};
+use rmcp::model::{CallToolRequestParam, Content, Tool};
 use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::ExtensionManager;
+use goose::model::ModelConfig;
 
 use test_case::test_case;
 
+use async_trait::async_trait;
+use goose::conversation::message::Message;
+use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
 
@@ -27,6 +34,45 @@ struct CargoBuildMessage {
 struct Target {
     name: String,
     kind: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct MockProvider {
+    pub model_config: ModelConfig,
+}
+
+impl MockProvider {
+    pub fn new(model_config: ModelConfig) -> Self {
+        Self { model_config }
+    }
+}
+
+#[async_trait]
+impl Provider for MockProvider {
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::empty()
+    }
+
+    fn get_name(&self) -> &str {
+        "mock"
+    }
+
+    async fn complete_with_model(
+        &self,
+        _model_config: &ModelConfig,
+        _system: &str,
+        _messages: &[Message],
+        _tools: &[Tool],
+    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+        Ok((
+            Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"),
+            ProviderUsage::new("mock".to_string(), Usage::default()),
+        ))
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model_config.clone()
+    }
 }
 
 fn build_and_get_binary_path() -> PathBuf {
@@ -79,6 +125,7 @@ enum TestMode {
         CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
         CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
         CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
+        CallToolRequestParam { name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
@@ -205,7 +252,11 @@ async fn test_replayed_session(
         bundled: Some(false),
         available_tools: vec![],
     };
-    let extension_manager = ExtensionManager::new_without_provider();
+
+    let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
+        model_config: ModelConfig::new("test-model").unwrap(),
+    }) as Arc<dyn Provider>)));
+    let extension_manager = ExtensionManager::new(provider);
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {

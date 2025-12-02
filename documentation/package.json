@@ -13,12 +13,13 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
-    "generate-detail-pages": "node scripts/generate-detail-pages.js"
+    "generate-detail-pages": "node scripts/generate-detail-pages.js",
+    "serve-static": "node scripts/serve-static.js"
   },
   "dependencies": {
-    "@docusaurus/core": "3.7.0",
-    "@docusaurus/plugin-client-redirects": "^3.7.0",
-    "@docusaurus/preset-classic": "3.7.0",
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/plugin-client-redirects": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
     "@inkeep/docusaurus": "^2.0.16",
     "@mdx-js/react": "^3.0.0",
     "autoprefixer": "^10.4.17",

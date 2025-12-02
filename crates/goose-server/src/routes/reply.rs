@@ -8,17 +8,12 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
-use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
-use goose::{
-    agents::{AgentEvent, SessionConfig},
-    permission::permission_confirmation::PrincipalType,
-};
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -30,7 +25,6 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use utoipa::ToSchema;
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -133,6 +127,7 @@ pub enum MessageEvent {
     },
     Finish {
         reason: String,
+        token_state: TokenState,
     },
     ModelChange {
         model: String,
@@ -147,6 +142,27 @@ pub enum MessageEvent {
         conversation: Conversation,
     },
     Ping,
+}
+
+async fn get_token_state(session_id: &str) -> TokenState {
+    SessionManager::get_session(session_id, false)
+        .await
+        .map(|session| TokenState {
+            input_tokens: session.input_tokens.unwrap_or(0),
+            output_tokens: session.output_tokens.unwrap_or(0),
+            total_tokens: session.total_tokens.unwrap_or(0),
+            accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
+            accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
+            accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
+        })
+        .inspect_err(|e| {
+            tracing::warn!(
+                "Failed to fetch session token state for {}: {}",
+                session_id,
+                e
+            );
+        })
+        .unwrap_or_default()
 }
 
 async fn stream_event(
@@ -257,17 +273,30 @@ pub async fn reply(
 
         let session_config = SessionConfig {
             id: session_id.clone(),
-            working_dir: session.working_dir.clone(),
             schedule_id: session.schedule_id.clone(),
-            execution_mode: None,
             max_turns: None,
             retry_config: None,
         };
 
+        let user_message = match messages.last() {
+            Some(msg) => msg,
+            _ => {
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: "Reply started with empty messages".to_string(),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
+
         let mut stream = match agent
             .reply(
-                messages.clone(),
-                Some(session_config.clone()),
+                user_message.clone(),
+                session_config,
                 Some(task_cancel.clone()),
             )
             .await
@@ -308,29 +337,7 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            let token_state = match SessionManager::get_session(&session_id, false).await {
-                                Ok(session) => {
-                                    TokenState {
-                                        input_tokens: session.input_tokens.unwrap_or(0),
-                                        output_tokens: session.output_tokens.unwrap_or(0),
-                                        total_tokens: session.total_tokens.unwrap_or(0),
-                                        accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
-                                        accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
-                                        accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::warn!("Failed to fetch session for token state: {}", e);
-                                    TokenState {
-                                        input_tokens: 0,
-                                        output_tokens: 0,
-                                        total_tokens: 0,
-                                        accumulated_input_tokens: 0,
-                                        accumulated_output_tokens: 0,
-                                        accumulated_total_tokens: 0,
-                                    }
-                                }
-                            };
+                            let token_state = get_token_state(&session_id).await;
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
@@ -424,9 +431,12 @@ pub async fn reply(
             );
         }
 
+        let final_token_state = get_token_state(&session_id).await;
+
         let _ = stream_event(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
+                token_state: final_token_state,
             },
             &task_tx,
             &cancel_token,
@@ -436,60 +446,12 @@ pub async fn reply(
     Ok(SseResponse::new(stream))
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
-pub struct PermissionConfirmationRequest {
-    id: String,
-    #[serde(default = "default_principal_type")]
-    principal_type: PrincipalType,
-    action: String,
-    session_id: String,
-}
-
-fn default_principal_type() -> PrincipalType {
-    PrincipalType::Tool
-}
-
-#[utoipa::path(
-    post,
-    path = "/confirm",
-    request_body = PermissionConfirmationRequest,
-    responses(
-        (status = 200, description = "Permission action is confirmed", body = Value),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn confirm_permission(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<PermissionConfirmationRequest>,
-) -> Result<Json<Value>, StatusCode> {
-    let agent = state.get_agent_for_route(request.session_id).await?;
-    let permission = match request.action.as_str() {
-        "always_allow" => Permission::AlwaysAllow,
-        "allow_once" => Permission::AllowOnce,
-        "deny" => Permission::DenyOnce,
-        _ => Permission::DenyOnce,
-    };
-
-    agent
-        .handle_confirmation(
-            request.id.clone(),
-            PermissionConfirmation {
-                principal_type: request.principal_type,
-                permission,
-            },
-        )
-        .await;
-    Ok(Json(Value::Object(serde_json::Map::new())))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/reply",
             post(reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
-        .route("/confirm", post(confirm_permission))
         .with_state(state)
 }
 

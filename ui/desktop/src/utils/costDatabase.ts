@@ -1,4 +1,3 @@
-// Import the proper type from ConfigContext
 import { getApiUrl } from '../config';
 import { safeJsonParse } from './conversionUtils';
 
@@ -205,50 +204,4 @@ export async function fetchAndCachePricing(
     // This is a real API/network error
     return null;
   }
-}
-
-/**
- * Refresh pricing data from backend
- */
-export async function refreshPricing(): Promise<boolean> {
-  try {
-    // Clear session cache to force re-fetch
-    sessionPricingCache.clear();
-
-    // The actual refresh happens on the backend when we call with configured_only: false
-    const apiUrl = getApiUrl('/config/pricing');
-    const secretKey = await window.electron.getSecretKey();
-
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (secretKey) {
-      headers['X-Secret-Key'] = secretKey;
-    }
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ configured_only: false }),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Expose functions for testing in development mode
-declare global {
-  interface Window {
-    getCostForModel?: typeof getCostForModel;
-    fetchAndCachePricing?: typeof fetchAndCachePricing;
-    refreshPricing?: typeof refreshPricing;
-    sessionPricingCache?: typeof sessionPricingCache;
-  }
-}
-
-if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
-  window.getCostForModel = getCostForModel;
-  window.fetchAndCachePricing = fetchAndCachePricing;
-  window.refreshPricing = refreshPricing;
-  window.sessionPricingCache = sessionPricingCache;
 }

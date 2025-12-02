@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
@@ -17,6 +18,8 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    env::join_paths,
+    ffi::OsString,
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
@@ -31,12 +34,11 @@ use tokio::{
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use tokio_util::sync::CancellationToken;
 
+use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
+
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
-use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
-use super::shell::{
-    configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
-};
+use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -180,6 +182,8 @@ pub struct DeveloperServer {
     pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     #[cfg(not(test))]
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    bash_env_file: Option<PathBuf>,
+    extend_path_with_shell: bool,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -245,17 +249,6 @@ impl ServerHandler for DeveloperServer {
                 }
             }
         };
-
-        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), GOOSE_HINTS_FILENAME.to_string()]);
-
-        // Build ignore patterns for file reference processing
-        let ignore_patterns = Self::build_ignore_patterns(&cwd);
-
-        // Load hints using the centralized function
-        let hints = load_hint_files(&cwd, &hints_filenames, &ignore_patterns);
 
         // Check if editor model exists and augment with custom llm editor tool description
         let editor_description = if let Some(ref editor) = self.editor_model {
@@ -332,6 +325,8 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
+
+            If fetching web content, consider adding Accept: text/markdown header
         "#};
 
         let windows_specific = indoc! {r#"
@@ -373,12 +368,7 @@ impl ServerHandler for DeveloperServer {
             _ => format!("{}{}", common_shell_instructions, unix_specific),
         };
 
-        // Return base instructions directly when no hints are found
-        let instructions = if hints.is_empty() {
-            format!("{base_instructions}{editor_description}\n{shell_tool_desc}")
-        } else {
-            format!("{base_instructions}\n{editor_description}\n{shell_tool_desc}\n{hints}")
-        };
+        let instructions = format!("{base_instructions}{editor_description}\n{shell_tool_desc}");
 
         ServerInfo {
             server_info: Implementation {
@@ -566,7 +556,19 @@ impl DeveloperServer {
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
             running_processes: Arc::new(RwLock::new(HashMap::new())),
+            extend_path_with_shell: false,
+            bash_env_file: None,
         }
+    }
+
+    pub fn extend_path_with_shell(mut self, value: bool) -> Self {
+        self.extend_path_with_shell = value;
+        self
+    }
+
+    pub fn bash_env_file(mut self, value: Option<PathBuf>) -> Self {
+        self.bash_env_file = value;
+        self
     }
 
     /// List all available windows that can be used with screen_capture.
@@ -959,10 +961,34 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
+        let mut shell_config = ShellConfig::default();
+        let shell_name = std::path::Path::new(&shell_config.executable)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
 
-        let mut child = configure_shell_command(&shell_config, command)
+        if let Some(ref env_file) = self.bash_env_file {
+            if shell_name == "bash" {
+                shell_config.envs.push((
+                    OsString::from("BASH_ENV"),
+                    env_file.clone().into_os_string(),
+                ))
+            }
+        }
+
+        let mut command = configure_shell_command(&shell_config, command);
+
+        if self.extend_path_with_shell {
+            if let Err(e) = get_shell_path_dirs()
+                .await
+                .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+                .map(|path| command.env("PATH", path))
+            {
+                tracing::error!("Failed to extend PATH with shell directories: {}", e)
+            }
+        }
+
+        let mut child = command
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -1255,27 +1281,16 @@ impl DeveloperServer {
         }
     }
 
-    // Helper method to build ignore patterns from .gooseignore or .gitignore files
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
-
-        // Check for local .gooseignore
         let local_ignore_path = cwd.join(".gooseignore");
         let mut has_ignore_file = false;
 
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
-        } else {
-            // Fallback to .gitignore
-            let gitignore_path = cwd.join(".gitignore");
-            if gitignore_path.is_file() {
-                let _ = builder.add(gitignore_path);
-                has_ignore_file = true;
-            }
         }
 
-        // Add default patterns if no ignore files found
         if !has_ignore_file {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
@@ -1335,20 +1350,22 @@ impl DeveloperServer {
 
                 // Find the last space before AM/PM and replace it with U+202F
                 let space_pos = filename.rfind(meridian)
-                    .map(|pos| filename[..pos].trim_end().len())
+                    .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
                     .unwrap_or(0);
 
                 if space_pos > 0 {
                     let parent = path.parent().unwrap_or(Path::new(""));
-                    let new_filename = format!(
-                        "{}{}{}",
-                        &filename[..space_pos],
-                        '\u{202F}',
-                        &filename[space_pos+1..]
-                    );
-                    let new_path = parent.join(new_filename);
+                    if let (Some(before), Some(after)) = (filename.get(..space_pos), filename.get(space_pos+1..)) {
+                        let new_filename = format!(
+                            "{}{}{}",
+                            before,
+                            '\u{202F}',
+                            after
+                        );
+                        let new_path = parent.join(new_filename);
 
-                    return new_path;
+                        return new_path;
+                    }
                 }
             }
         }
@@ -1950,51 +1967,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_gitignore_fallback_when_no_gooseignore() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create .gitignore file (no .gooseignore)
-        fs::write(".gitignore", "*.log").unwrap();
-
-        let server = create_test_server();
-
-        assert!(
-            server.is_ignored(Path::new("debug.log")),
-            "*.log pattern from .gitignore should match debug.log"
-        );
-        assert!(
-            !server.is_ignored(Path::new("debug.txt")),
-            "*.log pattern should not match debug.txt"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_gooseignore_takes_precedence_over_gitignore() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create both files
-        fs::write(".gitignore", "*.log").unwrap();
-        fs::write(".gooseignore", "*.env").unwrap();
-
-        let server = create_test_server();
-
-        // Should respect .gooseignore patterns
-        assert!(
-            server.is_ignored(Path::new("test.env")),
-            ".gooseignore pattern should work"
-        );
-        // Should NOT respect .gitignore patterns when .gooseignore exists
-        assert!(
-            !server.is_ignored(Path::new("test.log")),
-            ".gitignore patterns should be ignored when .gooseignore exists"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_text_editor_descriptions() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
@@ -2014,136 +1986,6 @@ mod tests {
         assert!(!instructions.contains("Edit the file with the new content"));
         assert!(!instructions.contains("edit_file"));
         assert!(!instructions.contains("work out how to place old_str with it intelligently"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_respects_gitignore_fallback() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create a .gitignore file but no .gooseignore
-        fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
-
-        let server = create_test_server();
-
-        // Try to write to a file ignored by .gitignore
-        let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "write".to_string(),
-                path: temp_dir
-                    .path()
-                    .join("test.log")
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                file_text: Some("test content".parse().unwrap()),
-                old_str: None,
-                new_str: None,
-                view_range: None,
-                insert_line: None,
-                diff: None,
-            }))
-            .await;
-
-        assert!(
-            result.is_err(),
-            "Should not be able to write to file ignored by .gitignore fallback"
-        );
-        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
-
-        let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "write".to_string(),
-                path: temp_dir
-                    .path()
-                    .join("allowed.txt")
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                file_text: Some("test content".to_string()),
-                old_str: None,
-                new_str: None,
-                view_range: None,
-                insert_line: None,
-                diff: None,
-            }))
-            .await;
-
-        assert!(
-            result.is_ok(),
-            "Should be able to write to non-ignored file"
-        );
-
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_shell_respects_gitignore_fallback() {
-        run_shell_test(|| async {
-            let temp_dir = tempfile::tempdir().unwrap();
-            std::env::set_current_dir(&temp_dir).unwrap();
-
-            // Create a .gitignore file but no .gooseignore
-            std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
-
-            let server = create_test_server();
-            let running_service = serve_directly(server.clone(), create_test_transport(), None);
-            let peer = running_service.peer().clone();
-
-            // Create a file that would be ignored by .gitignore
-            let log_file_path = temp_dir.path().join("test.log");
-            std::fs::write(&log_file_path, "log content").unwrap();
-
-            // Try to cat the ignored file
-            let result = server
-                .shell(
-                    Parameters(ShellParams {
-                        command: format!("cat {}", log_file_path.to_str().unwrap()),
-                    }),
-                    RequestContext {
-                        ct: Default::default(),
-                        id: NumberOrString::Number(1),
-                        meta: Default::default(),
-                        extensions: Default::default(),
-                        peer: peer.clone(),
-                    },
-                )
-                .await;
-
-            assert!(
-                result.is_err(),
-                "Should not be able to cat file ignored by .gitignore fallback"
-            );
-            assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
-
-            // Try to cat a non-ignored file
-            let allowed_file_path = temp_dir.path().join("allowed.txt");
-            fs::write(&allowed_file_path, "allowed content").unwrap();
-
-            let result = server
-                .shell(
-                    Parameters(ShellParams {
-                        command: format!("cat {}", allowed_file_path.to_str().unwrap()),
-                    }),
-                    RequestContext {
-                        ct: Default::default(),
-                        id: NumberOrString::Number(1),
-                        meta: Default::default(),
-                        extensions: Default::default(),
-                        peer: peer.clone(),
-                    },
-                )
-                .await;
-
-            assert!(result.is_ok(), "Should be able to cat non-ignored file");
-
-            // Force cleanup before runtime shutdown
-            cleanup_test_service(running_service, peer);
-
-            temp_dir.close().unwrap();
-        });
     }
 
     #[tokio::test]
@@ -3208,7 +3050,10 @@ mod tests {
             ) {
                 let start_idx = start + start_tag.len();
                 if start_idx < end {
-                    let path = assistant_content.text[start_idx..end].trim();
+                    let Some(path) = assistant_content.text.get(start_idx..end).map(|s| s.trim())
+                    else {
+                        panic!("Failed to extract path from assistant content");
+                    };
                     println!("Extracted path: {}", path);
 
                     let file_contents =
@@ -3390,161 +3235,6 @@ mod tests {
             !server.is_ignored(Path::new("normal.txt")),
             "normal.txt should not be ignored"
         );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_global_goosehints() {
-        // Note: This test checks if ~/.config/goose/.goosehints exists and includes it in instructions
-        // Since RMCP version uses get_info() instead of instructions(), we test that method
-        let global_hints_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let global_hints_bak_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
-        let mut globalhints_existed = false;
-
-        if global_hints_path.is_file() {
-            globalhints_existed = true;
-            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
-        }
-
-        fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
-
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("my global goose hints."));
-
-        // restore backup if globalhints previously existed
-        if globalhints_existed {
-            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-            fs::remove_file(&global_hints_bak_path).unwrap();
-        } else {
-            fs::remove_file(&global_hints_path).unwrap();
-        }
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_with_file_references() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create referenced files
-        let readme_path = temp_dir.path().join("README.md");
-        std::fs::write(
-            &readme_path,
-            "# Project README\n\nThis is the project documentation.",
-        )
-        .unwrap();
-
-        let guide_path = temp_dir.path().join("guide.md");
-        std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
-
-        // Create .goosehints with references
-        let hints_content = r#"# Project Information
-
-Please refer to:
-@README.md
-@guide.md
-
-Additional instructions here.
-"#;
-        let hints_path = temp_dir.path().join(".goosehints");
-        std::fs::write(&hints_path, hints_content).unwrap();
-
-        // Create server and check instructions
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-
-        // Should contain the .goosehints content
-        assert!(instructions.contains("Project Information"));
-        assert!(instructions.contains("Additional instructions here"));
-
-        // Should contain the referenced files' content
-        assert!(instructions.contains("# Project README"));
-        assert!(instructions.contains("This is the project documentation"));
-        assert!(instructions.contains("# Development Guide"));
-        assert!(instructions.contains("Follow these steps"));
-
-        // Should have attribution markers
-        assert!(instructions.contains("--- Content from"));
-        assert!(instructions.contains("--- End of"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_when_present() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        fs::write(".goosehints", "Test hint content").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Test hint content"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_when_missing() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        // When no hints are present, instructions should not contain hint content
-        assert!(!instructions.contains("AGENTS.md:") && !instructions.contains(".goosehints:"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_multiple_filenames() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
-
-        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
-        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
-        assert!(instructions.contains("Custom hints file content from .goosehints"));
-        std::env::remove_var("CONTEXT_FILE_NAMES");
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_goosehints_configurable_filename() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
-
-        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
-        let server = create_test_server();
-        let server_info = server.get_info();
-
-        assert!(server_info.instructions.is_some());
-        let instructions = server_info.instructions.unwrap();
-        assert!(instructions.contains("Custom hints file content"));
-        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
-        std::env::remove_var("CONTEXT_FILE_NAMES");
     }
 
     #[test]

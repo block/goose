@@ -195,7 +195,6 @@ export default function CreateRecipeFromSessionModal({
           undefined,
           undefined,
           undefined,
-          undefined,
           recipeId
         );
       }

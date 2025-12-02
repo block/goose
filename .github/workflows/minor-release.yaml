@@ -1,0 +1,16 @@
+name: Create Minor Release PR
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  schedule:
+    - cron: '0 0 * * 2'
+  workflow_dispatch:
+
+jobs:
+  release:
+    uses: ./.github/workflows/create-release-pr.yaml
+    with:
+      bump_type: "minor"

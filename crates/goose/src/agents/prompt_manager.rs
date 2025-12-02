@@ -3,13 +3,18 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::Value;
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
 use crate::agents::router_tools::llm_search_tool_prompt;
-use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
+use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
+use crate::{
+    config::{Config, GooseMode},
+    prompt_template,
+    utils::sanitize_unicode_tags,
+};
+use std::path::Path;
 
 const MAX_EXTENSIONS: usize = 5;
 const MAX_TOOLS: usize = 50;
@@ -34,7 +39,7 @@ struct SystemPromptContext {
     current_date_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extension_tool_limits: Option<(usize, usize)>,
-    goose_mode: String,
+    goose_mode: GooseMode,
     is_autonomous: bool,
     enable_subagents: bool,
     max_extensions: usize,
@@ -49,6 +54,7 @@ pub struct SystemPromptBuilder<'a, M> {
     frontend_instructions: Option<String>,
     extension_tool_count: Option<(usize, usize)>,
     router_enabled: bool,
+    hints: Option<String>,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -83,6 +89,33 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_hints(mut self, working_dir: &Path) -> Self {
+        let config = Config::global();
+        let hints_filenames = config
+            .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+            .unwrap_or_else(|_| {
+                vec![
+                    GOOSE_HINTS_FILENAME.to_string(),
+                    AGENTS_MD_FILENAME.to_string(),
+                ]
+            });
+        let ignore_patterns = {
+            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+            builder.build().unwrap_or_else(|_| {
+                ignore::gitignore::GitignoreBuilder::new(working_dir)
+                    .build()
+                    .expect("Failed to build default gitignore")
+            })
+        };
+
+        let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
+
+        if !hints.is_empty() {
+            self.hints = Some(hints);
+        }
+        self
+    }
+
     pub fn build(self) -> String {
         let mut extensions_info = self.extensions_info;
 
@@ -106,9 +139,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .collect();
 
         let config = Config::global();
-        let goose_mode = config
-            .get_param("GOOSE_MODE")
-            .unwrap_or_else(|_| Cow::from("auto"));
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
         let extension_tool_limits = self
             .extension_tool_count
@@ -119,8 +150,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
-            goose_mode: goose_mode.to_string(),
-            is_autonomous: goose_mode == "auto",
+            goose_mode,
+            is_autonomous: goose_mode == GooseMode::Auto,
             enable_subagents: should_enabled_subagents(self.model_name.as_str()),
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
@@ -137,7 +168,13 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         });
 
         let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
-        if goose_mode == "chat" {
+
+        // Add hints if provided
+        if let Some(hints) = self.hints {
+            system_prompt_extras.push(hints);
+        }
+
+        if goose_mode == GooseMode::Chat {
             system_prompt_extras.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),
@@ -200,6 +237,7 @@ impl PromptManager {
             frontend_instructions: None,
             extension_tool_count: None,
             router_enabled: false,
+            hints: None,
         }
     }
 

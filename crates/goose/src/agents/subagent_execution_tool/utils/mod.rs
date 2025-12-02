@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use crate::agents::subagent_execution_tool::task_types::{TaskInfo, TaskStatus};
 
 pub fn get_task_name(task_info: &TaskInfo) -> &str {
-    task_info
-        .task
-        .get_sub_recipe_name()
-        .unwrap_or(&task_info.task.id)
+    &task_info.task.payload.recipe.title
 }
 
 pub fn count_by_status(tasks: &HashMap<String, TaskInfo>) -> (usize, usize, usize, usize, usize) {

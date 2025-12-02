@@ -1,9 +1,9 @@
+import Electron from 'electron';
+import fs from 'node:fs';
 import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
-import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -11,7 +11,6 @@ import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client } from './api/client';
 
-// Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {
     const server = createServer();
@@ -27,11 +26,20 @@ export const findAvailablePort = (): Promise<number> => {
 };
 
 // Check if goosed server is ready by polling the status endpoint
-export const checkServerStatus = async (client: Client): Promise<boolean> => {
+export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
   const interval = 100; // ms
-  const maxAttempts = 1200; // 120s
+  const maxAttempts = 100; // 10s
+
+  const fatal = (line: string) => {
+    const trimmed = line.trim().toLowerCase();
+    return trimmed.startsWith("thread 'main' panicked at") || trimmed.startsWith('error:');
+  };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (errorLog.some(fatal)) {
+      log.error('Detected fatal error in server logs');
+      return false;
+    }
     try {
       await status({ client, throwOnError: true });
       return true;
@@ -48,7 +56,7 @@ export const checkServerStatus = async (client: Client): Promise<boolean> => {
 const connectToExternalBackend = async (
   workingDir: string,
   port: number = 3000
-): Promise<[number, string, ChildProcess]> => {
+): Promise<[number, string, ChildProcess, string[]]> => {
   log.info(`Using external goosed backend on port ${port}`);
 
   const mockProcess = {
@@ -58,7 +66,7 @@ const connectToExternalBackend = async (
     },
   } as ChildProcess;
 
-  return [port, workingDir, mockProcess];
+  return [port, workingDir, mockProcess, []];
 };
 
 interface GooseProcessEnv {
@@ -76,39 +84,23 @@ interface GooseProcessEnv {
 export const startGoosed = async (
   app: App,
   serverSecret: string,
-  dir: string | null = null,
+  dir: string,
   env: Partial<GooseProcessEnv> = {}
-): Promise<[number, string, ChildProcess]> => {
-  const homeDir = os.homedir();
+): Promise<[number, string, ChildProcess, string[]]> => {
   const isWindows = process.platform === 'win32';
-
-  if (!dir) {
-    dir = homeDir;
-  }
-
+  const homeDir = os.homedir();
   dir = path.resolve(path.normalize(dir));
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     return connectToExternalBackend(dir, 3000);
   }
 
-  try {
-    const stats = fs.lstatSync(dir);
-
-    if (!stats.isDirectory()) {
-      log.warn(`Provided path is not a directory, falling back to home directory`);
-      dir = homeDir;
-    }
-  } catch {
-    log.warn(`Directory does not exist, falling back to home directory`);
-    dir = homeDir;
-  }
-
-  let goosedPath = getBinaryPath(app, 'goosed');
+  let goosedPath = getGoosedBinaryPath(app);
 
   const resolvedGoosedPath = path.resolve(goosedPath);
 
   const port = await findAvailablePort();
+  const stderrLines: string[] = [];
 
   log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
 
@@ -183,7 +175,14 @@ export const startGoosed = async (
   });
 
   goosedProcess.stderr?.on('data', (data: Buffer) => {
-    log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
+    const lines = data
+      .toString()
+      .split('\n')
+      .filter((l) => l.trim());
+    lines.forEach((line) => {
+      log.error(`goosed stderr for port ${port} and dir ${dir}: ${line}`);
+      stderrLines.push(line);
+    });
   });
 
   goosedProcess.on('close', (code: number | null) => {
@@ -215,5 +214,44 @@ export const startGoosed = async (
   });
 
   log.info(`Goosed server successfully started on port ${port}`);
-  return [port, dir, goosedProcess];
+  return [port, dir, goosedProcess, stderrLines];
+};
+
+const getGoosedBinaryPath = (app: Electron.App): string => {
+  let executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+
+  let possiblePaths: string[];
+  if (!app.isPackaged) {
+    possiblePaths = [
+      path.join(process.cwd(), 'src', 'bin', executableName),
+      path.join(process.cwd(), 'bin', executableName),
+      path.join(process.cwd(), '..', '..', 'target', 'debug', executableName),
+      path.join(process.cwd(), '..', '..', 'target', 'release', executableName),
+    ];
+  } else {
+    possiblePaths = [path.join(process.resourcesPath, 'bin', executableName)];
+  }
+
+  for (const binPath of possiblePaths) {
+    try {
+      const resolvedPath = path.resolve(binPath);
+
+      if (fs.existsSync(resolvedPath)) {
+        const stats = fs.statSync(resolvedPath);
+        if (stats.isFile()) {
+          return resolvedPath;
+        } else {
+          log.error(`Path exists but is not a regular file: ${resolvedPath}`);
+        }
+      }
+    } catch (error) {
+      log.error(`Error checking path ${binPath}:`, error);
+    }
+  }
+
+  throw new Error(
+    `Could not find ${executableName} binary in any of the expected locations: ${possiblePaths.join(
+      ', '
+    )}`
+  );
 };

@@ -70,23 +70,18 @@ describe('Extension Manager', () => {
       expect(mockAddToAgent).toHaveBeenCalledTimes(3);
     });
 
-    it('should show error toast after max retries but keep extension enabled', async () => {
+    it('should throw error after max retries', async () => {
       const error428 = new Error('428 Precondition Required');
       mockAddToAgent.mockRejectedValue(error428);
-      mockToastService.configure = vi.fn();
-      mockToastService.error = vi.fn();
 
-      await addToAgentOnStartup({
-        sessionId: 'test-session',
-        extensionConfig: mockExtensionConfig,
-      });
+      await expect(
+        addToAgentOnStartup({
+          sessionId: 'test-session',
+          extensionConfig: mockExtensionConfig,
+        })
+      ).rejects.toThrow('428 Precondition Required');
 
       expect(mockAddToAgent).toHaveBeenCalledTimes(4); // Initial + 3 retries
-      expect(mockToastService.error).toHaveBeenCalledWith({
-        title: 'test-extension',
-        msg: 'Extension failed to start and will retry on a new session.',
-        traceback: '428 Precondition Required',
-      });
     });
   });
 

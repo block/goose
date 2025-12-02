@@ -124,7 +124,7 @@ export default function GooseDesktopInstaller({
         <li>
           <a href={buildGooseUrl()}>Launch the installer</a>
         </li>
-        <li>Click <code>OK</code> to confirm the installation</li>
+        <li>Click <code>Yes</code> to confirm the installation</li>
         {shouldShowConfigurationSteps && (
           <>
             <li>{step3Content}</li>

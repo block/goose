@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
+use crate::config::base::ConfigValue;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -196,6 +197,16 @@ impl ConfigKey {
             required,
             secret,
             default: default.map(|s| s.to_string()),
+            oauth_flow: false,
+        }
+    }
+
+    pub fn from_value_type<T: ConfigValue>(required: bool, secret: bool) -> Self {
+        Self {
+            name: T::KEY.to_string(),
+            required,
+            secret,
+            default: Some(T::DEFAULT.to_string()),
             oauth_flow: false,
         }
     }

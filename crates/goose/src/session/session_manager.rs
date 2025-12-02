@@ -1,6 +1,7 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
@@ -18,7 +19,52 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 4;
+const CURRENT_SCHEMA_VERSION: i32 = 6;
+pub const SESSIONS_FOLDER: &str = "sessions";
+pub const DB_NAME: &str = "sessions.db";
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionType {
+    User,
+    Scheduled,
+    SubAgent,
+    Hidden,
+    Terminal,
+}
+
+impl Default for SessionType {
+    fn default() -> Self {
+        Self::User
+    }
+}
+
+impl std::fmt::Display for SessionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SessionType::User => write!(f, "user"),
+            SessionType::SubAgent => write!(f, "sub_agent"),
+            SessionType::Hidden => write!(f, "hidden"),
+            SessionType::Scheduled => write!(f, "scheduled"),
+            SessionType::Terminal => write!(f, "terminal"),
+        }
+    }
+}
+
+impl std::str::FromStr for SessionType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "user" => Ok(SessionType::User),
+            "sub_agent" => Ok(SessionType::SubAgent),
+            "hidden" => Ok(SessionType::Hidden),
+            "scheduled" => Ok(SessionType::Scheduled),
+            "terminal" => Ok(SessionType::Terminal),
+            _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
+        }
+    }
+}
 
 static SESSION_STORAGE: OnceCell<Arc<SessionStorage>> = OnceCell::const_new();
 
@@ -27,11 +73,12 @@ pub struct Session {
     pub id: String,
     #[schema(value_type = String)]
     pub working_dir: PathBuf,
-    // Allow importing session exports from before 'description' was renamed to 'name'
     #[serde(alias = "description")]
     pub name: String,
     #[serde(default)]
     pub user_set_name: bool,
+    #[serde(default)]
+    pub session_type: SessionType,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
@@ -46,12 +93,15 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    pub provider_name: Option<String>,
+    pub model_config: Option<ModelConfig>,
 }
 
 pub struct SessionUpdateBuilder {
     session_id: String,
     name: Option<String>,
     user_set_name: Option<bool>,
+    session_type: Option<SessionType>,
     working_dir: Option<PathBuf>,
     extension_data: Option<ExtensionData>,
     total_tokens: Option<Option<i32>>,
@@ -63,6 +113,8 @@ pub struct SessionUpdateBuilder {
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
     user_recipe_values: Option<Option<HashMap<String, String>>>,
+    provider_name: Option<Option<String>>,
+    model_config: Option<Option<ModelConfig>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -78,6 +130,7 @@ impl SessionUpdateBuilder {
             session_id,
             name: None,
             user_set_name: None,
+            session_type: None,
             working_dir: None,
             extension_data: None,
             total_tokens: None,
@@ -89,6 +142,8 @@ impl SessionUpdateBuilder {
             schedule_id: None,
             recipe: None,
             user_recipe_values: None,
+            provider_name: None,
+            model_config: None,
         }
     }
 
@@ -107,6 +162,11 @@ impl SessionUpdateBuilder {
             self.name = Some(name);
             self.user_set_name = Some(false);
         }
+        self
+    }
+
+    pub fn session_type(mut self, session_type: SessionType) -> Self {
+        self.session_type = Some(session_type);
         self
     }
 
@@ -168,6 +228,16 @@ impl SessionUpdateBuilder {
         self
     }
 
+    pub fn provider_name(mut self, provider_name: impl Into<String>) -> Self {
+        self.provider_name = Some(Some(provider_name.into()));
+        self
+    }
+
+    pub fn model_config(mut self, model_config: ModelConfig) -> Self {
+        self.model_config = Some(Some(model_config));
+        self
+    }
+
     pub async fn apply(self) -> Result<()> {
         SessionManager::apply_update(self).await
     }
@@ -183,10 +253,14 @@ impl SessionManager {
             .map(Arc::clone)
     }
 
-    pub async fn create_session(working_dir: PathBuf, name: String) -> Result<Session> {
+    pub async fn create_session(
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
         Self::instance()
             .await?
-            .create_session(working_dir, name)
+            .create_session(working_dir, name, session_type)
             .await
     }
 
@@ -220,6 +294,10 @@ impl SessionManager {
         Self::instance().await?.list_sessions().await
     }
 
+    pub async fn list_sessions_by_types(types: &[SessionType]) -> Result<Vec<Session>> {
+        Self::instance().await?.list_sessions_by_types(types).await
+    }
+
     pub async fn delete_session(id: &str) -> Result<()> {
         Self::instance().await?.delete_session(id).await
     }
@@ -234,6 +312,20 @@ impl SessionManager {
 
     pub async fn import_session(json: &str) -> Result<Session> {
         Self::instance().await?.import_session(json).await
+    }
+
+    pub async fn copy_session(session_id: &str, new_name: String) -> Result<Session> {
+        Self::instance()
+            .await?
+            .copy_session(session_id, new_name)
+            .await
+    }
+
+    pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
+        Self::instance()
+            .await?
+            .truncate_conversation(session_id, timestamp)
+            .await
     }
 
     pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
@@ -283,7 +375,7 @@ pub struct SessionStorage {
 }
 
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let session_dir = Paths::data_dir().join("sessions");
+    let session_dir = Paths::data_dir().join(SESSIONS_FOLDER);
 
     if !session_dir.exists() {
         fs::create_dir_all(&session_dir)?;
@@ -306,6 +398,7 @@ impl Default for Session {
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             name: String::new(),
             user_set_name: false,
+            session_type: SessionType::default(),
             created_at: Default::default(),
             updated_at: Default::default(),
             extension_data: ExtensionData::default(),
@@ -320,6 +413,8 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            provider_name: None,
+            model_config: None,
         }
     }
 }
@@ -342,6 +437,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
+        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
+
         let name: String = {
             let name_val: String = row.try_get("name").unwrap_or_default();
             if !name_val.is_empty() {
@@ -353,11 +451,17 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 
         let user_set_name = row.try_get("user_set_name").unwrap_or(false);
 
+        let session_type_str: String = row
+            .try_get("session_type")
+            .unwrap_or_else(|_| "user".to_string());
+        let session_type = session_type_str.parse().unwrap_or_default();
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
             name,
             user_set_name,
+            session_type,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
             extension_data: serde_json::from_str(&row.try_get::<String, _>("extension_data")?)
@@ -373,6 +477,8 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            provider_name: row.try_get("provider_name").ok().flatten(),
+            model_config,
         })
     }
 }
@@ -380,7 +486,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 impl SessionStorage {
     async fn new() -> Result<Self> {
         let session_dir = ensure_session_dir()?;
-        let db_path = session_dir.join("sessions.db");
+        let db_path = session_dir.join(DB_NAME);
 
         let storage = if db_path.exists() {
             Self::open(&db_path).await?
@@ -401,7 +507,8 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(create_if_missing)
-            .busy_timeout(std::time::Duration::from_secs(5));
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(
@@ -446,6 +553,7 @@ impl SessionStorage {
                 name TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
                 user_set_name BOOLEAN DEFAULT FALSE,
+                session_type TEXT NOT NULL DEFAULT 'user',
                 working_dir TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -458,7 +566,9 @@ impl SessionStorage {
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
                 recipe_json TEXT,
-                user_recipe_values_json TEXT
+                user_recipe_values_json TEXT,
+                provider_name TEXT,
+                model_config_json TEXT
             )
         "#,
         )
@@ -489,6 +599,9 @@ impl SessionStorage {
             .execute(&pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
             .execute(&pool)
             .await?;
 
@@ -540,6 +653,8 @@ impl SessionStorage {
     }
 
     async fn import_legacy_session(&self, session: &Session) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let recipe_json = match &session.recipe {
             Some(recipe) => Some(serde_json::to_string(recipe)?),
             None => None,
@@ -550,34 +665,45 @@ impl SessionStorage {
             None => None,
         };
 
+        let model_config_json = match &session.model_config {
+            Some(model_config) => Some(serde_json::to_string(model_config)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
-            id, name, user_set_name, working_dir, created_at, updated_at, extension_data,
+            id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json, user_recipe_values_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, user_recipe_values_json,
+            provider_name, model_config_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
-        .bind(&session.id)
-        .bind(&session.name)
-        .bind(session.user_set_name)
-        .bind(session.working_dir.to_string_lossy().as_ref())
-        .bind(session.created_at)
-        .bind(session.updated_at)
-        .bind(serde_json::to_string(&session.extension_data)?)
-        .bind(session.total_tokens)
-        .bind(session.input_tokens)
-        .bind(session.output_tokens)
-        .bind(session.accumulated_total_tokens)
-        .bind(session.accumulated_input_tokens)
-        .bind(session.accumulated_output_tokens)
-        .bind(&session.schedule_id)
-        .bind(recipe_json)
-        .bind(user_recipe_values_json)
-        .execute(&self.pool)
-        .await?;
+            .bind(&session.id)
+            .bind(&session.name)
+            .bind(session.user_set_name)
+            .bind(session.session_type.to_string())
+            .bind(session.working_dir.to_string_lossy().as_ref())
+            .bind(session.created_at)
+            .bind(session.updated_at)
+            .bind(serde_json::to_string(&session.extension_data)?)
+            .bind(session.total_tokens)
+            .bind(session.input_tokens)
+            .bind(session.output_tokens)
+            .bind(session.accumulated_total_tokens)
+            .bind(session.accumulated_input_tokens)
+            .bind(session.accumulated_output_tokens)
+            .bind(&session.schedule_id)
+            .bind(recipe_json)
+            .bind(user_recipe_values_json)
+            .bind(&session.provider_name)
+            .bind(model_config_json)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
 
         if let Some(conversation) = &session.conversation {
             self.replace_conversation(&session.id, conversation).await?;
@@ -687,6 +813,36 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            5 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'user'
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
+                    .execute(&self.pool)
+                    .await?;
+            }
+            6 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN provider_name TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN model_config_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -695,11 +851,18 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn create_session(&self, working_dir: PathBuf, name: String) -> Result<Session> {
+    async fn create_session(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        let mut tx = self.pool.begin().await?;
+
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        Ok(sqlx::query_as(
+        let session = sqlx::query_as(
             r#"
-                INSERT INTO sessions (id, name, user_set_name, working_dir, extension_data)
+                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
                 VALUES (
                     ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
@@ -709,34 +872,40 @@ impl SessionStorage {
                     ?,
                     FALSE,
                     ?,
+                    ?,
                     '{}'
                 )
                 RETURNING *
                 "#,
         )
-        .bind(&today)
-        .bind(&today)
-        .bind(&name)
-        .bind(working_dir.to_string_lossy().as_ref())
-        .fetch_one(&self.pool)
-        .await?)
+            .bind(&today)
+            .bind(&today)
+            .bind(&name)
+            .bind(session_type.to_string())
+            .bind(working_dir.to_string_lossy().as_ref())
+            .fetch_one(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(session)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         let mut session = sqlx::query_as::<_, Session>(
             r#"
-        SELECT id, working_dir, name, description, user_set_name, created_at, updated_at, extension_data,
+        SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json, user_recipe_values_json
+               schedule_id, recipe_json, user_recipe_values_json,
+               provider_name, model_config_json
         FROM sessions
         WHERE id = ?
     "#,
         )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
@@ -754,6 +923,7 @@ impl SessionStorage {
         Ok(session)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
@@ -773,6 +943,7 @@ impl SessionStorage {
 
         add_update!(builder.name, "name");
         add_update!(builder.user_set_name, "user_set_name");
+        add_update!(builder.session_type, "session_type");
         add_update!(builder.working_dir, "working_dir");
         add_update!(builder.extension_data, "extension_data");
         add_update!(builder.total_tokens, "total_tokens");
@@ -787,6 +958,8 @@ impl SessionStorage {
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
         add_update!(builder.user_recipe_values, "user_recipe_values_json");
+        add_update!(builder.provider_name, "provider_name");
+        add_update!(builder.model_config, "model_config_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -802,6 +975,9 @@ impl SessionStorage {
         }
         if let Some(user_set_name) = builder.user_set_name {
             q = q.bind(user_set_name);
+        }
+        if let Some(session_type) = builder.session_type {
+            q = q.bind(session_type.to_string());
         }
         if let Some(wd) = builder.working_dir {
             q = q.bind(wd.to_string_lossy().to_string());
@@ -840,10 +1016,21 @@ impl SessionStorage {
                 .transpose()?;
             q = q.bind(user_recipe_values_json);
         }
+        if let Some(provider_name) = builder.provider_name {
+            q = q.bind(provider_name);
+        }
+        if let Some(model_config) = builder.model_config {
+            let model_config_json = model_config
+                .map(|mc| serde_json::to_string(&mc))
+                .transpose()?;
+            q = q.bind(model_config_json);
+        }
 
+        let mut tx = self.pool.begin().await?;
         q = q.bind(&builder.session_id);
-        q.execute(&self.pool).await?;
+        q.execute(&mut *tx).await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -872,7 +1059,6 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
-            // TODO(Douwe): make id required
             message = message.with_id(format!("msg_{}_{}", session_id, idx));
             messages.push(message);
         }
@@ -881,6 +1067,8 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
         sqlx::query(
@@ -894,14 +1082,15 @@ impl SessionStorage {
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
         .bind(metadata_json)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -939,30 +1128,49 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
+        if types.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let query = format!(
             r#"
-        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.created_at, s.updated_at, s.extension_data,
-               s.total_tokens, s.input_tokens, s.output_tokens,
-               s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
-               COUNT(m.id) as message_count
-        FROM sessions s
-        INNER JOIN messages m ON s.id = m.session_id
-        GROUP BY s.id
-        ORDER BY s.updated_at DESC
-    "#,
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(Into::into)
+            SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+                   s.provider_name, s.model_config_json,
+                   COUNT(m.id) as message_count
+            FROM sessions s
+            INNER JOIN messages m ON s.id = m.session_id
+            WHERE s.session_type IN ({})
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+            "#,
+            placeholders
+        );
+
+        let mut q = sqlx::query_as::<_, Session>(&query);
+        for t in types {
+            q = q.bind(t.to_string());
+        }
+
+        q.fetch_all(&self.pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<Session>> {
+        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
+            .await
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let exists =
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
                 .bind(session_id)
-                .fetch_one(&self.pool)
+                .fetch_one(&mut *tx)
                 .await?;
 
         if !exists {
@@ -971,14 +1179,15 @@ impl SessionStorage {
 
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -1008,7 +1217,11 @@ impl SessionStorage {
         let import: Session = serde_json::from_str(json)?;
 
         let session = self
-            .create_session(import.working_dir.clone(), import.name.clone())
+            .create_session(
+                import.working_dir.clone(),
+                import.name.clone(),
+                import.session_type,
+            )
             .await?;
 
         let mut builder = SessionUpdateBuilder::new(session.id.clone())
@@ -1035,6 +1248,43 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
+        let original_session = self.get_session(session_id, true).await?;
+
+        let new_session = self
+            .create_session(
+                original_session.working_dir.clone(),
+                new_name,
+                original_session.session_type,
+            )
+            .await?;
+
+        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+            .extension_data(original_session.extension_data)
+            .schedule_id(original_session.schedule_id)
+            .recipe(original_session.recipe)
+            .user_recipe_values(original_session.user_recipe_values);
+
+        self.apply_update(builder).await?;
+
+        if let Some(conversation) = original_session.conversation {
+            self.replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
+
+        self.get_session(&new_session.id, true).await
+    }
+
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+            .bind(session_id)
+            .bind(timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn search_chat_history(
@@ -1084,7 +1334,7 @@ mod tests {
                 let description = format!("Test session {}", i);
 
                 let session = session_storage
-                    .create_session(working_dir.clone(), description)
+                    .create_session(working_dir.clone(), description, SessionType::User)
                     .await
                     .unwrap();
 
@@ -1176,7 +1426,11 @@ mod tests {
         let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
 
         let original = storage
-            .create_session(PathBuf::from("/tmp/test"), DESCRIPTION.to_string())
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                DESCRIPTION.to_string(),
+                SessionType::User,
+            )
             .await
             .unwrap();
 

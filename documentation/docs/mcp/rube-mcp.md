@@ -1,6 +1,6 @@
 ---
 title: Rube Extension
-description: Add Rube as a Goose Extension to connect with 500+ apps
+description: Add Rube as a goose Extension to connect with 500+ apps
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,7 +9,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
-This tutorial covers how to add [Rube](https://rube.app) as a Goose extension to enable seamless integration with 500+ apps including Slack, Gmail, Notion, Google Workspace, Microsoft Office, GitHub, and many more.
+This tutorial covers how to add [Rube](https://rube.app) as a goose extension to enable seamless integration with 500+ apps including Slack, Gmail, Notion, Google Workspace, Microsoft Office, GitHub, and many more.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -49,6 +49,7 @@ Rube is a platform powered by Composio that provides unified access to 500+ apps
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="rube"
+      description="Seamlessly connect across 500+ applications including Slack, Gmail, Notion, Google Workspace, Microsoft Office, GitHub, and many more"
       type="http"
       url="https://rube.app/mcp"
       timeout={300}
@@ -68,7 +69,7 @@ Rube uses OAuth browser authentication, which means:
 
 ## Example Usage
 
-Once Rube is configured, you can interact with 500+ apps directly through Goose. Here are some examples:
+Once Rube is configured, you can interact with 500+ apps directly through goose. Here are some examples:
 
 **Email Management**
 ```

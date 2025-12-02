@@ -30,6 +30,7 @@ pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     "gemini-2.0-flash-exp",
     "gemini-2.0-flash-preview-image-generation",
     "gemini-2.0-flash-lite",
+    "gemini-3-pro-preview",
 ];
 
 pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";

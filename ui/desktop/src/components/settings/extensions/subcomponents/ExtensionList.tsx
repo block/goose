@@ -11,6 +11,7 @@ interface ExtensionListProps {
   isStatic?: boolean;
   disableConfiguration?: boolean;
   searchTerm?: string;
+  pendingActivationExtensions?: Set<string>;
 }
 
 export default function ExtensionList({
@@ -20,6 +21,7 @@ export default function ExtensionList({
   isStatic,
   disableConfiguration: _disableConfiguration,
   searchTerm = '',
+  pendingActivationExtensions = new Set(),
 }: ExtensionListProps) {
   const matchesSearch = (extension: FixedExtensionEntry): boolean => {
     if (!searchTerm) return true;
@@ -63,6 +65,7 @@ export default function ExtensionList({
                 onToggle={onToggle}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
+                isPendingActivation={pendingActivationExtensions.has(extension.name)}
               />
             ))}
           </div>

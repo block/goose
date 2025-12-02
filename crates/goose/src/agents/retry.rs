@@ -108,18 +108,13 @@ impl RetryManager {
         }
     }
 
-    /// Handle retry logic for the agent reply loop
     pub async fn handle_retry_logic(
         &self,
         messages: &mut Conversation,
-        session: &Option<SessionConfig>,
+        session_config: &SessionConfig,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
-        let Some(session_config) = session else {
-            return Ok(RetryResult::Skipped);
-        };
-
         let Some(retry_config) = &session_config.retry_config else {
             return Ok(RetryResult::Skipped);
         };

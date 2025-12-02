@@ -15,8 +15,9 @@ use crate::agents::subagent_execution_tool::notification_events::{
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskResult, TaskStatus};
 use crate::agents::subagent_execution_tool::utils::{count_by_status, get_task_name};
 use crate::utils::is_token_cancelled;
-use serde_json::Value;
 use tokio::sync::mpsc::Sender;
+
+const RECIPE_TASK_TYPE: &str = "recipe";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DisplayMode {
@@ -28,25 +29,22 @@ const THROTTLE_INTERVAL_MS: u64 = 250;
 const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
-    if let Some(params) = task_info.task.get_command_parameters() {
-        if params.is_empty() {
-            return String::new();
+    // If we have parameter values, format them nicely
+    if let Some(ref params) = task_info.task.payload.parameter_values {
+        if !params.is_empty() {
+            let mut param_strs: Vec<String> = params
+                .iter()
+                .filter(|(k, _)| k.as_str() != "recipe_dir")
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect();
+            if !param_strs.is_empty() {
+                param_strs.sort();
+                return param_strs.join(", ");
+            }
         }
-
-        params
-            .iter()
-            .map(|(key, value)| {
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                format!("{}={}", key, value_str)
-            })
-            .collect::<Vec<_>>()
-            .join(",")
-    } else {
-        String::new()
     }
+    // Fallback to recipe title if no parameters
+    task_info.task.payload.recipe.title.clone()
 }
 
 pub struct TaskExecutionTracker {
@@ -151,13 +149,15 @@ impl TaskExecutionTracker {
     async fn format_line(&self, task_info: Option<&TaskInfo>, line: &str) -> String {
         if let Some(task_info) = task_info {
             let task_name = get_task_name(task_info);
-            let task_type = task_info.task.task_type.clone();
             let metadata = format_task_metadata(task_info);
 
             if metadata.is_empty() {
-                format!("[{} ({})] {}", task_name, task_type, line)
+                format!("[{} ({})] {}", task_name, RECIPE_TASK_TYPE, line)
             } else {
-                format!("[{} ({}) {}] {}", task_name, task_type, metadata, line)
+                format!(
+                    "[{} ({}) {}] {}",
+                    task_name, RECIPE_TASK_TYPE, metadata, line
+                )
             }
         } else {
             line.to_string()
@@ -232,7 +232,7 @@ impl TaskExecutionTracker {
                         }
                     }),
                     current_output: task_info.current_output.clone(),
-                    task_type: task_info.task.task_type.to_string(),
+                    task_type: RECIPE_TASK_TYPE.to_string(),
                     task_name: get_task_name(task_info).to_string(),
                     task_metadata: format_task_metadata(task_info),
                     error: task_info.error().cloned(),

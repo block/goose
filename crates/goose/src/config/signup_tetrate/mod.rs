@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 use tokio::time::timeout;
 
 /// Default models for Tetrate Agent Router Service configuration
-pub const TETRATE_DEFAULT_MODEL: &str = "claude-4-sonnet-20250514";
+pub const TETRATE_DEFAULT_MODEL: &str = "claude-haiku-4-5";
 
 // Auth endpoints are on the main web domain
 const TETRATE_AUTH_URL: &str = "https://router.tetrate.ai/auth";
@@ -163,14 +163,10 @@ impl PkceAuthFlow {
 pub use self::PkceAuthFlow as TetrateAuth;
 
 use crate::config::Config;
-use serde_json::Value;
 
 pub fn configure_tetrate(config: &Config, api_key: String) -> Result<()> {
-    config.set_secret("TETRATE_API_KEY", Value::String(api_key))?;
-    config.set_param("GOOSE_PROVIDER", Value::String("tetrate".to_string()))?;
-    config.set_param(
-        "GOOSE_MODEL",
-        Value::String(TETRATE_DEFAULT_MODEL.to_string()),
-    )?;
+    config.set_secret("TETRATE_API_KEY", &api_key)?;
+    config.set_goose_provider("tetrate")?;
+    config.set_goose_model(TETRATE_DEFAULT_MODEL)?;
     Ok(())
 }

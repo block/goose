@@ -8,37 +8,67 @@ interface ThemeSelectorProps {
   horizontal?: boolean;
 }
 
+const getIsDarkMode = (mode: 'light' | 'dark' | 'system'): boolean => {
+  if (mode === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  return mode === 'dark';
+};
+
+const getThemeMode = (): 'light' | 'dark' | 'system' => {
+  const savedUseSystemTheme = localStorage.getItem('use_system_theme');
+  if (savedUseSystemTheme === 'true') {
+    return 'system';
+  }
+
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme) {
+    return savedTheme === 'dark' ? 'dark' : 'light';
+  }
+
+  return getIsDarkMode('system') ? 'dark' : 'light';
+};
+
+const setThemeModeStorage = (mode: 'light' | 'dark' | 'system') => {
+  if (mode === 'system') {
+    localStorage.setItem('use_system_theme', 'true');
+  } else {
+    localStorage.setItem('use_system_theme', 'false');
+    localStorage.setItem('theme', mode);
+  }
+
+  const themeData = {
+    mode,
+    useSystemTheme: mode === 'system',
+    theme: mode === 'system' ? '' : mode,
+  };
+
+  window.electron?.broadcastThemeChange(themeData);
+};
+
 const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   className = '',
   hideTitle = false,
   horizontal = false,
 }) => {
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
-    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    if (savedUseSystemTheme) {
-      return 'system';
-    }
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark' ? 'dark' : 'light';
-  });
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(getThemeMode);
+  const [isDarkMode, setDarkMode] = useState(() => getIsDarkMode(getThemeMode()));
 
-  const [isDarkMode, setDarkMode] = useState(() => {
-    // First check localStorage to determine the intended theme
-    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    const savedTheme = localStorage.getItem('theme');
+  useEffect(() => {
+    const handleStorageChange = (e: { key: string | null; newValue: string | null }) => {
+      if (e.key === 'use_system_theme' || e.key === 'theme') {
+        const newThemeMode = getThemeMode();
+        setThemeMode(newThemeMode);
+        setDarkMode(getIsDarkMode(newThemeMode));
+      }
+    };
 
-    if (savedUseSystemTheme) {
-      // Use system preference
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return systemPrefersDark;
-    } else if (savedTheme) {
-      // Use saved theme preference
-      return savedTheme === 'dark';
-    } else {
-      // Fallback: check current DOM state to maintain consistency
-      return document.documentElement.classList.contains('dark');
-    }
-  });
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -51,14 +81,8 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
     mediaQuery.addEventListener('change', handleThemeChange);
 
-    if (themeMode === 'system') {
-      setDarkMode(mediaQuery.matches);
-      localStorage.setItem('use_system_theme', 'true');
-    } else {
-      setDarkMode(themeMode === 'dark');
-      localStorage.setItem('use_system_theme', 'false');
-      localStorage.setItem('theme', themeMode);
-    }
+    setThemeModeStorage(themeMode);
+    setDarkMode(getIsDarkMode(themeMode));
 
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [themeMode]);

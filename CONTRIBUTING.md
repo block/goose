@@ -9,23 +9,7 @@ We welcome pull requests for general contributions! If you have a larger new fea
 
 --- 
 
-## 🎉 Hacktoberfest 2025 🎉
-
-`goose` is a participating in Hacktoberfest 2025! We’re so excited for your contributions, and have created a wide variety of issues so that anyone can contribute. Whether you're a seasoned developer or a first-time open source contributor, there's something for everyone.
-
-### Here's how you can get started:
-
-1. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
-2. Skim the quick AI contribution tips below (and see the [full Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md) for details).
-3. Choose a task from this project's Hacktoberfest issues in our [Project Hub](https://github.com/block/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
-4. Comment ".take" on the corresponding issue to get assigned the task.
-5. Fork the repository and create a new branch for your work.
-6. Make your changes and submit a pull request.
-7. Wait for review and address any feedback.
-
----
-
-### 🤖 Quick Responsible AI Tips
+## 🤖 Quick Responsible AI Tips
 
 If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:  
 
@@ -51,35 +35,7 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 - Document your changes  
 - Ask for review if security or core code is involved  
 
-👉 Full guide here: [Responsible AI-Assisted Coding Guide](./ai-assisted-coding-guide.md)
-
----
-
-### 🏆 Leaderboard & Prizes
-
-Every hacktoberfest PR and contribution will earn you points on our [leaderboard](https://github.com/block/goose/issues/4775). Those who end up in the top 20 participants with the most points by the end of October will earn exclusive swag and LLM credits! As you have issues merged, here is a brief explanation on how our automatic points system works.
-
-#### Point System
-
-| Weight | Points Awarded | Description |
-|---------|-------------|-------------|
-| 🐭 **Small** | 5 points | For smaller tasks that take limited time to complete and/or don't require any product knowledge. |
-| 🐰 **Medium** | 10 points | For average tasks that take additional time to complete and/or require some product knowledge. |
-| 🐂 **Large** | 15 points | For heavy tasks that takes lots of time to complete and/or possibly require deep product knowledge. |
-
-#### Prizes You Can Win
-
-- **Top 5**: $100 gift card to our [brand new goose swag shop](https://www.gooseswag.xyz/) and $100 of LLM credits!
-- **Top 6-10**: $50 gift cards for goose swag shop and $50 of LLM credits!
-- **Top 11-20**: $25 of LLM credits!
-
-Keep an eye on your progress via our [Leaderboard](https://github.com/block/goose/issues/4775).
-
-### 👩‍ Need help?
-
-Need help or have questions? Feel free to reach out by connecting with us in our [Discord community](https://discord.gg/goose-oss) to get direct help from our team in the `#hacktoberfest` project channel.
-
-Happy contributing!
+👉 Full guide here: [Responsible AI-Assisted Coding Guide](./HOWTOAI.md)
 
 ---
 
@@ -295,6 +251,21 @@ have a credential for that provider in your keychain from previously setting up,
 reuse it. For things like automations or to test without doing official setup, you can also
 set the relevant env vars for that provider. For example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 or `DATABRICKS_HOST`. Refer to the provider details for more info on required keys.
+
+### Isolating Test Environments
+
+When testing changes or running multiple goose configurations, use `GOOSE_PATH_ROOT` to isolate your data:
+
+```bash
+# Test with a clean environment
+export GOOSE_PATH_ROOT="/tmp/goose-test"
+./target/debug/goose session
+
+# Or for a single command
+GOOSE_PATH_ROOT="/tmp/goose-dev" cargo run -p goose-cli -- session
+```
+
+This creates isolated `config/`, `data/`, and `state/` directories under the specified path, preventing your test sessions from affecting your main goose installation. See the [environment variables guide](./documentation/docs/guides/environment-variables.md#development--testing) for more details.
 
 ## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 

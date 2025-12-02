@@ -8,11 +8,11 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Bot } from 'lucide-react';
 
-This guide covers storing, organizing, and finding Goose recipes when you need to access them again later. 
+This guide covers storing, organizing, and finding goose recipes when you need to access them again later. 
 
 :::info Desktop UI vs CLI
-- **Goose Desktop** has a visual Recipe Library for browsing and managing saved recipes
-- **Goose CLI** stores recipes as files that you find using file paths or environment variables
+- **goose Desktop** has a visual Recipe Library for browsing and managing saved recipes
+- **goose CLI** stores recipes as files that you find using file paths or environment variables
 :::
 
 ## Understanding Recipe Storage
@@ -45,15 +45,15 @@ Before saving recipes, it's important to understand where they can be stored and
 **Save New Recipe:**
 
 1. To create a recipe from your chat session, see: [Create Recipe](/docs/guides/recipes/session-recipes#create-recipe)
-2. Once in the Recipe Editor, click **Save Recipe** to save it to your Recipe Library
+2. Once in the Recipe Editor, click `Save Recipe` to save it to your Recipe Library
 
 **Save Modified Recipe:**
 
 If you're already using a recipe and want to save a modified version:
 1. Click the <Bot className="inline" size={16}/> button with your current model at the bottom of the window
-2. Click **View Recipe**
+2. Click `View Recipe`
 3. Make any desired edits to the description, instructions, or initial prompts
-5. Click **Save Recipe**
+5. Click `Save Recipe`
 
 :::info
 When you modify and save a recipe with a new name, a new recipe and new link are generated. You can still run the original recipe from the recipe library, or using the original link. If you edit a recipe without changing its name, the version in the recipe library is updated, but you can still run the original recipe via link.
@@ -68,6 +68,10 @@ When you modify and save a recipe with a new name, a new recipe and new link are
     * Any path you specify: `/recipe /path/to/my-recipe.yaml`  
     * Local project recipes: `/recipe .goose/recipes/my-recipe.yaml`
 
+    :::note
+    The CLI saves recipes as `.yaml` files. While the CLI can run recipes in `.json` format, it does not provide an option to save recipes as JSON.
+    :::
+
   </TabItem>
 </Tabs>
 
@@ -75,29 +79,25 @@ When you modify and save a recipe with a new name, a new recipe and new link are
 
 <Tabs groupId="interface">
   <TabItem value="desktop" label="goose Desktop" default>
-    Import a recipe using its deeplink or YAML file:
+    Import a recipe using its deeplink or recipe file:
 
-    **Import via Recipe Link:**
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Recipes` in the sidebar
-    3. Click **Import Recipe**
-    4. Under **Recipe Deeplink**, paste in the [recipe link](/docs/guides/recipes/session-recipes#share-via-recipe-link)
-    5. Add a name and choose the [storage location](#recipe-storage-locations)
-    6. Click **Import Recipe**
+    3. Click `Import Recipe`
+    4. Choose your import method:
+       - To import via a link: Under `Recipe Deeplink`, paste in the [recipe link](/docs/guides/recipes/session-recipes#share-via-recipe-link)
+       - To import via a file: Under `Recipe File`, click `Choose File`, select a recipe file, and click `Open`
+    5. Click `Import Recipe` to save a copy of the recipe to your Recipe Library
 
-    **Import via Recipe File:**
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Recipes` in the sidebar
-    3. Click **Import Recipe**
-    4. Under **Recipe YAML File**, click **Choose File**, select the YAML recipe file, and click `Open`
-    5. Add a name and choose the [storage location](#recipe-storage-locations)
-    6. Click **Import Recipe**
+  :::warning Recipe File Format
+  goose Desktop accepts `.yaml`, `.yml`, and `.json` files, but **the CLI only supports `.yaml` and `.json`**. For full compatibility across both interfaces, avoid `.yml` extensions.
 
-    Importing JSON recipe files isn't currently supported.
+  All recipe formats follow the same [schema structure](/docs/guides/recipes/recipe-reference#recipe-structure).
+  :::
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    Recipe import is only available in Goose Desktop.
+    Recipe import is only available in goose Desktop.
   </TabItem>
 </Tabs>
 
@@ -138,7 +138,7 @@ goose recipe list --format json
 
 **Recipe Discovery Process**
 
-Goose searches for recipes in the following locations (in order):
+goose searches for recipes in the following locations (in order):
 
 1. **Current directory**: `.` (looks for `*.yaml` and `*.json` files)
 2. **Custom paths**: Directories specified in [`GOOSE_RECIPE_PATH`](/docs/guides/environment-variables#recipe-configuration) environment variable
@@ -162,7 +162,7 @@ job-finder - Find software engineering positions - local: ~/.config/goose/recipe
 $ goose recipe list --verbose
 Available recipes:
   goose-self-test - A comprehensive meta-testing recipe - local: ./goose-self-test.yaml
-    Title: Goose Self-Testing Integration Suite
+    Title: goose Self-Testing Integration Suite
     Path: ./goose-self-test.yaml
   hello-world - A sample recipe demonstrating basic usage - local: ~/.config/goose/recipes/hello-world.yaml
     Title: Hello World Recipe
@@ -176,7 +176,7 @@ Available recipes:
     "name": "goose-self-test",
     "source": "Local",
     "path": "./goose-self-test.yaml",
-    "title": "Goose Self-Testing Integration Suite",
+    "title": "goose Self-Testing Integration Suite",
     "description": "A comprehensive meta-testing recipe"
   },
   {
@@ -242,10 +242,10 @@ The `goose recipe list` command is the recommended way to find recipes as it aut
   </TabItem>
   <TabItem value="cli" label="goose CLI">
 
-Once you've located your recipe file, [run the recipe](/docs/guides/recipes/session-recipes#run-a-recipe) or [open it in goose desktop](/docs/guides/goose-cli-commands#recipe).
+Once you've located your recipe file, [run the recipe](/docs/guides/recipes/session-recipes#run-a-recipe) or [open it in goose Desktop](/docs/guides/goose-cli-commands#recipe).
 
 :::tip Format Compatibility
-The CLI can run recipes saved from Goose Desktop without any conversion. Both CLI-created and Desktop-saved recipes work with all recipe commands.
+The CLI can run recipes saved from goose Desktop without any conversion. Both CLI-created and Desktop-saved recipes work with all recipe commands.
 :::
 
   </TabItem>
