@@ -10,7 +10,8 @@ import {
   Settings,
   X,
   Wifi,
-  WifiOff
+  WifiOff,
+  Edit2
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
@@ -35,14 +36,14 @@ interface ChannelsViewProps {
 const ChannelCard: React.FC<{ 
   channel: Channel; 
   onOpenChannel: (channel: Channel) => void;
-}> = ({ channel, onOpenChannel }) => {
+  onEditChannel: (channel: Channel) => void;
+}> = ({ channel, onOpenChannel, onEditChannel }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      onClick={() => onOpenChannel(channel)}
       className="
         relative cursor-pointer group
         bg-background-default
@@ -55,7 +56,7 @@ const ChannelCard: React.FC<{
       "
     >
       {/* Channel icon/avatar in top left */}
-      <div className="relative w-fit">
+      <div className="relative w-fit" onClick={() => onOpenChannel(channel)}>
         <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
           {channel.avatarUrl ? (
             <img
@@ -67,19 +68,23 @@ const ChannelCard: React.FC<{
             <Hash className="w-6 h-6 text-text-on-accent" />
           )}
         </div>
-        
-        {/* Unread indicator */}
-        {channel.unreadCount && channel.unreadCount > 0 && (
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-xs text-white font-medium">
-              {channel.unreadCount > 9 ? '9+' : channel.unreadCount}
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Privacy indicator in top right */}
-      <div className="absolute top-4 right-4">
+      {/* Privacy indicator and Edit button in top right */}
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        {/* Edit button - shown on hover */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditChannel(channel);
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-background-muted hover:bg-background-accent hover:text-text-on-accent"
+          title="Edit channel"
+        >
+          <Edit2 className="w-3 h-3" />
+        </button>
+        
+        {/* Privacy indicator */}
         <div className={`p-1.5 rounded-full ${
           channel.isPublic 
             ? 'bg-green-100 text-green-700' 
@@ -94,7 +99,7 @@ const ChannelCard: React.FC<{
       </div>
 
       {/* Channel name and info at bottom */}
-      <div className="mt-auto w-full">
+      <div className="mt-auto w-full" onClick={() => onOpenChannel(channel)}>
         <h3 className="text-lg font-light text-text-default truncate mb-1">
           {channel.name}
         </h3>
@@ -152,6 +157,122 @@ const EmptyChannelTile: React.FC<{ onCreateChannel: () => void }> = ({ onCreateC
         <div className="w-8 h-8 rounded-full border-2 border-dashed border-text-muted/30 flex items-center justify-center">
           <div className="w-1 h-1 bg-text-muted/30 rounded-full" />
         </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const EditChannelModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  channel: Channel;
+  onEdit: (roomId: string, name: string, topic: string) => Promise<void>;
+}> = ({ isOpen, onClose, channel, onEdit }) => {
+  const [name, setName] = useState(channel.name);
+  const [topic, setTopic] = useState(channel.topic || '');
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Update local state when channel prop changes
+  useEffect(() => {
+    setName(channel.name);
+    setTopic(channel.topic || '');
+  }, [channel]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setIsEditing(true);
+    try {
+      await onEdit(channel.roomId, name.trim(), topic.trim());
+      onClose();
+    } catch (error) {
+      console.error('Failed to edit channel:', error);
+      alert('Failed to edit channel. Please try again.');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-text-default">Edit Channel</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+            disabled={isEditing}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Channel Name */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-2">
+              Channel Name *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="general, announcements, etc."
+              className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
+              disabled={isEditing}
+              required
+            />
+          </div>
+
+          {/* Channel Topic */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-2">
+              Topic (optional)
+            </label>
+            <textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Describe what this channel is about..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent resize-none"
+              disabled={isEditing}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isEditing}
+              className="flex-1 px-4 py-3 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isEditing}
+              className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isEditing ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
       </motion.div>
     </motion.div>
   );
@@ -315,13 +436,17 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     isConnected, 
     isReady, 
     currentUser,
-    rooms
+    rooms,
+    setRoomName,
+    setRoomTopic
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
   const navigate = useNavigate();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -372,6 +497,31 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     // TODO: Implement channel creation via Matrix service
     console.log('Creating channel:', { name, topic, isPublic });
     alert('Channel creation not yet implemented');
+  };
+
+  const handleEditChannel = (channel: Channel) => {
+    setEditingChannel(channel);
+    setShowEditModal(true);
+  };
+
+  const handleSaveChannelEdit = async (roomId: string, name: string, topic: string) => {
+    try {
+      // Update room name if changed
+      const currentChannel = channels.find(c => c.roomId === roomId);
+      if (currentChannel && name !== currentChannel.name) {
+        await setRoomName(roomId, name);
+      }
+      
+      // Update room topic if changed
+      if (currentChannel && topic !== (currentChannel.topic || '')) {
+        await setRoomTopic(roomId, topic);
+      }
+      
+      console.log('✅ Channel updated successfully');
+    } catch (error) {
+      console.error('Failed to update channel:', error);
+      throw error; // Re-throw to let the modal handle the error
+    }
   };
 
   // Show Matrix authentication modal
@@ -468,10 +618,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     key={channel.roomId}
                     channel={channel}
                     onOpenChannel={handleOpenChannel}
+                    onEditChannel={handleEditChannel}
                   />
                 ))}
-                {/* Empty tiles for creating new channels */}
-                {Array.from({ length: Math.max(0, 12 - filteredChannels.length) }).map((_, index) => (
+                {/* Empty tiles for creating new channels - fill remaining space */}
+                {Array.from({ length: 50 - filteredChannels.length }).map((_, index) => (
                   <EmptyChannelTile
                     key={`empty-${index}`}
                     onCreateChannel={() => setShowCreateModal(true)}
@@ -490,6 +641,21 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onCreate={handleCreateChannel}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit Channel Modal */}
+      <AnimatePresence>
+        {showEditModal && editingChannel && (
+          <EditChannelModal
+            isOpen={showEditModal}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingChannel(null);
+            }}
+            channel={editingChannel}
+            onEdit={handleSaveChannelEdit}
           />
         )}
       </AnimatePresence>

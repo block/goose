@@ -26,6 +26,8 @@ interface MatrixContextType {
   setAvatar: (file: File) => Promise<string>;
   removeAvatar: () => Promise<void>;
   setDisplayName: (displayName: string) => Promise<void>;
+  setRoomName: (roomId: string, name: string) => Promise<void>;
+  setRoomTopic: (roomId: string, topic: string) => Promise<void>;
   
   // Goose-to-Goose Communication
   sendGooseMessage: (roomId: string, content: string, type?: GooseChatMessage['type'], options?: any) => Promise<string>;
@@ -148,6 +150,14 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       updateData();
     };
 
+    const handleRoomNameUpdated = () => {
+      updateData();
+    };
+
+    const handleRoomTopicUpdated = () => {
+      updateData();
+    };
+
     // Add event listeners
     matrixService.on('connected', handleConnected);
     matrixService.on('ready', handleReady);
@@ -159,6 +169,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     matrixService.on('presenceChange', handlePresenceChange);
     matrixService.on('avatarUpdated', handleAvatarUpdated);
     matrixService.on('displayNameUpdated', handleDisplayNameUpdated);
+    matrixService.on('roomNameUpdated', handleRoomNameUpdated);
+    matrixService.on('roomTopicUpdated', handleRoomTopicUpdated);
 
     // Cleanup
     return () => {
@@ -172,6 +184,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       matrixService.off('presenceChange', handlePresenceChange);
       matrixService.off('avatarUpdated', handleAvatarUpdated);
       matrixService.off('displayNameUpdated', handleDisplayNameUpdated);
+      matrixService.off('roomNameUpdated', handleRoomNameUpdated);
+      matrixService.off('roomTopicUpdated', handleRoomTopicUpdated);
     };
   }, [matrixService]);
 
@@ -238,6 +252,16 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
 
   const setDisplayName = async (displayName: string) => {
     await matrixService.setDisplayName(displayName);
+  };
+
+  const setRoomName = async (roomId: string, name: string) => {
+    await matrixService.setRoomName(roomId, name);
+    // Data will be updated via the roomNameUpdated event
+  };
+
+  const setRoomTopic = async (roomId: string, topic: string) => {
+    await matrixService.setRoomTopic(roomId, topic);
+    // Data will be updated via the roomTopicUpdated event
   };
 
   const onMessage = (eventNameOrCallback: string | ((data: any) => void), callback?: (data: any) => void) => {
@@ -363,6 +387,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     setAvatar,
     removeAvatar,
     setDisplayName,
+    setRoomName,
+    setRoomTopic,
     // Goose-to-Goose Communication
     sendGooseMessage,
     sendTaskRequest,
