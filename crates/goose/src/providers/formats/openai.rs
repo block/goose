@@ -149,10 +149,25 @@ pub enum ResponsesStreamEvent {
         content_index: i32,
         part: ContentPart,
     },
+    #[serde(rename = "response.output_text.done")]
+    OutputTextDone {
+        sequence_number: i32,
+        item_id: String,
+        output_index: i32,
+        content_index: i32,
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        logprobs: Option<Vec<Value>>,
+    },
     #[serde(rename = "response.completed")]
     ResponseCompleted {
         sequence_number: i32,
         response: ResponseMetadata,
+    },
+    #[serde(rename = "response.failed")]
+    ResponseFailed {
+        sequence_number: i32,
+        error: Value,
     },
     #[serde(rename = "response.function_call_arguments.delta")]
     FunctionCallArgumentsDelta {
@@ -1067,6 +1082,10 @@ where
                     output_items.push(item);
                 }
 
+                ResponsesStreamEvent::OutputTextDone { .. } => {
+                    // Text is already complete from deltas, this is just a summary event
+                }
+
                 ResponsesStreamEvent::ResponseCompleted { response, .. } => {
                     // Always set final usage (use default if not provided)
                     let model = model_name.as_ref().unwrap_or(&response.model);
@@ -1098,6 +1117,10 @@ where
 
                 ResponsesStreamEvent::FunctionCallArgumentsDone { .. } => {
                     // Arguments are complete, will be in the OutputItemDone event
+                }
+
+                ResponsesStreamEvent::ResponseFailed { error, .. } => {
+                    Err(anyhow!("Responses API failed: {:?}", error))?;
                 }
 
                 ResponsesStreamEvent::Error { error } => {
