@@ -18,9 +18,12 @@ interface NavItem {
   renderContent?: () => React.ReactNode;
 }
 
+export type NavigationPosition = 'top' | 'bottom' | 'left' | 'right';
+
 interface TopNavigationProps {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
+  position?: NavigationPosition;
 }
 
 // Analog Clock Widget Component
@@ -108,7 +111,7 @@ const AnalogClock: React.FC = () => {
   );
 };
 
-export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsExpanded }) => {
+export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsExpanded, position = 'top' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
@@ -458,23 +461,36 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     return location.pathname === path;
   };
 
+  // Determine grid layout based on position
+  const isVertical = position === 'left' || position === 'right';
+  const gridClasses = isVertical
+    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-0.5' // Vertical layout: fewer columns
+    : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5'; // Horizontal layout: more columns
+  
+  const containerClasses = isVertical
+    ? 'w-80 h-full overflow-y-auto' // Fixed width for vertical nav
+    : 'w-full overflow-hidden'; // Full width for horizontal nav
+
   return (
-    <div className="bg-background-muted overflow-hidden relative z-[9998]">
+    <div className={`bg-background-muted ${containerClasses} relative z-[9998]`}>
       {/* Expanded Navigation Cards with Spring Animation */}
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={{ 
+              [isVertical ? 'width' : 'height']: 0, 
+              opacity: 0 
+            }}
             animate={{ 
-              height: "auto", 
+              [isVertical ? 'width' : 'height']: "auto", 
               opacity: 1,
             }}
             exit={{ 
-              height: 0, 
+              [isVertical ? 'width' : 'height']: 0, 
               opacity: 0,
             }}
             transition={{
-              height: {
+              [isVertical ? 'width' : 'height']: {
                 type: "spring",
                 stiffness: 300,
                 damping: 30,
@@ -488,17 +504,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
             className="bg-background-muted overflow-hidden"
           >
             <motion.div
-              initial={{ y: -20 }}
-              animate={{ y: 0 }}
-              exit={{ y: -20 }}
+              initial={{ [isVertical ? 'x' : 'y']: -20 }}
+              animate={{ [isVertical ? 'x' : 'y']: 0 }}
+              exit={{ [isVertical ? 'x' : 'y']: -20 }}
               transition={{
                 type: "spring",
                 stiffness: 400,
                 damping: 25,
               }}
-              className="pb-0.5 overflow-y-auto lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen"
+              className={`pb-0.5 overflow-y-auto ${isVertical ? 'p-2' : 'lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5" style={{ gridTemplateColumns: isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined }}>
+              <div className={gridClasses} style={{ gridTemplateColumns: !isVertical && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined }}>
             {navItems.map((item, index) => {
               const isPulsing = pulsingItems.has(item.id);
               const isDragging = draggedItem === item.id;

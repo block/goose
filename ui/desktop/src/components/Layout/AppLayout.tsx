@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, useCallback } from 'react';
+import React, { useState, createContext, useContext, useCallback, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AppWindowMac, AppWindow, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -13,14 +13,17 @@ import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
 
 import { TopNavigation } from './TopNavigation';
+import { NavigationPosition } from '../settings/app/NavigationPositionSelector';
 
 // Create context for navigation state
 const NavigationContext = createContext<{
   isNavExpanded: boolean;
   setIsNavExpanded: (expanded: boolean) => void;
+  navigationPosition: NavigationPosition;
 }>({
   isNavExpanded: false,
-  setIsNavExpanded: () => {}
+  setIsNavExpanded: () => {},
+  navigationPosition: 'top'
 });
 
 export const useNavigation = () => useContext(NavigationContext);
@@ -36,6 +39,21 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const sidecar = useSidecar();
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
+    const stored = localStorage.getItem('navigation_position');
+    return (stored as NavigationPosition) || 'top';
+  });
+  
+  // Listen for navigation position changes
+  useEffect(() => {
+    const handlePositionChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ position: NavigationPosition }>;
+      setNavigationPosition(customEvent.detail.position);
+    };
+    
+    window.addEventListener('navigation-position-changed', handlePositionChange);
+    return () => window.removeEventListener('navigation-position-changed', handlePositionChange);
+  }, []);
   
   // Bento box state management
   const [bentoBoxContainers, setBentoBoxContainers] = useState<SidecarContainer[]>([]);
@@ -268,52 +286,80 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
+  // Determine layout direction based on navigation position
+  const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
+  const flexDirection = isHorizontalNav ? 'flex-col' : 'flex-row';
+  
+  // Render the main content area
+  const mainContent = (
+    <div className="flex-1 overflow-hidden">
+      {panels.length > 0 ? (
+        useMultiPanel && panels.length > 1 ? (
+          <MultiPanelSplitter
+            leftContent={<Outlet />}
+            panels={panels}
+            layoutMode={layoutMode}
+            onLayoutModeChange={handleLayoutModeChange}
+            onPanelResize={handlePanelResize}
+            onPanelReorder={handlePanelReorder}
+            initialLeftWidth={chatWidth}
+            className="h-full"
+          />
+        ) : (
+          <ResizableSplitter
+            leftContent={<Outlet />}
+            rightContent={
+              <EnhancedBentoBox
+                containers={bentoBoxContainers}
+                onRemoveContainer={handleRemoveFromBentoBox}
+                onAddContainer={handleAddToBentoBox}
+                onReorderContainers={handleReorderBentoBox}
+              />
+            }
+            initialLeftWidth={chatWidth}
+            minLeftWidth={30}
+            maxLeftWidth={80}
+            onResize={setChatWidth}
+            className="h-full"
+            floatingRight={true}
+          />
+        )
+      ) : (
+        <Outlet />
+      )}
+    </div>
+  );
+
+  // Render navigation component
+  const navigationComponent = (
+    <TopNavigation 
+      isExpanded={isNavExpanded} 
+      setIsExpanded={setIsNavExpanded}
+      position={navigationPosition}
+    />
+  );
+
   return (
-    <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded }}>
-      <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
-        {/* Top Navigation Bar */}
-        <TopNavigation isExpanded={isNavExpanded} setIsExpanded={setIsNavExpanded} />
+    <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
+      <div className={`flex ${flexDirection} flex-1 w-full h-full bg-background-muted`}>
+        {/* Navigation placement based on position */}
+        {navigationPosition === 'top' && navigationComponent}
+        {navigationPosition === 'left' && navigationComponent}
         
         {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden">
-          {panels.length > 0 ? (
-            useMultiPanel && panels.length > 1 ? (
-              <MultiPanelSplitter
-                leftContent={<Outlet />}
-                panels={panels}
-                layoutMode={layoutMode}
-                onLayoutModeChange={handleLayoutModeChange}
-                onPanelResize={handlePanelResize}
-                onPanelReorder={handlePanelReorder}
-                initialLeftWidth={chatWidth}
-                className="h-full"
-              />
-            ) : (
-              <ResizableSplitter
-                leftContent={<Outlet />}
-                rightContent={
-                  <EnhancedBentoBox
-                    containers={bentoBoxContainers}
-                    onRemoveContainer={handleRemoveFromBentoBox}
-                    onAddContainer={handleAddToBentoBox}
-                    onReorderContainers={handleReorderBentoBox}
-                  />
-                }
-                initialLeftWidth={chatWidth}
-                minLeftWidth={30}
-                maxLeftWidth={80}
-                onResize={setChatWidth}
-                className="h-full"
-                floatingRight={true}
-              />
-            )
-          ) : (
-            <Outlet />
-          )}
-        </div>
+        {mainContent}
         
-        {/* Control Buttons - floating in top right */}
-        <div className="absolute top-4 right-4 z-[9999] flex gap-2">
+        {/* Navigation placement for bottom and right */}
+        {navigationPosition === 'bottom' && navigationComponent}
+        {navigationPosition === 'right' && navigationComponent}
+        
+        {/* Control Buttons - position based on nav location */}
+        <div className={`absolute z-[9999] flex gap-2 ${
+          navigationPosition === 'top' ? 'top-4 right-4' :
+          navigationPosition === 'bottom' ? 'bottom-4 right-4' :
+          navigationPosition === 'left' ? 'top-4 right-4' :
+          'top-4 left-4'
+        }`}>
           <Button
             onClick={() => setIsNavExpanded(!isNavExpanded)}
             className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"

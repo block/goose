@@ -8,6 +8,7 @@ import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import NavigationPositionSelector from './NavigationPositionSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 
@@ -424,6 +425,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <ThemeSelector className="w-auto" hideTitle horizontal />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Position</CardTitle>
+          <CardDescription>Choose where the navigation bar appears</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationPositionSelector />
         </CardContent>
       </Card>
 
