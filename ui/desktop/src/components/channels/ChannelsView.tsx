@@ -579,7 +579,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
-  // Helper function to convert MXC URL to HTTP URL
+  // Helper function to convert MXC URL to HTTP URL with authentication
   const convertMxcToHttp = (mxcUrl: string | undefined): string | undefined => {
     if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
       console.log('🖼️ convertMxcToHttp: Not an MXC URL:', mxcUrl);
@@ -595,17 +595,22 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     
     const [, serverName, mediaId] = mxcMatch;
     
-    // Try the authenticated client endpoint first (Matrix 1.11+)
-    // This is what Element uses for newer Matrix servers
     const client = (matrixService as any).client;
     if (client) {
       const baseUrl = client.baseUrl || 'https://matrix.tchncs.de';
+      const accessToken = client.getAccessToken();
       
-      // Use the authenticated client media endpoint
-      // Format: /_matrix/client/v1/media/download/{serverName}/{mediaId}
-      const authenticatedUrl = `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
-      console.log('🖼️ convertMxcToHttp: Using authenticated endpoint:', authenticatedUrl);
-      return authenticatedUrl;
+      if (accessToken) {
+        // Use authenticated client media endpoint with access token in URL
+        // Format: /_matrix/client/v1/media/download/{serverName}/{mediaId}?access_token={token}
+        const authenticatedUrl = `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}?access_token=${accessToken}`;
+        console.log('🖼️ convertMxcToHttp: Using authenticated endpoint with token');
+        return authenticatedUrl;
+      } else {
+        console.warn('🖼️ convertMxcToHttp: No access token available, trying unauthenticated');
+        // Fall back to unauthenticated endpoint
+        return `${baseUrl}/_matrix/media/v3/download/${serverName}/${mediaId}`;
+      }
     }
     
     console.log('🖼️ convertMxcToHttp: No client available, returning MXC URL:', mxcUrl);
