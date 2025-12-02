@@ -1,0 +1,507 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Hash, 
+  Plus, 
+  Search,
+  Lock,
+  Globe,
+  Users,
+  Settings,
+  X,
+  Wifi,
+  WifiOff
+} from 'lucide-react';
+import { useMatrix } from '../../contexts/MatrixContext';
+import MatrixAuth from '../peers/MatrixAuth';
+import { useNavigate } from 'react-router-dom';
+import { useTabContext } from '../../contexts/TabContext';
+
+interface Channel {
+  roomId: string;
+  name: string;
+  topic?: string;
+  isPublic: boolean;
+  memberCount: number;
+  avatarUrl?: string;
+  lastActivity?: Date;
+  unreadCount?: number;
+}
+
+interface ChannelsViewProps {
+  onClose?: () => void;
+}
+
+const ChannelCard: React.FC<{ 
+  channel: Channel; 
+  onOpenChannel: (channel: Channel) => void;
+}> = ({ channel, onOpenChannel }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => onOpenChannel(channel)}
+      className="
+        relative cursor-pointer group
+        bg-background-default
+        px-6 py-6
+        transition-colors duration-200
+        hover:bg-background-medium
+        aspect-square
+        flex flex-col justify-between
+        rounded-2xl
+      "
+    >
+      {/* Channel icon/avatar in top left */}
+      <div className="relative w-fit">
+        <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center overflow-hidden">
+          {channel.avatarUrl ? (
+            <img
+              src={channel.avatarUrl}
+              alt={channel.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Hash className="w-6 h-6 text-text-on-accent" />
+          )}
+        </div>
+        
+        {/* Unread indicator */}
+        {channel.unreadCount && channel.unreadCount > 0 && (
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+            <span className="text-xs text-white font-medium">
+              {channel.unreadCount > 9 ? '9+' : channel.unreadCount}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Privacy indicator in top right */}
+      <div className="absolute top-4 right-4">
+        <div className={`p-1.5 rounded-full ${
+          channel.isPublic 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-orange-100 text-orange-700'
+        }`}>
+          {channel.isPublic ? (
+            <Globe className="w-3 h-3" />
+          ) : (
+            <Lock className="w-3 h-3" />
+          )}
+        </div>
+      </div>
+
+      {/* Channel name and info at bottom */}
+      <div className="mt-auto w-full">
+        <h3 className="text-lg font-light text-text-default truncate mb-1">
+          {channel.name}
+        </h3>
+        {channel.topic && (
+          <p className="text-xs text-text-muted truncate mb-2">
+            {channel.topic}
+          </p>
+        )}
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Users className="w-3 h-3" />
+          <span>{channel.memberCount} members</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const EmptyChannelTile: React.FC<{ onCreateChannel: () => void }> = ({ onCreateChannel }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onCreateChannel}
+      className="
+        relative cursor-pointer group
+        bg-background-default
+        px-6 py-6
+        transition-all duration-200
+        hover:bg-background-medium
+        aspect-square
+        flex flex-col items-center justify-center
+        rounded-2xl
+      "
+    >
+      {/* Plus icon - hidden by default, shown on hover */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        whileHover={{ opacity: 1, scale: 1 }}
+        className="opacity-0 group-hover:opacity-100 transition-all duration-200"
+      >
+        <div className="w-12 h-12 bg-background-accent rounded-full flex items-center justify-center mb-3">
+          <Plus className="w-6 h-6 text-text-on-accent" />
+        </div>
+        <p className="text-sm font-medium text-text-default text-center">
+          Create Channel
+        </p>
+      </motion.div>
+      
+      {/* Subtle hint when not hovering */}
+      <motion.div
+        className="opacity-100 group-hover:opacity-0 transition-all duration-200 absolute inset-0 flex items-center justify-center"
+      >
+        <div className="w-8 h-8 rounded-full border-2 border-dashed border-text-muted/30 flex items-center justify-center">
+          <div className="w-1 h-1 bg-text-muted/30 rounded-full" />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const CreateChannelModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string, topic: string, isPublic: boolean) => Promise<void>;
+}> = ({ isOpen, onClose, onCreate }) => {
+  const [name, setName] = useState('');
+  const [topic, setTopic] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setIsCreating(true);
+    try {
+      await onCreate(name.trim(), topic.trim(), isPublic);
+      onClose();
+      setName('');
+      setTopic('');
+      setIsPublic(true);
+    } catch (error) {
+      console.error('Failed to create channel:', error);
+      alert('Failed to create channel. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-text-default">Create Channel</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+            disabled={isCreating}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Channel Name */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-2">
+              Channel Name *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="general, announcements, etc."
+              className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
+              disabled={isCreating}
+              required
+            />
+          </div>
+
+          {/* Channel Topic */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-2">
+              Topic (optional)
+            </label>
+            <textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Describe what this channel is about..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent resize-none"
+              disabled={isCreating}
+            />
+          </div>
+
+          {/* Privacy Setting */}
+          <div>
+            <label className="block text-sm font-medium text-text-default mb-3">
+              Privacy
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-border-default cursor-pointer hover:bg-background-medium transition-colors">
+                <input
+                  type="radio"
+                  name="privacy"
+                  checked={isPublic}
+                  onChange={() => setIsPublic(true)}
+                  className="w-4 h-4"
+                  disabled={isCreating}
+                />
+                <Globe className="w-5 h-5 text-green-600" />
+                <div className="flex-1">
+                  <p className="font-medium text-text-default">Public</p>
+                  <p className="text-xs text-text-muted">Anyone can discover and join</p>
+                </div>
+              </label>
+              
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-border-default cursor-pointer hover:bg-background-medium transition-colors">
+                <input
+                  type="radio"
+                  name="privacy"
+                  checked={!isPublic}
+                  onChange={() => setIsPublic(false)}
+                  className="w-4 h-4"
+                  disabled={isCreating}
+                />
+                <Lock className="w-5 h-5 text-orange-600" />
+                <div className="flex-1">
+                  <p className="font-medium text-text-default">Private</p>
+                  <p className="text-xs text-text-muted">Only invited members can join</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isCreating}
+              className="flex-1 px-4 py-3 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isCreating}
+              className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCreating ? 'Creating...' : 'Create Channel'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
+  const { 
+    isConnected, 
+    isReady, 
+    currentUser,
+    rooms
+  } = useMatrix();
+  
+  const { openMatrixChat } = useTabContext();
+  const navigate = useNavigate();
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showMatrixAuth, setShowMatrixAuth] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Show Matrix auth if not connected
+  useEffect(() => {
+    if (!isConnected && !showMatrixAuth) {
+      setShowMatrixAuth(true);
+    }
+  }, [isConnected, showMatrixAuth]);
+
+  // Filter channels (non-DM rooms) from Matrix rooms
+  const channels: Channel[] = rooms
+    .filter(room => !room.isDirectMessage)
+    .map(room => ({
+      roomId: room.roomId,
+      name: room.name || 'Unnamed Channel',
+      topic: room.topic,
+      isPublic: room.isPublic || false,
+      memberCount: room.members.length,
+      avatarUrl: room.avatarUrl,
+      lastActivity: room.lastActivity,
+      unreadCount: 0, // TODO: Implement unread count
+    }));
+
+  // Filter channels based on search query
+  const filteredChannels = searchQuery
+    ? channels.filter(channel =>
+        channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        channel.topic?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : channels;
+
+  const handleOpenChannel = async (channel: Channel) => {
+    try {
+      console.log('📱 Opening channel:', channel);
+      
+      // Open a new tab/chat session with Matrix room parameters
+      openMatrixChat(channel.roomId, currentUser?.userId || '');
+      
+      // Navigate to the pair view where the tabs are displayed
+      navigate('/pair');
+    } catch (error) {
+      console.error('Failed to open channel:', error);
+    }
+  };
+
+  const handleCreateChannel = async (name: string, topic: string, isPublic: boolean) => {
+    // TODO: Implement channel creation via Matrix service
+    console.log('Creating channel:', { name, topic, isPublic });
+    alert('Channel creation not yet implemented');
+  };
+
+  // Show Matrix authentication modal
+  if (showMatrixAuth) {
+    return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
+  }
+
+  return (
+    <div className="relative flex flex-col h-screen bg-background-muted">
+      {/* Header */}
+      <div className="pt-14 pb-4 px-4 mb-0.5 bg-background-default rounded-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
+              <Hash className="w-5 h-5 text-text-on-accent" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-text-default">Channels</h1>
+              <p className="text-sm text-text-muted">
+                {isConnected ? `${channels.length} channels` : 'Not connected'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {/* Connection Status */}
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-background-muted">
+              {isConnected ? (
+                <>
+                  <Wifi className="w-3 h-3 text-green-600" />
+                  <span className="text-xs text-green-600">Connected</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-red-600" />
+                  <span className="text-xs text-red-600">Disconnected</span>
+                </>
+              )}
+            </div>
+            
+            <button
+              onClick={() => setShowMatrixAuth(true)}
+              className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+              title="Matrix Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        {isConnected && isReady && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search channels..."
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent text-sm"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {!isConnected ? (
+              <div className="text-center py-12">
+                <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Not Connected</h3>
+                <p className="text-text-muted mb-6">
+                  Connect to Matrix to access channels and collaborate with your team.
+                </p>
+                <button
+                  onClick={() => setShowMatrixAuth(true)}
+                  className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                >
+                  Connect to Matrix
+                </button>
+              </div>
+            ) : !isReady ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
+                <p className="text-text-muted">Syncing with Matrix server...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
+                {filteredChannels.map((channel) => (
+                  <ChannelCard
+                    key={channel.roomId}
+                    channel={channel}
+                    onOpenChannel={handleOpenChannel}
+                  />
+                ))}
+                {/* Empty tiles for creating new channels */}
+                {Array.from({ length: Math.max(0, 12 - filteredChannels.length) }).map((_, index) => (
+                  <EmptyChannelTile
+                    key={`empty-${index}`}
+                    onCreateChannel={() => setShowCreateModal(true)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Create Channel Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateChannelModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreate={handleCreateChannel}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Matrix Auth Modal */}
+      <AnimatePresence>
+        {showMatrixAuth && (
+          <MatrixAuth onClose={() => setShowMatrixAuth(false)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default ChannelsView;
