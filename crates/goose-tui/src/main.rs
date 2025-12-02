@@ -260,7 +260,7 @@ async fn run_tui(
     let result = if let Some(recipe_path) = recipe {
         run_recipe_mode(client, cwd, recipe_path, headless).await
     } else if let Some(prompt) = text_input {
-        run_text_mode(client, cwd, resolved_session, prompt).await
+        run_text_mode(client, cwd, resolved_session, name, prompt).await
     } else if headless {
         anyhow::bail!("--headless requires either --recipe or --text (or piped stdin)")
     } else {
@@ -306,6 +306,7 @@ async fn run_text_mode(
     client: Client,
     cwd: std::path::PathBuf,
     session: Option<String>,
+    name: Option<String>,
     prompt: String,
 ) -> Result<()> {
     info!("Running with text input");
@@ -314,9 +315,20 @@ async fn run_text_mode(
         info!("Resuming session: {}", id);
         client.resume_agent(&id).await?
     } else {
-        client
+        let new_session = client
             .start_agent(cwd.to_string_lossy().to_string())
-            .await?
+            .await?;
+
+        if let Some(ref session_name) = name {
+            if let Err(e) = client
+                .update_session_name(&new_session.id, session_name)
+                .await
+            {
+                tracing::warn!("Failed to set session name: {}", e);
+            }
+        }
+
+        new_session
     };
 
     configure_session_from_global(&client, &initial_session.id).await;
