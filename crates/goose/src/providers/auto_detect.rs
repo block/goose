@@ -54,13 +54,14 @@ async fn test_provider(provider_name: &str, api_key: &str) -> Option<(String, Ve
     let original_value = std::env::var(env_key).ok();
     std::env::set_var(env_key, api_key);
 
-    let result = match crate::providers::create(provider_name, ModelConfig::new_or_fail("default")).await {
-        Ok(provider) => match provider.fetch_supported_models().await {
-            Ok(Some(models)) => Some((provider_name.to_string(), models)),
-            _ => None,
-        },
-        Err(_) => None,
-    };
+    let result =
+        match crate::providers::create(provider_name, ModelConfig::new_or_fail("default")).await {
+            Ok(provider) => match provider.fetch_supported_models().await {
+                Ok(Some(models)) => Some((provider_name.to_string(), models)),
+                _ => None,
+            },
+            Err(_) => None,
+        };
 
     // Restore original value
     match original_value {

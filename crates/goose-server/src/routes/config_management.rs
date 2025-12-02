@@ -11,7 +11,9 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::auto_detect::{detect_provider_from_api_key, detect_cloud_provider_from_api_key};
+use goose::providers::auto_detect::{
+    detect_cloud_provider_from_api_key, detect_provider_from_api_key,
+};
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
@@ -749,7 +751,6 @@ pub async fn detect_cloud_provider(
         None => Err(StatusCode::NOT_FOUND),
     }
 }
-
 
 #[utoipa::path(
     post,
