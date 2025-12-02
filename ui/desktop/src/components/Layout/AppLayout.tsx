@@ -292,7 +292,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   
   // Render the main content area
   const mainContent = (
-    <div className="flex-1 overflow-hidden p-1">
+    <div className="flex-1 overflow-hidden p-0.5">
       <div className="h-full w-full bg-background-default rounded-2xl overflow-hidden">
         {panels.length > 0 ? (
           useMultiPanel && panels.length > 1 ? (
