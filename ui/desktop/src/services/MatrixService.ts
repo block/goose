@@ -1105,6 +1105,11 @@ export class MatrixService extends EventEmitter {
       const avatarEvent = room.currentState.getStateEvents('m.room.avatar', '');
       const avatarUrl = avatarEvent?.getContent()?.url || null;
       
+      // Debug logging for avatar URLs
+      if (avatarUrl) {
+        console.log('🖼️ getRooms: Found avatar for room', room.roomId.substring(0, 20) + '...', '→', avatarUrl);
+      }
+      
       return {
         roomId: room.roomId,
         name: room.name,

@@ -582,6 +582,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   // Helper function to convert MXC URL to HTTP URL
   const convertMxcToHttp = (mxcUrl: string | undefined): string | undefined => {
     if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
+      console.log('🖼️ convertMxcToHttp: Not an MXC URL:', mxcUrl);
       return mxcUrl;
     }
     
@@ -589,9 +590,12 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     const client = (matrixService as any).client;
     if (client && client.mxcUrlToHttp) {
       // Get full-size image for cover photos
-      return client.mxcUrlToHttp(mxcUrl, 800, 800, 'scale', false) || mxcUrl;
+      const httpUrl = client.mxcUrlToHttp(mxcUrl, 800, 800, 'scale', false);
+      console.log('🖼️ convertMxcToHttp: Converted', mxcUrl, '→', httpUrl);
+      return httpUrl || mxcUrl;
     }
     
+    console.log('🖼️ convertMxcToHttp: No client available, returning MXC URL:', mxcUrl);
     return mxcUrl;
   };
 
