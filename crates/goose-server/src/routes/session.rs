@@ -357,14 +357,12 @@ async fn edit_message(
 ) -> Result<Json<EditMessageResponse>, StatusCode> {
     match request.edit_type {
         EditType::Fork => {
-            // Get the original session to copy its name
             let original_session = SessionManager::get_session(&session_id, false)
                 .await
                 .map_err(|_| StatusCode::NOT_FOUND)?;
-            
-            // Create a new name with "(edited)" suffix
-            let new_name = format!("{} (edited)", original_session.name);
-            
+
+            let new_name = format!("{} (forked)", original_session.name);
+
             let new_session = SessionManager::copy_session(&session_id, new_name)
                 .await
                 .map_err(|e| {

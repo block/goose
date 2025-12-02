@@ -69,6 +69,7 @@ function BaseChatContent({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
@@ -282,6 +283,21 @@ function BaseChatContent({
   }, []);
 
   useEffect(() => {
+    if (
+      isActiveSession &&
+      sessionId &&
+      chatInputRef.current &&
+      chatState !== ChatState.LoadingConversation
+    ) {
+      const timeoutId = setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [isActiveSession, sessionId, chatState]);
+
+  useEffect(() => {
     const handleMakeAgent = () => {
       setIsCreateRecipeModalOpen(true);
     };
@@ -468,6 +484,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            inputRef={chatInputRef}
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
