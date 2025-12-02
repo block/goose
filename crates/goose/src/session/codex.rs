@@ -32,22 +32,15 @@ struct ResponseItem {
 }
 
 #[derive(Debug, Clone)]
-struct CodexSession {
-    id: String,
-    working_dir: PathBuf,
-    updated_at: DateTime<Utc>,
-    file_path: PathBuf,
-}
-
-fn get_home_dir() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
+pub struct CodexSession {
+    pub id: String,
+    pub working_dir: PathBuf,
+    pub updated_at: DateTime<Utc>,
+    pub file_path: PathBuf,
 }
 
 fn find_all_sessions() -> Result<Vec<CodexSession>> {
-    let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
     let sessions_dir = home.join(".codex").join("sessions");
 
     if !sessions_dir.exists() {
@@ -107,12 +100,8 @@ fn find_all_sessions() -> Result<Vec<CodexSession>> {
     Ok(sessions)
 }
 
-pub fn list_codex_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
-    let sessions = find_all_sessions()?;
-    Ok(sessions
-        .into_iter()
-        .map(|s| (s.id, s.working_dir, s.updated_at))
-        .collect())
+pub fn list_codex_sessions() -> Result<Vec<CodexSession>> {
+    find_all_sessions()
 }
 
 fn parse_session_metadata(file_path: &PathBuf) -> Result<CodexSession> {
@@ -157,15 +146,8 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<CodexSession> {
     })
 }
 
-pub fn load_codex_session(session_id: &str) -> Result<Conversation> {
-    let sessions = find_all_sessions()?;
-
-    let session = sessions
-        .into_iter()
-        .find(|s| s.id == session_id)
-        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
-
-    parse_conversation(&session.file_path)
+pub fn load_codex_session_from_path(file_path: &PathBuf) -> Result<Conversation> {
+    parse_conversation(file_path)
 }
 
 fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {

@@ -260,8 +260,8 @@ export default function SessionSharingSection() {
         <CardHeader className="pb-0">
           <CardTitle>External Sessions</CardTitle>
           <CardDescription>
-            Allow goose to access sessions from Claude Code and Codex editors. When enabled, goose
-            can read conversation history from these tools.
+            Allow goose to access sessions from Claude Code and Codex CLI. When enabled, goose can
+            read conversation history from these tools.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 py-2">

@@ -1192,6 +1192,12 @@ impl SessionStorage {
                 .await?;
 
         if !exists {
+            if crate::session::external_sessions::get_external_session(session_id, false).is_some()
+            {
+                return Err(anyhow::anyhow!(
+                    "External sessions cannot be deleted from Goose"
+                ));
+            }
             return Err(anyhow::anyhow!("Session not found"));
         }
 

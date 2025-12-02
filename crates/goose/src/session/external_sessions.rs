@@ -69,18 +69,18 @@ fn get_claude_code_session(id: &str, include_messages: bool) -> Option<Session> 
 
     sessions
         .into_iter()
-        .find(|(session_id, _, _)| session_id == id)
-        .map(|(session_id, working_dir, updated_at)| {
+        .find(|s| s.id == id)
+        .map(|s| {
             let conversation = if include_messages {
-                crate::session::claude_code::load_claude_code_session(id).ok()
+                crate::session::claude_code::load_claude_code_session_from_path(&s.file_path).ok()
             } else {
                 None
             };
             create_external_session(
                 ExternalSessionSource::ClaudeCode,
-                session_id,
-                working_dir,
-                updated_at,
+                s.id,
+                s.working_dir,
+                s.updated_at,
                 conversation,
             )
         })
@@ -91,18 +91,18 @@ fn get_codex_session(id: &str, include_messages: bool) -> Option<Session> {
 
     sessions
         .into_iter()
-        .find(|(session_id, _, _)| session_id == id)
-        .map(|(session_id, working_dir, updated_at)| {
+        .find(|s| s.id == id)
+        .map(|s| {
             let conversation = if include_messages {
-                crate::session::codex::load_codex_session(id).ok()
+                crate::session::codex::load_codex_session_from_path(&s.file_path).ok()
             } else {
                 None
             };
             create_external_session(
                 ExternalSessionSource::Codex,
-                session_id,
-                working_dir,
-                updated_at,
+                s.id,
+                s.working_dir,
+                s.updated_at,
                 conversation,
             )
         })
@@ -116,24 +116,24 @@ pub fn get_external_sessions_for_list() -> Vec<Session> {
     let mut sessions = Vec::new();
 
     if let Ok(claude_sessions) = crate::session::claude_code::list_claude_code_sessions() {
-        for (session_id, working_dir, updated_at) in claude_sessions {
+        for s in claude_sessions {
             sessions.push(create_external_session(
                 ExternalSessionSource::ClaudeCode,
-                session_id,
-                working_dir,
-                updated_at,
+                s.id,
+                s.working_dir,
+                s.updated_at,
                 None,
             ));
         }
     }
 
     if let Ok(codex_sessions) = crate::session::codex::list_codex_sessions() {
-        for (session_id, working_dir, updated_at) in codex_sessions {
+        for s in codex_sessions {
             sessions.push(create_external_session(
                 ExternalSessionSource::Codex,
-                session_id,
-                working_dir,
-                updated_at,
+                s.id,
+                s.working_dir,
+                s.updated_at,
                 None,
             ));
         }

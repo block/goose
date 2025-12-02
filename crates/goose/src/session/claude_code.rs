@@ -30,18 +30,11 @@ pub struct ClaudeSession {
     pub id: String,
     pub working_dir: PathBuf,
     pub updated_at: DateTime<Utc>,
-    file_path: PathBuf,
-}
-
-fn get_home_dir() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
+    pub file_path: PathBuf,
 }
 
 fn find_all_sessions() -> Result<Vec<ClaudeSession>> {
-    let home = get_home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home dir"))?;
     let projects_dir = home.join(".claude").join("projects");
 
     if !projects_dir.exists() {
@@ -83,12 +76,8 @@ fn find_all_sessions() -> Result<Vec<ClaudeSession>> {
     Ok(sessions)
 }
 
-pub fn list_claude_code_sessions() -> Result<Vec<(String, PathBuf, DateTime<Utc>)>> {
-    let sessions = find_all_sessions()?;
-    Ok(sessions
-        .into_iter()
-        .map(|s| (s.id, s.working_dir, s.updated_at))
-        .collect())
+pub fn list_claude_code_sessions() -> Result<Vec<ClaudeSession>> {
+    find_all_sessions()
 }
 
 fn parse_session_metadata(file_path: &PathBuf) -> Result<ClaudeSession> {
@@ -126,15 +115,8 @@ fn parse_session_metadata(file_path: &PathBuf) -> Result<ClaudeSession> {
     })
 }
 
-pub fn load_claude_code_session(session_id: &str) -> Result<Conversation> {
-    let sessions = find_all_sessions()?;
-
-    let session = sessions
-        .into_iter()
-        .find(|s| s.id == session_id)
-        .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
-
-    parse_conversation(&session.file_path)
+pub fn load_claude_code_session_from_path(file_path: &PathBuf) -> Result<Conversation> {
+    parse_conversation(file_path)
 }
 
 fn parse_conversation(file_path: &PathBuf) -> Result<Conversation> {
