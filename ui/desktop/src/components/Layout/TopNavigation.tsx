@@ -463,12 +463,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
 
   // Determine grid layout based on position
   const isVertical = position === 'left' || position === 'right';
+  
+  // Calculate grid rows to fill vertical space
+  const totalItems = navItems.length;
+  const gridRows = Math.ceil(totalItems / 2); // 2 columns for vertical
+  
   const gridClasses = isVertical
-    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-0.5' // Vertical layout: fewer columns
+    ? 'grid grid-cols-1 gap-0.5 h-full overflow-y-auto' // Vertical layout: 1 column, scrollable
     : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5'; // Horizontal layout: more columns
   
   const containerClasses = isVertical
-    ? 'w-80 h-full overflow-y-auto' // Fixed width for vertical nav
+    ? 'h-full' // Full height for vertical nav
     : 'w-full overflow-hidden'; // Full width for horizontal nav
 
   return (
@@ -501,7 +506,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 ease: "easeInOut"
               }
             }}
-            className="bg-background-muted overflow-hidden"
+            className={`bg-background-muted overflow-hidden ${isVertical ? 'h-full' : ''}`}
           >
             <motion.div
               initial={{ [isVertical ? 'x' : 'y']: -20 }}
@@ -512,9 +517,16 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`pb-0.5 overflow-y-auto ${isVertical ? 'p-2' : 'lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
+              className={`${isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
             >
-              <div className={gridClasses} style={{ gridTemplateColumns: !isVertical && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined }}>
+              <div 
+                className={gridClasses} 
+                style={{ 
+                  gridTemplateColumns: !isVertical && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined,
+                  gridTemplateRows: undefined,
+                  width: isVertical ? 'auto' : undefined
+                }}
+              >
             {navItems.map((item, index) => {
               const isPulsing = pulsingItems.has(item.id);
               const isDragging = draggedItem === item.id;
