@@ -1556,6 +1556,70 @@ export class MatrixService extends EventEmitter {
     }
   }
 
+  /**
+   * Upload and set room avatar (cover photo)
+   */
+  async setRoomAvatar(roomId: string, file: File): Promise<string> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      console.log('setRoomAvatar - uploading file for room:', roomId, file.name, file.type);
+      
+      // Upload the file to Matrix media repository
+      const uploadResponse = await this.client.uploadContent(file, {
+        name: file.name,
+        type: file.type,
+      });
+
+      const avatarUrl = uploadResponse.content_uri;
+      console.log('setRoomAvatar - upload response MXC URL:', avatarUrl);
+
+      // Set the avatar URL for the room
+      await this.client.sendStateEvent(roomId, 'm.room.avatar', {
+        url: avatarUrl,
+      }, '');
+      
+      console.log('setRoomAvatar - room avatar URL set');
+
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+
+      // Emit room avatar updated event
+      this.emit('roomAvatarUpdated', { roomId, avatarUrl });
+
+      return avatarUrl;
+    } catch (error) {
+      console.error('Failed to set room avatar:', error);
+      throw new Error('Failed to upload and set room avatar');
+    }
+  }
+
+  /**
+   * Remove room avatar
+   */
+  async removeRoomAvatar(roomId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      await this.client.sendStateEvent(roomId, 'm.room.avatar', {
+        url: '',
+      }, '');
+      
+      // Clear rooms cache to force refresh
+      this.cachedRooms = null;
+      
+      this.emit('roomAvatarUpdated', { roomId, avatarUrl: null });
+      console.log('✅ Room avatar removed:', roomId);
+    } catch (error) {
+      console.error('Failed to remove room avatar:', error);
+      throw new Error('Failed to remove room avatar');
+    }
+  }
+
   // ===== GOOSE-TO-GOOSE COMMUNICATION METHODS =====
 
   /**

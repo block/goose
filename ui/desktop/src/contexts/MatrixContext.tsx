@@ -28,6 +28,8 @@ interface MatrixContextType {
   setDisplayName: (displayName: string) => Promise<void>;
   setRoomName: (roomId: string, name: string) => Promise<void>;
   setRoomTopic: (roomId: string, topic: string) => Promise<void>;
+  setRoomAvatar: (roomId: string, file: File) => Promise<string>;
+  removeRoomAvatar: (roomId: string) => Promise<void>;
   
   // Goose-to-Goose Communication
   sendGooseMessage: (roomId: string, content: string, type?: GooseChatMessage['type'], options?: any) => Promise<string>;
@@ -264,6 +266,16 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     // Data will be updated via the roomTopicUpdated event
   };
 
+  const setRoomAvatar = async (roomId: string, file: File) => {
+    return await matrixService.setRoomAvatar(roomId, file);
+    // Data will be updated via the roomAvatarUpdated event
+  };
+
+  const removeRoomAvatar = async (roomId: string) => {
+    await matrixService.removeRoomAvatar(roomId);
+    // Data will be updated via the roomAvatarUpdated event
+  };
+
   const onMessage = (eventNameOrCallback: string | ((data: any) => void), callback?: (data: any) => void) => {
     if (typeof eventNameOrCallback === 'string' && callback) {
       // Support for specific event names like 'gooseSessionSync'
@@ -389,6 +401,8 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     setDisplayName,
     setRoomName,
     setRoomTopic,
+    setRoomAvatar,
+    removeRoomAvatar,
     // Goose-to-Goose Communication
     sendGooseMessage,
     sendTaskRequest,
