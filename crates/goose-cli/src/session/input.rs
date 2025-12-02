@@ -54,12 +54,24 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
     }
 }
 
+pub fn get_newline_key() -> char {
+    std::env::var("GOOSE_CLI_NEWLINE_KEY")
+        .ok()
+        .and_then(|s| s.chars().next())
+        .map(|c| c.to_ascii_lowercase())
+        .unwrap_or('j')
+}
+
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
-    // Ensure Ctrl-J binding is set for newlines
+    // Ensure Ctrl+<key> binding is set for newlines (configurable via GOOSE_CLI_NEWLINE_KEY)
+    let newline_key = get_newline_key();
     editor.bind_sequence(
-        rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
@@ -295,6 +307,7 @@ fn get_input_prompt_string() -> String {
 }
 
 fn print_help() {
+    let newline_key = get_newline_key().to_ascii_uppercase();
     println!(
         "Available commands:
 /exit or /quit - Exit the session
@@ -319,7 +332,7 @@ fn print_help() {
 
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
-Ctrl+J - Add a newline
+Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
 Up/Down arrows - Navigate through command history"
     );
 }
@@ -587,5 +600,46 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_get_newline_key_default() {
+        // Clear the env var to test default behavior
+        std::env::remove_var("GOOSE_CLI_NEWLINE_KEY");
+        assert_eq!(get_newline_key(), 'j');
+    }
+
+    #[test]
+    fn test_get_newline_key_custom() {
+        // Test setting a custom key
+        std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "o");
+        assert_eq!(get_newline_key(), 'o');
+
+        // Test uppercase is converted to lowercase
+        std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "N");
+        assert_eq!(get_newline_key(), 'n');
+
+        // Clean up
+        std::env::remove_var("GOOSE_CLI_NEWLINE_KEY");
+    }
+
+    #[test]
+    fn test_get_newline_key_empty_string() {
+        // Test empty string falls back to default
+        std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "");
+        assert_eq!(get_newline_key(), 'j');
+
+        // Clean up
+        std::env::remove_var("GOOSE_CLI_NEWLINE_KEY");
+    }
+
+    #[test]
+    fn test_get_newline_key_first_char_only() {
+        // Test only first character is used
+        std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "abc");
+        assert_eq!(get_newline_key(), 'a');
+
+        // Clean up
+        std::env::remove_var("GOOSE_CLI_NEWLINE_KEY");
     }
 }
