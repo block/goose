@@ -497,6 +497,58 @@ export class MatrixService extends EventEmitter {
         this.cachedRooms = null;
       }
     });
+
+    // Listen for room state events to catch any room changes
+    this.client.on('RoomState.events', (event, state, lastStateEvent) => {
+      const eventType = event.getType();
+      const roomId = event.getRoomId();
+      
+      console.log('🏠 RoomState.events:', {
+        eventType,
+        roomId: roomId?.substring(0, 20) + '...',
+        stateKey: event.getStateKey(),
+      });
+      
+      // Clear rooms cache for any room state change that might affect visibility
+      // This includes: name, topic, avatar, power levels, join rules, etc.
+      if (eventType === 'm.room.name' || 
+          eventType === 'm.room.topic' || 
+          eventType === 'm.room.avatar' ||
+          eventType === 'm.room.join_rules' ||
+          eventType === 'm.room.power_levels' ||
+          eventType === 'm.room.canonical_alias' ||
+          eventType === 'm.room.tombstone') { // Room was upgraded/replaced
+        
+        console.log('🏠 Room state changed, clearing rooms cache:', eventType);
+        this.cachedRooms = null;
+        
+        // Emit specific events for UI updates
+        if (eventType === 'm.room.tombstone') {
+          console.log('🪦 Room tombstoned (upgraded/deleted):', roomId);
+          this.emit('roomTombstoned', { roomId, event });
+        }
+      }
+    });
+
+    // Listen for room deletions/leaves
+    this.client.on('Room.myMembership', (room, membership, prevMembership) => {
+      console.log('🏠 Room.myMembership changed:', {
+        roomId: room.roomId.substring(0, 20) + '...',
+        roomName: room.name,
+        membership,
+        prevMembership,
+      });
+      
+      // Clear rooms cache when our membership changes
+      this.cachedRooms = null;
+      this.cachedFriends = null;
+      
+      // If we left or were kicked/banned, emit event
+      if (membership === 'leave' || membership === 'ban') {
+        console.log('👋 Left or banned from room:', room.roomId);
+        this.emit('roomLeft', { roomId: room.roomId, membership, prevMembership });
+      }
+    });
   }
 
   /**
