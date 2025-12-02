@@ -517,7 +517,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`${isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
+              className={`${isVertical ? 'p-1 h-full w-96' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
             >
               <div 
                 className={gridClasses} 
