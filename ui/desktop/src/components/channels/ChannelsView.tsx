@@ -11,7 +11,8 @@ import {
   X,
   Wifi,
   WifiOff,
-  Edit2
+  Edit2,
+  Star
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
