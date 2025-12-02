@@ -50,6 +50,19 @@ declare global {
   interface Window {
     isCreatingRecipe?: boolean;
   }
+
+  // Augment WindowEventMap to include custom events
+  interface WindowEventMap {
+    'add-active-session': CustomEvent<{
+      sessionId: string;
+      initialMessage?: string;
+    }>;
+    'clear-initial-message': CustomEvent<{
+      sessionId: string;
+    }>;
+    responseStyleChanged: CustomEvent;
+    'session-created': CustomEvent;
+  }
 }
 
 export {};

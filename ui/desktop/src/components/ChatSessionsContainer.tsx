@@ -19,12 +19,10 @@ export default function ChatSessionsContainer({
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  // If no current session, don't render anything
   if (!currentSessionId) {
     return null;
   }
 
-  // Check if the current session is in our active sessions
   const isActiveSession = activeSessions.some((s) => s.sessionId === currentSessionId);
 
   // If the current session isn't in active sessions, we need to render it anyway

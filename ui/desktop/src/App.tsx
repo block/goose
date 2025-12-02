@@ -363,15 +363,11 @@ export function AppInner() {
       });
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.addEventListener('add-active-session', handleAddActiveSession as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.addEventListener('clear-initial-message', handleClearInitialMessage as any);
+    window.addEventListener('add-active-session', handleAddActiveSession);
+    window.addEventListener('clear-initial-message', handleClearInitialMessage);
     return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      window.removeEventListener('add-active-session', handleAddActiveSession as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      window.removeEventListener('clear-initial-message', handleClearInitialMessage as any);
+      window.removeEventListener('add-active-session', handleAddActiveSession);
+      window.removeEventListener('clear-initial-message', handleClearInitialMessage);
     };
   }, []);
 

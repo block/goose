@@ -263,35 +263,27 @@ export default function ChatInput({
     },
   });
 
-  // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
-
-  // Refs - declare early since they're used in useEffects
   const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = inputRef || internalTextAreaRef;
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
-  // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
       currentPastedImages.forEach((img) => {
         if (img.filePath) {
           window.electron.deleteTempFile(img.filePath);
         }
       });
-      return []; // Return a new empty array
+      return [];
     });
 
-    // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+  }, [initialValue]);
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -305,7 +297,6 @@ export default function ChatInput({
     }
   }, [recipeAccepted, initialPrompt, messages.length, textAreaRef]);
 
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');

@@ -70,23 +70,17 @@ function BaseChatContent({
   const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
-
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
   const { markSessionActive } = useSessionStatusContext();
-
   const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
-
-  // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
-  // Mark session as active when viewing it (only if this is the active session)
   useEffect(() => {
     if (sessionId && isActiveSession) {
       markSessionActive(sessionId);
@@ -119,9 +113,7 @@ function BaseChatContent({
     onStreamFinish,
   });
 
-  // Emit session status updates for the sidebar
   useEffect(() => {
-    // Map ChatState to StreamState
     let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
     if (chatState === ChatState.LoadingConversation) {
       streamState = 'loading';
@@ -313,10 +305,8 @@ function BaseChatContent({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
-      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
-
-      // Dispatch session-created event to refresh the sidebar
       window.dispatchEvent(new CustomEvent('session-created'));
+      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);
