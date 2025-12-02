@@ -586,14 +586,26 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       return mxcUrl;
     }
     
-    // Use the Matrix client to convert MXC to HTTP
+    // Parse the MXC URL: mxc://server/mediaId
+    const mxcMatch = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
+    if (!mxcMatch) {
+      console.error('🖼️ convertMxcToHttp: Invalid MXC URL format:', mxcUrl);
+      return undefined;
+    }
+    
+    const [, serverName, mediaId] = mxcMatch;
+    
+    // Try the authenticated client endpoint first (Matrix 1.11+)
+    // This is what Element uses for newer Matrix servers
     const client = (matrixService as any).client;
-    if (client && client.mxcUrlToHttp) {
-      // Use download endpoint (no size params) to get the full image
-      // This avoids 404 errors with thumbnail endpoint
-      const httpUrl = client.mxcUrlToHttp(mxcUrl);
-      console.log('🖼️ convertMxcToHttp: Converted', mxcUrl, '→', httpUrl);
-      return httpUrl || mxcUrl;
+    if (client) {
+      const baseUrl = client.baseUrl || 'https://matrix.tchncs.de';
+      
+      // Use the authenticated client media endpoint
+      // Format: /_matrix/client/v1/media/download/{serverName}/{mediaId}
+      const authenticatedUrl = `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
+      console.log('🖼️ convertMxcToHttp: Using authenticated endpoint:', authenticatedUrl);
+      return authenticatedUrl;
     }
     
     console.log('🖼️ convertMxcToHttp: No client available, returning MXC URL:', mxcUrl);
