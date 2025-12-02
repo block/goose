@@ -67,7 +67,7 @@ const ChannelCard: React.FC<{
     >
       {/* Cover Photo Section - Top half */}
       {channel.coverPhotoUrl ? (
-        <div className="relative w-full h-[60%] bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 overflow-hidden">
+        <div className="relative w-full h-[60%] overflow-hidden">
           <img
             src={channel.coverPhotoUrl}
             alt={channel.name}
@@ -77,11 +77,15 @@ const ChannelCard: React.FC<{
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
         </div>
       ) : (
-        /* Default gradient background if no cover photo */
-        <div className="relative w-full h-[60%] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 overflow-hidden">
-          {/* Animated background pattern */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.8),transparent_50%)]" />
+        /* Default gradient background if no cover photo - theme aware */
+        <div className="relative w-full h-[60%] bg-gradient-to-br from-background-medium via-background-muted to-background-default overflow-hidden">
+          {/* Subtle animated background pattern */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(var(--color-background-accent-rgb),0.3),transparent_70%)]" />
+          </div>
+          {/* Hash icon for channels without cover photos */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Hash className="w-12 h-12 text-text-muted/20" />
           </div>
         </div>
       )}
