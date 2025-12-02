@@ -1100,24 +1100,31 @@ export class MatrixService extends EventEmitter {
 
     console.log('getRooms - fetching fresh room data');
     
-    this.cachedRooms = this.client.getRooms().map(room => ({
-      roomId: room.roomId,
-      name: room.name,
-      topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic,
-      members: room.getMembers().map(member => {
-        // Get MXC avatar URL and ensure it's stable
-        const mxcAvatarUrl = member.getMxcAvatarUrl();
-        
-        return {
-          userId: member.userId,
-          displayName: member.name,
-          avatarUrl: mxcAvatarUrl || null, // Ensure null instead of undefined
-          presence: this.client?.getUser(member.userId)?.presence,
-        };
-      }),
-      isDirectMessage: this.isDirectMessageRoom(room), // Use improved DM detection
-      lastActivity: new Date(room.getLastActiveTimestamp()),
-    }));
+    this.cachedRooms = this.client.getRooms().map(room => {
+      // Get room avatar from state events
+      const avatarEvent = room.currentState.getStateEvents('m.room.avatar', '');
+      const avatarUrl = avatarEvent?.getContent()?.url || null;
+      
+      return {
+        roomId: room.roomId,
+        name: room.name,
+        topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic,
+        avatarUrl: avatarUrl, // Room avatar (cover photo)
+        members: room.getMembers().map(member => {
+          // Get MXC avatar URL and ensure it's stable
+          const mxcAvatarUrl = member.getMxcAvatarUrl();
+          
+          return {
+            userId: member.userId,
+            displayName: member.name,
+            avatarUrl: mxcAvatarUrl || null, // Ensure null instead of undefined
+            presence: this.client?.getUser(member.userId)?.presence,
+          };
+        }),
+        isDirectMessage: this.isDirectMessageRoom(room), // Use improved DM detection
+        lastActivity: new Date(room.getLastActiveTimestamp()),
+      };
+    });
 
     console.log('getRooms - cached new room data:', this.cachedRooms.length);
     return this.cachedRooms;
