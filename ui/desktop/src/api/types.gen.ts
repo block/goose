@@ -652,6 +652,10 @@ export type Response = {
     json_schema?: unknown;
 };
 
+export type RestartAgentRequest = {
+    session_id: string;
+};
+
 export type ResumeAgentRequest = {
     load_model_and_extensions: boolean;
     session_id: string;
@@ -994,6 +998,13 @@ export type UpdateSessionUserRecipeValuesResponse = {
     recipe: Recipe;
 };
 
+export type UpdateSessionWorkingDirRequest = {
+    /**
+     * New working directory path
+     */
+    workingDir: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -1090,6 +1101,35 @@ export type AgentRemoveExtensionResponses = {
 };
 
 export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
+
+export type RestartAgentData = {
+    body: RestartAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/restart';
+};
+
+export type RestartAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RestartAgentResponses = {
+    /**
+     * Agent restarted successfully
+     */
+    200: unknown;
+};
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
@@ -2738,6 +2778,44 @@ export type UpdateSessionUserRecipeValuesResponses = {
 };
 
 export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
+
+export type UpdateSessionWorkingDirData = {
+    body: UpdateSessionWorkingDirRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/working_dir';
+};
+
+export type UpdateSessionWorkingDirErrors = {
+    /**
+     * Bad request - Invalid directory path
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionWorkingDirResponses = {
+    /**
+     * Session working directory updated successfully
+     */
+    200: unknown;
+};
 
 export type StatusData = {
     body?: never;

@@ -12,7 +12,7 @@ use axum::{
 };
 use goose::config::PermissionManager;
 
-use goose::agents::ExtensionConfig;
+use goose::agents::{Agent, ExtensionConfig};
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
@@ -69,6 +69,11 @@ pub struct StartAgentRequest {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct StopAgentRequest {
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct RestartAgentRequest {
     session_id: String,
 }
 
@@ -632,10 +637,183 @@ async fn stop_agent(
     Ok(StatusCode::OK)
 }
 
+async fn restore_agent_provider(
+    agent: &Arc<Agent>,
+    session: &Session,
+    session_id: &str,
+) -> Result<(), ErrorResponse> {
+    let config = Config::global();
+    let provider_name = session
+        .provider_name
+        .clone()
+        .or_else(|| config.get_goose_provider().ok())
+        .ok_or_else(|| ErrorResponse {
+            message: "Could not configure agent: missing provider".into(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    let model_config = match session.model_config.clone() {
+        Some(saved_config) => saved_config,
+        None => {
+            let model_name = config.get_goose_model().map_err(|_| ErrorResponse {
+                message: "Could not configure agent: missing model".into(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
+            ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
+                message: format!("Could not configure agent: invalid model {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?
+        }
+    };
+
+    let provider = create(&provider_name, model_config)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Could not create provider: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    agent
+        .update_provider(provider, session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Could not configure agent: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })
+}
+
+async fn restore_agent_extensions(agent: Arc<Agent>, working_dir: &std::path::Path) -> Result<(), ErrorResponse> {
+    // Set the working directory as an environment variable that MCP extensions can use
+    tracing::info!("Setting GOOSE_WORKING_DIR environment variable to: {:?}", working_dir);
+    std::env::set_var("GOOSE_WORKING_DIR", working_dir);
+    
+    let enabled_configs = goose::config::get_enabled_extensions();
+    let extension_futures = enabled_configs
+        .into_iter()
+        .map(|config| {
+            let config_clone = config.clone();
+            let agent_ref = agent.clone();
+
+            async move {
+                if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
+                    warn!("Failed to load extension {}: {}", config_clone.name(), e);
+                }
+                Ok::<_, ErrorResponse>(())
+            }
+        })
+        .collect::<Vec<_>>();
+
+    futures::future::join_all(extension_futures).await;
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/restart",
+    request_body = RestartAgentRequest,
+    responses(
+        (status = 200, description = "Agent restarted successfully"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn restart_agent(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RestartAgentRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let session_id = payload.session_id.clone();
+    
+    tracing::info!("=== RESTART AGENT START ===");
+    tracing::info!("Session ID: {}", session_id);
+    
+    // First, remove the existing agent (this will shut down MCP extensions)
+    tracing::info!("Attempting to remove existing agent...");
+    if let Err(e) = state.agent_manager.remove_session(&session_id).await {
+        tracing::warn!("Agent not found for removal during restart: {}", e);
+        // Continue anyway - the agent might not exist yet
+    } else {
+        tracing::info!("Successfully removed existing agent");
+    }
+    
+    // Get the session to retrieve configuration
+    tracing::info!("Fetching session to get configuration...");
+    let session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get session during restart: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+    
+    tracing::info!("Session retrieved successfully");
+    tracing::info!("Session working_dir: {:?}", session.working_dir);
+    tracing::info!("Session working_dir as string: {}", session.working_dir.display());
+    
+    // Create a new agent (this will use the updated working_dir from the session)
+    tracing::info!("Creating new agent...");
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|code| ErrorResponse {
+            message: "Failed to create new agent during restart".into(),
+            status: code,
+        })?;
+    tracing::info!("New agent created successfully");
+    
+    // Restore the provider and extensions
+    let provider_result = restore_agent_provider(&agent, &session, &session_id);
+    let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
+    
+    let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
+    provider_result?;
+    extensions_result?;
+    
+    // Apply recipe if present
+    let context: HashMap<&str, Value> = HashMap::new();
+    let desktop_prompt =
+        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+    let mut update_prompt = desktop_prompt;
+    
+    if let Some(recipe) = session.recipe {
+        match build_recipe_with_parameter_values(
+            &recipe,
+            session.user_recipe_values.unwrap_or_default(),
+        )
+        .await
+        {
+            Ok(Some(recipe)) => {
+                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                    update_prompt = prompt;
+                }
+            }
+            Ok(None) => {
+                // Recipe has missing parameters - use default prompt
+            }
+            Err(e) => {
+                return Err(ErrorResponse {
+                    message: e.to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                });
+            }
+        }
+    }
+    agent.extend_system_prompt(update_prompt).await;
+    
+    tracing::info!("=== RESTART AGENT COMPLETE ===");
+    tracing::info!("Final session_id: {}", session_id);
+    tracing::info!("Agent should now be using working_dir: {}", session.working_dir.display());
+    
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
+        .route("/agent/restart", post(restart_agent))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(

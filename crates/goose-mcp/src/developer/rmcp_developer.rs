@@ -966,6 +966,11 @@ impl DeveloperServer {
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
+        
+        // Get the working directory from environment variable if set by the agent
+        let working_dir = std::env::var("GOOSE_WORKING_DIR")
+            .ok()
+            .map(std::path::PathBuf::from);
 
         if let Some(ref env_file) = self.bash_env_file {
             if shell_name == "bash" {
@@ -976,7 +981,7 @@ impl DeveloperServer {
             }
         }
 
-        let mut command = configure_shell_command(&shell_config, command);
+        let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());
 
         if self.extend_path_with_shell {
             if let Err(e) = get_shell_path_dirs()
