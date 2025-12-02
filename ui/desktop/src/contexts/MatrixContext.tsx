@@ -160,6 +160,10 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       updateData();
     };
 
+    const handleRoomAvatarUpdated = () => {
+      updateData();
+    };
+
     // Add event listeners
     matrixService.on('connected', handleConnected);
     matrixService.on('ready', handleReady);
@@ -173,6 +177,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     matrixService.on('displayNameUpdated', handleDisplayNameUpdated);
     matrixService.on('roomNameUpdated', handleRoomNameUpdated);
     matrixService.on('roomTopicUpdated', handleRoomTopicUpdated);
+    matrixService.on('roomAvatarUpdated', handleRoomAvatarUpdated);
 
     // Cleanup
     return () => {
@@ -188,6 +193,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       matrixService.off('displayNameUpdated', handleDisplayNameUpdated);
       matrixService.off('roomNameUpdated', handleRoomNameUpdated);
       matrixService.off('roomTopicUpdated', handleRoomTopicUpdated);
+      matrixService.off('roomAvatarUpdated', handleRoomAvatarUpdated);
     };
   }, [matrixService]);
 
