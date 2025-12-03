@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { createUserMessage, hasCompletedToolCalls, Message, Role } from '../types/message';
-import { getSession, Session } from '../api';
+import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
+import { getSessionHistory } from '../api';
 import { ChatState } from '../types/chatState';
-import { sessionMappingService } from '../services/SessionMappingService';
-
-// Force rebuild timestamp: 2025-01-15T02:50:00Z - Fixed SSE Finish session mapping error
 
 let messageIdCounter = 0;
 
@@ -17,6 +14,19 @@ function generateMessageId(): string {
 const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface SessionMetadata {
+  workingDir: string;
+  description: string;
+  scheduleId: string | null;
+  messageCount: number;
+  totalTokens: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  accumulatedTotalTokens: number | null;
+  accumulatedInputTokens: number | null;
+  accumulatedOutputTokens: number | null;
+}
 
 export interface NotificationEvent {
   type: 'Notification';
@@ -97,12 +107,6 @@ export interface UseMessageStreamOptions {
    * Default is 1.
    */
   maxSteps?: number;
-
-  /**
-   * If true, disables all API calls and makes this hook read-only.
-   * Useful for collaborative sessions where you only consume messages.
-   */
-  disabled?: boolean;
 }
 
 export interface UseMessageStreamHelpers {
@@ -161,8 +165,8 @@ export interface UseMessageStreamHelpers {
   /** Current model info from the backend */
   currentModelInfo: { model: string; mode: string } | null;
 
-  /** Session including token counts */
-  session: Session | null;
+  /** Session metadata including token counts */
+  sessionMetadata: SessionMetadata | null;
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
@@ -182,7 +186,6 @@ export function useMessageStream({
   headers,
   body,
   maxSteps = 1,
-  disabled = false,
 }: UseMessageStreamOptions = {}): UseMessageStreamHelpers {
   // Generate a unique id for the chat if not provided
   const hookId = useId();
@@ -198,7 +201,7 @@ export function useMessageStream({
   const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(
     null
   );
-  const [session, setSession] = useState<Session | null>(null);
+  const [sessionMetadata, setSessionMetadata] = useState<SessionMetadata | null>(null);
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -283,12 +286,19 @@ export function useMessageStream({
                     mutateChatState(ChatState.Streaming);
 
                     // Create a new message object with the properties preserved or defaulted
-                    const newMessage: Message = {
+                    const newMessage = {
                       ...parsedEvent.message,
-                      id: parsedEvent.message.id || undefined,
-                      role: parsedEvent.message.role as Role,
-                      created: parsedEvent.message.created || Date.now(),
-                      content: parsedEvent.message.content || [],
+                      // Ensure the message has an ID - if not provided, generate one
+                      id: parsedEvent.message.id || generateMessageId(),
+                      // Only set to true if it's undefined (preserve false values)
+                      display:
+                        parsedEvent.message.display === undefined
+                          ? true
+                          : parsedEvent.message.display,
+                      sendToLLM:
+                        parsedEvent.message.sendToLLM === undefined
+                          ? true
+                          : parsedEvent.message.sendToLLM,
                     };
 
                     // Update messages with the new message
@@ -337,63 +347,78 @@ export function useMessageStream({
                   }
 
                   case 'Error': {
-                    // Always throw the error so it gets caught and sets the error state
-                    // This ensures the retry UI appears for ALL errors
+                    // Check if this is a token limit error (more specific detection)
+                    const errorMessage = parsedEvent.error;
+                    const isTokenLimitError =
+                      errorMessage &&
+                      ((errorMessage.toLowerCase().includes('token') &&
+                        errorMessage.toLowerCase().includes('limit')) ||
+                        (errorMessage.toLowerCase().includes('context') &&
+                          errorMessage.toLowerCase().includes('length') &&
+                          errorMessage.toLowerCase().includes('exceeded')));
+
+                    // If this is a token limit error, create a contextLengthExceeded message instead of throwing
+                    if (isTokenLimitError) {
+                      const contextMessage: Message = {
+                        id: generateMessageId(),
+                        role: 'assistant',
+                        created: Math.floor(Date.now() / 1000),
+                        content: [
+                          {
+                            type: 'contextLengthExceeded',
+                            msg: errorMessage,
+                          },
+                        ],
+                        display: true,
+                        sendToLLM: false,
+                      };
+
+                      currentMessages = [...currentMessages, contextMessage];
+                      mutate(currentMessages, false);
+
+                      // Clear any existing error state since we handled this as a context message
+                      setError(undefined);
+                      break; // Don't throw error, just add the message
+                    }
+
                     throw new Error(parsedEvent.error);
                   }
 
                   case 'Finish': {
+                    // Call onFinish with the last message if available
                     if (onFinish && currentMessages.length > 0) {
                       const lastMessage = currentMessages[currentMessages.length - 1];
                       onFinish(lastMessage, parsedEvent.reason);
                     }
 
-                    const originalSessionId = (extraMetadataRef.current.body as Record<string, unknown>)
+                    // Fetch updated session metadata with token counts
+                    const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
                       ?.session_id as string;
-                    
-                    if (originalSessionId) {
-                      // Check if we should make backend calls for this session
-                      if (!sessionMappingService.shouldMakeBackendCalls(originalSessionId)) {
-                        console.log('📋 Skipping session data fetch in SSE Finish - Matrix session without backend mapping:', originalSessionId);
-                        break;
-                      }
-
-                      // Use session mapping service to get the appropriate backend session ID
-                      const backendSessionId = sessionMappingService.getBackendSessionId(originalSessionId);
-                      
-                      console.log('📋 SSE Finish - Session ID mapping:', {
-                        originalSessionId,
-                        backendSessionId,
-                        isMatrixSession: originalSessionId.startsWith('!'),
-                        shouldMakeBackendCalls: sessionMappingService.shouldMakeBackendCalls(originalSessionId),
-                      });
-                      
-                      // Double-check that we have a valid backend session ID
-                      if (!backendSessionId) {
-                        console.log('📋 No backend session ID available for:', originalSessionId);
-                        break;
-                      }
-                      
-                      console.log('📋 Making getSession call with backend session ID:', backendSessionId);
-                      
+                    if (sessionId) {
                       try {
-                        const sessionResponse = await getSession({
-                          path: { session_id: backendSessionId },
-                          throwOnError: false, // Don't throw on error, handle gracefully
+                        const sessionResponse = await getSessionHistory({
+                          path: { session_id: sessionId },
                         });
 
-                        if (sessionResponse.data) {
-                          console.log('📋 Successfully fetched session data for:', backendSessionId);
-                          setSession(sessionResponse.data);
-                        } else if (sessionResponse.error) {
-                          console.log('📋 Session not found in backend for:', backendSessionId, '- this is expected for Matrix sessions without real backend sessions');
-                          // For Matrix sessions with generated IDs that don't exist in backend, this is normal
-                          // Don't treat this as an error
+                        if (sessionResponse.data?.metadata) {
+                          setSessionMetadata({
+                            workingDir: sessionResponse.data.metadata.working_dir,
+                            description: sessionResponse.data.metadata.description,
+                            scheduleId: sessionResponse.data.metadata.schedule_id || null,
+                            messageCount: sessionResponse.data.metadata.message_count,
+                            totalTokens: sessionResponse.data.metadata.total_tokens || null,
+                            inputTokens: sessionResponse.data.metadata.input_tokens || null,
+                            outputTokens: sessionResponse.data.metadata.output_tokens || null,
+                            accumulatedTotalTokens:
+                              sessionResponse.data.metadata.accumulated_total_tokens || null,
+                            accumulatedInputTokens:
+                              sessionResponse.data.metadata.accumulated_input_tokens || null,
+                            accumulatedOutputTokens:
+                              sessionResponse.data.metadata.accumulated_output_tokens || null,
+                          });
                         }
-                      } catch (err) {
-                        console.log('📋 Session fetch failed for:', backendSessionId, '- likely Matrix session with generated ID that doesn\'t exist in backend');
-                        // This is expected for Matrix sessions that have mappings with generated session IDs
-                        // that don't actually exist in the backend. Don't treat as an error.
+                      } catch (error) {
+                        console.error('Failed to fetch session metadata:', error);
                       }
                     }
                     break;
@@ -401,13 +426,6 @@ export function useMessageStream({
                 }
               } catch (e) {
                 console.error('Error parsing SSE event:', e);
-                
-                // Check if this is a session-related error that we should ignore
-                if (e instanceof Error && e.message.includes('Session not found')) {
-                  console.log('📋 Ignoring session not found error in SSE stream - likely Matrix session without backend mapping');
-                  continue; // Skip this event and continue processing
-                }
-                
                 if (onError && e instanceof Error) {
                   onError(e);
                 }
@@ -438,144 +456,6 @@ export function useMessageStream({
     [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
-  // Function to expand custom command pills in text
-  const expandCustomCommandPills = useCallback((text: string): string => {
-    // Find all action pills in the format [Action Label]
-    const actionPillRegex = /\[([^\]]+)\]/g;
-    let expandedText = text;
-    
-    // Replace each action pill with its corresponding prompt
-    expandedText = expandedText.replace(actionPillRegex, (match, label) => {
-      // Check if it's a custom command by looking for a command with this label
-      try {
-        const stored = localStorage.getItem('goose-custom-commands');
-        if (stored) {
-          const commands = JSON.parse(stored);
-          const customCommand = commands.find((cmd: any) => cmd.label === label);
-          
-          if (customCommand) {
-            // Increment usage count for the custom command
-            try {
-              const updatedCommands = commands.map((cmd: any) => 
-                cmd.id === customCommand.id 
-                  ? { ...cmd, usageCount: (cmd.usageCount || 0) + 1 }
-                  : cmd
-              );
-              localStorage.setItem('goose-custom-commands', JSON.stringify(updatedCommands));
-            } catch (error) {
-              console.error('Error updating usage count:', error);
-            }
-            
-            // Return the expanded prompt
-            return customCommand.prompt || match;
-          }
-        }
-      } catch (error) {
-        console.error('Error expanding custom command:', error);
-      }
-      
-      // If not a custom command, return the original pill (built-in actions)
-      return match;
-    });
-    
-    return expandedText;
-  }, []);
-
-  // Function to expand action pills in messages before sending to API
-  const expandActionPillsInMessages = useCallback((messages: Message[]): Message[] => {
-    return messages.map(message => {
-      if (message.role === 'user') {
-        return {
-          ...message,
-          content: message.content.map(content => {
-            if (content.type === 'text') {
-              return {
-                ...content,
-                text: expandCustomCommandPills(content.text)
-              };
-            }
-            return content;
-          })
-        };
-      }
-      return message;
-    });
-  }, [expandCustomCommandPills]);
-
-  // Function to inject unified sidecar context into the last user message before sending to API
-  const injectSidecarContext = useCallback((messages: Message[]): Message[] => {
-    if (messages.length === 0) return messages;
-    
-    // Get unified sidecar context from global window object with validation
-    const unifiedSidecarContext = (window as any).__unifiedSidecarContext;
-    
-    // Enhanced validation and debugging
-    if (!unifiedSidecarContext) {
-      console.log('🔧 useMessageStream: No unified sidecar context found on window object');
-      return messages;
-    }
-    
-    if (!unifiedSidecarContext.getSidecarContext) {
-      console.warn('🔧 useMessageStream: Unified sidecar context missing getSidecarContext method');
-      return messages;
-    }
-    
-    // Log context info for debugging
-    console.log('🔧 useMessageStream: Found unified sidecar context:', {
-      contextId: unifiedSidecarContext.contextId,
-      version: unifiedSidecarContext.version,
-      hasGetSidecarContext: !!unifiedSidecarContext.getSidecarContext,
-      hasGetActiveSidecars: !!unifiedSidecarContext.getActiveSidecars
-    });
-    
-    try {
-      // First check how many active sidecars we have
-      const activeSidecars = unifiedSidecarContext.getActiveSidecars ? unifiedSidecarContext.getActiveSidecars() : [];
-      console.log('🔧 useMessageStream: Active sidecars before context generation:', activeSidecars.length, 
-        activeSidecars.map(s => ({ id: s.id, type: s.type, title: s.title })));
-      
-      const contextInfo = unifiedSidecarContext.getSidecarContext();
-      console.log('🔧 useMessageStream: Generated context info length:', contextInfo.length, 'chars');
-      
-      if (!contextInfo.trim()) {
-        console.log('🔧 useMessageStream: Context info is empty, not injecting');
-        return messages;
-      }
-      
-      // Find the last user message
-      const lastMessageIndex = messages.length - 1;
-      const lastMessage = messages[lastMessageIndex];
-      
-      if (lastMessage.role !== 'user') {
-        console.log('🔧 useMessageStream: Last message is not from user, not injecting context');
-        return messages;
-      }
-      
-      console.log('🔧 useMessageStream: Injecting context into user message');
-      
-      // Clone the messages array and modify only the last user message
-      const modifiedMessages = [...messages];
-      modifiedMessages[lastMessageIndex] = {
-        ...lastMessage,
-        content: lastMessage.content.map(content => {
-          if (content.type === 'text') {
-            return {
-              ...content,
-              text: `${contextInfo}\n\n---\n\n${content.text}`
-            };
-          }
-          return content;
-        })
-      };
-      
-      console.log('🔧 useMessageStream: Successfully injected sidecar context');
-      return modifiedMessages;
-    } catch (error) {
-      console.error('🔧 useMessageStream: Error injecting sidecar context:', error);
-      return messages;
-    }
-  }, []);
-
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
@@ -587,11 +467,20 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Expand action pills in messages before sending to API
-        let expandedMessages = expandActionPillsInMessages(requestMessages);
-        
-        // Inject unified sidecar context into the last user message before sending to API
-        expandedMessages = injectSidecarContext(expandedMessages);
+        // Filter out messages where sendToLLM is explicitly false
+        const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
+
+        // DIAGNOSTIC: Log the session_id being sent to backend
+        const requestBody = {
+          messages: filteredMessages,
+          ...extraMetadataRef.current.body,
+        };
+        console.log('[Matrix Message Send - useMessageStream] Sending to backend:', {
+          api,
+          session_id: requestBody.session_id,
+          messageCount: filteredMessages.length,
+          timestamp: new Date().toISOString(),
+        });
 
         // Send request to the server
         const response = await fetch(api, {
@@ -601,10 +490,7 @@ export function useMessageStream({
             'X-Secret-Key': await window.electron.getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
-          body: JSON.stringify({
-            messages: expandedMessages,
-            ...extraMetadataRef.current.body,
-          }),
+          body: JSON.stringify(requestBody),
           signal: abortController.signal,
         });
 
@@ -668,8 +554,8 @@ export function useMessageStream({
         }
       }
     },
-
-    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps, expandActionPillsInMessages, injectSidecarContext]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
   );
 
   // Append a new message and send request
@@ -677,21 +563,6 @@ export function useMessageStream({
     async (message: Message | string) => {
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
-
-      // If disabled, just add the message without making API calls
-      if (disabled) {
-        console.log('🚫 useMessageStream is disabled, adding message without API call:', {
-          messageId: messageToAppend.id,
-          role: messageToAppend.role,
-          contentPreview: Array.isArray(messageToAppend.content) 
-            ? messageToAppend.content[0]?.text?.substring(0, 50) + '...' 
-            : 'N/A'
-        });
-        
-        const currentMessages = [...messagesRef.current, messageToAppend];
-        mutate(currentMessages, false);
-        return;
-      }
 
       // If we were waiting for user input and user provides input, transition away from that state
       if (chatState === ChatState.WaitingForUserInput) {
@@ -702,7 +573,7 @@ export function useMessageStream({
       mutate(currentMessages, false);
       await sendRequest(currentMessages);
     },
-    [mutate, sendRequest, chatState, mutateChatState, disabled]
+    [mutate, sendRequest, chatState, mutateChatState]
   );
 
   // Reload the last message
@@ -838,7 +709,7 @@ export function useMessageStream({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    session: session,
+    sessionMetadata,
     setError,
   };
 }

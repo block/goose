@@ -18,4 +18,8 @@ export interface ChatType {
   recipeParameters?: Record<string, string> | null; // Add recipe parameters to chat state
   matrixContext?: MatrixChatContext | null; // Add Matrix chat context
   aiEnabled?: boolean; // Whether AI responses are enabled for this chat (default: true for regular chats, false for Matrix DMs)
+  // Matrix-specific properties for message routing
+  matrixRoomId?: string | null; // The Matrix room ID (e.g., !roomId:server.com)
+  matrixRecipientId?: string | null; // The recipient user ID for Matrix rooms
+  isMatrixTab?: boolean; // Flag to identify Matrix tabs
 }

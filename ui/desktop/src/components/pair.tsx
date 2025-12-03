@@ -935,6 +935,8 @@ export default function Pair({
   const customChatInputProps = {
     // Pass initial message from Hub or recipe prompt
     initialValue,
+    // Pass Matrix room ID if this is a Matrix chat
+    matrixRoomId: chat.matrixRoomId || null,
   };
 
   // Matrix collaboration should be invisible - just a regular chat with Matrix sync
