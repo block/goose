@@ -7,6 +7,7 @@ import { useTabContext } from '../contexts/TabContext';
 import { ResizableSplitter } from './Layout/ResizableSplitter';
 import { TaskExecutionProvider } from '../contexts/TaskExecutionContext';
 import { SpaceBreadcrumb } from './SpaceBreadcrumb';
+import { useNavigate } from 'react-router-dom';
 
 interface TabbedChatContainerProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -23,6 +24,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   initialMessage,
   sidebarCollapsed = false
 }) => {
+  const navigate = useNavigate();
   const {
     tabStates,
     activeTabId,
@@ -35,10 +37,25 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     syncTabTitleWithBackend,
     updateTabTitleFromMessage,
     updateSessionId,
+    openMatrixChat,
     // Sidecar functions
     hideSidecarView,
     getSidecarState
   } = useTabContext();
+
+  // Handle room switching from breadcrumb
+  const handleRoomSwitch = useCallback((roomId: string) => {
+    console.log('🔄 Switching to room:', roomId);
+    openMatrixChat(roomId);
+  }, [openMatrixChat]);
+
+  // Handle space navigation from breadcrumb
+  const handleSpaceNavigation = useCallback((spaceId: string) => {
+    console.log('🏠 Navigating to space:', spaceId);
+    // TODO: Navigate to space view (e.g., SpaceRoomsView or ChannelsView)
+    // For now, we could navigate to the first room in the space
+    // navigate(`/channels/${spaceId}`);
+  }, [navigate]);
 
   const handleMessageSubmitWrapper = useCallback(async (message: string, tabId: string) => {
     // Find the tab state to check if this is the first message
@@ -204,7 +221,11 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
         {/* Space Breadcrumb - Show for Matrix tabs with room IDs */}
         {activeTabState && activeTabState.tab.type === 'matrix' && activeTabState.tab.matrixRoomId && (
           <div className="flex-shrink-0">
-            <SpaceBreadcrumb roomId={activeTabState.tab.matrixRoomId} />
+            <SpaceBreadcrumb 
+              roomId={activeTabState.tab.matrixRoomId}
+              onRoomClick={handleRoomSwitch}
+              onSpaceClick={handleSpaceNavigation}
+            />
           </div>
         )}
 
