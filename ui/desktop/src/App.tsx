@@ -49,7 +49,7 @@ import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/E
 import { Recipe } from './recipe';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
-import BuildView from './components/build/BuildView';
+// import BuildView from './components/build/BuildView'; // Commented out - component doesn't exist in this branch
 import { CleanFeedView } from './components/feed/CleanFeedView';
 import { TestFeed } from './components/feed/TestFeed';
 
@@ -1520,14 +1520,15 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                <Route
+                {/* Commented out - BuildView component doesn't exist in this branch */}
+                {/* <Route
                   path="build"
                   element={
                     <ProviderGuard>
                       <BuildView />
                     </ProviderGuard>
                   }
-                />
+                /> */}
                 <Route
                   path="recipe-editor"
                   element={
