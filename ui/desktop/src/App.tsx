@@ -1520,14 +1520,14 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                <Route
+                {/* <Route
                   path="build"
                   element={
                     <ProviderGuard>
                       <BuildView />
                     </ProviderGuard>
                   }
-                />
+                /> */}
                 <Route
                   path="recipe-editor"
                   element={
@@ -1556,14 +1556,14 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                <Route
+                {/* <Route
                   path="feed"
                   element={
                     <ProviderGuard>
                       <TestFeed />
                     </ProviderGuard>
                   }
-                />
+                /> */}
                 {/*<Route*/}
                 {/*  path="projects"*/}
                 {/*  element={*/}
