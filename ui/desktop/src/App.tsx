@@ -50,8 +50,8 @@ import { Recipe } from './recipe';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
 // import BuildView from './components/build/BuildView'; // Commented out - component doesn't exist in this branch
-import { CleanFeedView } from './components/feed/CleanFeedView';
-import { TestFeed } from './components/feed/TestFeed';
+// import { CleanFeedView } from './components/feed/CleanFeedView'; // Commented out - feed directory doesn't exist in this branch
+// import { TestFeed } from './components/feed/TestFeed'; // Commented out - feed directory doesn't exist in this branch
 
 export type View =
   | 'welcome'
@@ -1557,14 +1557,15 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                <Route
+                {/* Commented out - TestFeed component doesn't exist in this branch */}
+                {/* <Route
                   path="feed"
                   element={
                     <ProviderGuard>
                       <TestFeed />
                     </ProviderGuard>
                   }
-                />
+                /> */}
                 {/*<Route*/}
                 {/*  path="projects"*/}
                 {/*  element={*/}
