@@ -2372,7 +2372,7 @@ export class MatrixService extends EventEmitter {
               sessionData = JSON.parse(sessionJson);
               actualContent = sessionData.content || actualContent;
               
-              // FIXED: Better role detection for session messages
+              // Better role detection for session messages
               if (sessionData.role === 'assistant' || sessionData.role === 'ai' || sessionData.role === 'goose') {
                 messageType = 'assistant';
               } else if (sessionData.role === 'system') {
@@ -2386,19 +2386,33 @@ export class MatrixService extends EventEmitter {
               console.warn('Failed to parse session message:', error);
             }
           }
-          // Check if this is a regular Goose/AI message
-          else if (content['goose.message.type'] || content['goose.type'] || 
-              this.isGooseInstance(sender, senderInfo.displayName) ||
-              this.looksLikeGooseMessage(actualContent)) {
+          // Check if this is a regular Goose/AI message (but NOT from self unless it has explicit Goose markers)
+          else if (content['goose.message.type'] || content['goose.type']) {
+            // Explicit Goose message markers - always treat as assistant
             messageType = 'assistant';
-          } else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
+          }
+          // Check if message is from a known Goose instance (not self)
+          else if (!isFromSelf && this.isGooseInstance(sender, senderInfo.displayName)) {
+            messageType = 'assistant';
+          }
+          // Check if message content looks like a Goose message (not self)
+          else if (!isFromSelf && this.looksLikeGooseMessage(actualContent)) {
+            messageType = 'assistant';
+          }
+          // System messages
+          else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
             messageType = 'system';
           }
-          
-          // ADDITIONAL FIX: Check if message is from self but contains AI response patterns
-          else if (isFromSelf && this.looksLikeGooseMessage(actualContent)) {
-            // This handles cases where the user's own messages contain AI responses
-            messageType = 'assistant';
+          // CRITICAL FIX: Messages from self that don't have explicit Goose markers should be 'user'
+          // This ensures user's own messages are properly categorized as 'user' type
+          else {
+            // Default to 'user' for all other messages, including messages from self
+            messageType = 'user';
+            
+            // Log for debugging
+            if (isFromSelf) {
+              console.log('📜 Message from self categorized as user:', actualContent.substring(0, 50) + '...');
+            }
           }
 
           return {
