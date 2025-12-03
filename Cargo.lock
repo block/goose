@@ -3173,6 +3173,7 @@ dependencies = [
  "goose-server",
  "ratatui",
  "rmcp 0.9.1",
+ "rustyline",
  "serde",
  "serde_json",
  "termimad",

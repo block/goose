@@ -2,6 +2,7 @@ use super::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::AppState;
+use crate::utils::spinner::SPINNER_FRAMES;
 use anyhow::Result;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -72,8 +73,7 @@ impl Component for InfoComponent {
         let theme = &state.config.theme;
 
         if state.is_working {
-            let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-            let spinner = spinner_frames[self.frame_count % spinner_frames.len()];
+            let spinner = SPINNER_FRAMES[self.frame_count % SPINNER_FRAMES.len()];
 
             spans.push(Span::styled(
                 format!("{spinner} "),

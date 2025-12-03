@@ -691,13 +691,13 @@ mod tests {
             }),
         );
 
-        let spec = format_tools(&[tool.clone()], "gpt-4o")?;
+        let spec = format_tools(std::slice::from_ref(&tool), "gpt-4o")?;
         assert_eq!(
             spec[0]["function"]["parameters"]["$schema"],
             "http://json-schema.org/draft-07/schema#"
         );
 
-        let spec = format_tools(&[tool.clone()], "gemini-2-5-flash")?;
+        let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
         assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
         assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 

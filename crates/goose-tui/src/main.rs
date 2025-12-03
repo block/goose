@@ -1,5 +1,6 @@
 mod action_handler;
 mod app;
+mod cli;
 mod components;
 mod headless;
 mod runner;
@@ -83,6 +84,9 @@ struct Cli {
     )]
     text: Option<String>,
 
+    #[arg(long, help = "Run in CLI mode (interactive terminal, no TUI)")]
+    cli: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -134,25 +138,26 @@ fn read_stdin_if_piped() -> Option<String> {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli_args = Cli::parse();
 
-    if let Some(Commands::Mcp { name }) = cli.command {
+    if let Some(Commands::Mcp { name }) = cli_args.command {
         return run_mcp_server(name);
     }
 
     let stdin_input = read_stdin_if_piped();
-    let text_input = cli.text.or(stdin_input);
+    let text_input = cli_args.text.or(stdin_input);
 
     let secret_key = Uuid::new_v4().to_string();
     std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
     std::env::set_var("GOOSE_PORT", "0");
 
     tokio::runtime::Runtime::new()?.block_on(run_tui(
-        cli.session,
-        cli.name,
-        cli.resume,
-        cli.recipe,
-        cli.headless,
+        cli_args.session,
+        cli_args.name,
+        cli_args.resume,
+        cli_args.recipe,
+        cli_args.headless,
+        cli_args.cli,
         text_input,
         secret_key,
     ))
@@ -224,12 +229,14 @@ async fn resolve_session_id(
     Ok(None)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_tui(
     session: Option<String>,
     name: Option<String>,
     resume: bool,
     recipe: Option<PathBuf>,
     headless: bool,
+    cli_mode: bool,
     text_input: Option<String>,
     secret_key: String,
 ) -> Result<()> {
@@ -263,6 +270,8 @@ async fn run_tui(
         run_text_mode(client, cwd, resolved_session, name, prompt).await
     } else if headless {
         anyhow::bail!("--headless requires either --recipe or --text (or piped stdin)")
+    } else if cli_mode {
+        run_cli_mode(client, cwd, resolved_session, name).await
     } else {
         run_interactive_mode(client, cwd, resolved_session, name).await
     };
@@ -421,4 +430,46 @@ async fn run_interactive_mode(
 
     tui::restore()?;
     result
+}
+
+async fn run_cli_mode(
+    client: Client,
+    cwd: std::path::PathBuf,
+    session: Option<String>,
+    name: Option<String>,
+) -> Result<()> {
+    info!("Starting CLI mode");
+
+    let initial_session = if let Some(id) = session {
+        info!("Resuming session: {}", id);
+        client.resume_agent(&id).await?
+    } else {
+        let new_session = client
+            .start_agent(cwd.to_string_lossy().to_string())
+            .await?;
+
+        if let Some(ref session_name) = name {
+            if let Err(e) = client
+                .update_session_name(&new_session.id, session_name)
+                .await
+            {
+                tracing::warn!("Failed to set session name: {}", e);
+            }
+        }
+
+        new_session
+    };
+
+    let (provider, model) = configure_session_from_global(&client, &initial_session.id).await;
+
+    let context_limit = model
+        .as_ref()
+        .and_then(|m| {
+            goose::model::ModelConfig::new(m)
+                .ok()
+                .map(|c| c.context_limit())
+        })
+        .unwrap_or(goose_tui::DEFAULT_CONTEXT_LIMIT);
+
+    cli::run_cli(client, initial_session.id, provider, model, context_limit).await
 }

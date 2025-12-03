@@ -3,6 +3,7 @@ pub mod json;
 pub mod layout;
 pub mod message_format;
 pub mod sanitize;
+pub mod spinner;
 pub mod styles;
 pub mod termimad_renderer;
 

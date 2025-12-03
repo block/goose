@@ -35,6 +35,7 @@ unicode-width = "0.2.0"
 arboard = "3.6.1"
 ansi-to-tui = "7.0.0"
 git2 = "0.18"
+rustyline = "15"
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full"] }

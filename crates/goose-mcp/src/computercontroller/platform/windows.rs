@@ -2,6 +2,7 @@ use super::SystemAutomation;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[allow(dead_code)]
 pub struct WindowsAutomation;
 
 impl SystemAutomation for WindowsAutomation {
