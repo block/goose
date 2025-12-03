@@ -2328,6 +2328,7 @@ export class MatrixService extends EventEmitter {
 
     try {
       console.log('🔍 Fetching room history for:', roomId, 'limit:', limit);
+      console.log('🔍 Current user ID:', this.config.userId);
       
       const room = this.client.getRoom(roomId);
       if (!room) {
@@ -2342,13 +2343,22 @@ export class MatrixService extends EventEmitter {
       console.log('📜 Found', events.length, 'events in room timeline');
       
       // Filter and convert message events
-      const messages = events
-        .filter(event => event.getType() === 'm.room.message')
+      const messageEvents = events.filter(event => event.getType() === 'm.room.message');
+      console.log('📜 Found', messageEvents.length, 'message events');
+      
+      const messages = messageEvents
         .slice(-limit) // Get the last N messages
-        .map(event => {
+        .map((event, index) => {
           const content = event.getContent();
           const sender = event.getSender();
           const isFromSelf = sender === this.config.userId;
+          
+          console.log(`📜 Processing message ${index + 1}/${Math.min(messageEvents.length, limit)}:`, {
+            sender: sender?.substring(0, 30) + '...',
+            isFromSelf,
+            contentPreview: content.body?.substring(0, 50) + '...',
+            timestamp: new Date(event.getTs()).toISOString()
+          });
           
           // Get sender information
           const senderMember = room.getMember(sender);
@@ -2390,18 +2400,22 @@ export class MatrixService extends EventEmitter {
           else if (content['goose.message.type'] || content['goose.type']) {
             // Explicit Goose message markers - always treat as assistant
             messageType = 'assistant';
+            console.log('📜 Explicit Goose message detected:', content['goose.message.type'] || content['goose.type']);
           }
           // Check if message is from a known Goose instance (not self)
           else if (!isFromSelf && this.isGooseInstance(sender, senderInfo.displayName)) {
             messageType = 'assistant';
+            console.log('📜 Message from Goose instance detected:', sender);
           }
           // Check if message content looks like a Goose message (not self)
           else if (!isFromSelf && this.looksLikeGooseMessage(actualContent)) {
             messageType = 'assistant';
+            console.log('📜 Message content looks like Goose message');
           }
           // System messages
           else if (content.msgtype === 'm.notice' || sender.includes('bot')) {
             messageType = 'system';
+            console.log('📜 System message detected');
           }
           // CRITICAL FIX: Messages from self that don't have explicit Goose markers should be 'user'
           // This ensures user's own messages are properly categorized as 'user' type
@@ -2411,11 +2425,13 @@ export class MatrixService extends EventEmitter {
             
             // Log for debugging
             if (isFromSelf) {
-              console.log('📜 Message from self categorized as user:', actualContent.substring(0, 50) + '...');
+              console.log('📜 ✅ Message from self categorized as user:', actualContent.substring(0, 50) + '...');
+            } else {
+              console.log('📜 Message from other user categorized as user:', actualContent.substring(0, 50) + '...');
             }
           }
 
-          return {
+          const result = {
             messageId: event.getId() || `msg_${event.getTs()}`,
             sender,
             content: actualContent,
@@ -2434,9 +2450,26 @@ export class MatrixService extends EventEmitter {
               originalContent: content.body,
             },
           };
+          
+          console.log(`📜 Final result for message ${index + 1}:`, {
+            type: result.type,
+            isFromSelf: result.isFromSelf,
+            sender: result.sender?.substring(0, 30) + '...',
+            content: result.content?.substring(0, 50) + '...'
+          });
+          
+          return result;
         });
 
       console.log('📜 Processed', messages.length, 'messages from room history');
+      console.log('📜 Message type breakdown:', {
+        user: messages.filter(m => m.type === 'user').length,
+        assistant: messages.filter(m => m.type === 'assistant').length,
+        system: messages.filter(m => m.type === 'system').length,
+        fromSelf: messages.filter(m => m.isFromSelf).length,
+        fromOthers: messages.filter(m => !m.isFromSelf).length,
+      });
+      
       return messages;
       
     } catch (error) {
