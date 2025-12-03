@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
 import { matrixService } from '../../services/MatrixService';
 import { sessionMappingService } from '../../services/SessionMappingService';
+import { matrixHistorySyncService } from '../../services/MatrixHistorySync';
 
 interface SpaceRoomsViewProps {
   spaceId: string;

@@ -13,6 +13,7 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { Message } from '../types/message';
 import { sessionMappingService } from '../services/SessionMappingService';
+import { matrixHistorySyncService } from '../services/MatrixHistorySync';
 
 export interface PairRouteState {
   resumeSessionId?: string;
