@@ -1069,9 +1069,15 @@ export default function Pair({
     return customChatInputProps;
   }, [customChatInputProps, isMatrixMode, matrixRoomId, rooms]);
 
+  // Ensure chat has a valid sessionId before rendering
+  const safeChat = {
+    ...chat,
+    sessionId: chat.sessionId || 'temp_loading',
+  };
+
   return (
     <BaseChat
-      chat={chat} // Keep original chat with backend session ID
+      chat={safeChat} // Keep original chat with backend session ID, but ensure sessionId is never empty
       loadingChat={loadingChat || isLoadingMatrixHistory} // Include Matrix history loading
       autoSubmit={shouldAutoSubmit}
       setChat={setChat}
