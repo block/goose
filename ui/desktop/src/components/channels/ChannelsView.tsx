@@ -19,6 +19,7 @@ import MatrixAuth from '../peers/MatrixAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
 import { matrixService } from '../../services/MatrixService';
+import { sessionMappingService } from '../../services/SessionMappingService';
 
 interface Channel {
   roomId: string;
@@ -652,9 +653,48 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   };
 
   const handleCreateChannel = async (name: string, topic: string, isPublic: boolean) => {
-    // TODO: Implement channel creation via Matrix service
-    console.log('Creating channel:', { name, topic, isPublic });
-    alert('Channel creation not yet implemented');
+    try {
+      console.log('📝 Creating Matrix channel:', { name, topic, isPublic });
+      
+      if (!matrixService.client) {
+        throw new Error('Matrix client not initialized');
+      }
+      
+      // Create the Matrix room with appropriate settings
+      const room = await matrixService.client.createRoom({
+        name: name,
+        topic: topic,
+        preset: isPublic ? 'public_chat' : 'private_chat',
+        visibility: isPublic ? 'public' : 'private',
+        // For public rooms, allow anyone to join
+        initial_state: isPublic ? [
+          {
+            type: 'm.room.join_rules',
+            content: {
+              join_rule: 'public'
+            }
+          }
+        ] : undefined
+      });
+      
+      const roomId = room.room_id;
+      console.log('✅ Channel created successfully:', roomId);
+      
+      // Create session mapping for the new channel
+      const participants = [currentUser?.userId || ''];
+      await sessionMappingService.createMappingWithBackendSession(roomId, participants, name);
+      
+      // Clear rooms cache to refresh the channel list
+      matrixService['cachedRooms'] = null;
+      
+      // Emit event to refresh UI
+      matrixService.emit('roomCreated', { roomId, name });
+      
+      console.log('✅ Channel creation complete');
+    } catch (error) {
+      console.error('❌ Failed to create channel:', error);
+      throw error;
+    }
   };
 
   const handleEditChannel = (channel: Channel) => {
