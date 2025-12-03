@@ -687,8 +687,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       // Clear rooms cache to refresh the channel list
       matrixService['cachedRooms'] = null;
       
-      // Emit event to refresh UI
-      matrixService.emit('roomCreated', { roomId, name });
+      // Wait a moment for Matrix to sync the new room
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force a refresh by emitting the ready event which triggers room list update
+      matrixService.emit('ready');
       
       console.log('✅ Channel creation complete');
     } catch (error) {
