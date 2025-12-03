@@ -50,6 +50,9 @@ import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/E
 import { Recipe } from './recipe';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
+import MarketplaceView from './components/marketplace/MarketplaceView';
+import PeersView from './components/peers/PeersView';
+import ChannelsView from './components/channels/ChannelsView';
 // import BuildView from './components/build/BuildView';
 // import { CleanFeedView } from './components/feed/CleanFeedView';
 // import { TestFeed } from './components/feed/TestFeed';
@@ -1524,6 +1527,30 @@ export default function App() {
                   element={
                     <ProviderGuard>
                       <RecipesRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="marketplace"
+                  element={
+                    <ProviderGuard>
+                      <MarketplaceView />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="peers"
+                  element={
+                    <ProviderGuard>
+                      <PeersView />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="channels"
+                  element={
+                    <ProviderGuard>
+                      <ChannelsView />
                     </ProviderGuard>
                   }
                 />
