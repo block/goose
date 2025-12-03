@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
 import { matrixService } from '../../services/MatrixService';
 import { sessionMappingService } from '../../services/SessionMappingService';
+import SpaceRoomsView from './SpaceRoomsView';
 
 interface Channel {
   roomId: string;
@@ -548,6 +549,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [selectedSpace, setSelectedSpace] = useState<{ id: string; name: string } | null>(null);
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -607,9 +609,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     return mxcUrl;
   };
 
-  // Filter channels (non-DM rooms) from Matrix rooms and add favorite status
-  const channels: Channel[] = rooms
-    .filter(room => !room.isDirectMessage)
+  // Get Matrix Spaces from context
+  const { spaces } = useMatrix();
+  
+  // Map Spaces to channels and add favorite status
+  const channels: Channel[] = spaces
     .map(room => ({
       roomId: room.roomId,
       name: room.name || 'Unnamed Channel',
@@ -639,63 +643,31 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
 
   const handleOpenChannel = async (channel: Channel) => {
     try {
-      console.log('📱 Opening channel:', channel);
+      console.log('📦 Opening Space:', channel);
       
-      // Open a new tab/chat session with Matrix room parameters
-      // Pass the channel name so it appears in the tab title
-      openMatrixChat(channel.roomId, currentUser?.userId || '', channel.name);
-      
-      // Navigate to the pair view where the tabs are displayed
-      navigate('/pair');
+      // Set the selected space to show its rooms
+      setSelectedSpace({ id: channel.roomId, name: channel.name });
     } catch (error) {
-      console.error('Failed to open channel:', error);
+      console.error('Failed to open Space:', error);
     }
   };
 
   const handleCreateChannel = async (name: string, topic: string, isPublic: boolean) => {
     try {
-      console.log('📝 Creating Matrix channel:', { name, topic, isPublic });
+      console.log('📦 Creating Matrix Space:', { name, topic, isPublic });
       
-      if (!matrixService.client) {
-        throw new Error('Matrix client not initialized');
-      }
+      // Use the new createSpace method from MatrixService
+      const spaceId = await matrixService.createSpace(name, topic, isPublic);
       
-      // Create the Matrix room with appropriate settings
-      const room = await matrixService.client.createRoom({
-        name: name,
-        topic: topic,
-        preset: isPublic ? 'public_chat' : 'private_chat',
-        visibility: isPublic ? 'public' : 'private',
-        // For public rooms, allow anyone to join
-        initial_state: isPublic ? [
-          {
-            type: 'm.room.join_rules',
-            content: {
-              join_rule: 'public'
-            }
-          }
-        ] : undefined
-      });
+      console.log('✅ Space created successfully:', spaceId);
       
-      const roomId = room.room_id;
-      console.log('✅ Channel created successfully:', roomId);
-      
-      // Create session mapping for the new channel
+      // Create session mapping for the new space
       const participants = [currentUser?.userId || ''];
-      await sessionMappingService.createMappingWithBackendSession(roomId, participants, name);
+      await sessionMappingService.createMappingWithBackendSession(spaceId, participants, name);
       
-      // Clear rooms cache to refresh the channel list
-      matrixService['cachedRooms'] = null;
-      
-      // Wait a moment for Matrix to sync the new room
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Force a refresh by emitting the ready event which triggers room list update
-      matrixService.emit('ready');
-      
-      console.log('✅ Channel creation complete');
+      console.log('✅ Space creation complete');
     } catch (error) {
-      console.error('❌ Failed to create channel:', error);
+      console.error('❌ Failed to create Space:', error);
       throw error;
     }
   };
@@ -775,6 +747,17 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
+  }
+
+  // Show SpaceRoomsView if a space is selected
+  if (selectedSpace) {
+    return (
+      <SpaceRoomsView
+        spaceId={selectedSpace.id}
+        spaceName={selectedSpace.name}
+        onBack={() => setSelectedSpace(null)}
+      />
+    );
   }
 
   return (
