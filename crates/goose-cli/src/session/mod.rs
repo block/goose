@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod elicitation;
 mod export;
 mod input;
 mod output;
@@ -852,9 +853,9 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
+                            // Check for tool confirmation requests
                             let tool_call_confirmation = message.content.iter().find_map(|content| {
                                 if let MessageContent::ActionRequired(action) = content {
-                                    #[allow(irrefutable_let_patterns)] // this is a one variant enum right now but it will have more
                                     if let ActionRequiredData::ToolConfirmation { id, tool_name, arguments, prompt } = &action.data {
                                         Some((id.clone(), tool_name.clone(), arguments.clone(), prompt.clone()))
                                     } else {
@@ -865,7 +866,70 @@ impl CliSession {
                                 }
                             });
 
-                            if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
+                            // Check for elicitation requests
+                            let elicitation_request = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    if let ActionRequiredData::Elicitation { id, message, requested_schema } = &action.data {
+                                        Some((id.clone(), message.clone(), requested_schema.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
+                            if let Some((id, elicitation_message, schema)) = elicitation_request {
+                                // Handle elicitation request - show form and collect user input
+                                output::hide_thinking();
+                                let _ = progress_bars.hide();
+
+                                // Store the elicitation message in conversation
+                                self.messages.push(message.clone());
+
+                                match elicitation::render_elicitation_form(&elicitation_message, &schema) {
+                                    Ok(elicitation::ElicitationResult::Submitted(user_data)) => {
+                                        // Create response message with user data
+                                        let response_message = Message::user()
+                                            .with_content(MessageContent::action_required_elicitation_response(
+                                                id.clone(),
+                                                user_data,
+                                            ))
+                                            .with_metadata(goose::conversation::message::MessageMetadata::agent_only());
+
+                                        // Drop the stream before mutating self
+                                        drop(stream);
+
+                                        // Push the response and continue processing
+                                        self.push_message(response_message.clone());
+
+                                        // Restart the stream with the elicitation response
+                                        stream = self
+                                            .agent
+                                            .reply(
+                                                response_message,
+                                                session_config.clone(),
+                                                Some(cancel_token.clone()),
+                                            )
+                                            .await?;
+
+                                        println!(
+                                            "{}",
+                                            console::style("✓ Information submitted").green()
+                                        );
+                                        output::show_thinking();
+                                    }
+                                    Ok(elicitation::ElicitationResult::Cancelled) => {
+                                        println!(
+                                            "{}",
+                                            console::style("Information request cancelled.").yellow()
+                                        );
+                                    }
+                                    Err(e) => {
+                                        output::render_error(&format!("Failed to collect form input: {}", e));
+                                    }
+                                }
+                            } else if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt - use security message if present, otherwise use generic message

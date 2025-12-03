@@ -788,8 +788,13 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse { id, user_data } = &action_required.data {
-                    if let Err(e) = ActionRequiredManager::global().submit_response(id.clone(), user_data.clone()).await {
+                if let ActionRequiredData::ElicitationResponse { id, user_data } =
+                    &action_required.data
+                {
+                    if let Err(e) = ActionRequiredManager::global()
+                        .submit_response(id.clone(), user_data.clone())
+                        .await
+                    {
                         warn!("Failed to submit elicitation response: {}", e);
                     }
                     SessionManager::add_message(&session_config.id, &user_message).await?;
