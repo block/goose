@@ -70,7 +70,7 @@ const CollaborativeSession: React.FC<CollaborativeSessionProps> = ({
     friends, 
     sendAIPrompt, 
     sendAIResponse, 
-    inviteToRoom,
+    inviteToRoomAndSpace,
     onAIMessage,
     isConnected 
   } = useMatrix();
@@ -166,12 +166,13 @@ const CollaborativeSession: React.FC<CollaborativeSessionProps> = ({
     }
   }, [roomId, sessionId, sessionData, sendAIResponse]);
 
-  // Invite friend to session
+  // Invite friend to session (and parent Space if applicable)
   const handleInviteFriend = async (friendId: string) => {
     if (!roomId) return;
 
     try {
-      await inviteToRoom(roomId, friendId);
+      // Use inviteToRoomAndSpace to automatically invite to parent Space if room is in a Space
+      await inviteToRoomAndSpace(roomId, friendId);
       setShowInviteModal(false);
     } catch (error) {
       console.error('Failed to invite friend to session:', error);

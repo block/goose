@@ -72,10 +72,24 @@ const menuItems: NavigationEntry[] = [
   },
   {
     type: 'item',
-    path: '/schedules',
+    path: '/marketplace',
     label: 'Marketplace',
     icon: Clock,
     tooltip: 'Browse marketplace',
+  },
+  {
+    type: 'item',
+    path: '/peers',
+    label: 'Peers',
+    icon: History,
+    tooltip: 'Connect with peers',
+  },
+  {
+    type: 'item',
+    path: '/channels',
+    label: 'Channels',
+    icon: FileText,
+    tooltip: 'Browse channels',
   },
   {
     type: 'item',

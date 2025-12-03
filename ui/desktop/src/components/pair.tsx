@@ -13,6 +13,7 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 import { useMatrix } from '../contexts/MatrixContext';
 import { Message } from '../types/message';
 import { sessionMappingService } from '../services/SessionMappingService';
+import { matrixHistorySyncService } from '../services/MatrixHistorySync';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -934,6 +935,8 @@ export default function Pair({
   const customChatInputProps = {
     // Pass initial message from Hub or recipe prompt
     initialValue,
+    // Pass Matrix room ID if this is a Matrix chat
+    matrixRoomId: chat.matrixRoomId || null,
   };
 
   // Matrix collaboration should be invisible - just a regular chat with Matrix sync
@@ -1065,6 +1068,17 @@ export default function Pair({
     }
     return customChatInputProps;
   }, [customChatInputProps, isMatrixMode, matrixRoomId, rooms]);
+
+  // Don't render if we don't have a valid sessionId yet
+  if (!chat.sessionId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-text-muted">Initializing chat...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BaseChat

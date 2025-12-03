@@ -10,6 +10,7 @@ interface MatrixContextType {
   // Data
   friends: MatrixUser[];
   rooms: MatrixRoom[];
+  spaces: MatrixRoom[];
   gooseInstances: GooseInstance[];
   
   // Actions
@@ -21,6 +22,7 @@ interface MatrixContextType {
   createAISession: (name: string, inviteUserIds?: string[]) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
   inviteToRoom: (roomId: string, userId: string) => Promise<void>;
+  inviteToRoomAndSpace: (roomId: string, userId: string) => Promise<void>;
   sendMessage: (roomId: string, message: string) => Promise<void>;
   sendAIPrompt: (roomId: string, prompt: string, sessionId: string, model?: string) => Promise<void>;
   setAvatar: (file: File) => Promise<string>;
@@ -101,6 +103,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
   const [currentUser, setCurrentUser] = useState<MatrixUser | null>(null);
   const [friends, setFriends] = useState<MatrixUser[]>([]);
   const [rooms, setRooms] = useState<MatrixRoom[]>([]);
+  const [spaces, setSpaces] = useState<MatrixRoom[]>([]);
   const [gooseInstances, setGooseInstances] = useState<GooseInstance[]>([]);
 
   useEffect(() => {
@@ -205,6 +208,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     setCurrentUser(user);
     setFriends(matrixService.getFriends());
     setRooms(matrixService.getRooms());
+    setSpaces(matrixService.getSpaces());
     setGooseInstances(matrixService.getGooseInstances());
   };
 
@@ -240,6 +244,11 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
 
   const inviteToRoom = async (roomId: string, userId: string) => {
     await matrixService.inviteToRoom(roomId, userId);
+    // Data will be updated via the membershipChange event
+  };
+
+  const inviteToRoomAndSpace = async (roomId: string, userId: string) => {
+    await matrixService.inviteToRoomAndSpace(roomId, userId);
     // Data will be updated via the membershipChange event
   };
 
@@ -392,6 +401,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     currentUser,
     friends,
     rooms,
+    spaces,
     gooseInstances,
     login,
     register,
@@ -401,6 +411,7 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     createAISession,
     joinRoom,
     inviteToRoom,
+    inviteToRoomAndSpace,
     sendMessage,
     sendAIPrompt,
     setAvatar,

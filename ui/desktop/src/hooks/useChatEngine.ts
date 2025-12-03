@@ -579,6 +579,13 @@ export const useChatEngine = ({
   const handleSubmit = useCallback(
     (combinedTextFromInput: string, onSummaryReset?: () => void) => {
       if (combinedTextFromInput.trim()) {
+        // DIAGNOSTIC: Log session info when sending message
+        console.log('[Matrix Message Send - useChatEngine] Sending message:', {
+          chatId: chat.id,
+          messagePreview: combinedTextFromInput.substring(0, 50) + '...',
+          timestamp: new Date().toISOString(),
+        });
+
         try {
           window.electron.startPowerSaveBlocker();
         } catch (error) {
@@ -615,7 +622,7 @@ export const useChatEngine = ({
         stopPowerSaveBlocker();
       }
     },
-    [append, onMessageSent, stopPowerSaveBlocker]
+    [append, onMessageSent, stopPowerSaveBlocker, chat.id]
   );
 
   // Handle stopping the message stream
