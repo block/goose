@@ -355,8 +355,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session.id
     } else if session_config.resume {
         if let Some(session_id) = session_config.session_id {
-            match SessionManager::get_session(&session_id, false).await {
-                Ok(_) => session_id,
+            match SessionManager::ensure_local_session(&session_id).await {
+                Ok(id) => id,
                 Err(_) => {
                     output::render_error(&format!(
                         "Cannot resume session {} - no such session exists",

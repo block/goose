@@ -271,6 +271,10 @@ impl SessionManager {
             .await
     }
 
+    pub async fn ensure_local_session(id: &str) -> Result<String> {
+        Self::instance().await?.ensure_local_session(id).await
+    }
+
     pub fn update_session(id: &str) -> SessionUpdateBuilder {
         SessionUpdateBuilder::new(id.to_string())
     }
@@ -934,6 +938,34 @@ impl SessionStorage {
         Ok(session)
     }
 
+    async fn ensure_local_session(&self, id: &str) -> Result<String> {
+        let exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await?;
+
+        if exists {
+            return Ok(id.to_string());
+        }
+
+        use crate::session::external_sessions;
+        if let Some(external) = external_sessions::get_external_session(id, true) {
+            let session = self
+                .create_session(external.working_dir, external.name, SessionType::User)
+                .await?;
+
+            if let Some(conversation) = external.conversation {
+                self.replace_conversation(&session.id, &conversation)
+                    .await?;
+            }
+
+            return Ok(session.id);
+        }
+
+        Err(anyhow::anyhow!("Session not found: {}", id))
+    }
+
     #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
@@ -1078,6 +1110,8 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let local_id = self.ensure_local_session(session_id).await?;
+
         let mut tx = self.pool.begin().await?;
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
@@ -1088,7 +1122,7 @@ impl SessionStorage {
             VALUES (?, ?, ?, ?, ?)
         "#,
         )
-        .bind(session_id)
+        .bind(&local_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
@@ -1097,7 +1131,7 @@ impl SessionStorage {
         .await?;
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
-            .bind(session_id)
+            .bind(&local_id)
             .execute(&mut *tx)
             .await?;
 
