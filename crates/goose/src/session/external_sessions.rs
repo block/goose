@@ -67,45 +67,39 @@ pub fn get_external_session(id: &str, include_messages: bool) -> Option<Session>
 fn get_claude_code_session(id: &str, include_messages: bool) -> Option<Session> {
     let sessions = crate::session::claude_code::list_claude_code_sessions().ok()?;
 
-    sessions
-        .into_iter()
-        .find(|s| s.id == id)
-        .map(|s| {
-            let conversation = if include_messages {
-                crate::session::claude_code::load_claude_code_session_from_path(&s.file_path).ok()
-            } else {
-                None
-            };
-            create_external_session(
-                ExternalSessionSource::ClaudeCode,
-                s.id,
-                s.working_dir,
-                s.updated_at,
-                conversation,
-            )
-        })
+    sessions.into_iter().find(|s| s.id == id).map(|s| {
+        let conversation = if include_messages {
+            crate::session::claude_code::load_claude_code_session_from_path(&s.file_path).ok()
+        } else {
+            None
+        };
+        create_external_session(
+            ExternalSessionSource::ClaudeCode,
+            s.id,
+            s.working_dir,
+            s.updated_at,
+            conversation,
+        )
+    })
 }
 
 fn get_codex_session(id: &str, include_messages: bool) -> Option<Session> {
     let sessions = crate::session::codex::list_codex_sessions().ok()?;
 
-    sessions
-        .into_iter()
-        .find(|s| s.id == id)
-        .map(|s| {
-            let conversation = if include_messages {
-                crate::session::codex::load_codex_session_from_path(&s.file_path).ok()
-            } else {
-                None
-            };
-            create_external_session(
-                ExternalSessionSource::Codex,
-                s.id,
-                s.working_dir,
-                s.updated_at,
-                conversation,
-            )
-        })
+    sessions.into_iter().find(|s| s.id == id).map(|s| {
+        let conversation = if include_messages {
+            crate::session::codex::load_codex_session_from_path(&s.file_path).ok()
+        } else {
+            None
+        };
+        create_external_session(
+            ExternalSessionSource::Codex,
+            s.id,
+            s.working_dir,
+            s.updated_at,
+            conversation,
+        )
+    })
 }
 
 pub fn get_external_sessions_for_list() -> Vec<Session> {
