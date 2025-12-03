@@ -9,18 +9,20 @@ cargo run -p goose-tui
 cargo run -p goose-tui -- --session <ID>
 cargo run -p goose-tui -- --recipe <FILE>
 cargo run -p goose-tui -- --recipe <FILE> --headless
+cargo run -p goose-tui -- --cli
 ```
 
 ## Structure
 
 ```
 src/
-├── main.rs           # Entry, CLI, embedded server setup
+├── main.rs           # Entry, CLI args, embedded server setup
 ├── app.rs            # App orchestrator, component coordination
 ├── runner.rs         # Event loops (interactive and recipe modes)
 ├── action_handler.rs # Async side effects (API calls, spawning tasks)
 ├── tui.rs            # Terminal init/restore (crossterm)
 ├── headless.rs       # Non-TUI recipe execution
+├── cli.rs            # CLI mode (lightweight fallback REPL)
 ├── components/
 │   ├── mod.rs        # Component trait definition
 │   ├── chat.rs       # Message display, caching, scrolling
@@ -42,6 +44,7 @@ src/
     ├── styles.rs     # 11 themes
     ├── termimad_renderer.rs  # Markdown → ratatui
     ├── sanitize.rs   # ANSI/control char handling
+    ├── spinner.rs    # Spinner animation frames (shared)
     └── layout.rs, json.rs, ascii_art.rs, message_format.rs
 ```
 

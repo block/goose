@@ -44,6 +44,9 @@ goose-tui --recipe my-recipe.yaml
 
 # Run a recipe without TUI (headless)
 goose-tui --recipe my-recipe.yaml --headless
+
+# Use lightweight CLI mode (fallback for compatibility)
+goose-tui --cli
 ```
 
 ## Usage
@@ -76,6 +79,38 @@ goose-tui --recipe workflow.yaml --headless
 ```
 
 Output is printed to stdout. Automatically enabled when stdout is not a terminal.
+
+### CLI Mode
+
+A lightweight fallback when the full TUI isn't suitable:
+
+```bash
+goose-tui --cli
+```
+
+CLI mode provides the same functionality with simple line-by-line output. Use it when:
+- Your terminal has compatibility issues with the TUI
+- You need to pipe or capture output
+- You prefer a simpler interface
+- You're using a screen reader
+
+#### CLI Keybindings
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message |
+| `Ctrl+J` | Insert newline (multi-line input) |
+| `↑/↓` | Navigate command history |
+| `Ctrl+C` | Cancel current input |
+| `Ctrl+D` | Exit |
+
+#### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show help |
+| `/clear` | Clear screen |
+| `/exit` | Exit |
 
 ## Keybindings
 

@@ -6,6 +6,8 @@
 
 The TUI embeds a goose-server instance and communicates with it via HTTP using the goose-client library. This architecture allows the TUI to leverage all server functionality while maintaining a responsive terminal interface.
 
+For environments where the full TUI isn't suitable, a lightweight `--cli` mode provides the same functionality with simple line-by-line output. See `cli.rs`.
+
 ## System Architecture
 
 ```
