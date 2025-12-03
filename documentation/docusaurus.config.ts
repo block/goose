@@ -184,6 +184,14 @@ const config: Config = {
             from: '/docs/guides/config-file',
             to: '/docs/guides/config-files',
           },
+          {
+            from: '/docs/mcp/extension-manager-mcp',
+            to: '/docs/platform-extensions/extension-manager',
+          },
+          {
+            from: '/docs/mcp/todo-mcp',
+            to: '/docs/platform-extensions/todo',
+          },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
             from: '/docs/tutorials/agentql-mcp',

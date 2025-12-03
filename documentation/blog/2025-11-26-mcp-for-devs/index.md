@@ -121,7 +121,7 @@ Could you script all this with CLIs and APIs? Sure, if you want to spend your we
 
 So no, MCPs are not overhyped. They're how you plug AI into everything you use: Slack, GitHub, Jira, Chrome, docs, codebases - and make that stuff work *together* in new ways.
 
-Recently, Anthropic called out the [real issue](https://www.anthropic.com/engineering/advanced-tool-use): most dev setups load tools naively, bloat the context, and confuse the model. It's not the protocol that's broken. It's that most people (and agents) haven't figured out how to use it well yet. Fortunately, goose has - it [manages MCPs by default](/docs/mcp/extension-manager-mcp), enabling and disabling as you need them. 
+Recently, Anthropic called out the [real issue](https://www.anthropic.com/engineering/advanced-tool-use): most dev setups load tools naively, bloat the context, and confuse the model. It's not the protocol that's broken. It's that most people (and agents) haven't figured out how to use it well yet. Fortunately, goose has - it [manages MCPs by default](/docs/platform-extensions/extension-manager), enabling and disabling as you need them. 
 
 But I digress.
 

@@ -86,7 +86,7 @@ But, I was so happy that goose generated a pixel perfect recreation of the app.
 
 ### Task Decomposition
 
-The agent's successful, perfect recreation of the UI was largely due to the [Todo extension](/docs/mcp/todo-mcp), an MCP server that's built into goose. I find that this extension helps prevent scope drift, where agents autonomously expand into adjacent functionality after completing an objective.
+The agent's successful, perfect recreation of the UI was largely due to the [Todo extension](/docs/platform-extensions/todo), a platform extension that's built into goose. I find that this extension helps prevent scope drift, where agents autonomously expand into adjacent functionality after completing an objective.
 
 The to do list included items like:
 

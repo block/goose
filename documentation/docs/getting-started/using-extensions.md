@@ -31,11 +31,9 @@ goose includes several built-in extensions you can start using out of the box:
 goose operates autonomously by default. Combined with the Developer extension's tools, this means goose can execute commands and modify files without your approval. If you want more control over this behavior, you can configure the [goose permission mode](/docs/guides/goose-permissions), [tool permissions](/docs/guides/managing-tools/tool-permissions), and [.gooseignore files](/docs/guides/using-gooseignore). See [Configuring Access Controls](/docs/mcp/developer-mcp#configuring-access-controls) for a brief overview.
 :::
 
-In addition, these platform extensions provide core goose functionality. They are also always available and enabled by default:
-
-- Chat Recall: Search conversation content across all your session history
-- Extension Manager: Discover, enable, and disable extensions dynamically during sessions
-- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
+:::tip Platform Extensions
+goose also includes built-in [platform extensions](/docs/platform-extensions) that provide core functionality like conversation search, extension management, and task tracking.
+:::
 
 #### Toggling Built-in Extensions
 

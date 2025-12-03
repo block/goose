@@ -1,0 +1,33 @@
+---
+title: Platform Extensions
+description: Core goose functionality provided by built-in platform extensions
+---
+
+import Card from '@site/src/components/Card';
+import styles from '@site/src/components/Card/styles.module.css';
+
+Platform extensions provide core goose functionality and enable global features like conversation search, task tracking, and extension management. These extensions are always available and can be toggled on or off.
+
+<div className={styles.categorySection}>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Chat Recall"
+      description="Search conversation history across all your sessions and load session summaries when you need context."
+      link="/docs/platform-extensions/chat-recall"
+    />
+    <Card 
+      title="Extension Manager"
+      description="Dynamically discover, enable, and disable extensions during active sessions based on your tasks."
+      link="/docs/platform-extensions/extension-manager"
+    />
+    <Card 
+      title="Todo"
+      description="Break complex work into organized steps and track progress across sessions with automatic checklists."
+      link="/docs/platform-extensions/todo"
+    />
+  </div>
+
+:::info MCP Server Extensions
+Looking for extensions like Developer, GitHub, or JetBrains? Those are [MCP server extensions](/docs/category/mcp-servers) that goose connects to when needed.
+:::
+</div>

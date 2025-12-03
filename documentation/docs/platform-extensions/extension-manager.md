@@ -85,13 +85,13 @@ The resource tools (`list_resources` and `read_resource`) are only available whe
 
 Let's enable an extension when we need it. In this example, we'll enable the GitHub extension to work with repositories.
 
-#### goose Prompt
+### goose Prompt
 
 ```
 List all my GitHub repositories
 ```
 
-#### goose Output
+### goose Output
 
 :::note Desktop
 
