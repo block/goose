@@ -14,6 +14,7 @@ import { type ExtensionConfig } from './extensions';
 import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
+import { initializeMatrixInterceptor } from './matrixRoomInterceptor';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -49,6 +50,8 @@ import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
 import BuildView from './components/build/BuildView';
+import { CleanFeedView } from './components/feed/CleanFeedView';
+import { TestFeed } from './components/feed/TestFeed';
 
 export type View =
   | 'welcome'
@@ -68,7 +71,8 @@ export type View =
   | 'recipeEditor'
   | 'recipes'
   | 'permission'
-  | 'build';
+  | 'build'
+  | 'feed';
 // | 'projects';
 
 export type ViewOptions = {
@@ -187,7 +191,7 @@ const PairRouteWrapper = ({
     chatRef.current = chat;
   }, [chat]);
 
-  // Check if we have a resumed session or recipe config from navigation state
+  // Check if we have a resumed session, recipe config, or Matrix room chat from navigation state
   useEffect(() => {
     // Only process if we actually have navigation state
     if (!location.state) {
@@ -198,6 +202,24 @@ const PairRouteWrapper = ({
     const resumedSession = location.state?.resumedSession as SessionDetails | undefined;
     const recipeConfig = location.state?.recipeConfig as Recipe | undefined;
     const resetChat = location.state?.resetChat as boolean | undefined;
+    const matrixChat = location.state?.chat as ChatType | undefined;
+
+    // Handle Matrix room chat (highest priority for new Matrix rooms)
+    if (matrixChat && matrixChat.isMatrixTab && matrixChat.matrixRoomId) {
+      console.log('[Matrix Room Open] Loading Matrix room chat in pair view:', {
+        roomId: matrixChat.matrixRoomId,
+        sessionId: matrixChat.id,
+        title: matrixChat.title
+      });
+
+      // Update both the local chat state and the app-level pairChat state
+      setChat(matrixChat);
+      setPairChat(matrixChat);
+
+      // Clear the navigation state to prevent reloading on navigation
+      window.history.replaceState({}, document.title);
+      return;
+    }
 
     if (resumedSession) {
       console.log('Loading resumed session in pair view:', resumedSession.session_id);
@@ -762,6 +784,9 @@ export default function App() {
       case 'welcome':
         window.location.hash = '#/welcome';
         break;
+      case 'feed':
+        window.location.hash = '#/feed';
+        break;
       default:
         console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
         console.trace('Invalid setView call stack:');
@@ -790,6 +815,9 @@ export default function App() {
       return;
     }
     initAttemptedRef.current = true;
+
+    // Initialize Matrix room interceptor early
+    initializeMatrixInterceptor();
 
     console.log(`Initializing app`);
 
@@ -851,6 +879,7 @@ export default function App() {
           sharedSession: '#/shared-session',
           recipeEditor: '#/recipe-editor',
           welcome: '#/welcome',
+          feed: '#/feed',
         };
 
         const route = routeMap[viewType];
@@ -981,6 +1010,7 @@ export default function App() {
                 '#/shared-session',
                 '#/recipe-editor',
                 '#/extensions',
+                '#/feed',
               ];
 
               if (!validRoutes.includes(currentHash)) {
@@ -1523,6 +1553,14 @@ export default function App() {
                   element={
                     <ProviderGuard>
                       <PermissionRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="feed"
+                  element={
+                    <ProviderGuard>
+                      <TestFeed />
                     </ProviderGuard>
                   }
                 />

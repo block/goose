@@ -269,6 +269,14 @@ function BaseChatContent({
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
+    // DIAGNOSTIC: Log chat info when submitting message
+    console.log('[Matrix Message Send - BaseChat] handleSubmit called:', {
+      chatId: chat.id,
+      chatTitle: chat.title,
+      messagePreview: combinedTextFromInput.substring(0, 50) + '...',
+      timestamp: new Date().toISOString(),
+    });
+
     // Mark that user has started using the recipe when they submit a message
     if (recipeConfig && combinedTextFromInput.trim()) {
       setHasStartedUsingRecipe(true);

@@ -78,6 +78,7 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  matrixRoomId?: string | null; // Matrix room ID for this specific chat tab
 }
 
 export default function ChatInput({
@@ -100,7 +101,13 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  matrixRoomId,
 }: ChatInputProps) {
+  // DIAGNOSTIC: Log the matrixRoomId prop when ChatInput renders
+  console.log('[ChatInput] Received matrixRoomId prop:', {
+    matrixRoomId,
+    timestamp: new Date().toISOString(),
+  });
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);

@@ -166,6 +166,8 @@ export default function Pair({
   const customChatInputProps = {
     // Pass initial message from Hub or recipe prompt
     initialValue,
+    // Pass Matrix room ID if this is a Matrix chat
+    matrixRoomId: chat.matrixRoomId || null,
   };
 
   // Custom content before messages

@@ -470,6 +470,18 @@ export function useMessageStream({
         // Filter out messages where sendToLLM is explicitly false
         const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
 
+        // DIAGNOSTIC: Log the session_id being sent to backend
+        const requestBody = {
+          messages: filteredMessages,
+          ...extraMetadataRef.current.body,
+        };
+        console.log('[Matrix Message Send - useMessageStream] Sending to backend:', {
+          api,
+          session_id: requestBody.session_id,
+          messageCount: filteredMessages.length,
+          timestamp: new Date().toISOString(),
+        });
+
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -478,10 +490,7 @@ export function useMessageStream({
             'X-Secret-Key': await window.electron.getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
-          body: JSON.stringify({
-            messages: filteredMessages,
-            ...extraMetadataRef.current.body,
-          }),
+          body: JSON.stringify(requestBody),
           signal: abortController.signal,
         });
 

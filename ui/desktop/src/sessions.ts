@@ -60,6 +60,34 @@ export function generateSessionId(): string {
 }
 
 /**
+ * Generate a unique session ID for a Matrix room
+ * Uses the Matrix room ID to ensure uniqueness and persistence
+ * @param matrixRoomId The Matrix room ID (e.g., !roomId:server.com)
+ * @returns A unique session ID for this Matrix room
+ */
+export function generateMatrixSessionId(matrixRoomId: string): string {
+  // Create a hash-like suffix from the Matrix room ID for uniqueness
+  // This ensures each Matrix room gets its own unique session
+  const roomHash = matrixRoomId
+    .split('')
+    .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0)
+    .toString(36)
+    .replace('-', 'n'); // Replace negative sign with 'n'
+  
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  
+  // Format: YYYYMMDD_matrix_<roomhash>
+  // This ensures:
+  // 1. Each Matrix room has a unique session ID
+  // 2. The same room always gets the same session ID (within a day)
+  // 3. It's clearly identifiable as a Matrix session
+  return `${year}${month}${day}_matrix_${roomHash}`;
+}
+
+/**
  * Fetches all available sessions from the API
  * @returns Promise with sessions data
  */
