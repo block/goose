@@ -409,7 +409,7 @@ function BaseChatContent({
     engineHandleSubmit(combinedTextFromInput);
   }, [recipeConfig, setHasStartedUsingRecipe, onMessageSubmit, engineHandleSubmit]);
 
-  const toolCount = useToolCount(chat.sessionId);
+  const toolCount = useToolCount(chat.sessionId || '');
 
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
