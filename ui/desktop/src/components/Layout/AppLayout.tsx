@@ -13,7 +13,9 @@ import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
 
 import { TopNavigation } from './TopNavigation';
+import { CondensedNavigation } from './CondensedNavigation';
 import { NavigationPosition } from '../settings/app/NavigationPositionSelector';
+import { NavigationStyle } from '../settings/app/NavigationStyleSelector';
 
 // Create context for navigation state
 const NavigationContext = createContext<{
@@ -43,6 +45,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     const stored = localStorage.getItem('navigation_position');
     return (stored as NavigationPosition) || 'top';
   });
+  const [navigationStyle, setNavigationStyle] = useState<NavigationStyle>(() => {
+    const stored = localStorage.getItem('navigation_style');
+    return (stored as NavigationStyle) || 'expanded';
+  });
   
   // Listen for navigation position changes
   useEffect(() => {
@@ -53,6 +59,17 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     
     window.addEventListener('navigation-position-changed', handlePositionChange);
     return () => window.removeEventListener('navigation-position-changed', handlePositionChange);
+  }, []);
+  
+  // Listen for navigation style changes
+  useEffect(() => {
+    const handleStyleChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ style: NavigationStyle }>;
+      setNavigationStyle(customEvent.detail.style);
+    };
+    
+    window.addEventListener('navigation-style-changed', handleStyleChange);
+    return () => window.removeEventListener('navigation-style-changed', handleStyleChange);
   }, []);
   
   // Bento box state management
@@ -332,9 +349,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     </div>
   );
 
-  // Render navigation component
-  const navigationComponent = (
+  // Render navigation component based on style
+  const navigationComponent = navigationStyle === 'expanded' ? (
     <TopNavigation 
+      isExpanded={isNavExpanded} 
+      setIsExpanded={setIsNavExpanded}
+      position={navigationPosition}
+    />
+  ) : (
+    <CondensedNavigation 
       isExpanded={isNavExpanded} 
       setIsExpanded={setIsNavExpanded}
       position={navigationPosition}

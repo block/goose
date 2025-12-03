@@ -69,7 +69,7 @@ export default function SettingsView({
       <MainPanelLayout removeTopPadding={true}>
         <div className="flex-1 flex flex-col min-h-0">
           {/* Tile Navigation - Full bleed like TopNavigation */}
-          <div className="bg-background-muted overflow-hidden relative z-50">
+          <div className="bg-background-muted overflow-hidden relative z-50 rounded-2xl">
             <div className="pb-0.5 overflow-y-auto">
               <SettingsTileNavigation 
                 activeSection={activeTab} 
