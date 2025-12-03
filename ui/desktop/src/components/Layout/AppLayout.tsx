@@ -13,6 +13,7 @@ import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
 import { MatrixProvider } from '../../contexts/MatrixContext';
 import { matrixService } from '../../services/MatrixService';
+import { TabProvider } from '../../contexts/TabContext';
 
 import { TopNavigation } from './TopNavigation';
 import { CondensedNavigation } from './CondensedNavigation';
@@ -424,9 +425,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   return (
     <SidebarProvider>
       <MatrixProvider matrixService={matrixService}>
-        <SidecarProvider>
-          <AppLayoutContent setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-        </SidecarProvider>
+        <TabProvider>
+          <SidecarProvider>
+            <AppLayoutContent setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+          </SidecarProvider>
+        </TabProvider>
       </MatrixProvider>
     </SidebarProvider>
   );
