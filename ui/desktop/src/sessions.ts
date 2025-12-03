@@ -1,5 +1,5 @@
 import { Message } from './types/message';
-import { getSessionHistory, listSessions, SessionInfo } from './api';
+import { getSession, listSessions, SessionInfo } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
 import { getApiUrl } from './config';
 
@@ -138,13 +138,13 @@ export async function fetchSessions(): Promise<Session[]> {
  */
 export async function fetchSessionDetails(sessionId: string): Promise<SessionDetails> {
   try {
-    const response = await getSessionHistory<true>({
+    const response = await getSession<true>({
       path: { session_id: sessionId },
     });
 
-    // Convert the SessionHistoryResponse to a SessionDetails object
+    // Convert the SessionResponse to a SessionDetails object
     return {
-      session_id: response.data.sessionId,
+      session_id: response.data.session_id,
       metadata: ensureWorkingDir(response.data.metadata),
       messages: response.data.messages.map((message) =>
         convertApiMessageToFrontendMessage(message, true, true)
