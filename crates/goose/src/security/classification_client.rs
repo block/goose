@@ -64,14 +64,14 @@ impl ClassificationClient {
     }
 
     pub fn from_model_name(model_name: &str, timeout_ms: Option<u64>) -> Result<Self> {
-        let mapping_json = std::env::var("ML_MODEL_MAPPING")
-            .context("ML_MODEL_MAPPING environment variable not set")?;
+        let mapping_json = std::env::var("SECURITY_ML_MODEL_MAPPING")
+            .context("SECURITY_ML_MODEL_MAPPING environment variable not set")?;
 
         let mapping = serde_json::from_str::<ModelMappingConfig>(&mapping_json)
-            .context("Failed to parse ML_MODEL_MAPPING JSON")?;
+            .context("Failed to parse SECURITY_ML_MODEL_MAPPING JSON")?;
 
         let model_info = mapping.models.get(model_name).context(format!(
-            "Model '{}' not found in ML_MODEL_MAPPING",
+            "Model '{}' not found in SECURITY_ML_MODEL_MAPPING",
             model_name
         ))?;
 
@@ -250,11 +250,11 @@ mod tests {
 
     #[test]
     fn test_from_model_name_without_mapping() {
-        // Should fail when ML_MODEL_MAPPING is not set
-        std::env::remove_var("ML_MODEL_MAPPING");
+        // Should fail when SECURITY_ML_MODEL_MAPPING is not set
+        std::env::remove_var("SECURITY_ML_MODEL_MAPPING");
         let result = ClassificationClient::from_model_name("test-model", None);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("ML_MODEL_MAPPING"));
+        assert!(result.unwrap_err().to_string().contains("SECURITY_ML_MODEL_MAPPING"));
     }
 
     #[test]

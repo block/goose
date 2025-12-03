@@ -16,7 +16,7 @@ export const SecurityToggle = () => {
 
   const availableModels = useMemo(() => {
     try {
-      const mappingEnv = window.appConfig?.get('ML_MODEL_MAPPING') as string | undefined;
+      const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
       if (mappingEnv) {
         const mapping = JSON.parse(mappingEnv);
         return Object.keys(mapping).map((modelName) => ({
@@ -25,7 +25,7 @@ export const SecurityToggle = () => {
         }));
       }
     } catch (error) {
-      console.warn('Failed to parse ML_MODEL_MAPPING:', error);
+      console.warn('Failed to parse SECURITY_ML_MODEL_MAPPING:', error);
     }
     return [];
   }, []);
