@@ -6,6 +6,7 @@ import MultiPanelTabSidecar from './MultiPanelTabSidecar';
 import { useTabContext } from '../contexts/TabContext';
 import { ResizableSplitter } from './Layout/ResizableSplitter';
 import { TaskExecutionProvider } from '../contexts/TaskExecutionContext';
+import { SpaceBreadcrumb } from './SpaceBreadcrumb';
 
 interface TabbedChatContainerProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -199,6 +200,13 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
             sidebarCollapsed={sidebarCollapsed}
           />
         </div>
+
+        {/* Space Breadcrumb - Show for Matrix tabs with room IDs */}
+        {activeTabState && activeTabState.tab.type === 'matrix' && activeTabState.tab.matrixRoomId && (
+          <div className="flex-shrink-0">
+            <SpaceBreadcrumb roomId={activeTabState.tab.matrixRoomId} />
+          </div>
+        )}
 
         {/* Main Content Area - Chat and Sidecar */}
         <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">

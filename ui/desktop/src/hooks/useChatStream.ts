@@ -116,6 +116,7 @@ interface UseChatStreamProps {
   initialMessage?: string;
   onSessionIdChange?: (newSessionId: string) => void;
   isMatrixTab?: boolean; // Flag to indicate if this is a Matrix tab that should listen for Matrix messages
+  matrixRoomId?: string; // Matrix room ID for message routing (stable identifier for Matrix tabs)
   tabId?: string; // Tab ID to filter sidecars for context injection
 }
 
@@ -285,6 +286,7 @@ export function useChatStream({
   initialMessage,
   onSessionIdChange,
   isMatrixTab = false,
+  matrixRoomId,
   tabId,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -793,29 +795,50 @@ export function useChatStream({
 
   // Listen for Matrix messages from BaseChat2's append function - ONLY FOR MATRIX TABS
   useEffect(() => {
+    // DIAGNOSTIC: Enhanced logging for Matrix listener setup
+    console.log('🔍 useChatStream Matrix listener setup check:', {
+      isMatrixTab,
+      sessionId: sessionId?.substring(0, 8) + '...',
+      willSetupListener: isMatrixTab,
+      currentMessagesCount: messagesRef.current.length
+    });
+    
     // CRITICAL SECURITY: Only Matrix tabs should listen for Matrix messages
     // This prevents Matrix messages from appearing in non-Matrix tabs
     if (!isMatrixTab) {
       console.log('🚫 useChatStream: Not a Matrix tab, skipping Matrix message listener setup:', {
-        sessionId: sessionId.substring(0, 8),
+        sessionId: sessionId?.substring(0, 8) + '...',
         isMatrixTab
       });
       return;
     }
 
     console.log('✅ useChatStream: Setting up Matrix message listener for Matrix tab:', {
-      sessionId: sessionId.substring(0, 8),
+      sessionId: sessionId?.substring(0, 8) + '...',
       isMatrixTab
     });
 
     const handleMatrixMessage = (event: CustomEvent) => {
-      const { message, targetSessionId, timestamp } = event.detail;
+      const { message, targetSessionId, targetRoomId, routingKey, timestamp } = event.detail;
       
-      // CRITICAL: Only process messages intended for THIS specific session
-      if (targetSessionId !== sessionId) {
-        console.log('🚫 useChatStream ignoring matrix message for different session:', {
+      // CRITICAL: For Matrix tabs, match on matrixRoomId (stable identifier)
+      // This ensures messages are routed correctly even if backend session ID changes
+      const ourRoutingKey = matrixRoomId || sessionId;
+      
+      console.log('🔍 useChatStream routing check:', {
+        eventRoutingKey: routingKey?.substring(0, 20),
+        ourRoutingKey: ourRoutingKey?.substring(0, 20),
+        matrixRoomId: matrixRoomId?.substring(0, 20),
+        sessionId: sessionId?.substring(0, 8),
+        willAccept: routingKey === ourRoutingKey
+      });
+      
+      if (routingKey !== ourRoutingKey) {
+        console.log('🚫 useChatStream ignoring matrix message for different routing key:', {
+          eventRoutingKey: routingKey?.substring(0, 20),
+          ourRoutingKey: ourRoutingKey?.substring(0, 20),
           eventTargetSessionId: targetSessionId?.substring(0, 8),
-          thisSessionId: sessionId.substring(0, 8),
+          thisSessionId: sessionId?.substring(0, 8),
           messageId: message.id,
           sender: message.sender?.displayName || message.sender?.userId || 'unknown'
         });
