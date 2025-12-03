@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
-import { getSessionHistory } from '../api';
+import { getSession } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -396,7 +396,7 @@ export function useMessageStream({
                       ?.session_id as string;
                     if (sessionId) {
                       try {
-                        const sessionResponse = await getSessionHistory({
+                        const sessionResponse = await getSession({
                           path: { session_id: sessionId },
                         });
 

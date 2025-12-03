@@ -47,11 +47,11 @@ import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 // import ProjectsContainer from './components/projects/ProjectsContainer';
 import { Recipe } from './recipe';
-import RecipesView from './components/RecipesView';
-import RecipeEditor from './components/RecipeEditor';
-import BuildView from './components/build/BuildView';
-import { CleanFeedView } from './components/feed/CleanFeedView';
-import { TestFeed } from './components/feed/TestFeed';
+import RecipesView from './components/recipes/RecipesView';
+import RecipeEditor from './components/recipes/RecipeEditor';
+// import BuildView from './components/build/BuildView';
+// import { CleanFeedView } from './components/feed/CleanFeedView';
+// import { TestFeed } from './components/feed/TestFeed';
 
 export type View =
   | 'welcome'
