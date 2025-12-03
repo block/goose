@@ -16,9 +16,11 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{
-    create_request, create_responses_request, get_responses_usage, get_usage, response_to_message,
-    response_to_streaming_message, responses_api_to_message, responses_api_to_streaming_message,
-    ResponsesApiResponse,
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+};
+use super::formats::openai_responses::{
+    create_responses_request, get_responses_usage, responses_api_to_message,
+    responses_api_to_streaming_message, ResponsesApiResponse,
 };
 use super::retry::ProviderRetry;
 use super::utils::{
