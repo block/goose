@@ -155,19 +155,17 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 
 #### Extension Schema
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | String | ✅ | Type of extension (e.g., "stdio", "sse", "builtin", "platform", "streamable_http", "frontend", "inline_python") |
-| `name` | String | ✅ | Unique name for the extension |
-| `description` | String | ✅ | Description of what the extension does |
-| `cmd` | String | ✅* | Command to run the extension (required for stdio, sse, streamable_http) |
-| `args` | Array | ✅* | List of arguments for the command (required for stdio, sse, streamable_http) |
-| `timeout` | Number | - | Timeout in seconds |
-| `bundled` | Boolean | - | Whether the extension is bundled with goose |
-| `env_keys` | Array | - | Names of environment variables required by the extension |
-| `available_tools` | Array | - | List of tool names within the extension that will be available. When not specified all will be available |
-
-*Required fields vary by extension type.
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | String | Type of extension (e.g., "stdio") |
+| `name` | String | Unique name for the extension |
+| `cmd` | String | Command to run the extension |
+| `args` | Array | List of arguments for the command |
+| `env_keys` | Array | (Optional) Names of environment variables required by the extension |
+| `timeout` | Number | Timeout in seconds |
+| `bundled` | Boolean | (Optional) Whether the extension is bundled with goose |
+| `description` | String | Description of what the extension does |
+| `available_tools` | Array | List of tool names within the extension that will be available. When not specified all will be available |
 
 #### Extension Types
 
