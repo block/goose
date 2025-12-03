@@ -12,13 +12,16 @@ import {
   Wifi,
   WifiOff,
   Edit2,
-  Star
+  Star,
+  ArrowLeft,
+  ChevronRight,
+  Home
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
-import { matrixService } from '../../services/MatrixService';
+import { matrixService, SpaceChild } from '../../services/MatrixService';
 
 interface Channel {
   roomId: string;
@@ -155,7 +158,99 @@ const ChannelCard: React.FC<{
   );
 };
 
-const EmptyChannelTile: React.FC<{ onCreateChannel: () => void }> = ({ onCreateChannel }) => {
+const SpaceChildCard: React.FC<{
+  child: SpaceChild;
+  onChildClick: (child: SpaceChild) => void;
+}> = ({ child, onChildClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      onClick={() => onChildClick(child)}
+      className="
+        relative cursor-pointer group
+        bg-background-default
+        transition-colors duration-200
+        hover:bg-background-medium
+        aspect-square
+        flex flex-col
+        rounded-2xl
+        overflow-hidden
+      "
+    >
+      {/* Cover Photo Section - Top half */}
+      {child.avatarUrl ? (
+        <div className="relative w-full h-[60%] overflow-hidden">
+          <img
+            src={child.avatarUrl}
+            alt={child.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
+        </div>
+      ) : (
+        <div className="relative w-full h-[60%] bg-gradient-to-br from-background-medium via-background-muted to-background-default overflow-hidden">
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(var(--color-background-accent-rgb),0.3),transparent_70%)]" />
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            {child.isSpace ? (
+              <Hash className="w-12 h-12 text-text-muted/20" />
+            ) : (
+              <Hash className="w-12 h-12 text-text-muted/20" />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Type indicator - top right */}
+      <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+        <div className={`p-1.5 rounded-full backdrop-blur-sm ${
+          child.isPublic 
+            ? 'bg-green-500/90 text-white' 
+            : 'bg-orange-500/90 text-white'
+        }`}>
+          {child.isSpace ? (
+            <Hash className="w-3 h-3" />
+          ) : child.isPublic ? (
+            <Globe className="w-3 h-3" />
+          ) : (
+            <Lock className="w-3 h-3" />
+          )}
+        </div>
+      </div>
+
+      {/* Content Section - Bottom half */}
+      <div className="flex-1 px-6 pt-6 pb-6 flex flex-col justify-end">
+        <h3 className="text-lg font-light text-text-default truncate mb-1">
+          {child.name || (child.isSpace ? 'Unnamed Space' : 'Unnamed Room')}
+        </h3>
+        {child.topic && (
+          <p className="text-xs text-text-muted truncate mb-2">
+            {child.topic}
+          </p>
+        )}
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Users className="w-3 h-3" />
+          <span>{child.memberCount || 0} members</span>
+          {child.suggested && (
+            <span className="ml-auto px-2 py-1 bg-background-accent/20 text-background-accent rounded-full text-xs">
+              Suggested
+            </span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const EmptyChannelTile: React.FC<{ onCreateChannel: () => void; isInSpace?: boolean }> = ({ onCreateChannel, isInSpace = false }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -184,7 +279,7 @@ const EmptyChannelTile: React.FC<{ onCreateChannel: () => void }> = ({ onCreateC
           <Plus className="w-6 h-6 text-text-on-accent" />
         </div>
         <p className="text-sm font-medium text-text-default text-center">
-          Create Channel
+          {isInSpace ? 'Create Room' : 'Create Space'}
         </p>
       </motion.div>
       
@@ -378,7 +473,8 @@ const CreateChannelModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onCreate: (name: string, topic: string, isPublic: boolean) => Promise<void>;
-}> = ({ isOpen, onClose, onCreate }) => {
+  isInSpace?: boolean;
+}> = ({ isOpen, onClose, onCreate, isInSpace = false }) => {
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -421,7 +517,9 @@ const CreateChannelModal: React.FC<{
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-text-default">Create Channel</h2>
+          <h2 className="text-xl font-semibold text-text-default">
+            Create {isInSpace ? 'Room' : 'Space'}
+          </h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-background-medium transition-colors"
@@ -435,13 +533,13 @@ const CreateChannelModal: React.FC<{
           {/* Channel Name */}
           <div>
             <label className="block text-sm font-medium text-text-default mb-2">
-              Channel Name *
+              {isInSpace ? 'Room' : 'Space'} Name *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="general, announcements, etc."
+              placeholder={isInSpace ? "general, announcements, etc." : "project-alpha, team-workspace, etc."}
               className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent"
               disabled={isCreating}
               required
@@ -456,7 +554,7 @@ const CreateChannelModal: React.FC<{
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="Describe what this channel is about..."
+              placeholder={isInSpace ? "Describe what this room is about..." : "Describe what this space is about..."}
               rows={3}
               className="w-full px-4 py-3 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent resize-none"
               disabled={isCreating}
@@ -518,7 +616,7 @@ const CreateChannelModal: React.FC<{
               disabled={!name.trim() || isCreating}
               className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isCreating ? 'Creating...' : 'Create Channel'}
+              {isCreating ? 'Creating...' : `Create ${isInSpace ? 'Room' : 'Space'}`}
             </button>
           </div>
         </form>
@@ -535,7 +633,10 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     rooms,
     setRoomName,
     setRoomTopic,
-    setRoomAvatar
+    setRoomAvatar,
+    createSpace,
+    createRoom,
+    getSpaceChildren
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -547,6 +648,12 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  
+  // Space navigation state
+  const [currentSpace, setCurrentSpace] = useState<Channel | null>(null);
+  const [spaceChildren, setSpaceChildren] = useState<SpaceChild[]>([]);
+  const [loadingSpaceChildren, setLoadingSpaceChildren] = useState(false);
+  const [spaceNavigationStack, setSpaceNavigationStack] = useState<Channel[]>([]);
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -606,9 +713,9 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     return mxcUrl;
   };
 
-  // Filter channels (non-DM rooms) from Matrix rooms and add favorite status
+  // Filter spaces from Matrix rooms and add favorite status
   const channels: Channel[] = rooms
-    .filter(room => !room.isDirectMessage)
+    .filter(room => room.isSpace) // ✅ Now filtering for Matrix Spaces only
     .map(room => ({
       roomId: room.roomId,
       name: room.name || 'Unnamed Channel',
@@ -638,23 +745,100 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
 
   const handleOpenChannel = async (channel: Channel) => {
     try {
-      console.log('📱 Opening channel:', channel);
+      console.log('🌌 Navigating into space:', channel);
       
-      // Open a new tab/chat session with Matrix room parameters
-      // Pass the channel name so it appears in the tab title
-      openMatrixChat(channel.roomId, currentUser?.userId || '', channel.name);
+      // Fetch space children
+      setLoadingSpaceChildren(true);
+      const children = await getSpaceChildren(channel.roomId);
+      console.log('✅ Space children loaded:', children);
       
-      // Navigate to the pair view where the tabs are displayed
-      navigate('/pair');
+      // Update navigation state
+      setCurrentSpace(channel);
+      setSpaceChildren(children);
+      setSpaceNavigationStack([...spaceNavigationStack, channel]);
+      
+      console.log('🧭 Space navigation updated:', {
+        currentSpace: channel.name,
+        childrenCount: children.length,
+        navigationDepth: spaceNavigationStack.length + 1
+      });
     } catch (error) {
-      console.error('Failed to open channel:', error);
+      console.error('❌ Failed to navigate into space:', error);
+      alert('Failed to load space contents. Please try again.');
+    } finally {
+      setLoadingSpaceChildren(false);
+    }
+  };
+
+  const handleBackToSpaces = () => {
+    console.log('🔙 Navigating back to spaces');
+    setCurrentSpace(null);
+    setSpaceChildren([]);
+    setSpaceNavigationStack([]);
+  };
+
+  const handleSpaceChildClick = async (child: SpaceChild) => {
+    try {
+      if (child.isSpace) {
+        // Navigate into sub-space
+        console.log('🌌 Navigating into sub-space:', child);
+        
+        setLoadingSpaceChildren(true);
+        const children = await getSpaceChildren(child.roomId);
+        console.log('✅ Sub-space children loaded:', children);
+        
+        // Create a Channel object for the sub-space
+        const subSpaceChannel: Channel = {
+          roomId: child.roomId,
+          name: child.name || 'Unnamed Space',
+          topic: child.topic,
+          isPublic: child.isPublic || false,
+          memberCount: child.memberCount || 0,
+          avatarUrl: convertMxcToHttp(child.avatarUrl),
+          coverPhotoUrl: convertMxcToHttp(child.avatarUrl),
+          isFavorite: favorites.has(child.roomId),
+        };
+        
+        // Update navigation state
+        setCurrentSpace(subSpaceChannel);
+        setSpaceChildren(children);
+        setSpaceNavigationStack([...spaceNavigationStack, subSpaceChannel]);
+      } else {
+        // Open room in chat
+        console.log('💬 Opening room in chat:', child);
+        openMatrixChat(child.roomId, currentUser?.userId || '', child.name || 'Unnamed Room');
+        navigate('/pair');
+      }
+    } catch (error) {
+      console.error('❌ Failed to handle space child click:', error);
+      alert('Failed to open space content. Please try again.');
+    } finally {
+      setLoadingSpaceChildren(false);
     }
   };
 
   const handleCreateChannel = async (name: string, topic: string, isPublic: boolean) => {
-    // TODO: Implement channel creation via Matrix service
-    console.log('Creating channel:', { name, topic, isPublic });
-    alert('Channel creation not yet implemented');
+    try {
+      if (currentSpace) {
+        // We're inside a space, create a room within this space
+        console.log('💬 Creating Matrix Room in space:', { name, topic, isPublic, parentSpaceId: currentSpace.roomId });
+        const roomId = await createRoom(name, topic, isPublic, currentSpace.roomId);
+        console.log('✅ Matrix Room created successfully:', roomId);
+        
+        // Refresh space children to show the new room
+        const children = await getSpaceChildren(currentSpace.roomId);
+        setSpaceChildren(children);
+      } else {
+        // We're in the main spaces view, create a new space
+        console.log('🌌 Creating Matrix Space:', { name, topic, isPublic });
+        const spaceId = await createSpace(name, topic, isPublic);
+        console.log('✅ Matrix Space created successfully:', spaceId);
+      }
+    } catch (error) {
+      console.error('❌ Failed to create:', error);
+      const itemType = currentSpace ? 'room' : 'space';
+      alert(`Failed to create ${itemType}. Please try again.`);
+    }
   };
 
   const handleEditChannel = (channel: Channel) => {
@@ -740,14 +924,52 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       <div className="pt-14 pb-4 px-4 mb-0.5 bg-background-default rounded-2xl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
-              <Hash className="w-5 h-5 text-text-on-accent" />
-            </div>
+            {currentSpace ? (
+              <button
+                onClick={handleBackToSpaces}
+                className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center hover:bg-background-accent/80 transition-colors"
+                title="Back to Spaces"
+              >
+                <ArrowLeft className="w-5 h-5 text-text-on-accent" />
+              </button>
+            ) : (
+              <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
+                <Hash className="w-5 h-5 text-text-on-accent" />
+              </div>
+            )}
             <div>
-              <h1 className="text-xl font-semibold text-text-default">Channels</h1>
-              <p className="text-sm text-text-muted">
-                {isConnected ? `${channels.length} channels` : 'Not connected'}
-              </p>
+              {currentSpace ? (
+                <>
+                  {/* Breadcrumb navigation */}
+                  <div className="flex items-center gap-1 text-sm text-text-muted mb-1">
+                    <button
+                      onClick={handleBackToSpaces}
+                      className="hover:text-text-default transition-colors"
+                    >
+                      <Home className="w-4 h-4" />
+                    </button>
+                    {spaceNavigationStack.map((space, index) => (
+                      <React.Fragment key={space.roomId}>
+                        <ChevronRight className="w-3 h-3" />
+                        <span className={index === spaceNavigationStack.length - 1 ? 'text-text-default font-medium' : ''}>
+                          {space.name}
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <h1 className="text-xl font-semibold text-text-default">{currentSpace.name}</h1>
+                  <p className="text-sm text-text-muted">
+                    {loadingSpaceChildren ? 'Loading...' : `${spaceChildren.length} items`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-xl font-semibold text-text-default">Spaces</h1>
+                  <p className="text-sm text-text-muted">
+                    {isConnected ? `${channels.length} spaces` : 'Not connected'}
+                  </p>
+                </>
+              )}
             </div>
           </div>
           
@@ -785,7 +1007,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search channels..."
+              placeholder="Search spaces..."
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent text-sm"
             />
           </div>
@@ -801,7 +1023,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                 <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-text-default mb-2">Not Connected</h3>
                 <p className="text-text-muted mb-6">
-                  Connect to Matrix to access channels and collaborate with your team.
+                  Connect to Matrix to access spaces and collaborate with your team.
                 </p>
                 <button
                   onClick={() => setShowMatrixAuth(true)}
@@ -816,7 +1038,43 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                 <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
                 <p className="text-text-muted">Syncing with Matrix server...</p>
               </div>
+            ) : currentSpace ? (
+              // Show space contents
+              loadingSpaceChildren ? (
+                <div className="text-center py-12">
+                  <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-text-default mb-2">Loading Space Contents...</h3>
+                  <p className="text-text-muted">Fetching rooms and sub-spaces...</p>
+                </div>
+              ) : spaceChildren.length === 0 ? (
+                <div className="text-center py-12">
+                  <Hash className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-text-default mb-2">Empty Space</h3>
+                  <p className="text-text-muted mb-6">
+                    This space doesn't contain any rooms or sub-spaces yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
+                  {spaceChildren.map((child) => (
+                    <SpaceChildCard
+                      key={child.roomId}
+                      child={child}
+                      onChildClick={handleSpaceChildClick}
+                    />
+                  ))}
+                  {/* Empty tiles for creating new rooms in this space - fill remaining space */}
+                  {Array.from({ length: 50 - spaceChildren.length }).map((_, index) => (
+                    <EmptyChannelTile
+                      key={`empty-room-${index}`}
+                      onCreateChannel={() => setShowCreateModal(true)}
+                      isInSpace={true}
+                    />
+                  ))}
+                </div>
+              )
             ) : (
+              // Show spaces grid
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
                 {filteredChannels.map((channel) => (
                   <ChannelCard
@@ -847,6 +1105,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onCreate={handleCreateChannel}
+            isInSpace={!!currentSpace}
           />
         )}
       </AnimatePresence>
