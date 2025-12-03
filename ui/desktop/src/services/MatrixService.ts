@@ -1132,6 +1132,19 @@ export class MatrixService extends EventEmitter {
 
       console.log('✅ Matrix Space created successfully:', room.room_id);
       
+      // Create session mapping for the space
+      // This ensures the space has a 1:1 relationship with a Goose session
+      try {
+        const spaceRoom = this.client.getRoom(room.room_id);
+        if (spaceRoom) {
+          await this.ensureSessionMapping(room.room_id, spaceRoom);
+          console.log('📋 Session mapping created for Matrix Space:', room.room_id);
+        }
+      } catch (mappingError) {
+        console.error('❌ Failed to create session mapping for space:', mappingError);
+        // Don't fail the space creation if mapping fails
+      }
+      
       // Clear rooms cache to refresh space data
       this.cachedRooms = null;
       
@@ -1176,6 +1189,19 @@ export class MatrixService extends EventEmitter {
       });
 
       console.log('✅ Matrix Room created successfully:', room.room_id);
+      
+      // Create session mapping for the room
+      // This ensures the room has a 1:1 relationship with a Goose session
+      try {
+        const matrixRoom = this.client.getRoom(room.room_id);
+        if (matrixRoom) {
+          await this.ensureSessionMapping(room.room_id, matrixRoom);
+          console.log('📋 Session mapping created for Matrix Room:', room.room_id);
+        }
+      } catch (mappingError) {
+        console.error('❌ Failed to create session mapping for room:', mappingError);
+        // Don't fail the room creation if mapping fails
+      }
       
       // If a parent space is specified, add this room as a child
       if (parentSpaceId) {
