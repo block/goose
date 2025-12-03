@@ -19,10 +19,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .iter()
         .filter(|m| m.is_agent_visible())
         .filter(|message| {
-            message
-                .content
-                .iter()
-                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+            message.content.iter().any(|content| {
+                !matches!(
+                    content,
+                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                )
+            })
         })
         .map(|message| {
             let role = if message.role == Role::User {
@@ -408,11 +410,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_confirmation_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_confirmation_request(
+            vec![MessageContent::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -474,7 +476,7 @@ mod tests {
                     arguments: Some(object(arguments.clone())),
                 },
             ),
-            set_up_tool_confirmation_message(
+            set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
                     name: "tool_name_2".into(),
