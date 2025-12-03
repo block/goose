@@ -29,7 +29,7 @@ interface TabContextType {
   openExistingSession: (sessionId: string, title?: string) => void;
   updateSessionId: (tabId: string, newSessionId: string) => void;
   // Matrix-specific methods
-  openMatrixChat: (roomId: string, senderId: string) => void;
+  openMatrixChat: (roomId: string, senderId: string, roomName?: string) => void;
   morphTabToMatrix: (tabId: string, roomId: string, recipientId: string, roomTitle?: string) => Promise<void>;
   createBackendSession: (tabId: string) => Promise<string>;
   // Sidecar management functions
@@ -835,8 +835,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   }, [showSidecarView]);
 
   // Open a Matrix chat in a new tab or switch to it if already open
-  const openMatrixChat = useCallback(async (roomId: string, senderId: string) => {
-    console.log('📱 TabContext: Opening Matrix chat for room:', roomId, 'sender:', senderId);
+  const openMatrixChat = useCallback(async (roomId: string, senderId: string, roomName?: string) => {
+    console.log('📱 TabContext: Opening Matrix chat for room:', roomId, 'sender:', senderId, 'roomName:', roomName);
 
     // Check if we already have a tab for this Matrix room
     const existingTabState = tabStates.find(ts => 
@@ -850,8 +850,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
 
     // Get or create the backend session BEFORE creating the tab
-    const senderName = senderId.split(':')[0].substring(1);
-    const tabTitle = `Chat with ${senderName}`;
+    // Use the provided room name, or fall back to sender name
+    const tabTitle = roomName || `Chat with ${senderId.split(':')[0].substring(1)}`;
     
     console.log('📱 Getting/creating backend session before creating tab...');
     let backendSessionId = sessionMappingService.getGooseSessionId(roomId);

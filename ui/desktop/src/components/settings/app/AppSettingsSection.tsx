@@ -9,6 +9,7 @@ import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import NavigationPositionSelector from './NavigationPositionSelector';
+import NavigationStyleSelector from './NavigationStyleSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 
@@ -435,6 +436,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <NavigationPositionSelector />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Style</CardTitle>
+          <CardDescription>Choose between expanded tiles or condensed rows</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationStyleSelector />
         </CardContent>
       </Card>
 
