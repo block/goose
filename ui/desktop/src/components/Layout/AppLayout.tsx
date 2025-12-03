@@ -11,6 +11,9 @@ import SidecarTabs from '../SidecarTabs';
 import { FileViewer } from '../FileViewer';
 import DocumentEditor from '../DocumentEditor';
 import WebViewer from '../WebViewer';
+import { MatrixProvider } from '../../contexts/MatrixContext';
+import { matrixService } from '../../services/MatrixService';
+import { TabProvider } from '../../contexts/TabContext';
 
 import { TopNavigation } from './TopNavigation';
 import { CondensedNavigation } from './CondensedNavigation';
@@ -421,9 +424,13 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
 export const AppLayout: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }) => {
   return (
     <SidebarProvider>
-      <SidecarProvider>
-        <AppLayoutContent setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-      </SidecarProvider>
+      <MatrixProvider matrixService={matrixService}>
+        <TabProvider>
+          <SidecarProvider>
+            <AppLayoutContent setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+          </SidecarProvider>
+        </TabProvider>
+      </MatrixProvider>
     </SidebarProvider>
   );
 };
