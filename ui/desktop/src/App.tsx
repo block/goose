@@ -19,6 +19,7 @@ import { initializeMatrixInterceptor } from './matrixRoomInterceptor';
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
 import Pair from './components/pair';
+import { TabbedPairRoute } from './components/TabbedPairRoute';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -1464,19 +1465,25 @@ export default function App() {
                   path="pair"
                   element={
                     <ProviderGuard>
-                      <ChatProvider
-                        chat={pairChat}
-                        setChat={setPairChat}
-                        contextKey={`pair-${pairChat.id}`}
-                        key={pairChat.id} // Add key prop to force re-render when chat ID changes
-                      >
-                        <PairRouteWrapper
+                      {process.env.ALPHA ? (
+                        // Use tabbed interface for alpha UI
+                        <TabbedPairRoute setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                      ) : (
+                        // Use legacy single-chat interface
+                        <ChatProvider
                           chat={pairChat}
                           setChat={setPairChat}
-                          setPairChat={setPairChat}
-                          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                        />
-                      </ChatProvider>
+                          contextKey={`pair-${pairChat.id}`}
+                          key={pairChat.id}
+                        >
+                          <PairRouteWrapper
+                            chat={pairChat}
+                            setChat={setPairChat}
+                            setPairChat={setPairChat}
+                            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                          />
+                        </ChatProvider>
+                      )}
                     </ProviderGuard>
                   }
                 />
