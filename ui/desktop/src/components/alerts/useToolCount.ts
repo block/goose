@@ -7,6 +7,12 @@ export const useToolCount = (sessionId: string) => {
   const [toolCount, setToolCount] = useState<number | null>(null);
 
   useEffect(() => {
+    // Don't fetch if sessionId is empty or undefined
+    if (!sessionId) {
+      setToolCount(0);
+      return;
+    }
+
     let timeoutId: ReturnType<typeof setTimeout>;
 
     const fetchTools = async () => {
