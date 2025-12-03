@@ -114,6 +114,7 @@ function BaseChatContent({
     initialMessage,
     onSessionIdChange,
     isMatrixTab: !!matrixRoomId, // Pass Matrix tab flag based on whether we have a matrixRoomId
+    matrixRoomId, // Pass Matrix room ID for message routing
     tabId, // Pass tabId for sidecar filtering
   });
 
@@ -144,20 +145,26 @@ function BaseChatContent({
         sender: message.sender?.displayName || message.sender?.userId || 'unknown'
       });
       
-      // FIXED: Make Matrix message events SESSION-SPECIFIC to prevent cross-tab contamination
-      // Include sessionId in the event detail so only the correct useChatStream instance processes it
+      // FIXED: For Matrix tabs, use matrixRoomId as the routing key instead of sessionId
+      // This ensures messages are routed correctly even if backend session ID changes
+      const routingKey = matrixRoomId || sessionId;
+      
       const messageEvent = new CustomEvent('matrix-message-received', {
         detail: { 
           message,
-          targetSessionId: sessionId, // CRITICAL: Only this session should process this message
+          targetSessionId: sessionId, // Backend session ID (for logging)
+          targetRoomId: matrixRoomId, // Matrix room ID (for routing)
+          routingKey: routingKey, // The actual key to match on
           timestamp: new Date().toISOString()
         }
       });
       window.dispatchEvent(messageEvent);
       
-      console.log('📥 BaseChat2 dispatched SESSION-SPECIFIC matrix-message-received event:', {
+      console.log('📥 BaseChat2 dispatched matrix-message-received event:', {
         messageId: message.id,
-        targetSessionId: sessionId.substring(0, 8),
+        targetSessionId: sessionId?.substring(0, 8),
+        targetRoomId: matrixRoomId?.substring(0, 20),
+        routingKey: routingKey?.substring(0, 20),
         sender: message.sender?.displayName || message.sender?.userId || 'unknown'
       });
     }
@@ -286,17 +293,20 @@ function BaseChatContent({
   const shouldShowPopularTopics = showPopularTopics && 
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
-  // Debug logging for empty state
-  console.log('BaseChat2 render state:', {
-    sessionId: sessionId, // Show full session ID for debugging
-    sessionIdShort: sessionId.slice(0, 8), // Also show truncated for readability
+  // DIAGNOSTIC: Enhanced logging for Matrix debugging
+  console.log('🔍 BaseChat2 render state:', {
+    sessionId: sessionId?.slice(0, 8) + '...', // Show truncated for readability
+    matrixRoomId: matrixRoomId?.substring(0, 20) + '...',
+    isMatrixTab: !!matrixRoomId,
     messagesLength: messages.length,
     chatState,
     shouldShowPopularTopics,
     loadingChat,
     hasSession: !!session,
     sessionName: session?.name,
-    sessionDescription: session?.description
+    sessionDescription: session?.description,
+    showParticipantsBar,
+    tabId
   });
 
   // Memoize the chat object to prevent infinite re-renders

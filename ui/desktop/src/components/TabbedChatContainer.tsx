@@ -6,6 +6,7 @@ import MultiPanelTabSidecar from './MultiPanelTabSidecar';
 import { useTabContext } from '../contexts/TabContext';
 import { ResizableSplitter } from './Layout/ResizableSplitter';
 import { TaskExecutionProvider } from '../contexts/TaskExecutionContext';
+import { SpaceBreadcrumb } from './SpaceBreadcrumb';
 
 interface TabbedChatContainerProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -36,7 +37,9 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
     updateSessionId,
     // Sidecar functions
     hideSidecarView,
-    getSidecarState
+    getSidecarState,
+    // Matrix functions
+    openMatrixChat
   } = useTabContext();
 
   const handleMessageSubmitWrapper = useCallback(async (message: string, tabId: string) => {
@@ -185,6 +188,28 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
   const sidecarState = activeTabState ? getSidecarState(activeTabState.tab.id) : undefined;
   const hasSidecar = sidecarState && sidecarState.activeViews.length > 0;
 
+  // Handle room switching from breadcrumb
+  const handleRoomSwitch = useCallback(async (roomId: string) => {
+    console.log('🔄 Switching to room:', roomId);
+    
+    // Get room info from Matrix service
+    const { matrixService } = await import('../services/MatrixService');
+    const matrixRoom = matrixService.client?.getRoom(roomId);
+    const roomName = matrixRoom?.name || 'Unnamed Room';
+    const currentUserId = matrixService.client?.getUserId() || '';
+    
+    // Open the room in the current tab (replaces current Matrix chat)
+    openMatrixChat(roomId, currentUserId, roomName);
+  }, [openMatrixChat]);
+
+  // Handle space navigation from breadcrumb
+  const handleSpaceNavigation = useCallback(async (spaceId: string) => {
+    console.log('🔄 Navigating to space:', spaceId);
+    // This could navigate to the SpaceRoomsView or ChannelsView
+    // For now, we'll just log it - you can implement navigation logic here
+    // Example: navigate('/channels?space=' + spaceId);
+  }, []);
+
   return (
     <TaskExecutionProvider>
       <div className={`flex flex-col h-full bg-background-default ${className || ''}`}>
@@ -199,6 +224,17 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
             sidebarCollapsed={sidebarCollapsed}
           />
         </div>
+
+        {/* Space Breadcrumb - Show for Matrix tabs with room IDs */}
+        {activeTabState && activeTabState.tab.type === 'matrix' && activeTabState.tab.matrixRoomId && (
+          <div className="flex-shrink-0">
+            <SpaceBreadcrumb 
+              roomId={activeTabState.tab.matrixRoomId}
+              onRoomClick={handleRoomSwitch}
+              onSpaceClick={handleSpaceNavigation}
+            />
+          </div>
+        )}
 
         {/* Main Content Area - Chat and Sidecar */}
         <div className="flex-1 min-h-0 relative overflow-hidden rounded-t-lg bg-background-default">

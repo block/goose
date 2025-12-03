@@ -106,6 +106,7 @@ interface ChatInputProps {
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
   gooseEnabled?: boolean;
+  matrixRoomId?: string | null; // Matrix room ID for this specific chat tab
 }
 
 export default function ChatInput({
@@ -134,7 +135,13 @@ export default function ChatInput({
   append,
   isExtensionsLoading = false,
   gooseEnabled = true,
+  matrixRoomId,
 }: ChatInputProps) {
+  // DIAGNOSTIC: Log the matrixRoomId prop when ChatInput renders
+  console.log('[ChatInput] Received matrixRoomId prop:', {
+    matrixRoomId,
+    timestamp: new Date().toISOString(),
+  });
   // Track the available width for responsive layout
   const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
   const chatInputRef = useRef<HTMLDivElement>(null);
