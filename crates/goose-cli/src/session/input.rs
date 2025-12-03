@@ -340,6 +340,7 @@ Up/Down arrows - Navigate through command history"
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_handle_slash_command() {
@@ -603,6 +604,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_newline_key_default() {
         // Clear the env var to test default behavior
         std::env::remove_var("GOOSE_CLI_NEWLINE_KEY");
@@ -610,6 +612,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_newline_key_custom() {
         // Test setting a custom key
         std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "o");
@@ -624,6 +627,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_newline_key_empty_string() {
         // Test empty string falls back to default
         std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "");
@@ -634,6 +638,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_newline_key_first_char_only() {
         // Test only first character is used
         std::env::set_var("GOOSE_CLI_NEWLINE_KEY", "abc");
