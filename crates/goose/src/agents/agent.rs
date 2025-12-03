@@ -982,7 +982,6 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
-                            // Reset counter on successful response
                             compaction_attempts = 0;
 
                             // Emit model change event if provider is lead-worker
@@ -1182,20 +1181,12 @@ impl Agent {
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             compaction_attempts += 1;
 
-                            // Stop after 2 attempts (first attempt + one retry)
                             if compaction_attempts >= 2 {
                                 error!("Context limit exceeded after compaction - prompt too large");
                                 yield AgentEvent::Message(
                                     Message::assistant().with_system_notification(
                                         SystemNotificationType::InlineMessage,
-                                        "Unable to continue: Even after compacting the conversation, the context still exceeds the model's limit.
-
-This indicates that your message or the system prompt is too large for the configured model.
-
-Please try:
-- Using a shorter message
-- Configuring a model with a larger context window
-- Starting a new session"
+                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
                                     )
                                 );
                                 break;
@@ -1221,10 +1212,9 @@ Please try:
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    break;  // Break to outer loop to create new stream with compacted conversation
+                                    break;
                                 }
                                 Err(e) => {
-                                    // Just log compaction failure - the doom loop check above will catch it on retry
                                     error!("Compaction failed: {}", e);
                                     break;
                                 }
