@@ -179,7 +179,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   // Create backend sessions for any temporary sessions after component mounts
   useEffect(() => {
     const createBackendSessionsForTempTabs = async () => {
-      const tempTabs = tabStates.filter(ts => ts.tab.sessionId.startsWith('temp_'));
+      const tempTabs = tabStates.filter(ts => ts.tab.sessionId && ts.tab.sessionId.startsWith('temp_'));
       
       for (const tabState of tempTabs) {
         try {
@@ -445,7 +445,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     if (!tabState) return;
 
     // Don't try to sync new sessions that don't exist on the backend yet
-    if (tabState.tab.sessionId.startsWith('new_')) {
+    if (!tabState.tab.sessionId || tabState.tab.sessionId.startsWith('new_')) {
       console.log('🏷️ Skipping backend sync for new session:', tabState.tab.sessionId);
       return;
     }
@@ -945,7 +945,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     }
 
     // If already has a backend session (not temporary), return it
-    if (!tabState.tab.sessionId.startsWith('temp_') && !tabState.tab.sessionId.startsWith('new_')) {
+    if (tabState.tab.sessionId && !tabState.tab.sessionId.startsWith('temp_') && !tabState.tab.sessionId.startsWith('new_')) {
       console.log('🏗️ Tab already has backend session:', tabState.tab.sessionId);
       return tabState.tab.sessionId;
     }
