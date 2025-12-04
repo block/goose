@@ -75,7 +75,7 @@ The Council Members:
 
 ### goose Prompt
 
-> Use the council to debate on should AI assistants have distinct personalities, or should they remain neutral and lack personality-free?
+> Use the council to debate on should AI assistants have distinct personalities, or should they remain neutral and personality-free?
 
 ### goose Output
 

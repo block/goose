@@ -201,11 +201,11 @@
     "description": "LLM council debate with 9 distinct personas for decision-making",
     "command": "uvx --from git+https://github.com/block/mcp-council-of-mine mcp_council_of_mine",
     "link": "https://github.com/block/mcp-council-of-mine",
-    "installation_notes": "LLM Debate",
+    "installation_notes": "Requires uv to be installed (https://github.com/astral-sh/uv). Installs via uvx from GitHub.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
-  }, 
+  },
   {
     "id": "datahub-mcp",
     "name": "DataHub",
