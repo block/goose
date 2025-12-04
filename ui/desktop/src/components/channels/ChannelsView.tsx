@@ -64,8 +64,9 @@ const ChannelCard: React.FC<{
         bg-background-default
         transition-colors duration-200
         hover:bg-background-medium
-        w-full h-full
+        aspect-square
         flex flex-col
+        rounded-2xl
         overflow-hidden
       "
     >
@@ -179,8 +180,9 @@ const SpaceChildCard: React.FC<{
         bg-background-default
         transition-colors duration-200
         hover:bg-background-medium
-        w-full h-full
+        aspect-square
         flex flex-col
+        rounded-2xl
         overflow-hidden
       "
     >
@@ -264,9 +266,9 @@ const EmptyChannelTile: React.FC<{ onCreateChannel: () => void; isInSpace?: bool
         px-6 py-6
         transition-all duration-200
         hover:bg-background-medium
-        w-full h-full
+        aspect-square
         flex flex-col items-center justify-center
-        overflow-hidden
+        rounded-2xl
       "
     >
       {/* Plus icon - hidden by default, shown on hover */}
@@ -1067,191 +1069,183 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="relative w-screen h-screen bg-background-muted">
-      {/* Floating Header Controls - positioned absolutely */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
-        <div className="flex items-center gap-3 bg-background-default/90 backdrop-blur-sm rounded-xl px-4 py-3 border border-border-default/50">
-          {currentSpace ? (
-            <button
-              onClick={handleBackToSpaces}
-              className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center hover:bg-background-accent/80 transition-colors"
-              title="Back to Spaces"
-            >
-              <ArrowLeft className="w-5 h-5 text-text-on-accent" />
-            </button>
-          ) : (
-            <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
-              <Hash className="w-5 h-5 text-text-on-accent" />
-            </div>
-          )}
-          <div>
+    <div className="relative flex flex-col h-screen bg-background-muted">
+      {/* Header */}
+      <div className="pt-14 pb-4 px-4 mb-0.5 bg-background-default rounded-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
             {currentSpace ? (
-              <>
-                {/* Breadcrumb navigation */}
-                <div className="flex items-center gap-1 text-sm text-text-muted mb-1">
-                  <button
-                    onClick={handleBackToSpaces}
-                    className="hover:text-text-default transition-colors"
-                  >
-                    <Home className="w-4 h-4" />
-                  </button>
-                  {spaceNavigationStack.map((space, index) => (
-                    <React.Fragment key={space.roomId}>
-                      <ChevronRight className="w-3 h-3" />
-                      <span className={index === spaceNavigationStack.length - 1 ? 'text-text-default font-medium' : ''}>
-                        {space.name}
-                      </span>
-                    </React.Fragment>
-                  ))}
-                </div>
-                <h1 className="text-xl font-semibold text-text-default">{currentSpace.name}</h1>
-                <p className="text-sm text-text-muted">
-                  {loadingSpaceChildren ? 'Loading...' : `${spaceChildren.length} items`}
-                </p>
-              </>
+              <button
+                onClick={handleBackToSpaces}
+                className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center hover:bg-background-accent/80 transition-colors"
+                title="Back to Spaces"
+              >
+                <ArrowLeft className="w-5 h-5 text-text-on-accent" />
+              </button>
             ) : (
-              <>
-                <h1 className="text-xl font-semibold text-text-default">Spaces</h1>
-                <p className="text-sm text-text-muted">
-                  {isConnected ? `${channels.length} spaces` : 'Not connected'}
-                </p>
-              </>
+              <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
+                <Hash className="w-5 h-5 text-text-on-accent" />
+              </div>
             )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2 bg-background-default/90 backdrop-blur-sm rounded-xl px-4 py-3 border border-border-default/50">
-          {/* Connection Status */}
-          <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-background-muted">
-            {isConnected ? (
-              <>
-                <Wifi className="w-3 h-3 text-green-600" />
-                <span className="text-xs text-green-600">Connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3 h-3 text-red-600" />
-                <span className="text-xs text-red-600">Disconnected</span>
-              </>
-            )}
+            <div>
+              {currentSpace ? (
+                <>
+                  {/* Breadcrumb navigation */}
+                  <div className="flex items-center gap-1 text-sm text-text-muted mb-1">
+                    <button
+                      onClick={handleBackToSpaces}
+                      className="hover:text-text-default transition-colors"
+                    >
+                      <Home className="w-4 h-4" />
+                    </button>
+                    {spaceNavigationStack.map((space, index) => (
+                      <React.Fragment key={space.roomId}>
+                        <ChevronRight className="w-3 h-3" />
+                        <span className={index === spaceNavigationStack.length - 1 ? 'text-text-default font-medium' : ''}>
+                          {space.name}
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <h1 className="text-xl font-semibold text-text-default">{currentSpace.name}</h1>
+                  <p className="text-sm text-text-muted">
+                    {loadingSpaceChildren ? 'Loading...' : `${spaceChildren.length} items`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-xl font-semibold text-text-default">Spaces</h1>
+                  <p className="text-sm text-text-muted">
+                    {isConnected ? `${channels.length} spaces` : 'Not connected'}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
           
-          <button
-            onClick={() => setShowMatrixAuth(true)}
-            className="p-2 rounded-lg hover:bg-background-medium transition-colors"
-            title="Matrix Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Connection Status */}
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-background-muted">
+              {isConnected ? (
+                <>
+                  <Wifi className="w-3 h-3 text-green-600" />
+                  <span className="text-xs text-green-600">Connected</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-red-600" />
+                  <span className="text-xs text-red-600">Disconnected</span>
+                </>
+              )}
+            </div>
+            
+            <button
+              onClick={() => setShowMatrixAuth(true)}
+              className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+              title="Matrix Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Floating Search Bar - positioned absolutely */}
-      {isConnected && isReady && (
-        <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10 w-96 max-w-md">
-          <div className="relative bg-background-default/90 backdrop-blur-sm rounded-xl border border-border-default/50">
+        {/* Search Bar */}
+        {isConnected && isReady && (
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search spaces..."
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-background-accent text-sm"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-border-default bg-background-muted focus:outline-none focus:ring-2 focus:ring-background-accent text-sm"
             />
           </div>
-        </div>
-      )}
-
-      {/* Full Viewport Grid Content */}
-      <div className="w-screen h-screen">
-        {!isConnected ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-text-default mb-2">Not Connected</h3>
-              <p className="text-text-muted mb-6">
-                Connect to Matrix to access spaces and collaborate with your team.
-              </p>
-              <button
-                onClick={() => setShowMatrixAuth(true)}
-                className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
-              >
-                Connect to Matrix
-              </button>
-            </div>
-          </div>
-        ) : !isReady ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
-              <p className="text-text-muted">Syncing with Matrix server...</p>
-            </div>
-          </div>
-        ) : currentSpace ? (
-          // Show space contents - full viewport grid
-          loadingSpaceChildren ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-default mb-2">Loading Space Contents...</h3>
-                <p className="text-text-muted">Fetching rooms and sub-spaces...</p>
-              </div>
-            </div>
-          ) : spaceChildren.length === 0 ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center">
-                <Hash className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-text-default mb-2">Empty Space</h3>
-                <p className="text-text-muted mb-6">
-                  This space doesn't contain any rooms or sub-spaces yet.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="w-screen h-screen grid auto-rows-fr gap-0" style={{
-              gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(spaceChildren.length + Math.min(6, Math.max(1, 12 - spaceChildren.length))))}, 1fr)`
-            }}>
-              {spaceChildren.map((child) => (
-                <SpaceChildCard
-                  key={child.roomId}
-                  child={child}
-                  onChildClick={handleSpaceChildClick}
-                />
-              ))}
-              {/* Empty tiles for creating new rooms in this space - limited to reasonable amount */}
-              {Array.from({ length: Math.min(6, Math.max(1, 12 - spaceChildren.length)) }).map((_, index) => (
-                <EmptyChannelTile
-                  key={`empty-room-${index}`}
-                  onCreateChannel={() => setShowCreateModal(true)}
-                  isInSpace={true}
-                />
-              ))}
-            </div>
-          )
-        ) : (
-          // Show spaces grid - full viewport grid
-          <div className="w-screen h-screen grid auto-rows-fr gap-0" style={{
-            gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(filteredChannels.length + Math.min(6, Math.max(1, 12 - filteredChannels.length))))}, 1fr)`
-          }}>
-            {filteredChannels.map((channel) => (
-              <ChannelCard
-                key={channel.roomId}
-                channel={channel}
-                onOpenChannel={handleOpenChannel}
-                onEditChannel={handleEditChannel}
-                onToggleFavorite={handleToggleFavorite}
-              />
-            ))}
-            {/* Empty tiles for creating new channels - limited to reasonable amount */}
-            {Array.from({ length: Math.min(6, Math.max(1, 12 - filteredChannels.length)) }).map((_, index) => (
-              <EmptyChannelTile
-                key={`empty-${index}`}
-                onCreateChannel={() => setShowCreateModal(true)}
-              />
-            ))}
-          </div>
         )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {!isConnected ? (
+              <div className="text-center py-12">
+                <WifiOff className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Not Connected</h3>
+                <p className="text-text-muted mb-6">
+                  Connect to Matrix to access spaces and collaborate with your team.
+                </p>
+                <button
+                  onClick={() => setShowMatrixAuth(true)}
+                  className="px-6 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                >
+                  Connect to Matrix
+                </button>
+              </div>
+            ) : !isReady ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">Loading...</h3>
+                <p className="text-text-muted">Syncing with Matrix server...</p>
+              </div>
+            ) : currentSpace ? (
+              // Show space contents
+              loadingSpaceChildren ? (
+                <div className="text-center py-12">
+                  <div className="w-8 h-8 border-2 border-background-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-text-default mb-2">Loading Space Contents...</h3>
+                  <p className="text-text-muted">Fetching rooms and sub-spaces...</p>
+                </div>
+              ) : spaceChildren.length === 0 ? (
+                <div className="text-center py-12">
+                  <Hash className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-text-default mb-2">Empty Space</h3>
+                  <p className="text-text-muted mb-6">
+                    This space doesn't contain any rooms or sub-spaces yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-6">
+                  {spaceChildren.map((child) => (
+                    <SpaceChildCard
+                      key={child.roomId}
+                      child={child}
+                      onChildClick={handleSpaceChildClick}
+                    />
+                  ))}
+                  {/* Empty tiles for creating new rooms in this space - limited to reasonable amount */}
+                  {Array.from({ length: Math.min(6, Math.max(1, 12 - spaceChildren.length)) }).map((_, index) => (
+                    <EmptyChannelTile
+                      key={`empty-room-${index}`}
+                      onCreateChannel={() => setShowCreateModal(true)}
+                      isInSpace={true}
+                    />
+                  ))}
+                </div>
+              )
+            ) : (
+              // Show spaces grid
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-6">
+                {filteredChannels.map((channel) => (
+                  <ChannelCard
+                    key={channel.roomId}
+                    channel={channel}
+                    onOpenChannel={handleOpenChannel}
+                    onEditChannel={handleEditChannel}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))}
+                {/* Empty tiles for creating new channels - limited to reasonable amount */}
+                {Array.from({ length: Math.min(6, Math.max(1, 12 - filteredChannels.length)) }).map((_, index) => (
+                  <EmptyChannelTile
+                    key={`empty-${index}`}
+                    onCreateChannel={() => setShowCreateModal(true)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Create Channel Modal */}
