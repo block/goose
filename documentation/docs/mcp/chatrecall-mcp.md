@@ -1,6 +1,5 @@
 ---
 title: Chat Recall Extension
-sidebar_label: Chat Recall
 description: Search conversation history and load session summaries across all your goose sessions
 ---
 
