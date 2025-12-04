@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Hash, 
@@ -675,8 +675,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
-  // Helper function to convert MXC URL to HTTP URL with authentication
-  const convertMxcToHttp = (mxcUrl: string | undefined): string | undefined => {
+  // Helper function to convert MXC URL to HTTP URL with authentication (memoized)
+  const convertMxcToHttp = useCallback((mxcUrl: string | undefined): string | undefined => {
     if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
       console.log('🖼️ convertMxcToHttp: Not an MXC URL:', mxcUrl);
       return mxcUrl;
@@ -711,7 +711,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     
     console.log('🖼️ convertMxcToHttp: No client available, returning MXC URL:', mxcUrl);
     return mxcUrl;
-  };
+  }, []);
 
   // Filter spaces from Matrix rooms and add favorite status
   const channels: Channel[] = rooms
@@ -1055,7 +1055,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-0.5">
                   {spaceChildren.map((child) => (
                     <SpaceChildCard
                       key={child.roomId}
@@ -1063,8 +1063,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                       onChildClick={handleSpaceChildClick}
                     />
                   ))}
-                  {/* Empty tiles for creating new rooms in this space - fill remaining space */}
-                  {Array.from({ length: 50 - spaceChildren.length }).map((_, index) => (
+                  {/* Empty tiles for creating new rooms in this space - limited to reasonable amount */}
+                  {Array.from({ length: Math.min(6, Math.max(1, 12 - spaceChildren.length)) }).map((_, index) => (
                     <EmptyChannelTile
                       key={`empty-room-${index}`}
                       onCreateChannel={() => setShowCreateModal(true)}
@@ -1075,7 +1075,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
               )
             ) : (
               // Show spaces grid
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-0.5">
                 {filteredChannels.map((channel) => (
                   <ChannelCard
                     key={channel.roomId}
@@ -1085,8 +1085,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
-                {/* Empty tiles for creating new channels - fill remaining space */}
-                {Array.from({ length: 50 - filteredChannels.length }).map((_, index) => (
+                {/* Empty tiles for creating new channels - limited to reasonable amount */}
+                {Array.from({ length: Math.min(6, Math.max(1, 12 - filteredChannels.length)) }).map((_, index) => (
                   <EmptyChannelTile
                     key={`empty-${index}`}
                     onCreateChannel={() => setShowCreateModal(true)}
