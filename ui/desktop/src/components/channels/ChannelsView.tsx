@@ -763,6 +763,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Space navigation state
   const [currentSpace, setCurrentSpace] = useState<Channel | null>(null);
@@ -789,6 +790,16 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       setShowMatrixAuth(true);
     }
   }, [isConnected, showMatrixAuth]);
+
+  // Handle window resize for responsive empty tiles
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Helper function to convert MXC URL to HTTP URL with authentication (memoized)
   const convertMxcToHttp = useCallback((mxcUrl: string | undefined): string | undefined => {
@@ -857,6 +868,31 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
         channel.topic?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : channels;
+
+  // Calculate empty tiles to fill the entire viewport
+  const calculateEmptyTiles = (itemsCount: number) => {
+    // Estimate tiles that can fit in viewport
+    // Assuming each tile is roughly 200px (including gaps) and viewport height minus headers
+    const estimatedTileHeight = 200;
+    const headerHeight = 150; // Approximate height of header section with padding
+    const availableHeight = windowSize.height - headerHeight;
+    
+    // Calculate how many rows can fit
+    const rowsInViewport = Math.floor(availableHeight / estimatedTileHeight);
+    
+    // Calculate tiles per row based on current screen width
+    const screenWidth = windowSize.width;
+    let tilesPerRow = 6; // xl default
+    if (screenWidth < 640) tilesPerRow = 2; // sm
+    else if (screenWidth < 768) tilesPerRow = 3; // md  
+    else if (screenWidth < 1024) tilesPerRow = 4; // lg
+    else if (screenWidth < 1280) tilesPerRow = 5; // xl
+    
+    const totalTilesInViewport = Math.max(rowsInViewport * tilesPerRow, 12); // Minimum 12 tiles (2 rows)
+    const emptyTilesNeeded = Math.max(0, totalTilesInViewport - itemsCount);
+    
+    return emptyTilesNeeded;
+  };
 
   const handleOpenChannel = async (channel: Channel) => {
     try {
@@ -1205,7 +1241,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                   {spaceChildren.map((child) => (
                     <SpaceChildCard
                       key={child.roomId}
@@ -1213,8 +1249,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                       onChildClick={handleSpaceChildClick}
                     />
                   ))}
-                  {/* Empty tiles for creating new rooms in this space - limited to reasonable amount */}
-                  {Array.from({ length: Math.min(6, Math.max(1, 12 - spaceChildren.length)) }).map((_, index) => (
+                  {/* Empty tiles for creating new rooms in this space */}
+                  {Array.from({ length: calculateEmptyTiles(spaceChildren.length) }).map((_, index) => (
                     <EmptyChannelTile
                       key={`empty-room-${index}`}
                       onCreateChannel={() => setShowCreateModal(true)}
@@ -1225,7 +1261,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
               )
             ) : (
               // Show spaces grid
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                 {filteredChannels.map((channel) => (
                   <ChannelCard
                     key={channel.roomId}
@@ -1235,8 +1271,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
-                {/* Empty tiles for creating new channels - limited to reasonable amount */}
-                {Array.from({ length: Math.min(6, Math.max(1, 12 - filteredChannels.length)) }).map((_, index) => (
+                {/* Empty tiles for creating new channels */}
+                {Array.from({ length: calculateEmptyTiles(filteredChannels.length) }).map((_, index) => (
                   <EmptyChannelTile
                     key={`empty-${index}`}
                     onCreateChannel={() => setShowCreateModal(true)}
