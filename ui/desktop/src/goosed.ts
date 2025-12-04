@@ -100,12 +100,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   const homeDir = os.homedir();
   const dir = path.resolve(path.normalize(inputDir));
 
-  // Check for external backend (settings take precedence over env var)
   if (externalGoosed?.enabled && externalGoosed.url) {
     return connectToExternalBackend(dir, externalGoosed.url);
   }
 
-  // Legacy env var support
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     return connectToExternalBackend(dir, 'http://127.0.0.1:3000');
   }

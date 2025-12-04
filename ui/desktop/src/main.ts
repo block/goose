@@ -466,16 +466,12 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
-// Generate a random secret for locally launched goosed instances
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
-// Get the secret to use for a given settings configuration
 const getServerSecret = (settings: ReturnType<typeof loadSettings>): string => {
-  // Settings-based external backend takes precedence
   if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
     return settings.externalGoosed.secret;
   }
-  // Legacy env var support
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     return 'test';
   }
@@ -556,7 +552,7 @@ const createChat = async (
         JSON.stringify({
           ...appConfig,
           GOOSE_API_HOST: baseUrl,
-          GOOSE_PORT: 0, // Port is now embedded in baseUrl
+          GOOSE_PORT: 0,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
@@ -596,7 +592,6 @@ const createChat = async (
     const isUsingExternalBackend = settings.externalGoosed?.enabled;
 
     if (isUsingExternalBackend) {
-      // Give user option to disable external backend and retry
       const response = dialog.showMessageBoxSync({
         type: 'error',
         title: 'External Backend Unreachable',
@@ -608,7 +603,6 @@ const createChat = async (
       });
 
       if (response === 0) {
-        // Disable external backend and save
         const updatedSettings = {
           ...settings,
           externalGoosed: {
@@ -618,8 +612,6 @@ const createChat = async (
           },
         };
         saveSettings(updatedSettings);
-
-        // Close this window and let the app create a new one with local backend
         mainWindow.destroy();
         return createChat(app, initialMessage, dir);
       }
@@ -1821,7 +1813,6 @@ async function appMain() {
     }
   });
 
-  // Build dynamic CSP based on settings
   const buildConnectSrc = (): string => {
     const sources = [
       "'self'",
@@ -1831,12 +1822,10 @@ async function appMain() {
       'https://objects.githubusercontent.com',
     ];
 
-    // Add external backend URL if configured
     const settings = loadSettings();
     if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
       try {
         const externalUrl = new URL(settings.externalGoosed.url);
-        // Add origin (protocol + host + port)
         sources.push(externalUrl.origin);
       } catch {
         console.warn('Invalid external goosed URL in settings, skipping CSP entry');

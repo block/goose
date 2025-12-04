@@ -100,17 +100,18 @@ export default function ExternalBackendSection() {
   return (
     <Card className="rounded-lg">
       <CardHeader className="pb-0">
-        <CardTitle className="mb-1">External Backend</CardTitle>
+        <CardTitle className="mb-1">Goose Server</CardTitle>
         <CardDescription>
-          Connect to an already running goosed instance instead of launching one
+          By default goose launches a server for you, use this to connect to an external goose
+          server
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4 space-y-4 px-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-text-default text-xs">Use external backend</h3>
+            <h3 className="text-text-default text-xs">Use external server</h3>
             <p className="text-xs text-text-muted max-w-md mt-[2px]">
-              Connect to an external goosed server (requires app restart)
+              Connect to a goose server running elsewhere (requires app restart)
             </p>
           </div>
           <div className="flex items-center">
