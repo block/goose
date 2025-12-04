@@ -593,13 +593,45 @@ const createChat = async (
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
   if (!serverReady) {
-    dialog.showMessageBoxSync({
-      type: 'error',
-      title: 'Goose Failed to Start',
-      message: 'The backend server failed to start.',
-      detail: errorLog.join('\n'),
-      buttons: ['OK'],
-    });
+    const isUsingExternalBackend = settings.externalGoosed?.enabled;
+
+    if (isUsingExternalBackend) {
+      // Give user option to disable external backend and retry
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
+        detail: 'The external goosed server may not be running.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) {
+        // Disable external backend and save
+        const updatedSettings = {
+          ...settings,
+          externalGoosed: {
+            enabled: false,
+            url: settings.externalGoosed?.url || '',
+            secret: settings.externalGoosed?.secret || '',
+          },
+        };
+        saveSettings(updatedSettings);
+
+        // Close this window and let the app create a new one with local backend
+        mainWindow.destroy();
+        return createChat(app, initialMessage, dir);
+      }
+    } else {
+      dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'Goose Failed to Start',
+        message: 'The backend server failed to start.',
+        detail: errorLog.join('\n'),
+        buttons: ['OK'],
+      });
+    }
     app.quit();
   }
 
