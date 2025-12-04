@@ -22,6 +22,7 @@ import MatrixAuth from '../peers/MatrixAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
 import { matrixService, SpaceChild } from '../../services/MatrixService';
+import { toastError, toastSuccess, toastLoading } from '../../toasts';
 
 interface Channel {
   roomId: string;
@@ -335,7 +336,11 @@ const EditChannelModal: React.FC<{
       onClose();
     } catch (error) {
       console.error('Failed to edit channel:', error);
-      alert('Failed to edit channel. Please try again.');
+      toastError({
+        title: 'Failed to Edit Channel',
+        msg: 'Could not save channel changes. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setIsEditing(false);
     }
@@ -493,7 +498,11 @@ const CreateChannelModal: React.FC<{
       setIsPublic(true);
     } catch (error) {
       console.error('Failed to create channel:', error);
-      alert('Failed to create channel. Please try again.');
+      toastError({
+        title: `Failed to Create ${isInSpace ? 'Room' : 'Space'}`,
+        msg: `Could not create ${isInSpace ? 'room' : 'space'}. Please try again.`,
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setIsCreating(false);
     }
@@ -764,7 +773,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       });
     } catch (error) {
       console.error('❌ Failed to navigate into space:', error);
-      alert('Failed to load space contents. Please try again.');
+      toastError({
+        title: 'Failed to Load Space',
+        msg: 'Could not load space contents. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoadingSpaceChildren(false);
     }
@@ -811,7 +824,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       }
     } catch (error) {
       console.error('❌ Failed to handle space child click:', error);
-      alert('Failed to open space content. Please try again.');
+      toastError({
+        title: 'Failed to Open Content',
+        msg: 'Could not open space content. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoadingSpaceChildren(false);
     }
@@ -837,7 +854,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     } catch (error) {
       console.error('❌ Failed to create:', error);
       const itemType = currentSpace ? 'room' : 'space';
-      alert(`Failed to create ${itemType}. Please try again.`);
+      toastError({
+        title: `Failed to Create ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
+        msg: `Could not create ${itemType}. Please try again.`,
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 
