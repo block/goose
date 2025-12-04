@@ -131,9 +131,13 @@ fn get_agent_messages(
             }
         }
 
-        let has_response_schema = recipe.response.is_some();
+        let valid_response = recipe
+            .response
+            .as_ref()
+            .filter(|r| r.json_schema.is_some())
+            .cloned();
         agent
-            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .apply_recipe_components(recipe.sub_recipes.clone(), valid_response.clone(), true)
             .await;
 
         let user_message = Message::user().with_text(text_instruction);
@@ -170,7 +174,7 @@ fn get_agent_messages(
             }
         }
 
-        let final_output = if has_response_schema {
+        let final_output = if valid_response.is_some() {
             agent
                 .final_output_tool
                 .lock()
