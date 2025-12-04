@@ -6,29 +6,31 @@ interface ParameterInputModalProps {
   parameters: Parameter[];
   onSubmit: (values: Record<string, string>) => void;
   onClose: () => void;
+  initialValues?: Record<string, string>;
 }
 
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   parameters,
   onSubmit,
   onClose,
+  initialValues,
 }) => {
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showCancelOptions, setShowCancelOptions] = useState(false);
 
-  // Pre-fill the form with default values from the recipe
+  // Pre-fill the form with default values from the recipe and initialValues from deeplink
   useEffect(() => {
-    const initialValues: Record<string, string> = {};
+    const defaultValues: Record<string, string> = {};
     parameters.forEach((param) => {
       if (param.requirement === 'optional' && param.default) {
-        const defaultValue =
+        defaultValues[param.key] =
           param.input_type === 'boolean' ? param.default.toLowerCase() : param.default;
-        initialValues[param.key] = defaultValue;
       }
     });
-    setInputValues(initialValues);
-  }, [parameters]);
+
+    setInputValues({ ...defaultValues, ...initialValues });
+  }, [parameters, initialValues]);
 
   const handleChange = (name: string, value: string): void => {
     setInputValues((prevValues: Record<string, string>) => ({ ...prevValues, [name]: value }));

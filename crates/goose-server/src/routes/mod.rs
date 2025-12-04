@@ -1,3 +1,4 @@
+pub mod action_required;
 pub mod agent;
 pub mod audio;
 pub mod config_management;
@@ -22,6 +23,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
     Router::new()
         .merge(status::routes())
         .merge(reply::routes(state.clone()))
+        .merge(action_required::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(audio::routes(state.clone()))
         .merge(config_management::routes(state.clone()))

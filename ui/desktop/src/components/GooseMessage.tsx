@@ -11,7 +11,7 @@ import {
   getToolConfirmationContent,
   NotificationEvent,
 } from '../types/message';
-import { Message, confirmPermission } from '../api';
+import { Message, confirmToolAction } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { cn } from '../utils';
@@ -100,22 +100,22 @@ export default function GooseMessage({
       messageIndex === messageHistoryIndex - 1 &&
       hasToolConfirmation &&
       toolConfirmationContent &&
-      !handledToolConfirmations.current.has(toolConfirmationContent.id)
+      !handledToolConfirmations.current.has(toolConfirmationContent.data.id)
     ) {
       const hasExistingResponse = messages.some((msg) =>
-        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.id)
+        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.data.id)
       );
 
       if (!hasExistingResponse) {
-        handledToolConfirmations.current.add(toolConfirmationContent.id);
+        handledToolConfirmations.current.add(toolConfirmationContent.data.id);
 
         void (async () => {
           try {
-            await confirmPermission({
+            await confirmToolAction({
               body: {
-                session_id: sessionId,
-                id: toolConfirmationContent.id,
+                sessionId,
                 action: 'deny',
+                id: toolConfirmationContent.data.id,
               },
               throwOnError: true,
             });
@@ -216,7 +216,7 @@ export default function GooseMessage({
             sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationContent={toolConfirmationContent}
+            actionRequiredContent={toolConfirmationContent}
           />
         )}
       </div>
