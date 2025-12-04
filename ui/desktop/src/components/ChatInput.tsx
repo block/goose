@@ -815,7 +815,7 @@ export default function ChatInput({
 
   // Helper function to handle interruption and queue logic when loading
   const handleInterruptionAndQueue = () => {
-    if (!isLoading || !displayValue.trim()) {
+    if (!isLoading || !hasSubmittableContent) {
       return false;
     }
 
