@@ -16,6 +16,7 @@ import { TopNavigation } from './TopNavigation';
 import { CondensedNavigation } from './CondensedNavigation';
 import { NavigationPosition } from '../settings/app/NavigationPositionSelector';
 import { NavigationStyle } from '../settings/app/NavigationStyleSelector';
+import { NavigationMode } from '../settings/app/NavigationModeSelector';
 
 // Create context for navigation state
 const NavigationContext = createContext<{
@@ -49,6 +50,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     const stored = localStorage.getItem('navigation_style');
     return (stored as NavigationStyle) || 'expanded';
   });
+  const [navigationMode, setNavigationMode] = useState<NavigationMode>(() => {
+    const stored = localStorage.getItem('navigation_mode');
+    return (stored as NavigationMode) || 'push';
+  });
   
   // Listen for navigation position changes
   useEffect(() => {
@@ -70,6 +75,17 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     
     window.addEventListener('navigation-style-changed', handleStyleChange);
     return () => window.removeEventListener('navigation-style-changed', handleStyleChange);
+  }, []);
+  
+  // Listen for navigation mode changes
+  useEffect(() => {
+    const handleModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ mode: NavigationMode }>;
+      setNavigationMode(customEvent.detail.mode);
+    };
+    
+    window.addEventListener('navigation-mode-changed', handleModeChange);
+    return () => window.removeEventListener('navigation-mode-changed', handleModeChange);
   }, []);
   
   // Bento box state management
@@ -303,7 +319,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
-  // Determine layout direction based on navigation position
+  // Determine layout direction based on navigation position (only for push mode)
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
   const flexDirection = isHorizontalNav ? 'flex-col' : 'flex-row';
   
@@ -355,65 +371,133 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       isExpanded={isNavExpanded} 
       setIsExpanded={setIsNavExpanded}
       position={navigationPosition}
+      isOverlayMode={navigationMode === 'overlay'}
     />
   ) : (
     <CondensedNavigation 
       isExpanded={isNavExpanded} 
       setIsExpanded={setIsNavExpanded}
       position={navigationPosition}
+      isOverlayMode={navigationMode === 'overlay'}
     />
+  );
+
+  // Overlay navigation component (full screen)
+  const overlayNavigationComponent = (
+    <div className={`
+      fixed inset-0 z-[10000] pointer-events-none
+      ${isNavExpanded ? 'pointer-events-auto' : ''}
+    `}>
+      {/* Overlay background with blur - click to close */}
+      {isNavExpanded && (
+        <div 
+          className="absolute inset-0 bg-black/20 backdrop-blur-md" 
+          onClick={() => setIsNavExpanded(false)}
+        />
+      )}
+      
+      {/* Navigation overlay - Full screen without container */}
+      <div className={`
+        absolute inset-0
+        transition-all duration-300 ease-out pointer-events-auto
+        ${isNavExpanded 
+          ? 'opacity-100 scale-100' 
+          : 'opacity-0 scale-95 pointer-events-none'
+        }
+      `}>
+        {/* Navigation content - full viewport */}
+        {navigationComponent}
+      </div>
+    </div>
   );
 
   return (
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
-      <div className={`flex ${flexDirection} flex-1 w-full h-full bg-background-muted`}>
-        {/* Navigation placement based on position */}
-        {navigationPosition === 'top' && navigationComponent}
-        {navigationPosition === 'left' && navigationComponent}
-        
-        {/* Main Content Area */}
-        {mainContent}
-        
-        {/* Navigation placement for bottom and right */}
-        {navigationPosition === 'bottom' && navigationComponent}
-        {navigationPosition === 'right' && navigationComponent}
-        
-        {/* Control Buttons - position based on nav location */}
-        <div className={`absolute z-[9999] flex gap-2 ${
-          navigationPosition === 'top' ? 'top-4 right-4' :
-          navigationPosition === 'bottom' ? 'bottom-4 right-4' :
-          navigationPosition === 'left' ? (safeIsMacOS ? 'top-4 left-20' : 'top-4 left-4') :
-          'top-4 right-4'
-        }`}>
-          <Button
-            onClick={() => setIsNavExpanded(!isNavExpanded)}
-            className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
-            variant="ghost"
-            size="xs"
-            title="Toggle navigation"
-          >
-            {navigationPosition === 'left' ? (
-              isNavExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
-            ) : navigationPosition === 'right' ? (
-              isNavExpanded ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />
-            ) : (
-              isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-            )}
-            <span className="ml-2 text-xs text-text-muted font-mono">
-              {isNavExpanded ? 'Hide menu' : 'Show menu'}
-            </span>
-          </Button>
-          <Button
-            onClick={handleNewWindow}
-            className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
-            variant="ghost"
-            size="xs"
-            title="Start a new session in a new window"
-          >
-            {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
-          </Button>
+      {navigationMode === 'overlay' ? (
+        // Overlay Mode - Full screen content with floating navigation
+        <div className="flex flex-1 w-full h-full bg-background-muted relative">
+          {/* Main Content Area - Full Screen */}
+          {mainContent}
+          
+          {/* Overlay Navigation - Only show when expanded */}
+          {overlayNavigationComponent}
+          
+          {/* Control Buttons - Fixed position for overlay mode */}
+          <div className="absolute z-[9999] flex gap-2 top-4 right-4">
+            <Button
+              onClick={() => setIsNavExpanded(!isNavExpanded)}
+              className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
+              variant="ghost"
+              size="xs"
+              title="Toggle navigation overlay"
+            >
+              <ChevronDown className="w-4 h-4" />
+              <span className="ml-2 text-xs text-text-muted font-mono">
+                {isNavExpanded ? 'Hide launcher' : 'Show launcher'}
+              </span>
+            </Button>
+            <Button
+              onClick={handleNewWindow}
+              className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
+              variant="ghost"
+              size="xs"
+              title="Start a new session in a new window"
+            >
+              {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        // Push Mode - Traditional layout with positioned navigation
+        <div className={`flex ${flexDirection} flex-1 w-full h-full bg-background-muted`}>
+          {/* Navigation placement based on position - always render but let component handle visibility */}
+          {navigationPosition === 'top' && navigationComponent}
+          {navigationPosition === 'left' && navigationComponent}
+          
+          {/* Main Content Area */}
+          {mainContent}
+          
+          {/* Navigation placement for bottom and right - always render but let component handle visibility */}
+          {navigationPosition === 'bottom' && navigationComponent}
+          {navigationPosition === 'right' && navigationComponent}
+          
+          {/* Control Buttons - position based on nav location */}
+          <div className={`absolute z-[9999] flex gap-2 ${
+            navigationPosition === 'top' ? 'top-4 right-4' :
+            navigationPosition === 'bottom' ? 'bottom-4 right-4' :
+            navigationPosition === 'left' ? (safeIsMacOS ? 'top-4 left-20' : 'top-4 left-4') :
+            'top-4 right-4'
+          }`}>
+            <Button
+              onClick={() => setIsNavExpanded(!isNavExpanded)}
+              className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
+              variant="ghost"
+              size="xs"
+              title="Toggle navigation"
+            >
+              {navigationPosition === 'left' ? (
+                isNavExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+              ) : navigationPosition === 'right' ? (
+                isNavExpanded ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />
+              ) : (
+                isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+              )}
+              <span className="ml-2 text-xs text-text-muted font-mono">
+                {isNavExpanded ? 'Hide menu' : 'Show menu'}
+              </span>
+            </Button>
+            <Button
+              onClick={handleNewWindow}
+              className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm"
+              variant="ghost"
+              size="xs"
+              title="Start a new session in a new window"
+            >
+              {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+      )}
     </NavigationContext.Provider>
   );
 };
