@@ -1,4 +1,6 @@
-use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
@@ -340,6 +342,14 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
     let mut md = String::new();
     for content in &message.content {
         match content {
+            MessageContent::ActionRequired(action) => match &action.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (tool_confirmation): {}\n\n",
+                        tool_name
+                    ));
+                }
+            },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
                 md.push_str("\n\n");

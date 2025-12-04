@@ -11,7 +11,7 @@ use goose::mcp_utils::ToolResult;
 use goose::providers::create;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use rmcp::model::{Content, RawContent, ResourceContents};
+use rmcp::model::{Content, RawContent, ResourceContents, Role};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::Arc;
@@ -570,7 +570,7 @@ impl acp::Agent for GooseAcpAgent {
 
         // Advertise Goose's capabilities
         let agent_capabilities = acp::AgentCapabilities {
-            load_session: false, // TODO: Implement session persistence
+            load_session: true,
             prompt_capabilities: acp::PromptCapabilities {
                 image: true,            // Goose supports image inputs via providers
                 audio: false,           // TODO: Add audio support when providers support it
@@ -638,19 +638,108 @@ impl acp::Agent for GooseAcpAgent {
         args: acp::LoadSessionRequest,
     ) -> Result<acp::LoadSessionResponse, acp::Error> {
         info!("ACP: Received load session request {:?}", args);
-        // For now, will start a new session. We could use goose session storage as an enhancement
-        // we would need to map ACP session IDs to goose session ids (which by default are auto generated)
-        // normal goose session restore in CLI doesn't load conversation visually.
-        //
-        // Example flow:
-        // - Load session file by session_id (might need to map ACP session IDs to Goose session paths)
-        // - For each message in history:
-        //   - If user message: send user_message_chunk notification
-        //   - If assistant message: send agent_message_chunk notification
-        //   - If tool calls/responses: send appropriate notifications
 
-        // For now, we don't support loading previous sessions
-        Err(acp::Error::method_not_found())
+        let session_id = args.session_id.0.to_string();
+
+        let goose_session = SessionManager::get_session(&session_id, true)
+            .await
+            .map_err(|e| {
+                error!("Failed to load session {}: {}", session_id, e);
+                acp::Error::invalid_params()
+            })?;
+
+        let conversation = goose_session.conversation.ok_or_else(|| {
+            error!("Session {} has no conversation data", session_id);
+            acp::Error::internal_error()
+        })?;
+
+        SessionManager::update_session(&session_id)
+            .working_dir(args.cwd.clone())
+            .apply()
+            .await
+            .map_err(|e| {
+                error!("Failed to update session working directory: {}", e);
+                acp::Error::internal_error()
+            })?;
+
+        let mut session = GooseAcpSession {
+            messages: conversation.clone(),
+            tool_call_ids: HashMap::new(),
+            tool_requests: HashMap::new(),
+            cancel_token: None,
+        };
+
+        // Replay conversation history to client
+        for message in conversation.messages() {
+            // Only replay user-visible messages
+            if !message.metadata.user_visible {
+                continue;
+            }
+
+            for content_item in &message.content {
+                match content_item {
+                    MessageContent::Text(text) => {
+                        let update = match message.role {
+                            Role::User => acp::SessionUpdate::UserMessageChunk {
+                                content: text.text.clone().into(),
+                            },
+                            Role::Assistant => acp::SessionUpdate::AgentMessageChunk {
+                                content: text.text.clone().into(),
+                            },
+                        };
+                        let (tx, rx) = oneshot::channel();
+                        self.session_update_tx
+                            .send((
+                                SessionNotification {
+                                    session_id: args.session_id.clone(),
+                                    update,
+                                    meta: None,
+                                },
+                                tx,
+                            ))
+                            .map_err(|_| acp::Error::internal_error())?;
+                        rx.await.map_err(|_| acp::Error::internal_error())?;
+                    }
+                    MessageContent::ToolRequest(tool_request) => {
+                        self.handle_tool_request(tool_request, &args.session_id, &mut session)
+                            .await?;
+                    }
+                    MessageContent::ToolResponse(tool_response) => {
+                        self.handle_tool_response(tool_response, &args.session_id, &mut session)
+                            .await?;
+                    }
+                    MessageContent::Thinking(thinking) => {
+                        let (tx, rx) = oneshot::channel();
+                        self.session_update_tx
+                            .send((
+                                SessionNotification {
+                                    session_id: args.session_id.clone(),
+                                    update: acp::SessionUpdate::AgentThoughtChunk {
+                                        content: thinking.thinking.clone().into(),
+                                    },
+                                    meta: None,
+                                },
+                                tx,
+                            ))
+                            .map_err(|_| acp::Error::internal_error())?;
+                        rx.await.map_err(|_| acp::Error::internal_error())?;
+                    }
+                    _ => {
+                        // Ignore other content types
+                    }
+                }
+            }
+        }
+
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(session_id.clone(), session);
+
+        info!("Loaded ACP session {}", session_id);
+
+        Ok(acp::LoadSessionResponse {
+            modes: None,
+            meta: None,
+        })
     }
 
     async fn prompt(&self, args: acp::PromptRequest) -> Result<acp::PromptResponse, acp::Error> {

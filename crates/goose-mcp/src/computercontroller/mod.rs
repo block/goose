@@ -492,13 +492,19 @@ impl ComputerControllerServer {
         let save_as = params.save_as;
 
         // Fetch the content
-        let response = self.http_client.get(url).send().await.map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to fetch URL: {}", e),
-                None,
-            )
-        })?;
+        let response = self
+            .http_client
+            .get(url)
+            .header("Accept", "text/markdown, */*")
+            .send()
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to fetch URL: {}", e),
+                    None,
+                )
+            })?;
 
         let status = response.status();
         if !status.is_success() {

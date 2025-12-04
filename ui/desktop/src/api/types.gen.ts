@@ -4,6 +4,18 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type ActionRequired = {
+    data: ActionRequiredData;
+};
+
+export type ActionRequiredData = {
+    actionType: 'toolConfirmation';
+    arguments: JsonObject;
+    id: string;
+    prompt?: string | null;
+    toolName: string;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -74,6 +86,13 @@ export type ConfigResponse = {
     config: {
         [key: string]: unknown;
     };
+};
+
+export type ConfirmToolActionRequest = {
+    action: string;
+    id: string;
+    principalType?: PrincipalType;
+    sessionId: string;
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
@@ -371,6 +390,8 @@ export type MessageContent = (TextContent & {
     type: 'toolResponse';
 }) | (ToolConfirmationRequest & {
     type: 'toolConfirmationRequest';
+}) | (ActionRequired & {
+    type: 'actionRequired';
 }) | (FrontendToolRequest & {
     type: 'frontendToolRequest';
 }) | (ThinkingContent & {
@@ -469,13 +490,6 @@ export type ParseRecipeRequest = {
 
 export type ParseRecipeResponse = {
     recipe: Recipe;
-};
-
-export type PermissionConfirmationRequest = {
-    action: string;
-    id: string;
-    principal_type?: PrincipalType;
-    session_id: string;
 };
 
 /**
@@ -761,7 +775,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
     limit: number;
@@ -935,6 +949,9 @@ export type UpdateCustomProviderRequest = {
     api_url: string;
     display_name: string;
     engine: string;
+    headers?: {
+        [key: string]: string;
+    } | null;
     models: Array<string>;
     supports_streaming?: boolean | null;
 };
@@ -985,6 +1002,31 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type ConfirmToolActionData = {
+    body: ConfirmToolActionRequest;
+    path?: never;
+    query?: never;
+    url: '/action-required/tool-confirmation';
+};
+
+export type ConfirmToolActionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmToolActionResponses = {
+    /**
+     * Tool confirmation action is confirmed
+     */
+    200: unknown;
 };
 
 export type AgentAddExtensionData = {
@@ -1722,31 +1764,6 @@ export type ValidateConfigResponses = {
 };
 
 export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
-
-export type ConfirmPermissionData = {
-    body: PermissionConfirmationRequest;
-    path?: never;
-    query?: never;
-    url: '/confirm';
-};
-
-export type ConfirmPermissionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ConfirmPermissionResponses = {
-    /**
-     * Permission action is confirmed
-     */
-    200: unknown;
-};
 
 export type DiagnosticsData = {
     body?: never;

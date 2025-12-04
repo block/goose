@@ -233,22 +233,14 @@ impl Provider for AnthropicProvider {
         }
 
         let json = response.payload.unwrap_or_default();
-        let arr = match json.get("models").and_then(|v| v.as_array()) {
+        let arr = match json.get("data").and_then(|v| v.as_array()) {
             Some(arr) => arr,
             None => return Ok(None),
         };
 
         let mut models: Vec<String> = arr
             .iter()
-            .filter_map(|m| {
-                if let Some(s) = m.as_str() {
-                    Some(s.to_string())
-                } else if let Some(obj) = m.as_object() {
-                    obj.get("id").and_then(|v| v.as_str()).map(str::to_string)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
         Ok(Some(models))

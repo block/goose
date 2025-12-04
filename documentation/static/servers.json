@@ -426,6 +426,23 @@
     "environmentVariables": []
   },
   {
+    "id": "nano-banana-mcp",
+    "name": "Nano Banana",
+    "description": "AI-powered image generation and editing",
+    "command": "npx nano-banana-mcp",
+    "link": "https://github.com/ConechoAI/Nano-Banana-MCP",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "GEMINI_API_KEY",
+        "description": "API key from Google AI Studio",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "neon",
     "name": "Neon",
     "description": "Manage Neon Postgres databases, projects, and branches",
