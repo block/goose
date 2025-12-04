@@ -832,7 +832,7 @@ dependencies = [
  "sha1",
  "sync_wrapper 1.0.2",
  "tokio",
- "tokio-tungstenite 0.26.2",
+ "tokio-tungstenite",
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2720,7 +2720,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2743,7 +2743,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2796,7 +2796,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2861,7 +2861,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2874,9 +2874,7 @@ dependencies = [
  "futures",
  "goose",
  "goose-mcp",
- "hex",
  "http 1.2.0",
- "rand 0.9.2",
  "reqwest 0.12.12",
  "rmcp 0.9.1",
  "schemars",
@@ -2884,19 +2882,16 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_yaml",
- "socket2 0.6.1",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
- "tokio-tungstenite 0.28.0",
  "tokio-util",
  "tower 0.5.2",
  "tower-http",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "url",
  "utoipa",
  "uuid",
  "winreg 0.55.0",
@@ -2904,7 +2899,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.15.0"
+version = "1.16.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4198,23 +4193,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
 dependencies = [
  "rand 0.8.5",
-]
-
-[[package]]
-name = "native-tls"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87de3442987e9dbec73158d5c715e7ad9072fda936bb03d19d7fa10e00520f0e"
-dependencies = [
- "libc",
- "log",
- "openssl",
- "openssl-probe",
- "openssl-sys",
- "schannel",
- "security-framework 2.11.1",
- "security-framework-sys",
- "tempfile",
 ]
 
 [[package]]
@@ -7102,16 +7080,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-native-tls"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
-dependencies = [
- "native-tls",
- "tokio",
-]
-
-[[package]]
 name = "tokio-rustls"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7151,21 +7119,7 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite 0.26.2",
-]
-
-[[package]]
-name = "tokio-tungstenite"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
-dependencies = [
- "futures-util",
- "log",
- "native-tls",
- "tokio",
- "tokio-native-tls",
- "tungstenite 0.28.0",
+ "tungstenite",
 ]
 
 [[package]]
@@ -7524,24 +7478,6 @@ dependencies = [
  "http 1.2.0",
  "httparse",
  "log",
- "rand 0.9.2",
- "sha1",
- "thiserror 2.0.12",
- "utf-8",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
-dependencies = [
- "bytes",
- "data-encoding",
- "http 1.2.0",
- "httparse",
- "log",
- "native-tls",
  "rand 0.9.2",
  "sha1",
  "thiserror 2.0.12",
