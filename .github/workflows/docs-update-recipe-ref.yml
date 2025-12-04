@@ -61,6 +61,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq ripgrep
       
+      - name: Set up Node.js
+        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
+        with:
+          node-version: '20'
+      
       - name: Install goose CLI
         run: |
           mkdir -p /home/runner/.local/bin
