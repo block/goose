@@ -38,7 +38,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
-      extensionId="nano-banana"
+      extensionId="council-of-mine"
       extensionName="Council of Mine"
       description="LLM debate"
       type="stdio"
