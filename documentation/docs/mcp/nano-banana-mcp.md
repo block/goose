@@ -8,7 +8,6 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 
 <!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
