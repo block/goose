@@ -1031,6 +1031,10 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading && hasSubmittableContent) {
+      handleInterruptionAndQueue();
+      return;
+    }
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
@@ -1293,7 +1297,7 @@ export default function ChatInput({
           )}
 
           {/* Send/Stop button */}
-          {isLoading ? (
+          {isLoading && !hasSubmittableContent ? (
             <Button
               type="button"
               onClick={onStop}
