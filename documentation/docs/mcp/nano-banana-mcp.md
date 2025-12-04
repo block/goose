@@ -65,8 +65,7 @@ This tutorial covers how to add the [Nano Banana MCP Server](https://github.com/
       ]}
       infoNote={
         <>
-          Get your API key from 
-          <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">
+          Get your API key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">
             Google AI Studio
           </a> and paste it in.
         </>
