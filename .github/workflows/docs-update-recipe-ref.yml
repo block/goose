@@ -77,7 +77,7 @@ jobs:
       - name: Configure goose for CI
         env:
           GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
-          GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5' }}
+          GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-4o' }}
         run: |
           mkdir -p ~/.config/goose
           cat <<EOF > ~/.config/goose/config.yaml
@@ -129,6 +129,7 @@ jobs:
       
       - name: Extract and compare schemas
         id: extract
+        timeout-minutes: 15
         working-directory: documentation/automation/recipe-schema-tracking
         env:
           GOOSE_REPO: ${{ github.workspace }}
@@ -149,6 +150,7 @@ jobs:
       
       - name: Update recipe-reference.md (AI synthesis)
         if: steps.extract.outputs.has_changes == 'true'
+        timeout-minutes: 10
         working-directory: documentation/automation/recipe-schema-tracking/output
         env:
           RECIPE_REF_PATH: ${{ github.workspace }}/documentation/docs/guides/recipes/recipe-reference.md
