@@ -15,7 +15,8 @@ import {
   Star,
   ArrowLeft,
   ChevronRight,
-  Home
+  Home,
+  Trash2
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
@@ -301,12 +302,15 @@ const EditChannelModal: React.FC<{
   onClose: () => void;
   channel: Channel;
   onEdit: (roomId: string, name: string, topic: string, coverPhotoFile?: File) => Promise<void>;
-}> = ({ isOpen, onClose, channel, onEdit }) => {
+  onDelete?: (roomId: string) => Promise<void>;
+}> = ({ isOpen, onClose, channel, onEdit, onDelete }) => {
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic || '');
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
   const [coverPhotoPreview, setCoverPhotoPreview] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Update local state when channel prop changes
   useEffect(() => {
@@ -343,6 +347,30 @@ const EditChannelModal: React.FC<{
       });
     } finally {
       setIsEditing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await onDelete(channel.roomId);
+      onClose();
+      toastSuccess({
+        title: 'Space Left Successfully',
+        msg: `You have left the space "${channel.name}".`
+      });
+    } catch (error) {
+      console.error('Failed to leave space:', error);
+      toastError({
+        title: 'Failed to Leave Space',
+        msg: 'Could not leave the space. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -455,20 +483,97 @@ const EditChannelModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              disabled={isEditing}
+              disabled={isEditing || isDeleting}
               className="flex-1 px-4 py-3 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || isEditing}
+              disabled={!name.trim() || isEditing || isDeleting}
               className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isEditing ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
+
+        {/* Delete/Leave Section */}
+        {onDelete && (
+          <div className="mt-6 pt-6 border-t border-border-default">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-text-default">Leave Space</h3>
+                <p className="text-xs text-text-muted mt-1">
+                  You will no longer have access to this space and its rooms.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isEditing || isDeleting}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Leave
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <AnimatePresence>
+          {showDeleteConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 flex items-center justify-center z-10"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-background-default rounded-2xl p-6 w-full max-w-sm mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-text-default">Leave Space</h3>
+                    <p className="text-sm text-text-muted">This action cannot be undone</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-text-default mb-6">
+                  Are you sure you want to leave <strong>"{channel.name}"</strong>? You will lose access to this space and all its rooms.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDeleting ? 'Leaving...' : 'Leave Space'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   );
@@ -645,7 +750,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     setRoomAvatar,
     createSpace,
     createRoom,
-    getSpaceChildren
+    getSpaceChildren,
+    leaveRoom
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -934,6 +1040,29 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     localStorage.setItem('channelFavorites', JSON.stringify(Array.from(newFavorites)));
   };
 
+  const handleDeleteChannel = async (roomId: string) => {
+    try {
+      console.log('🗑️ Leaving space:', roomId);
+      await leaveRoom(roomId);
+      
+      // If we're currently in this space, navigate back to spaces
+      if (currentSpace && currentSpace.roomId === roomId) {
+        handleBackToSpaces();
+      }
+      
+      // Remove from favorites if it was favorited
+      const newFavorites = new Set(favorites);
+      newFavorites.delete(roomId);
+      setFavorites(newFavorites);
+      localStorage.setItem('channelFavorites', JSON.stringify(Array.from(newFavorites)));
+      
+      console.log('✅ Successfully left space');
+    } catch (error) {
+      console.error('❌ Failed to leave space:', error);
+      throw error; // Re-throw to let the modal handle the error
+    }
+  };
+
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
@@ -1142,6 +1271,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
             }}
             channel={editingChannel}
             onEdit={handleSaveChannelEdit}
+            onDelete={handleDeleteChannel}
           />
         )}
       </AnimatePresence>

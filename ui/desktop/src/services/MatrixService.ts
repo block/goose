@@ -1350,6 +1350,74 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Leave a Matrix room by room ID
+   */
+  async leaveRoom(roomId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      console.log('🚪 Attempting to leave room:', roomId);
+      
+      // Check if we're in the room
+      const room = this.client.getRoom(roomId);
+      if (!room || room.getMyMembership() !== 'join') {
+        console.log('⚠️ Not currently in room:', roomId);
+        return;
+      }
+
+      // Leave the room
+      await this.client.leave(roomId);
+      console.log('✅ Successfully left room:', roomId);
+      
+      // Clear caches to refresh room data
+      this.cachedRooms = null;
+      this.cachedFriends = null;
+      
+      // Remove session mapping for this room since we're no longer in it
+      try {
+        sessionMappingService.removeMapping(roomId);
+        console.log('📋 Removed session mapping for left room:', roomId);
+      } catch (mappingError) {
+        console.warn('⚠️ Failed to remove session mapping:', mappingError);
+        // Don't fail the leave operation if mapping removal fails
+      }
+      
+      // Emit leave event
+      this.emit('roomLeft', { roomId, membership: 'leave', voluntary: true });
+      
+    } catch (error: any) {
+      console.error('❌ Failed to leave room:', roomId, error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to leave room';
+      
+      if (error.httpStatus === 403) {
+        if (error.data?.errcode === 'M_FORBIDDEN') {
+          errorMessage = 'You do not have permission to leave this room.';
+        } else {
+          errorMessage = 'Access forbidden. You may not have permission to leave this room.';
+        }
+      } else if (error.httpStatus === 404) {
+        errorMessage = 'Room not found. The room may have been deleted.';
+      } else if (error.httpStatus === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (error.httpStatus >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.name === 'ConnectionError' || error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.data?.error) {
+        errorMessage = error.data.error;
+      }
+
+      const enhancedError = new Error(errorMessage);
+      this.emit('error', enhancedError);
+      throw enhancedError;
+    }
+  }
+
+  /**
    * Ensure a session mapping exists for a Matrix room
    */
   private async ensureSessionMapping(roomId: string, room: any): Promise<void> {
