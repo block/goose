@@ -196,6 +196,17 @@
     "environmentVariables": []
   },
   {
+    "id": "council-of-mine",
+    "name": "Council of Mine",
+    "description": "LLM debate",
+    "command": "uvx --from git+https://github.com/block/mcp-council-of-mine mcp_council_of_mine",
+    "link": "https://github.com/block/mcp-council-of-mine",
+    "installation_notes": "LLM Debate",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  }, 
+  {
     "id": "datahub-mcp",
     "name": "DataHub",
     "description": "Data discovery and metadata platform for exploring datasets, lineage, and queries",
