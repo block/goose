@@ -437,7 +437,7 @@
     "environmentVariables": [
       {
         "name": "GEMINI_API_KEY",
-        "description": "API key from AI Google Studio",
+        "description": "API key from Google AI Studio",
         "required": true
       }
     ]
