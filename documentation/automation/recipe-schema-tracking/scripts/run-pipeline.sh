@@ -29,17 +29,32 @@ echo "✓ Extracted $(jq '.struct_fields | length' old-validation-structure.json
 
 echo ""
 echo "Step 1b: Extracting schema from $OLD_VERSION..."
-../scripts/extract-schema.sh "$OLD_VERSION" > old-schema.json 2>&1
+if ! ../scripts/extract-schema.sh "$OLD_VERSION" > old-schema.json 2>&1; then
+    echo "✗ Failed to extract schema from $OLD_VERSION" >&2
+    echo "Error output:" >&2
+    cat old-schema.json >&2
+    exit 1
+fi
 echo "✓ Extracted schema ($(jq '.properties | length' old-schema.json) properties)"
 
 echo ""
 echo "Step 2: Extracting validation structure from $NEW_VERSION..."
-../scripts/extract-validation-structure.sh "$NEW_VERSION" > new-validation-structure.json 2>&1
+if ! ../scripts/extract-validation-structure.sh "$NEW_VERSION" > new-validation-structure.json 2>&1; then
+    echo "✗ Failed to extract validation structure from $NEW_VERSION" >&2
+    echo "Error output:" >&2
+    cat new-validation-structure.json >&2
+    exit 1
+fi
 echo "✓ Extracted $(jq '.struct_fields | length' new-validation-structure.json) fields, $(jq '.validation_functions | length' new-validation-structure.json) functions"
 
 echo ""
 echo "Step 2b: Extracting schema from $NEW_VERSION..."
-../scripts/extract-schema.sh "$NEW_VERSION" > new-schema.json 2>&1
+if ! ../scripts/extract-schema.sh "$NEW_VERSION" > new-schema.json 2>&1; then
+    echo "✗ Failed to extract schema from $NEW_VERSION" >&2
+    echo "Error output:" >&2
+    cat new-schema.json >&2
+    exit 1
+fi
 echo "✓ Extracted schema ($(jq '.properties | length' new-schema.json) properties)"
 
 echo ""

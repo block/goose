@@ -38,8 +38,8 @@ else
 fi
 
 # Use Node.js to extract and resolve Recipe schema
-node -e "
-const openApiSpec = $OPENAPI_JSON;
+echo "$OPENAPI_JSON" | node -e "
+const openApiSpec = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 
 /**
  * Resolves \$ref references in OpenAPI schemas by expanding them with the actual schema definitions
