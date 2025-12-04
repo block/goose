@@ -209,5 +209,4 @@ jq -n \
   )
   '
 
-# Cleanup
-rm -f "$OLD_FIELDS" "$NEW_FIELDS" "$OLD_FUNCS" "$NEW_FUNCS"
+

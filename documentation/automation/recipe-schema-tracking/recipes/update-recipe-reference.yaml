@@ -27,7 +27,7 @@ instructions: |
   1. **Core Recipe Schema table** - Field additions, removals, and requirement changes
   2. **Field Specifications sections** - Add/remove/update detailed field documentation
   3. **Validation Rules section** - New, removed, or changed validation rules
-  4. **Maintain Consistency
+  4. **Maintain Consistency**
      - Match the existing documentation style and tone
      - Use the same formatting (bullet points, bold text, etc.)
      - Keep language user-focused and actionable
