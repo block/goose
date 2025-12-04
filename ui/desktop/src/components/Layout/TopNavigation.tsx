@@ -24,6 +24,7 @@ interface TopNavigationProps {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
   position?: NavigationPosition;
+  isOverlayMode?: boolean;
 }
 
 // Analog Clock Widget Component
@@ -111,7 +112,7 @@ const AnalogClock: React.FC = () => {
   );
 };
 
-export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsExpanded, position = 'top' }) => {
+export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsExpanded, position = 'top', isOverlayMode = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
@@ -121,6 +122,22 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const [recipesCount, setRecipesCount] = useState(0);
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+
+  // Handle escape key to close overlay
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isExpanded && isOverlayMode) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsExpanded(false);
+      }
+    };
+
+    if (isOverlayMode && isExpanded) {
+      document.addEventListener('keydown', handleKeyDown, { capture: true });
+      return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+    }
+  }, [isExpanded, isOverlayMode, setIsExpanded]);
 
   const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
   
@@ -461,40 +478,57 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     return location.pathname === path;
   };
 
-  // Determine grid layout based on position
+  // Determine grid layout based on position and overlay mode
   const isVertical = position === 'left' || position === 'right';
   
   // Calculate grid rows to fill vertical space
   const totalItems = navItems.length;
   const gridRows = Math.ceil(totalItems / 2); // 2 columns for vertical
   
-  const gridClasses = isVertical
-    ? 'grid grid-cols-1 gap-0.5 h-full overflow-y-auto' // Vertical layout: 1 column, scrollable
-    : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5'; // Horizontal layout: more columns
+  // Grid classes for overlay mode vs regular mode
+  const gridClasses = isOverlayMode
+    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-px w-full h-full' // Overlay: max 4 columns, 1px gaps, full bleed
+    : isVertical
+      ? 'grid grid-cols-1 gap-0.5 h-full overflow-y-auto' // Vertical layout: 1 column, scrollable
+      : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5'; // Horizontal layout: more columns
   
-  const containerClasses = isVertical
-    ? 'h-full' // Full height for vertical nav
-    : 'w-full overflow-hidden'; // Full width for horizontal nav
+  const containerClasses = isOverlayMode
+    ? 'w-full h-full' // Full screen for overlay
+    : isVertical
+      ? 'h-full' // Full height for vertical nav
+      : 'w-full overflow-hidden'; // Full width for horizontal nav
 
   return (
-    <div className={`bg-background-muted ${containerClasses} relative z-[9998]`}>
+    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
       {/* Expanded Navigation Cards with Spring Animation */}
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
-            initial={{ 
+            initial={isOverlayMode ? { 
+              opacity: 0, 
+              scale: 0.95 
+            } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0 
             }}
-            animate={{ 
+            animate={isOverlayMode ? { 
+              opacity: 1, 
+              scale: 1 
+            } : { 
               [isVertical ? 'width' : 'height']: "auto", 
               opacity: 1,
             }}
-            exit={{ 
+            exit={isOverlayMode ? { 
+              opacity: 0, 
+              scale: 0.95 
+            } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0,
             }}
-            transition={{
+            transition={isOverlayMode ? {
+              duration: 0.3,
+              ease: "easeOut"
+            } : {
               [isVertical ? 'width' : 'height']: {
                 type: "spring",
                 stiffness: 300,
@@ -506,26 +540,29 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 ease: "easeInOut"
               }
             }}
-            className={`bg-background-muted overflow-hidden ${isVertical ? 'h-full' : ''}`}
+            className={`${isOverlayMode ? 'bg-transparent w-full h-full' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''}`}
           >
             <motion.div
-              initial={{ [isVertical ? 'x' : 'y']: -20 }}
-              animate={{ [isVertical ? 'x' : 'y']: 0 }}
-              exit={{ [isVertical ? 'x' : 'y']: -20 }}
-              transition={{
+              initial={isOverlayMode ? { opacity: 0 } : { [isVertical ? 'x' : 'y']: -20 }}
+              animate={isOverlayMode ? { opacity: 1 } : { [isVertical ? 'x' : 'y']: 0 }}
+              exit={isOverlayMode ? { opacity: 0 } : { [isVertical ? 'x' : 'y']: -20 }}
+              transition={isOverlayMode ? {
+                duration: 0.2,
+                delay: 0.1
+              } : {
                 type: "spring",
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`${isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
-              style={{ width: isVertical ? '360px' : undefined }}
+              className={`${isOverlayMode ? 'w-full h-full overflow-y-auto' : isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
+              style={{ width: isVertical && !isOverlayMode ? '360px' : undefined }}
             >
               <div 
                 className={gridClasses} 
                 style={{ 
-                  gridTemplateColumns: !isVertical && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined,
+                  gridTemplateColumns: !isVertical && !isOverlayMode && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined,
                   gridTemplateRows: undefined,
-                  width: isVertical ? 'auto' : undefined
+                  width: isVertical && !isOverlayMode ? 'auto' : undefined
                 }}
               >
             {navItems.map((item, index) => {
@@ -558,7 +595,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                       delay: index * 0.03, // 30ms stagger
                     }}
                     className={`
-                      relative bg-background-default rounded-2xl 
+                      relative ${isOverlayMode ? 'bg-background-default backdrop-blur-md' : 'bg-background-default'} rounded-2xl 
                       overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
                       ${isPulsing ? 'animate-pulse' : ''}
@@ -619,12 +656,18 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     className={`
                       w-full relative flex flex-col items-start justify-between
                       rounded-2xl
-                      px-6 py-6
+                      ${isOverlayMode ? 'px-8 py-8' : 'px-6 py-6'}
                       transition-colors duration-200
                       no-drag
-                      ${active 
-                        ? 'bg-background-accent text-text-on-accent' 
-                        : 'bg-background-default hover:bg-background-medium'
+                      ${isOverlayMode 
+                        ? (active 
+                          ? 'bg-background-accent text-text-on-accent backdrop-blur-md' 
+                          : 'bg-background-default text-text-default hover:bg-background-medium backdrop-blur-md'
+                        )
+                        : (active 
+                          ? 'bg-background-accent text-text-on-accent' 
+                          : 'bg-background-default hover:bg-background-medium'
+                        )
                       }
                       aspect-square
                     `}
@@ -646,17 +689,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
 
                     {/* Tag in top corner */}
                     {item.getTag && (
-                      <div className={`absolute top-4 px-2 py-1 bg-background-muted rounded-full ${
+                      <div className={`absolute top-4 px-2 py-1 rounded-full ${
                         item.tagAlign === 'left' ? 'left-4' : 'right-4'
-                      }`}>
-                        <span className="text-xs text-text-muted font-mono">{item.getTag()}</span>
+                      } ${isOverlayMode ? 'bg-background-muted backdrop-blur-sm' : 'bg-background-muted'}`}>
+                        <span className={`text-xs font-mono ${isOverlayMode ? 'text-text-muted' : 'text-text-muted'}`}>{item.getTag()}</span>
                       </div>
                     )}
                     
                     {/* Icon and Label at bottom */}
                     <div className="mt-auto w-full">
-                      <IconComponent className="w-6 h-6 mb-2" />
-                      <h2 className="text-2xl font-light text-left">{item.label}</h2>
+                      <IconComponent className={`${isOverlayMode ? 'w-8 h-8 mb-3' : 'w-6 h-6 mb-2'}`} />
+                      <h2 className={`font-light text-left ${isOverlayMode ? 'text-3xl' : 'text-2xl'}`}>{item.label}</h2>
                     </div>
                   </motion.button>
                 </motion.div>

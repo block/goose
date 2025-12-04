@@ -24,12 +24,14 @@ interface CondensedNavigationProps {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
   position?: NavigationPosition;
+  isOverlayMode?: boolean;
 }
 
 export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ 
   isExpanded, 
   setIsExpanded, 
-  position = 'top' 
+  position = 'top',
+  isOverlayMode = false
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,6 +42,22 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [recipesCount, setRecipesCount] = useState(0);
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+
+  // Handle escape key to close overlay
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isExpanded && isOverlayMode) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsExpanded(false);
+      }
+    };
+
+    if (isOverlayMode && isExpanded) {
+      document.addEventListener('keydown', handleKeyDown, { capture: true });
+      return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+    }
+  }, [isExpanded, isOverlayMode, setIsExpanded]);
 
   const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
   
@@ -130,6 +148,91 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     }
   };
 
+  // Analog Clock Widget Component
+  const AnalogClock: React.FC = () => {
+    const [secondAngle, setSecondAngle] = useState(() => {
+      const now = new Date();
+      return now.getSeconds() * 6;
+    });
+    const [angles, setAngles] = useState(() => {
+      const now = new Date();
+      const hours = now.getHours() % 12;
+      const minutes = now.getMinutes();
+      return {
+        hour: (hours * 30) + (minutes * 0.5),
+        minute: minutes * 6,
+      };
+    });
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        const now = new Date();
+        const hours = now.getHours() % 12;
+        const minutes = now.getMinutes();
+        
+        // Increment second angle by 6 degrees each second
+        setSecondAngle(prev => prev + 6);
+        
+        setAngles({
+          hour: (hours * 30) + (minutes * 0.5),
+          minute: minutes * 6,
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }, []);
+
+    const hourAngle = angles.hour;
+    const minuteAngle = angles.minute;
+
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="relative w-12 h-12">
+          {/* Clock face */}
+          <div className="absolute inset-0 rounded-full border-2 border-text-muted/20" />
+          
+          {/* Hour markers */}
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-0.5 h-1 bg-text-muted/40 top-1 left-1/2 -translate-x-1/2"
+              style={{
+                transformOrigin: '50% 22px',
+                transform: `translateX(-50%) rotate(${i * 30}deg)`,
+              }}
+            />
+          ))}
+          
+          {/* Hour hand */}
+          <div
+            className="absolute w-0.5 h-4 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            style={{
+              transform: `translateX(-50%) translateY(-100%) rotate(${hourAngle}deg)`,
+            }}
+          />
+          
+          {/* Minute hand */}
+          <div
+            className="absolute w-px h-5 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            style={{
+              transform: `translateX(-50%) translateY(-100%) rotate(${minuteAngle}deg)`,
+            }}
+          />
+          
+          {/* Second hand */}
+          <div
+            className="absolute w-px h-6 bg-red-500 rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            style={{
+              transform: `translateX(-50%) translateY(-100%) rotate(${secondAngle}deg)`,
+            }}
+          />
+          
+          {/* Center dot */}
+          <div className="absolute w-1 h-1 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+      </div>
+    );
+  };
+
   const navItemsBase: NavItem[] = [
     {
       id: 'home',
@@ -203,6 +306,82 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       label: 'Settings',
       icon: SettingsIcon,
     },
+    // Widget tiles for overlay mode
+    {
+      id: 'clock-widget',
+      label: 'Clock',
+      isWidget: true,
+      renderContent: () => <AnalogClock />,
+    },
+    {
+      id: 'activity-widget',
+      label: 'Activity',
+      isWidget: true,
+      renderContent: () => {
+        // Get last 35 days for a 5x7 grid
+        const days = 35;
+        const today = new Date();
+        const heatmapCells = [];
+        
+        for (let i = days - 1; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          const dateKey = date.toISOString().split('T')[0];
+          const count = sessionHeatmapData[dateKey] || 0;
+          
+          // Calculate intensity (0-4 scale)
+          const maxCount = Math.max(...Object.values(sessionHeatmapData), 1);
+          const intensity = count === 0 ? 0 : Math.ceil((count / maxCount) * 4);
+          
+          heatmapCells.push({ date: dateKey, count, intensity });
+        }
+        
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center p-2">
+            <div className="grid grid-cols-7 gap-0.5">
+              {heatmapCells.map((cell, index) => (
+                <div
+                  key={index}
+                  className={`w-1.5 h-1.5 rounded-sm ${
+                    cell.intensity === 0 ? 'bg-background-muted' :
+                    cell.intensity === 1 ? 'bg-green-200 dark:bg-green-900' :
+                    cell.intensity === 2 ? 'bg-green-300 dark:bg-green-700' :
+                    cell.intensity === 3 ? 'bg-green-400 dark:bg-green-600' :
+                    'bg-green-500 dark:bg-green-500'
+                  }`}
+                  title={`${cell.date}: ${cell.count} sessions`}
+                />
+              ))}
+            </div>
+            <div className="mt-1 text-xs text-text-muted font-mono">
+              Last 35 days
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'tokens-widget',
+      label: 'Tokens',
+      isWidget: true,
+      renderContent: () => {
+        // Format tokens in millions
+        const tokensInMillions = (totalTokens / 1000000).toFixed(2);
+        
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center p-2">
+            <div className="text-center">
+              <div className="text-lg font-mono font-light text-text-default mb-1">
+                {tokensInMillions}M
+              </div>
+              <div className="text-xs text-text-muted font-mono">
+                Total tokens
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
   ];
 
   // Initialize item order on first render
@@ -213,10 +392,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Get ordered nav items (exclude widgets for condensed view)
+  // Get ordered nav items (include widgets only for overlay mode)
   const navItems = itemOrder.length > 0
-    ? itemOrder.map(id => navItemsBase.find(item => item.id === id)!).filter(item => item && !item.isWidget)
-    : navItemsBase.filter(item => !item.isWidget);
+    ? itemOrder.map(id => navItemsBase.find(item => item.id === id)!).filter(item => item && (isOverlayMode || !item.isWidget))
+    : navItemsBase.filter(item => isOverlayMode || !item.isWidget);
 
   // Track value changes for pulse animation
   useEffect(() => {
@@ -288,23 +467,37 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const isVertical = position === 'left' || position === 'right';
 
   return (
-    <div className={`bg-background-muted relative z-[9998] ${isVertical ? 'h-full' : 'w-full'}`}>
+    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} relative z-[9998] ${isVertical ? 'h-full' : 'w-full'}`}>
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
-            initial={{ 
+            initial={isOverlayMode ? { 
+              x: -240, 
+              opacity: 0 
+            } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0 
             }}
-            animate={{ 
+            animate={isOverlayMode ? { 
+              x: 0, 
+              opacity: 1,
+            } : { 
               [isVertical ? 'width' : 'height']: "auto", 
               opacity: 1,
             }}
-            exit={{ 
+            exit={isOverlayMode ? { 
+              x: -240, 
+              opacity: 0,
+            } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0,
             }}
-            transition={{
+            transition={isOverlayMode ? {
+              type: "spring",
+              stiffness: 300,
+              damping: 30,
+              mass: 0.8,
+            } : {
               [isVertical ? 'width' : 'height']: {
                 type: "spring",
                 stiffness: 300,
@@ -316,143 +509,298 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                 ease: "easeInOut"
               }
             }}
-            className={`bg-background-muted overflow-hidden ${isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''} ${
-              isVertical && position === 'left' ? 'left-0' : ''
+            className={`${isOverlayMode ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] shadow-2xl' : 'bg-background-muted overflow-hidden'} ${
+              !isOverlayMode && isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''
             } ${
-              isVertical && position === 'right' ? 'right-0' : ''
+              !isOverlayMode && isVertical && position === 'left' ? 'left-0' : ''
+            } ${
+              !isOverlayMode && isVertical && position === 'right' ? 'right-0' : ''
             }`}
           >
             <motion.div
-              initial={{ [isVertical ? 'x' : 'y']: -20 }}
-              animate={{ [isVertical ? 'x' : 'y']: 0 }}
-              exit={{ [isVertical ? 'x' : 'y']: -20 }}
-              transition={{
+              initial={isOverlayMode ? { opacity: 0 } : { [isVertical ? 'x' : 'y']: -20 }}
+              animate={isOverlayMode ? { opacity: 1 } : { [isVertical ? 'x' : 'y']: 0 }}
+              exit={isOverlayMode ? { opacity: 0 } : { [isVertical ? 'x' : 'y']: -20 }}
+              transition={isOverlayMode ? {
+                duration: 0.2,
+                delay: 0.1
+              } : {
                 type: "spring",
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`${
-                isVertical 
+              className={`${isOverlayMode ? 'p-4 bg-transparent rounded-2xl' : ''} ${
+                !isOverlayMode && isVertical 
                   ? position === 'right' 
                     ? 'h-full pl-0.5' 
                     : 'h-full pr-0.5'
-                  : position === 'top'
+                  : !isOverlayMode && position === 'top'
                     ? 'pr-0.5 pb-0.5'
-                    : 'pr-0.5'
+                    : !isOverlayMode ? 'pr-0.5' : ''
               }`}
-              style={{ width: isVertical ? '240px' : undefined }}
+              style={{ width: isVertical || isOverlayMode ? (isOverlayMode ? '600px' : '240px') : undefined, height: isOverlayMode ? '500px' : undefined }}
             >
-              <div className={`${isVertical ? 'flex flex-col w-full gap-[1px] h-full' : 'flex flex-row w-full gap-[1px]'}`}>
-                {/* Left spacer - 100px for top nav, 60px height for left/right nav */}
-                {(isVertical || position === 'top') && (
-                  <div className={`${isVertical ? 'h-[60px] w-full' : 'w-[100px]'} bg-background-default rounded-lg flex items-center justify-center py-2.5`} />
-                )}
-                
-                {navItems.map((item, index) => {
-                  const isPulsing = pulsingItems.has(item.id);
-                  const isDragging = draggedItem === item.id;
-                  const isDragOver = dragOverItem === item.id;
-                  const IconComponent = item.icon!;
-                  const active = isActive(item.path!);
+{isOverlayMode ? (
+                // Overlay Mode: Two-column layout with navigation rows on left, widget tiles on right
+                <div className="flex flex-row gap-4 w-full h-full items-start">
+                  {/* Left Column: Navigation Rows */}
+                  <div className="flex flex-col gap-[1px] w-80">
+                    {navItems.filter(item => !item.isWidget).map((item, index) => {
+                      const isPulsing = pulsingItems.has(item.id);
+                      const isDragging = draggedItem === item.id;
+                      const isDragOver = dragOverItem === item.id;
+                      const IconComponent = item.icon;
+                      const active = item.path ? isActive(item.path) : false;
 
-                  return (
-                    <motion.div
-                      key={item.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                      onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                      onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                      onDragEnd={handleDragEnd}
-                      initial={{ opacity: 0, [isVertical ? 'x' : 'y']: 20, scale: 0.9 }}
-                      animate={{ 
-                        opacity: 1, 
-                        [isVertical ? 'x' : 'y']: 0, 
-                        scale: isDragging ? 0.95 : 1,
-                      }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 350,
-                        damping: 25,
-                        delay: index * 0.02,
-                      }}
-                      className={`
-                        relative cursor-move group
-                        ${isVertical ? 'w-full' : 'flex-1'}
-                        ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
-                      `}
-                      style={{
-                        opacity: isDragging ? 0.5 : 1,
-                      }}
-                    >
-                      <motion.button
-                        onClick={() => {
-                          navigate(item.path!);
-                          setIsExpanded(false);
-                        }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`
-                          flex flex-row items-center gap-2 w-full
-                          relative
-                          rounded-lg
-                          transition-colors duration-200
-                          no-drag
-                          ${!isVertical ? 'px-2 pt-[18px] pb-[14px] min-[1800px]:pl-2 min-[1800px]:pr-4' : 'pl-2 pr-4 py-2.5'}
-                          ${active 
-                            ? 'bg-background-accent text-text-on-accent' 
-                            : 'bg-background-default hover:bg-background-medium'
-                          }
-                        `}
-                      >
-                        {/* Drag handle indicator */}
-                        <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${!isVertical ? 'hidden min-[1800px]:block' : ''}`}>
-                          <GripVertical className="w-4 h-4 text-text-muted" />
-                        </div>
+                      return (
+                        <motion.div
+                          key={item.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                          onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                          onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                          onDragEnd={handleDragEnd}
+                          initial={{ opacity: 0, x: -20, scale: 0.9 }}
+                          animate={{ 
+                            opacity: 1, 
+                            x: 0, 
+                            scale: isDragging ? 0.95 : 1,
+                          }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 350,
+                            damping: 25,
+                            delay: index * 0.02,
+                          }}
+                          className={`
+                            relative cursor-move group w-full
+                            ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
+                          `}
+                          style={{
+                            opacity: isDragging ? 0.5 : 1,
+                          }}
+                        >
+                          <motion.button
+                            onClick={() => {
+                              if (item.path) {
+                                navigate(item.path);
+                                setIsExpanded(false);
+                              }
+                            }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`
+                              flex flex-row items-center gap-2 w-full
+                              relative rounded-lg transition-colors duration-200 no-drag
+                              pl-2 pr-4 py-2.5
+                              ${active 
+                                ? 'bg-background-accent text-text-on-accent backdrop-blur-md' 
+                                : 'bg-background-default text-text-default hover:bg-background-medium backdrop-blur-md'
+                              }
+                            `}
+                          >
+                            {/* Drag handle indicator */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <GripVertical className="w-4 h-4 text-text-muted" />
+                            </div>
 
-                        {/* Icon */}
-                        <IconComponent className={`w-5 h-5 flex-shrink-0 ${!isVertical ? 'mx-auto min-[1800px]:mx-0' : ''}`} />
-                        
-                        {/* Label - hidden on small screens for horizontal nav */}
-                        <span className={`text-sm font-medium flex-1 text-left ${!isVertical ? 'hidden min-[1800px]:block' : ''}`}>{item.label}</span>
+                            {/* Icon */}
+                            {IconComponent && <IconComponent className="w-5 h-5 flex-shrink-0" />}
+                            
+                            {/* Label */}
+                            <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
 
-                        {/* Tag/Badge - hidden on small screens for horizontal nav */}
-                        {item.getTag && (
-                          <div className={`flex items-center gap-1 ${!isVertical ? 'hidden min-[1800px]:flex' : ''}`}>
-                            <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-                              active 
-                                ? 'bg-background-default/20 text-text-on-accent/80' 
-                                : 'bg-background-muted text-text-muted'
-                            }`}>
-                              {item.getTag()}
-                            </span>
-                          </div>
-                        )}
+                            {/* Tag/Badge */}
+                            {item.getTag && (
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                                  active 
+                                    ? 'bg-background-default/20 text-text-on-accent/80 backdrop-blur-sm' 
+                                    : 'bg-background-muted text-text-muted backdrop-blur-sm'
+                                }`}>
+                                  {item.getTag()}
+                                </span>
+                              </div>
+                            )}
 
-                        {/* Update indicator dot */}
-                        {isPulsing && (
+                            {/* Update indicator dot */}
+                            {isPulsing && (
+                              <motion.div
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                              />
+                            )}
+                          </motion.button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right Column: Widget Tiles */}
+                  <div className="flex flex-col w-96">
+                    {/* Widget tiles container - matches navigation height */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" style={{ height: 'fit-content' }}>
+                      {navItems.filter(item => item.isWidget).map((item, index) => {
+                        const isDragging = draggedItem === item.id;
+                        const isDragOver = dragOverItem === item.id;
+
+                        return (
                           <motion.div
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                          />
-                        )}
-                      </motion.button>
-                    </motion.div>
-                  );
-                })}
-                
-                {/* Right/Bottom spacer - 160px for top nav, 60px for bottom nav, flexible for left/right nav */}
-                {(isVertical || position === 'top' || position === 'bottom') && (
-                  <div className={`${
-                    isVertical 
-                      ? 'flex-1 w-full min-h-[60px]' 
-                      : position === 'top'
-                        ? 'w-[160px]'
-                        : 'flex-1 min-w-[60px]'
-                  } bg-background-default rounded-lg flex items-center justify-center py-2.5`} />
-                )}
-              </div>
+                            key={item.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                            onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                            onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                            onDragEnd={handleDragEnd}
+                            initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                            animate={{ 
+                              opacity: 1, 
+                              x: 0, 
+                              scale: isDragging ? 0.95 : 1,
+                            }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 350,
+                              damping: 25,
+                              delay: (index + 9) * 0.02, // Delay after navigation items
+                            }}
+                            className={`
+                              relative cursor-move group w-full
+                              ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
+                            `}
+                            style={{
+                              opacity: isDragging ? 0.5 : 1,
+                              height: '120px', // Fixed height for widget tiles
+                            }}
+                          >
+                            <div className="w-full h-full bg-background-default backdrop-blur-md rounded-lg overflow-hidden relative group">
+                              {/* Drag handle indicator */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <GripVertical className="w-4 h-4 text-text-muted" />
+                              </div>
+                              {item.renderContent && item.renderContent()}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Push Mode: Original single-column layout
+                <div className={`${isVertical ? 'flex flex-col w-full gap-[1px] h-full' : 'flex flex-row w-full gap-[1px]'}`}>
+                  {/* Top spacer for vertical layout */}
+                  {(isVertical || position === 'top') && (
+                    <div className={`${isVertical ? 'h-[60px] w-full' : 'w-[100px]'} bg-background-default rounded-lg flex items-center justify-center py-2.5`} />
+                  )}
+                  
+                  {navItems.filter(item => !item.isWidget).map((item, index) => {
+                    const isPulsing = pulsingItems.has(item.id);
+                    const isDragging = draggedItem === item.id;
+                    const isDragOver = dragOverItem === item.id;
+                    const IconComponent = item.icon;
+                    const active = item.path ? isActive(item.path) : false;
+
+                    return (
+                      <motion.div
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                        onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                        onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                        onDragEnd={handleDragEnd}
+                        initial={{ opacity: 0, [isVertical ? 'x' : 'y']: 20, scale: 0.9 }}
+                        animate={{ 
+                          opacity: 1, 
+                          [isVertical ? 'x' : 'y']: 0, 
+                          scale: isDragging ? 0.95 : 1,
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 350,
+                          damping: 25,
+                          delay: index * 0.02,
+                        }}
+                        className={`
+                          relative cursor-move group
+                          ${isVertical ? 'w-full' : 'flex-1'}
+                          ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
+                        `}
+                        style={{
+                          opacity: isDragging ? 0.5 : 1,
+                        }}
+                      >
+                        <motion.button
+                          onClick={() => {
+                            if (item.path) {
+                              navigate(item.path);
+                              setIsExpanded(false);
+                            }
+                          }}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`
+                            flex flex-row items-center gap-2 w-full
+                            relative rounded-lg transition-colors duration-200 no-drag
+                            ${!isVertical ? 'px-2 pt-[18px] pb-[14px] min-[1800px]:pl-2 min-[1800px]:pr-4' : 'pl-2 pr-4 py-2.5'}
+                            ${active 
+                              ? 'bg-background-accent text-text-on-accent' 
+                              : 'bg-background-default hover:bg-background-medium'
+                            }
+                          `}
+                        >
+                          {/* Drag handle indicator */}
+                          <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${!isVertical ? 'hidden min-[1800px]:block' : ''}`}>
+                            <GripVertical className="w-4 h-4 text-text-muted" />
+                          </div>
+
+                          {/* Icon */}
+                          {IconComponent && <IconComponent className={`w-5 h-5 flex-shrink-0 ${!isVertical ? 'mx-auto min-[1800px]:mx-0' : ''}`} />}
+                          
+                          {/* Label */}
+                          <span className={`text-sm font-medium flex-1 text-left ${!isVertical ? 'hidden min-[1800px]:block' : ''}`}>{item.label}</span>
+
+                          {/* Tag/Badge */}
+                          {item.getTag && (
+                            <div className={`flex items-center gap-1 ${!isVertical ? 'hidden min-[1800px]:flex' : ''}`}>
+                              <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                                active 
+                                  ? 'bg-background-default/20 text-text-on-accent/80' 
+                                  : 'bg-background-muted text-text-muted'
+                              }`}>
+                                {item.getTag()}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Update indicator dot */}
+                          {isPulsing && (
+                            <motion.div
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0, opacity: 0 }}
+                              className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                            />
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    );
+                  })}
+                  
+                  {/* Bottom spacer */}
+                  {(isVertical || position === 'top' || position === 'bottom') && (
+                    <div className={`${
+                      isVertical 
+                        ? 'flex-1 w-full min-h-[60px]' 
+                        : position === 'top'
+                          ? 'w-[160px]'
+                          : 'flex-1 min-w-[60px]'
+                    } bg-background-default rounded-lg flex items-center justify-center py-2.5`} />
+                  )}
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

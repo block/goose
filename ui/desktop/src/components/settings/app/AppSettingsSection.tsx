@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import NavigationPositionSelector from './NavigationPositionSelector';
 import NavigationStyleSelector from './NavigationStyleSelector';
+import NavigationModeSelector, { useNavigationMode } from './NavigationModeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 
@@ -32,6 +33,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const updateSectionRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Navigation mode hook
+  const { mode: navigationMode } = useNavigationMode();
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
@@ -431,11 +435,28 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Navigation Position</CardTitle>
-          <CardDescription>Choose where the navigation bar appears</CardDescription>
+          <CardTitle className="mb-1">Navigation Mode</CardTitle>
+          <CardDescription>Choose between push menu or overlay launcher</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
-          <NavigationPositionSelector />
+          <NavigationModeSelector />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Position</CardTitle>
+          <CardDescription className={navigationMode === 'overlay' ? 'text-text-muted' : ''}>
+            {navigationMode === 'overlay' 
+              ? 'Position is disabled when overlay mode is active'
+              : 'Choose where the navigation bar appears'
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <div className={navigationMode === 'overlay' ? 'opacity-50 pointer-events-none' : ''}>
+            <NavigationPositionSelector />
+          </div>
         </CardContent>
       </Card>
 
