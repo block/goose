@@ -8,17 +8,12 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
-use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
-use goose::{
-    agents::{AgentEvent, SessionConfig},
-    permission::permission_confirmation::PrincipalType,
-};
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -30,7 +25,6 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use utoipa::ToSchema;
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -452,60 +446,12 @@ pub async fn reply(
     Ok(SseResponse::new(stream))
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
-pub struct PermissionConfirmationRequest {
-    id: String,
-    #[serde(default = "default_principal_type")]
-    principal_type: PrincipalType,
-    action: String,
-    session_id: String,
-}
-
-fn default_principal_type() -> PrincipalType {
-    PrincipalType::Tool
-}
-
-#[utoipa::path(
-    post,
-    path = "/confirm",
-    request_body = PermissionConfirmationRequest,
-    responses(
-        (status = 200, description = "Permission action is confirmed", body = Value),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn confirm_permission(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<PermissionConfirmationRequest>,
-) -> Result<Json<Value>, StatusCode> {
-    let agent = state.get_agent_for_route(request.session_id).await?;
-    let permission = match request.action.as_str() {
-        "always_allow" => Permission::AlwaysAllow,
-        "allow_once" => Permission::AllowOnce,
-        "deny" => Permission::DenyOnce,
-        _ => Permission::DenyOnce,
-    };
-
-    agent
-        .handle_confirmation(
-            request.id.clone(),
-            PermissionConfirmation {
-                principal_type: request.principal_type,
-                permission,
-            },
-        )
-        .await;
-    Ok(Json(Value::Object(serde_json::Map::new())))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/reply",
             post(reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
-        .route("/confirm", post(confirm_permission))
         .with_state(state)
 }
 

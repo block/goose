@@ -449,6 +449,10 @@ function BaseChatContent({
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
           onClose={() => setView('chat')}
+          initialValues={
+            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+            undefined
+          }
         />
       )}
 
