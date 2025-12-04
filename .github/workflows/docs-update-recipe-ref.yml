@@ -85,21 +85,27 @@ jobs:
       
       - name: Determine versions to compare
         id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_OLD_VERSION: ${{ github.event.inputs.old_version }}
+          INPUT_NEW_VERSION: ${{ github.event.inputs.new_version }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           get_previous_release() {
             gh release list --limit 2 --json tagName --jq '.[].tagName' | sed -n '2p'
           }
           
-          if [ -n "${{ github.event.inputs.old_version }}" ]; then
-            OLD_VERSION="${{ github.event.inputs.old_version }}"
+          if [ -n "$INPUT_OLD_VERSION" ]; then
+            OLD_VERSION="$INPUT_OLD_VERSION"
           else
             OLD_VERSION=$(get_previous_release)
           fi
           
-          if [ -n "${{ github.event.inputs.new_version }}" ]; then
-            NEW_VERSION="${{ github.event.inputs.new_version }}"
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            NEW_VERSION="${{ github.event.release.tag_name }}"
+          if [ -n "$INPUT_NEW_VERSION" ]; then
+            NEW_VERSION="$INPUT_NEW_VERSION"
+          elif [ "$EVENT_NAME" = "release" ]; then
+            NEW_VERSION="$RELEASE_TAG"
           else
             NEW_VERSION="HEAD"  # For testing unreleased changes
           fi
@@ -115,8 +121,6 @@ jobs:
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           
           echo "✅ Comparing $OLD_VERSION → $NEW_VERSION"
-        env:
-          GH_TOKEN: ${{ github.token }}
       
       - name: Extract and compare schemas
         id: extract
@@ -181,7 +185,7 @@ jobs:
         if: |
           steps.extract.outputs.has_changes == 'true' && 
           (github.event.inputs.dry_run != 'true' || github.event_name == 'release')
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           branch: docs/auto-recipe-reference-${{ steps.versions.outputs.new_version }}
           delete-branch: true
@@ -242,21 +246,26 @@ jobs:
       
       - name: Workflow summary
         if: always()
+        env:
+          OLD_VERSION: ${{ steps.versions.outputs.old_version }}
+          NEW_VERSION: ${{ steps.versions.outputs.new_version }}
+          HAS_CHANGES: ${{ steps.extract.outputs.has_changes }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           echo "## 📊 Recipe Documentation Update Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version Comparison**: ${{ steps.versions.outputs.old_version }} → ${{ steps.versions.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Changes Detected**: ${{ steps.extract.outputs.has_changes }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Dry Run Mode**: ${{ github.event.inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Comparison**: $OLD_VERSION → $NEW_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Changes Detected**: $HAS_CHANGES" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run Mode**: $DRY_RUN" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.extract.outputs.has_changes }}" = "true" ]; then
+          if [ "$HAS_CHANGES" = "true" ]; then
             echo "### ✅ Documentation Updated" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "The Recipe Reference Guide has been updated to reflect changes in ${{ steps.versions.outputs.new_version }}." >> $GITHUB_STEP_SUMMARY
+            echo "The Recipe Reference Guide has been updated to reflect changes in $NEW_VERSION." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
               echo "**Note**: Running in dry-run mode - no PR was created. Review the artifacts to see the generated changes." >> $GITHUB_STEP_SUMMARY
             else
               echo "A pull request has been created with the documentation updates." >> $GITHUB_STEP_SUMMARY
@@ -264,7 +273,7 @@ jobs:
           else
             echo "### ℹ️ No Changes Needed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "No recipe schema or validation changes were detected between ${{ steps.versions.outputs.old_version }} and ${{ steps.versions.outputs.new_version }}." >> $GITHUB_STEP_SUMMARY
+            echo "No recipe schema or validation changes were detected between $OLD_VERSION and $NEW_VERSION." >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
