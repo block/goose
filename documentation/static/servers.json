@@ -198,7 +198,7 @@
   {
     "id": "council-of-mine",
     "name": "Council of Mine",
-    "description": "LLM debate",
+    "description": "LLM council debate with 9 distinct personas for decision-making",
     "command": "uvx --from git+https://github.com/block/mcp-council-of-mine mcp_council_of_mine",
     "link": "https://github.com/block/mcp-council-of-mine",
     "installation_notes": "LLM Debate",
