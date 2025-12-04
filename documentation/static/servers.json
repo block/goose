@@ -425,7 +425,7 @@
     "endorsed": true,
     "environmentVariables": []
   },
-    {
+  {
     "id": "nano-banana-mcp",
     "name": "Nano Banana",
     "description": "AI-powered image generation and editing",
