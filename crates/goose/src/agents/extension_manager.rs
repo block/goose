@@ -145,11 +145,14 @@ fn normalize(input: String) -> String {
     result.to_lowercase()
 }
 
-fn resolve_command(cmd: &String) -> PathBuf {
-    SearchPaths::builder().resolve(cmd).unwrap_or_else(|_| {
-        // let the OS raise the error
-        PathBuf::from(cmd)
-    })
+fn resolve_command(cmd: &str) -> PathBuf {
+    SearchPaths::builder()
+        .with_npm()
+        .resolve(cmd)
+        .unwrap_or_else(|_| {
+            // let the OS raise the error
+            PathBuf::from(cmd)
+        })
 }
 
 fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a str, ErrorData> {
