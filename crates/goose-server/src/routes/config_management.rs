@@ -142,13 +142,6 @@ pub struct DetectProviderResponse {
     pub provider_name: String,
     pub models: Vec<String>,
 }
-
-#[derive(Serialize, ToSchema)]
-pub struct DetectProviderError {
-    pub error: String,
-    pub detected_format: Option<String>,
-    pub suggestions: Vec<String>,
-}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -620,8 +613,7 @@ pub async fn upsert_permissions(
     request_body = DetectProviderRequest,
     responses(
         (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
-        (status = 400, description = "Invalid API key format or key validation failed", body = DetectProviderError),
-        (status = 500, description = "Internal server error")
+        (status = 404, description = "No matching provider found"),
     )
 )]
 pub async fn detect_provider(

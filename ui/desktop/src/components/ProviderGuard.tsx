@@ -17,7 +17,7 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read } = useConfig();
+  const { read, upsert } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -76,7 +76,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
-  const handleApiKeySuccess = (_provider: string, _model: string) => {
+  const handleApiKeySuccess = async (provider: string, model: string, apiKey: string) => {
+    const keyName = `${provider.toUpperCase()}_API_KEY`;
+    await upsert(keyName, apiKey, true);
+    await upsert('GOOSE_PROVIDER', provider, false);
+    await upsert('GOOSE_MODEL', model, false);
+
     setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);

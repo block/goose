@@ -187,7 +187,7 @@ export default function ProgressiveMessageList({
         if (hasInlineSystemNotification(message)) {
           return (
             <div
-              key={message.id || `message-${index}-${message.role || 'unknown'}`}
+              key={message.id ?? `msg-${index}-${message.created}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
@@ -201,7 +201,7 @@ export default function ProgressiveMessageList({
 
         return (
           <div
-            key={message.id || `message-${index}-${message.role || 'unknown'}`}
+            key={message.id ?? `msg-${index}-${message.created}`}
             className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
             data-testid="message-container"
           >

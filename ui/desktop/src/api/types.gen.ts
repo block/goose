@@ -142,12 +142,6 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
-export type DetectProviderError = {
-    detected_format?: string | null;
-    error: string;
-    suggestions: Array<string>;
-};
-
 export type DetectProviderRequest = {
     api_key: string;
 };
@@ -1468,16 +1462,10 @@ export type DetectProviderData = {
 
 export type DetectProviderErrors = {
     /**
-     * Invalid API key format or key validation failed
+     * No matching provider found
      */
-    400: DetectProviderError;
-    /**
-     * Internal server error
-     */
-    500: unknown;
+    404: unknown;
 };
-
-export type DetectProviderError2 = DetectProviderErrors[keyof DetectProviderErrors];
 
 export type DetectProviderResponses = {
     /**
