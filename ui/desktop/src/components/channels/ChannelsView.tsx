@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Hash, 
@@ -15,13 +15,15 @@ import {
   Star,
   ArrowLeft,
   ChevronRight,
-  Home
+  Home,
+  Trash2
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTabContext } from '../../contexts/TabContext';
 import { matrixService, SpaceChild } from '../../services/MatrixService';
+import { toastError, toastSuccess, toastLoading } from '../../toasts';
 
 interface Channel {
   roomId: string;
@@ -300,12 +302,15 @@ const EditChannelModal: React.FC<{
   onClose: () => void;
   channel: Channel;
   onEdit: (roomId: string, name: string, topic: string, coverPhotoFile?: File) => Promise<void>;
-}> = ({ isOpen, onClose, channel, onEdit }) => {
+  onDelete?: (roomId: string) => Promise<void>;
+}> = ({ isOpen, onClose, channel, onEdit, onDelete }) => {
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic || '');
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
   const [coverPhotoPreview, setCoverPhotoPreview] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Update local state when channel prop changes
   useEffect(() => {
@@ -335,9 +340,37 @@ const EditChannelModal: React.FC<{
       onClose();
     } catch (error) {
       console.error('Failed to edit channel:', error);
-      alert('Failed to edit channel. Please try again.');
+      toastError({
+        title: 'Failed to Edit Channel',
+        msg: 'Could not save channel changes. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setIsEditing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await onDelete(channel.roomId);
+      onClose();
+      toastSuccess({
+        title: 'Space Left Successfully',
+        msg: `You have left the space "${channel.name}".`
+      });
+    } catch (error) {
+      console.error('Failed to leave space:', error);
+      toastError({
+        title: 'Failed to Leave Space',
+        msg: 'Could not leave the space. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -450,20 +483,97 @@ const EditChannelModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              disabled={isEditing}
+              disabled={isEditing || isDeleting}
               className="flex-1 px-4 py-3 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || isEditing}
+              disabled={!name.trim() || isEditing || isDeleting}
               className="flex-1 px-4 py-3 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isEditing ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
+
+        {/* Delete/Leave Section */}
+        {onDelete && (
+          <div className="mt-6 pt-6 border-t border-border-default">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-text-default">Leave Space</h3>
+                <p className="text-xs text-text-muted mt-1">
+                  You will no longer have access to this space and its rooms.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isEditing || isDeleting}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Leave
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <AnimatePresence>
+          {showDeleteConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 flex items-center justify-center z-10"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-background-default rounded-2xl p-6 w-full max-w-sm mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-text-default">Leave Space</h3>
+                    <p className="text-sm text-text-muted">This action cannot be undone</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-text-default mb-6">
+                  Are you sure you want to leave <strong>"{channel.name}"</strong>? You will lose access to this space and all its rooms.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 rounded-lg border border-border-default text-text-default hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDeleting ? 'Leaving...' : 'Leave Space'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   );
@@ -493,7 +603,11 @@ const CreateChannelModal: React.FC<{
       setIsPublic(true);
     } catch (error) {
       console.error('Failed to create channel:', error);
-      alert('Failed to create channel. Please try again.');
+      toastError({
+        title: `Failed to Create ${isInSpace ? 'Room' : 'Space'}`,
+        msg: `Could not create ${isInSpace ? 'room' : 'space'}. Please try again.`,
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setIsCreating(false);
     }
@@ -636,7 +750,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     setRoomAvatar,
     createSpace,
     createRoom,
-    getSpaceChildren
+    getSpaceChildren,
+    leaveRoom
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -648,6 +763,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Space navigation state
   const [currentSpace, setCurrentSpace] = useState<Channel | null>(null);
@@ -675,8 +791,18 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   }, [isConnected, showMatrixAuth]);
 
-  // Helper function to convert MXC URL to HTTP URL with authentication
-  const convertMxcToHttp = (mxcUrl: string | undefined): string | undefined => {
+  // Handle window resize for responsive empty tiles
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Helper function to convert MXC URL to HTTP URL with authentication (memoized)
+  const convertMxcToHttp = useCallback((mxcUrl: string | undefined): string | undefined => {
     if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
       console.log('🖼️ convertMxcToHttp: Not an MXC URL:', mxcUrl);
       return mxcUrl;
@@ -711,7 +837,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     
     console.log('🖼️ convertMxcToHttp: No client available, returning MXC URL:', mxcUrl);
     return mxcUrl;
-  };
+  }, []);
 
   // Filter spaces from Matrix rooms and add favorite status
   const channels: Channel[] = rooms
@@ -743,6 +869,31 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       )
     : channels;
 
+  // Calculate empty tiles to fill the entire viewport
+  const calculateEmptyTiles = (itemsCount: number) => {
+    // Estimate tiles that can fit in viewport
+    // Assuming each tile is roughly 200px (including gaps) and viewport height minus headers
+    const estimatedTileHeight = 200;
+    const headerHeight = 150; // Approximate height of header section with padding
+    const availableHeight = windowSize.height - headerHeight;
+    
+    // Calculate how many rows can fit
+    const rowsInViewport = Math.floor(availableHeight / estimatedTileHeight);
+    
+    // Calculate tiles per row based on current screen width
+    const screenWidth = windowSize.width;
+    let tilesPerRow = 6; // xl default
+    if (screenWidth < 640) tilesPerRow = 2; // sm
+    else if (screenWidth < 768) tilesPerRow = 3; // md  
+    else if (screenWidth < 1024) tilesPerRow = 4; // lg
+    else if (screenWidth < 1280) tilesPerRow = 5; // xl
+    
+    const totalTilesInViewport = Math.max(rowsInViewport * tilesPerRow, 12); // Minimum 12 tiles (2 rows)
+    const emptyTilesNeeded = Math.max(0, totalTilesInViewport - itemsCount);
+    
+    return emptyTilesNeeded;
+  };
+
   const handleOpenChannel = async (channel: Channel) => {
     try {
       console.log('🌌 Navigating into space:', channel);
@@ -764,7 +915,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       });
     } catch (error) {
       console.error('❌ Failed to navigate into space:', error);
-      alert('Failed to load space contents. Please try again.');
+      toastError({
+        title: 'Failed to Load Space',
+        msg: 'Could not load space contents. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoadingSpaceChildren(false);
     }
@@ -811,7 +966,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       }
     } catch (error) {
       console.error('❌ Failed to handle space child click:', error);
-      alert('Failed to open space content. Please try again.');
+      toastError({
+        title: 'Failed to Open Content',
+        msg: 'Could not open space content. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoadingSpaceChildren(false);
     }
@@ -837,7 +996,11 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     } catch (error) {
       console.error('❌ Failed to create:', error);
       const itemType = currentSpace ? 'room' : 'space';
-      alert(`Failed to create ${itemType}. Please try again.`);
+      toastError({
+        title: `Failed to Create ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
+        msg: `Could not create ${itemType}. Please try again.`,
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 
@@ -911,6 +1074,29 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     setFavorites(newFavorites);
     // Save to localStorage
     localStorage.setItem('channelFavorites', JSON.stringify(Array.from(newFavorites)));
+  };
+
+  const handleDeleteChannel = async (roomId: string) => {
+    try {
+      console.log('🗑️ Leaving space:', roomId);
+      await leaveRoom(roomId);
+      
+      // If we're currently in this space, navigate back to spaces
+      if (currentSpace && currentSpace.roomId === roomId) {
+        handleBackToSpaces();
+      }
+      
+      // Remove from favorites if it was favorited
+      const newFavorites = new Set(favorites);
+      newFavorites.delete(roomId);
+      setFavorites(newFavorites);
+      localStorage.setItem('channelFavorites', JSON.stringify(Array.from(newFavorites)));
+      
+      console.log('✅ Successfully left space');
+    } catch (error) {
+      console.error('❌ Failed to leave space:', error);
+      throw error; // Re-throw to let the modal handle the error
+    }
   };
 
   // Show Matrix authentication modal
@@ -1055,7 +1241,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                   {spaceChildren.map((child) => (
                     <SpaceChildCard
                       key={child.roomId}
@@ -1063,8 +1249,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                       onChildClick={handleSpaceChildClick}
                     />
                   ))}
-                  {/* Empty tiles for creating new rooms in this space - fill remaining space */}
-                  {Array.from({ length: 50 - spaceChildren.length }).map((_, index) => (
+                  {/* Empty tiles for creating new rooms in this space */}
+                  {Array.from({ length: calculateEmptyTiles(spaceChildren.length) }).map((_, index) => (
                     <EmptyChannelTile
                       key={`empty-room-${index}`}
                       onCreateChannel={() => setShowCreateModal(true)}
@@ -1075,7 +1261,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
               )
             ) : (
               // Show spaces grid
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0.5">
                 {filteredChannels.map((channel) => (
                   <ChannelCard
                     key={channel.roomId}
@@ -1085,8 +1271,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
-                {/* Empty tiles for creating new channels - fill remaining space */}
-                {Array.from({ length: 50 - filteredChannels.length }).map((_, index) => (
+                {/* Empty tiles for creating new channels */}
+                {Array.from({ length: calculateEmptyTiles(filteredChannels.length) }).map((_, index) => (
                   <EmptyChannelTile
                     key={`empty-${index}`}
                     onCreateChannel={() => setShowCreateModal(true)}
@@ -1121,6 +1307,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
             }}
             channel={editingChannel}
             onEdit={handleSaveChannelEdit}
+            onDelete={handleDeleteChannel}
           />
         )}
       </AnimatePresence>

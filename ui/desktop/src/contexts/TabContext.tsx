@@ -66,13 +66,13 @@ const createNewTab = (overrides: Partial<Tab> = {}): Tab => {
   };
 };
 
-const createNewChat = (sessionId: string): ChatType => ({
+const createNewChat = (sessionId: string, options?: { recipeConfig?: any; aiEnabled?: boolean }): ChatType => ({
   sessionId,
   title: 'New Chat',
   messages: [],
   messageHistoryIndex: 0,
-  recipeConfig: null,
-  aiEnabled: true,
+  recipeConfig: options?.recipeConfig || null, // EXPLICIT: Only set recipe if explicitly provided
+  aiEnabled: options?.aiEnabled ?? true, // Default to true for regular chats
 });
 
 const createInitialTabState = (): TabState[] => {
@@ -849,26 +849,37 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       return;
     }
 
-    // Get or create the backend session BEFORE creating the tab
-    // Use the provided room name, or fall back to sender name
+    // CRITICAL: Ensure we're joined to the room before opening chat
+    try {
+      console.log('🚪 Ensuring user is joined to Matrix room before opening chat...');
+      await matrixService.joinRoom(roomId);
+      console.log('✅ Successfully joined Matrix room (or already joined)');
+    } catch (error) {
+      console.error('❌ Failed to join Matrix room:', error);
+      // Don't block the chat opening - user might already be in the room
+      // The joinRoom method handles already-joined cases gracefully
+    }
+
+    // Get or create the backend session AFTER ensuring room membership
     const tabTitle = roomName || `Chat with ${senderId.split(':')[0].substring(1)}`;
     
-    console.log('📱 Getting/creating backend session before creating tab...');
+    console.log('📱 Getting/creating backend session after ensuring room membership...');
     let backendSessionId = sessionMappingService.getGooseSessionId(roomId);
     
     if (!backendSessionId) {
       console.log('📱 No existing mapping found for room:', roomId);
       
-      // Check if we're already in this Matrix room
-      const rooms = matrixService.getRooms();
-      const existingRoom = rooms.find(r => r.roomId === roomId);
+      // Wait a moment for the joinRoom operation to complete and create mappings
+      console.log('📱 Waiting for room join to complete and mappings to be created...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (existingRoom) {
-        console.log('📱 Room exists in Matrix service, waiting for mapping to be created...');
-        
-        // Wait up to 2 seconds for the mapping to appear
+      // Check again for mapping
+      backendSessionId = sessionMappingService.getGooseSessionId(roomId);
+      
+      if (!backendSessionId) {
+        // Wait up to 3 more seconds for the mapping to appear
         let attempts = 0;
-        while (attempts < 20 && !backendSessionId) {
+        while (attempts < 30 && !backendSessionId) {
           await new Promise(resolve => setTimeout(resolve, 100));
           backendSessionId = sessionMappingService.getGooseSessionId(roomId);
           attempts++;
@@ -880,13 +891,18 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         }
       }
       
-      // If still no mapping, create one
+      // If still no mapping, create one manually
       if (!backendSessionId) {
-        console.log('📱 Creating new mapping with backend session');
+        console.log('📱 Creating new mapping with backend session manually');
         try {
+          // Get room participants for the mapping
+          const rooms = matrixService.getRooms();
+          const room = rooms.find(r => r.roomId === roomId);
+          const participants = room ? room.members.map(m => m.userId) : [senderId];
+          
           const mapping = await sessionMappingService.createMappingWithBackendSession(
             roomId, 
-            [], 
+            participants, 
             tabTitle, 
             senderId
           );
@@ -914,14 +930,10 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     
     const newTabState: TabState = {
       tab: newTab,
-      chat: {
-        sessionId: backendSessionId,
-        title: tabTitle,
-        messages: [],
-        messageHistoryIndex: 0,
-        recipeConfig: null,
-        aiEnabled: true,
-      },
+      chat: createNewChat(backendSessionId, { 
+        recipeConfig: null, // EXPLICIT: Matrix chats should never have recipes
+        aiEnabled: true 
+      }),
       loadingChat: false // No need for loading state since we have the real session ID
     };
     
@@ -1036,6 +1048,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
                 ...ts.chat, 
                 title: matrixTitle,
                 sessionId: backendSessionId,
+                recipeConfig: null, // EXPLICIT: Matrix chats should never have recipes
                 aiEnabled: false // Matrix chats typically have AI disabled
               }
             }

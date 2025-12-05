@@ -4,6 +4,7 @@ import { MatrixUser } from '../services/MatrixService';
 import { Message } from '../types/message';
 import { useTabContext } from '../contexts/TabContext';
 import { matrixRealtimeSync } from '../services/MatrixRealtimeSync';
+import { sessionMappingService } from '../services/SessionMappingService';
 
 // Force rebuild timestamp: 2025-01-15T01:00:00Z - Fixed friends.length and useEffect dependency array
 
@@ -142,10 +143,11 @@ export const useSessionSharing = ({
   // Helper function to create a deduplication key based on content and timestamp
   const createMessageKey = (content: string, sender: string, timestamp?: number) => {
     const time = timestamp || Date.now();
-    // Round timestamp to nearest second to catch near-simultaneous duplicates
-    const roundedTime = Math.floor(time / 1000);
-    // Use first 50 chars of content + sender + rounded timestamp
-    return `${sender}-${roundedTime}-${content.substring(0, 50)}`;
+    // Use a much smaller window (100ms) for duplicate detection to avoid blocking legitimate messages
+    // This catches true duplicates (same message sent twice rapidly) but allows different messages in the same second
+    const roundedTime = Math.floor(time / 100) * 100; // Round to nearest 100ms
+    // Use first 100 chars of content + sender + rounded timestamp for better uniqueness
+    return `${sender}-${roundedTime}-${content.substring(0, 100)}`;
   };
 
   // Global registry to ensure only ONE tab per Matrix room has active listeners
@@ -209,13 +211,40 @@ export const useSessionSharing = ({
     if (globalMatrixListenerRegistry.current.has(targetRoomId)) {
       const existingOwner = globalMatrixListenerRegistry.current.get(targetRoomId);
       if (existingOwner !== sessionId) {
-        console.log('🚫 useSessionSharing: Another tab already handles this Matrix room, skipping listeners:', {
+        console.log('🚫 useSessionSharing: Another tab already handles this Matrix room, but checking if it still exists...', {
           roomId: targetRoomId,
           existingOwner,
           thisSessionId: sessionId,
           registrySize: globalMatrixListenerRegistry.current.size
         });
-        return;
+        
+        // CRITICAL FIX: Check if the existing owner session still has a valid mapping
+        // If not, this is a stale entry and we should take ownership
+        const existingMapping = sessionMappingService.getMapping(targetRoomId);
+        const hasValidMappingForExistingOwner = existingMapping && existingMapping.gooseSessionId === existingOwner;
+        
+        if (!hasValidMappingForExistingOwner) {
+          console.log('🔄 useSessionSharing: Existing owner has no valid mapping, taking ownership:', {
+            roomId: targetRoomId,
+            staleOwner: existingOwner,
+            newOwner: sessionId,
+            existingMapping: existingMapping ? {
+              sessionId: existingMapping.gooseSessionId,
+              title: existingMapping.title
+            } : null
+          });
+          
+          // Clear the stale entry and proceed to claim ownership
+          globalMatrixListenerRegistry.current.delete(targetRoomId);
+        } else {
+          console.log('🚫 useSessionSharing: Existing owner has valid mapping, skipping listeners:', {
+            roomId: targetRoomId,
+            existingOwner,
+            thisSessionId: sessionId,
+            validMapping: true
+          });
+          return;
+        }
       }
     }
 
@@ -437,6 +466,17 @@ export const useSessionSharing = ({
           console.log('👤 Treating as user message from Matrix');
         }
         
+        // CRITICAL FIX: Ensure content is valid before creating message
+        const messageText = content || '';
+        if (!messageText || typeof messageText !== 'string') {
+          console.error('❌ Invalid message content in handleRegularMessage:', {
+            content: content,
+            typeofContent: typeof content,
+            sender: sender
+          });
+          return;
+        }
+        
         // Convert regular Matrix messages to Goose messages with sender info
         const message: Message = {
           id: `matrix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -444,7 +484,7 @@ export const useSessionSharing = ({
           created: Math.floor(Date.now() / 1000),
           content: [{
             type: 'text',
-            text: content,
+            text: messageText, // Use validated messageText
           }],
           sender: senderData,
         };
@@ -646,6 +686,29 @@ export const useSessionSharing = ({
                 }
               }
               
+              // CRITICAL FIX: Ensure messageData.content is valid before creating message
+              const messageText = messageData.content || '';
+              if (!messageText || typeof messageText !== 'string') {
+                console.error('❌ Invalid message content in gooseSessionSync:', {
+                  messageDataContent: messageData.content,
+                  typeofContent: typeof messageData.content,
+                  fullMessageData: messageData
+                });
+                return;
+              }
+              
+              // GOOSE AVATAR FIX: For assistant messages, ensure proper Goose avatar and styling
+              if (finalRole === 'assistant') {
+                // Override sender data for Goose messages to ensure proper avatar display
+                senderData = {
+                  userId: 'goose-ai-assistant',
+                  displayName: 'Goose',
+                  avatarUrl: undefined, // Let the UI use the default Goose avatar
+                  isGoose: true, // Special flag to indicate this is Goose
+                };
+                console.log('🦆 Setting Goose avatar for assistant message from Matrix collaboration');
+              }
+              
               // Convert to local message format with proper sender attribution
               const message: Message = {
                 id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -653,9 +716,9 @@ export const useSessionSharing = ({
                 created: Math.floor(Date.now() / 1000),
                 content: [{
                   type: 'text',
-                  text: messageData.content,
+                  text: messageText, // Use validated messageText instead of messageData.content
                 }],
-                sender: senderData, // Include sender information
+                sender: senderData, // Include sender information (with Goose avatar for assistant messages)
                 metadata: {
                   originalRole: messageData.role,
                   correctedRole: finalRole,
@@ -663,7 +726,8 @@ export const useSessionSharing = ({
                   skipLocalResponse: true, // Prevent triggering local AI response
                   preventAutoResponse: true,
                   isFromCollaborator: true,
-                  sessionMessageId: messageData.sessionId
+                  sessionMessageId: messageData.sessionId,
+                  isGooseMessage: finalRole === 'assistant' // Flag for UI to show Goose styling
                 }
               };
               
