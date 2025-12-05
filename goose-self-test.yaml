@@ -83,10 +83,10 @@ instructions: |
   ### Phase 3: Subagent Testing (Meta-Recursion)
   Create subagents to test yourself recursively:
   - Basic subagent creation and execution
-  - Parallel subagent orchestration
+  - Parallel subagent execution (multiple subagent calls at once)
   - Sequential subagent chains
   - Recursive depth testing (subagent creating subagent)
-  - Test return_last_only optimization
+  - Test summary mode (default behavior for concise results)
   
   ### Phase 4: Advanced Self-Testing
   Push boundaries and test limits:
@@ -175,23 +175,23 @@ prompt: |
   ## 🤖 PHASE 3: Subagent Meta-Testing
   
   ### Basic Subagent Test
-  Create a simple subagent task:
+  Use the `subagent` tool with instructions to create a simple task:
   ```
-  Task: "Create a file called subagent_test.txt with 'Hello from subagent'"
+  subagent(instructions: "Create a file called subagent_test.txt with 'Hello from subagent'")
   ```
   
   ### Parallel Subagent Test
   {% if parallel_tests == "true" %}
-  Create 3 parallel subagents:
+  Create 3 subagent calls simultaneously (parallel execution):
   1. Count files in current directory
   2. Get current timestamp
   3. Create a test file
   
-  Use execution_mode: "parallel" and verify all complete.
+  Make all three `subagent` tool calls at once to execute them in parallel.
   {% endif %}
   
   ### Sequential Chain Test
-  Create dependent subagents:
+  Create dependent subagents (one after another):
   1. First: Create a Python file
   2. Second: Analyze the created file
   3. Third: Run the Python file
@@ -202,8 +202,9 @@ prompt: |
   Monitor for resource constraints and context window limits.
   {% endif %}
   
-  ### Return Last Only Test
-  Create subagents with return_last_only=true and verify condensed output.
+  ### Summary Mode Test
+  Create subagents with summary mode (default) and verify concise output.
+  Test with `summary: false` to get full conversation history.
   
   Log results to: {{ workspace_dir }}/phase3_subagents.md
   {% endif %}
