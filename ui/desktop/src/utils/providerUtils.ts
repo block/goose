@@ -8,6 +8,7 @@ import { Recipe, updateAgentProvider, updateFromSession } from '../api';
 import { toastService, ExtensionLoadingStatus } from '../toasts';
 import { errorMessage } from './conversionUtils';
 import { createExtensionRecoverHints } from './extensionErrorUtils';
+import { getPredefinedModelsFromEnv } from '../components/settings/models/predefinedModelsUtils';
 
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {
@@ -43,11 +44,17 @@ export const initializeSystem = async (
       'sessionId',
       sessionId
     );
+
+    const predefinedModels = getPredefinedModelsFromEnv();
+    const predefinedModel = predefinedModels.find((m) => m.name === model);
+
     await updateAgentProvider({
       body: {
         session_id: sessionId,
         provider,
         model,
+        context_limit: predefinedModel?.context_limit,
+        request_params: predefinedModel?.request_params,
       },
       throwOnError: true,
     });

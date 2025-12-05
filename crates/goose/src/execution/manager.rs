@@ -72,6 +72,10 @@ impl AgentManager {
         *self.default_provider.write().await = Some(provider);
     }
 
+    pub async fn get_default_provider(&self) -> Option<Arc<dyn crate::providers::base::Provider>> {
+        self.default_provider.read().await.clone()
+    }
+
     pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
         {
             let mut sessions = self.sessions.write().await;

@@ -1,5 +1,7 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 
@@ -77,6 +79,8 @@ pub struct ModelConfig {
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
     pub fast_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_params: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +111,7 @@ impl ModelConfig {
             toolshim,
             toolshim_model,
             fast_model: None,
+            request_params: None,
         })
     }
 
@@ -261,10 +266,16 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
+        self.request_params = params;
+        self
+    }
+
     pub fn use_fast_model(&self) -> Self {
         if let Some(fast_model) = &self.fast_model {
             let mut config = self.clone();
             config.model_name = fast_model.clone();
+            config.request_params = None;
             config
         } else {
             self.clone()

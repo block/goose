@@ -28,6 +28,7 @@ import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
+import { getPredefinedModelContextLimit } from './settings/models/predefinedModelsUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
 
@@ -409,6 +410,13 @@ export default function ChatInput({
       const { model, provider } = await getCurrentModelAndProvider();
       if (!model || !provider) {
         console.log('No model or provider found');
+        setIsTokenLimitLoaded(true);
+        return;
+      }
+
+      const predefinedLimit = getPredefinedModelContextLimit(model as string);
+      if (predefinedLimit !== null) {
+        setTokenLimit(predefinedLimit);
         setIsTokenLimitLoaded(true);
         return;
       }

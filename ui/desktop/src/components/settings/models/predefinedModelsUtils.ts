@@ -28,3 +28,9 @@ export function getProviderDisplayName(modelName: string): string {
   const matchingModel = predefinedModels.find((model) => model.name === modelName);
   return matchingModel?.subtext || '';
 }
+
+export function getPredefinedModelContextLimit(modelName: string): number | null {
+  const predefinedModels = getPredefinedModelsFromEnv();
+  const matchingModel = predefinedModels.find((model) => model.name === modelName);
+  return matchingModel?.context_limit ?? null;
+}

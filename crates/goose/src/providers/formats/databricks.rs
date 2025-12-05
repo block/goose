@@ -631,6 +631,13 @@ pub fn create_request(
         }
     }
 
+    if let Some(request_params) = &model_config.request_params {
+        let payload_obj = payload.as_object_mut().unwrap();
+        for (key, value) in request_params {
+            payload_obj.insert(key.clone(), value.clone());
+        }
+    }
+
     Ok(payload)
 }
 
@@ -985,6 +992,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1017,6 +1025,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1050,6 +1059,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1068,6 +1078,37 @@ mod tests {
         for (key, value) in expected.as_object().unwrap() {
             assert_eq!(obj.get(key).unwrap(), value);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_with_request_params() -> anyhow::Result<()> {
+        use std::collections::HashMap;
+
+        let mut request_params = HashMap::new();
+        request_params.insert(
+            "anthropic_beta".to_string(),
+            json!(["context-1m-2025-08-07"]),
+        );
+
+        let model_config = ModelConfig {
+            model_name: "goose-claude-4-5-sonnet".to_string(),
+            context_limit: Some(1_000_000),
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+            request_params: Some(request_params),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+
+        assert_eq!(
+            obj.get("anthropic_beta").unwrap(),
+            &json!(["context-1m-2025-08-07"])
+        );
 
         Ok(())
     }

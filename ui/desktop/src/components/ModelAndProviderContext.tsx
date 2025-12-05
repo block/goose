@@ -53,6 +53,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             session_id: sessionId,
             provider: providerName,
             model: modelName,
+            context_limit: model.context_limit,
+            request_params: model.request_params,
           },
         });
       }
