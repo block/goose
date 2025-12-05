@@ -117,6 +117,7 @@ interface UseChatStreamProps {
   onSessionIdChange?: (newSessionId: string) => void;
   isMatrixTab?: boolean; // Flag to indicate if this is a Matrix tab that should listen for Matrix messages
   tabId?: string; // Tab ID to filter sidecars for context injection
+  matrixRoomId?: string; // Matrix room ID for loading historical messages
 }
 
 interface UseChatStreamReturn {
@@ -286,7 +287,16 @@ export function useChatStream({
   onSessionIdChange,
   isMatrixTab = false,
   tabId,
+  matrixRoomId,
 }: UseChatStreamProps): UseChatStreamReturn {
+  
+  // Debug logging for Matrix parameters
+  console.log('🔧 useChatStream called with Matrix params:', {
+    sessionId: sessionId?.substring(0, 8),
+    isMatrixTab,
+    matrixRoomId: matrixRoomId ? matrixRoomId.substring(0, 20) + '...' : 'undefined',
+    tabId
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
@@ -465,6 +475,134 @@ export function useChatStream({
 
     loadExistingSession();
   }, [sessionId, setMessagesAndLog]);
+
+  // Load Matrix room history for Matrix tabs
+  useEffect(() => {
+    console.log('📜 useChatStream: Matrix history effect triggered:', {
+      sessionId: sessionId.substring(0, 8),
+      isMatrixTab,
+      matrixRoomId: matrixRoomId ? matrixRoomId.substring(0, 20) + '...' : 'null',
+      messagesLength: messages.length,
+      willSkip: !isMatrixTab || !matrixRoomId || messages.length > 0
+    });
+
+    // Only load Matrix history if this is a Matrix tab with a room ID and we have no messages yet
+    if (!isMatrixTab || !matrixRoomId || messages.length > 0) {
+      console.log('📜 useChatStream: Skipping Matrix history load:', {
+        reason: !isMatrixTab ? 'not Matrix tab' : !matrixRoomId ? 'no room ID' : 'already has messages'
+      });
+      return;
+    }
+
+    console.log('📜 useChatStream: Loading Matrix room history for Matrix tab:', {
+      sessionId: sessionId.substring(0, 8),
+      matrixRoomId: matrixRoomId.substring(0, 20) + '...',
+      isMatrixTab,
+      messagesLength: messages.length
+    });
+
+    const loadMatrixHistory = async () => {
+      try {
+        // Import Matrix service dynamically to avoid circular dependencies
+        const { matrixService } = await import('../services/MatrixService');
+        
+        console.log('📜 useChatStream: Calling getRoomHistory for Matrix room:', matrixRoomId);
+        const history = await matrixService.getRoomHistory(matrixRoomId, 100);
+        
+        console.log('📜 useChatStream: Raw Matrix history response:', {
+          historyLength: history.length,
+          firstFewMessages: history.slice(0, 3).map(msg => ({
+            sender: msg.sender,
+            content: msg.content?.substring(0, 50) + '...',
+            timestamp: msg.timestamp,
+            isGooseMessage: msg.isGooseMessage
+          }))
+        });
+
+        if (history.length === 0) {
+          console.log('📜 useChatStream: No Matrix history found for room');
+          return;
+        }
+
+        // Convert Matrix history to Message format
+        const historicalMessages: Message[] = history.map((msg, index) => {
+          // GOOSE AVATAR FIX: Use msg.type instead of msg.isGooseMessage for historical messages
+          const isGooseMessage = msg.type === 'assistant';
+          
+          // Override sender info for Goose messages to ensure proper avatar display
+          let senderData;
+          if (isGooseMessage) {
+            senderData = {
+              userId: 'goose-ai-assistant',
+              displayName: 'Goose',
+              avatarUrl: undefined, // Let the UI use the default Goose avatar
+              isGoose: true, // Special flag to indicate this is Goose
+            };
+            console.log('🦆 useChatStream: Detected historical Goose message, overriding sender info');
+          } else {
+            senderData = msg.senderInfo ? {
+              userId: msg.senderInfo.userId,
+              displayName: msg.senderInfo.displayName,
+              avatarUrl: msg.senderInfo.avatarUrl,
+            } : {
+              userId: msg.sender,
+              displayName: msg.sender.split(':')[0].substring(1), // Extract username from Matrix ID
+            };
+          }
+          
+          return {
+            id: `matrix-history-${msg.timestamp.getTime()}-${msg.sender}-${index}`,
+            role: isGooseMessage ? 'assistant' : 'user',
+            created: Math.floor(msg.timestamp.getTime() / 1000),
+            content: [{
+              type: 'text',
+              text: msg.content,
+            }],
+            sender: senderData,
+            metadata: {
+              isFromMatrix: true,
+              originalTimestamp: msg.timestamp.getTime(),
+              isGooseMessage: isGooseMessage, // Flag for UI to show Goose styling
+            }
+          };
+        });
+
+        // Sort messages chronologically
+        historicalMessages.sort((a, b) => (a.metadata?.originalTimestamp || 0) - (b.metadata?.originalTimestamp || 0));
+
+        console.log('📜 useChatStream: Converted Matrix history to messages:', {
+          messageCount: historicalMessages.length,
+          firstMessage: historicalMessages[0] ? {
+            id: historicalMessages[0].id,
+            role: historicalMessages[0].role,
+            sender: historicalMessages[0].sender?.displayName || historicalMessages[0].sender?.userId,
+            content: historicalMessages[0].content[0]?.text?.substring(0, 50) + '...'
+          } : null,
+          lastMessage: historicalMessages[historicalMessages.length - 1] ? {
+            id: historicalMessages[historicalMessages.length - 1].id,
+            role: historicalMessages[historicalMessages.length - 1].role,
+            sender: historicalMessages[historicalMessages.length - 1].sender?.displayName || historicalMessages[historicalMessages.length - 1].sender?.userId,
+            content: historicalMessages[historicalMessages.length - 1].content[0]?.text?.substring(0, 50) + '...'
+          } : null
+        });
+
+        // Set the historical messages
+        setMessagesAndLog(historicalMessages, 'matrix-history-loaded');
+
+        console.log('✅ useChatStream: Successfully loaded Matrix room history:', {
+          sessionId: sessionId.substring(0, 8),
+          matrixRoomId: matrixRoomId.substring(0, 20) + '...',
+          messageCount: historicalMessages.length
+        });
+
+      } catch (error) {
+        console.error('❌ useChatStream: Failed to load Matrix room history:', error);
+        // Don't show error to user, just log it - the chat can still work without history
+      }
+    };
+
+    loadMatrixHistory();
+  }, [isMatrixTab, matrixRoomId, messages.length, sessionId, setMessagesAndLog]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
