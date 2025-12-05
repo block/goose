@@ -19,6 +19,7 @@ import {
   NotificationEvent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { isDefaultSessionName } from '../sessions';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -108,6 +109,9 @@ async function streamFromResponse(
           return;
         }
         case 'Finish': {
+          if (updateTokenState) {
+            updateTokenState(event.token_state);
+          }
           onFinish();
           return;
         }
@@ -180,18 +184,30 @@ export function useChatStream({
         setSessionLoadError(error);
       }
 
-      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
-      if (isNewSession) {
-        console.log(
-          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
-        );
-        window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      setChatState(ChatState.Idle);
+
+      // After first AI response, check if session name was updated
+      // This happens when the AI generates a title for a new conversation
+      if (session && messagesRef.current.length > 0 && isDefaultSessionName(session.name)) {
+        try {
+          const { getSession } = await import('../api');
+          const response = await getSession({
+            path: { session_id: sessionId },
+            throwOnError: true,
+          });
+
+          if (response.data && response.data.name !== session.name) {
+            setSession(response.data);
+            window.dispatchEvent(new CustomEvent('session-needs-name-update'));
+          }
+        } catch (error) {
+          console.error('Failed to fetch updated session:', error);
+        }
       }
 
-      setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId]
+    [onStreamFinish, session, sessionId]
   );
 
   // Load session on mount or sessionId change
