@@ -254,7 +254,8 @@ export const useSessionSharing = ({
       roomId: targetRoomId,
       owner: sessionId,
       hasExplicitMatrixRoomId,
-      registrySize: globalMatrixListenerRegistry.current.size
+      registrySize: globalMatrixListenerRegistry.current.size,
+      fullRegistry: Array.from(globalMatrixListenerRegistry.current.entries())
     });
 
     console.log('🔧 useSessionSharing: Setting up session management listeners for session:', sessionId);
