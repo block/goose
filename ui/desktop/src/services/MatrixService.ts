@@ -2585,31 +2585,63 @@ export class MatrixService extends EventEmitter {
       const spaceId = spaceResult.room_id;
       console.log('✅ Matrix Space created successfully:', spaceId);
       
-      // Create session mapping for the space
-      try {
-        const spaceRoom = this.client.getRoom(spaceId);
-        if (spaceRoom) {
+      // Wait for the space to be available in the client's room list
+      console.log('⏳ Waiting for space to be available in client...');
+      let spaceRoom = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (!spaceRoom && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+        spaceRoom = this.client.getRoom(spaceId);
+        attempts++;
+        console.log(`🔍 Attempt ${attempts}/${maxAttempts}: Space available = ${!!spaceRoom}`);
+      }
+      
+      if (!spaceRoom) {
+        console.warn('⚠️ Space not available in client after waiting, continuing anyway');
+      } else {
+        console.log('✅ Space is now available in client');
+        
+        // Create session mapping for the space
+        try {
           await this.ensureSessionMapping(spaceId, spaceRoom);
           console.log('📋 Session mapping created for Matrix Space');
+        } catch (mappingError) {
+          console.error('❌ Failed to create session mapping for space:', mappingError);
+          // Don't fail the space creation if mapping fails
         }
-      } catch (mappingError) {
-        console.error('❌ Failed to create session mapping for space:', mappingError);
-        // Don't fail the space creation if mapping fails
       }
       
       // Clear rooms cache to ensure fresh data is loaded
       this.cachedRooms = null;
       console.log('🔄 Cleared rooms cache to refresh UI');
       
+      // Wait a bit more to ensure the Matrix client has fully processed the space
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Verify the space is in getRooms() before emitting the update
+      const rooms = this.getRooms();
+      const spaceInRooms = rooms.find(room => room.roomId === spaceId);
+      
+      if (spaceInRooms) {
+        console.log('✅ Space confirmed in getRooms(), emitting roomsUpdated');
+      } else {
+        console.warn('⚠️ Space not yet in getRooms(), emitting roomsUpdated anyway');
+      }
+      
       // Emit a room update event to trigger UI refresh
       this.emit('roomsUpdated', { 
         spaceId: spaceId,
-        action: 'spaceCreated'
+        action: 'spaceCreated',
+        spaceInRooms: !!spaceInRooms
       });
       
       console.log('🎉 Space creation completed:', {
         spaceId: spaceId.substring(0, 20) + '...',
-        name: name
+        name: name,
+        availableInClient: !!spaceRoom,
+        inGetRooms: !!spaceInRooms
       });
       
       return spaceId;

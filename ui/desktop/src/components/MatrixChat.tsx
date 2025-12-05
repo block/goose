@@ -37,6 +37,7 @@ const MatrixChat: React.FC<MatrixChatProps> = ({
     sendMessage,
     onMessage,
     onGooseMessage,
+    getRoomHistory,
     isConnected,
   } = useMatrix();
 
@@ -57,6 +58,64 @@ const MatrixChat: React.FC<MatrixChatProps> = ({
       });
     }
   }, [recipientId, friends]);
+
+  // Load historical messages when component mounts
+  useEffect(() => {
+    if (!roomId || !currentUser || disableMessageHandling) {
+      console.log('📜 Skipping historical message load:', { 
+        roomId: !!roomId, 
+        currentUser: !!currentUser, 
+        disableMessageHandling 
+      });
+      return;
+    }
+
+    const loadHistoricalMessages = async () => {
+      try {
+        console.log('📜 MatrixChat: Loading historical messages for room:', roomId);
+        console.log('📜 MatrixChat: Current user:', currentUser?.userId);
+        console.log('📜 MatrixChat: getRoomHistory function available:', !!getRoomHistory);
+        
+        const history = await getRoomHistory(roomId, 100); // Load up to 100 messages
+        console.log('📜 MatrixChat: Raw history response:', history);
+        
+        const historicalMessages: ChatMessage[] = history.map((msg, index) => {
+          // GOOSE AVATAR FIX: Detect Goose messages from historical data
+          const isGooseMessage = msg.type === 'assistant';
+          
+          // Override sender info for Goose messages to ensure proper avatar display
+          let senderName = msg.senderInfo?.displayName || msg.sender.split(':')[0].substring(1);
+          let senderAvatar = msg.senderInfo?.avatarUrl;
+          
+          if (isGooseMessage) {
+            senderName = 'Goose';
+            senderAvatar = undefined; // Let the UI use the default Goose avatar
+            console.log('🦆 MatrixChat: Detected historical Goose message, overriding sender info');
+          }
+          
+          return {
+            id: `history_${msg.timestamp.getTime()}_${msg.sender}_${index}`,
+            content: msg.content,
+            sender: msg.sender,
+            senderName: senderName,
+            senderAvatar: senderAvatar,
+            timestamp: new Date(msg.timestamp),
+            isFromSelf: msg.sender === currentUser.userId,
+            isGooseMessage: isGooseMessage,
+          };
+        });
+
+        console.log(`📜 MatrixChat: Processed ${historicalMessages.length} historical messages:`, historicalMessages);
+        setMessages(historicalMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
+      } catch (error) {
+        console.error('❌ MatrixChat: Failed to load historical messages:', error);
+        console.error('❌ MatrixChat: Error details:', error.message, error.stack);
+        // Don't show error to user, just log it
+      }
+    };
+
+    loadHistoricalMessages();
+  }, [roomId, currentUser, getRoomHistory, disableMessageHandling]);
 
   // Listen for messages in this room
   useEffect(() => {
