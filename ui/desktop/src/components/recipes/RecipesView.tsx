@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -32,6 +32,7 @@ import { generateDeepLink, Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import cronstrue from 'cronstrue';
 
 export default function RecipesView() {
@@ -190,6 +191,8 @@ export default function RecipesView() {
   const handleSaveSchedule = async () => {
     if (!scheduleRecipeManifest) return;
 
+    const isCreating = !scheduleRecipeManifest.schedule_cron;
+
     try {
       await scheduleRecipe({
         body: {
@@ -198,14 +201,18 @@ export default function RecipesView() {
         },
       });
 
+      setShowScheduleDialog(false);
+      setScheduleRecipeManifest(null);
+      await loadSavedRecipes();
+
       toastSuccess({
         title: 'Schedule saved',
         msg: `Recipe will run ${getReadableCron(scheduleCron)}`,
       });
 
-      setShowScheduleDialog(false);
-      setScheduleRecipeManifest(null);
-      await loadSavedRecipes();
+      if (isCreating) {
+        setView('schedules');
+      }
     } catch (error) {
       console.error('Failed to save schedule:', error);
       setError(error instanceof Error ? error.message : 'Failed to save schedule');
@@ -302,6 +309,19 @@ export default function RecipesView() {
     }
   };
 
+  // Memoize to prevent CronPicker from resetting on every render
+  const memoizedSchedule = useMemo(() => {
+    if (!scheduleRecipeManifest?.schedule_cron) return null;
+    return {
+      id: scheduleRecipeManifest.id,
+      source: '',
+      cron: scheduleRecipeManifest.schedule_cron,
+      last_run: null,
+      currently_running: false,
+      paused: false,
+    };
+  }, [scheduleRecipeManifest?.id, scheduleRecipeManifest?.schedule_cron]);
+
   const RecipeItem = ({
     recipeManifestResponse,
     recipeManifestResponse: { recipe, last_modified: lastModified, schedule_cron, slash_command },
@@ -338,91 +358,133 @@ export default function RecipesView() {
           </div>
         </div>
 
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenSlashCommandDialog(recipeManifestResponse);
-          }}
-          variant={slash_command ? 'default' : 'outline'}
-          size="sm"
-          className="h-8 w-8 p-0"
-          title={slash_command ? 'Edit slash command' : 'Add slash command'}
-        >
-          <Terminal className="w-4 h-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenSlashCommandDialog(recipeManifestResponse);
+              }}
+              variant={slash_command ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 w-8 p-0"
+            >
+              <Terminal className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{slash_command ? 'Edit slash command' : 'Add slash command'}</p>
+          </TooltipContent>
+        </Tooltip>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStartRecipeChat(recipe, recipeManifestResponse.id);
-            }}
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Use recipe"
-          >
-            <Play className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Open in new window"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEditRecipe(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Edit recipe"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCopyDeeplink(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Copy deeplink"
-          >
-            <Link className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenScheduleDialog(recipeManifestResponse);
-            }}
-            variant={schedule_cron ? 'default' : 'outline'}
-            size="sm"
-            className="h-8 w-8 p-0"
-            title={schedule_cron ? 'Edit schedule' : 'Add schedule'}
-          >
-            <Clock className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteRecipe(recipeManifestResponse);
-            }}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-            title="Delete recipe"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartRecipeChat(recipe, recipeManifestResponse.id);
+                }}
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Play className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Launch recipe</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+                }}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Launch in new window</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditRecipe(recipeManifestResponse);
+                }}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Edit recipe</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopyDeeplink(recipeManifestResponse);
+                }}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Link className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy deeplink</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenScheduleDialog(recipeManifestResponse);
+                }}
+                variant={schedule_cron ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Clock className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{schedule_cron ? 'Edit schedule' : 'Add schedule'}</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRecipe(recipeManifestResponse);
+                }}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete recipe</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </Card>
@@ -498,7 +560,7 @@ export default function RecipesView() {
   };
 
   return (
-    <>
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
       <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
           <div className="bg-background-default px-8 pb-8 pt-16">
@@ -575,18 +637,8 @@ export default function RecipesView() {
             </DialogHeader>
             <div className="space-y-4">
               <CronPicker
-                schedule={
-                  scheduleRecipeManifest.schedule_cron
-                    ? {
-                        id: scheduleRecipeManifest.id,
-                        source: '',
-                        cron: scheduleRecipeManifest.schedule_cron,
-                        last_run: null,
-                        currently_running: false,
-                        paused: false,
-                      }
-                    : null
-                }
+                key={scheduleRecipeManifest.id}
+                schedule={memoizedSchedule}
                 onChange={setScheduleCron}
                 isValid={setScheduleIsValid}
               />
@@ -651,6 +703,6 @@ export default function RecipesView() {
           </DialogContent>
         </Dialog>
       )}
-    </>
+    </TooltipProvider>
   );
 }

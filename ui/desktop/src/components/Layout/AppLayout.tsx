@@ -5,6 +5,7 @@ import { View, ViewOptions } from '../../utils/navigationUtils';
 import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 
 const AppLayoutContent: React.FC = () => {
   const navigate = useNavigate();
@@ -76,18 +77,37 @@ const AppLayoutContent: React.FC = () => {
     <div className="flex flex-1 w-full relative animate-fade-in">
       {!shouldHideButtons && (
         <div className={`${headerPadding} absolute top-3 z-100 flex items-center`}>
-          <SidebarTrigger
-            className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
-          />
-          <Button
-            onClick={handleNewWindow}
-            className="no-drag hover:!bg-background-medium"
-            variant="ghost"
-            size="xs"
-            title="Start a new session in a new window"
-          >
-            {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarTrigger
+                  className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Toggle sidebar</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNewWindow}
+                  className="no-drag hover:!bg-background-medium"
+                  variant="ghost"
+                  size="xs"
+                >
+                  {safeIsMacOS ? (
+                    <AppWindowMac className="w-4 h-4" />
+                  ) : (
+                    <AppWindow className="w-4 h-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>New window</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       )}
       <Sidebar variant="inset" collapsible="offcanvas">
