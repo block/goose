@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -12,9 +12,10 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
-import { ViewOptions, View } from '../../utils/navigationUtils';
+import { createApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import { ViewOptions, View } from '../../utils/navigationUtils';
 import EnvironmentBadge from './EnvironmentBadge';
 
 interface SidebarProps {
@@ -84,6 +85,13 @@ const menuItems: NavigationEntry[] = [
     icon: Puzzle,
     tooltip: 'Manage your extensions',
   },
+  {
+    type: 'item',
+    path: '/apps',
+    label: 'Goose Apps',
+    icon: AppWindow,
+    tooltip: 'Run Goose Apps',
+  },
   { type: 'separator' },
   {
     type: 'item',
@@ -97,6 +105,11 @@ const menuItems: NavigationEntry[] = [
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
+  const [hasApps, setHasApps] = useState(false);
+
+  const filteredMenuItems = hasApps
+    ? menuItems
+    : menuItems.filter((item) => !(item.type === 'item' && item.path === '/apps'));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -130,6 +143,23 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
+  useEffect(() => {
+    listApps()
+      .then((response) => setHasApps(!!response.data && response.data.apps.length > 0))
+      .catch(() => {});
+  }, []);
+
+  const triggerExperimental = async () => {
+    console.log('Experimental');
+    await createApp({
+      body: {
+        app: {
+          name: '',
+        },
+      },
+    });
+  };
+
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {
       return <SidebarSeparator key={index} />;
@@ -145,6 +175,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               <SidebarMenuButton
                 data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
                 onClick={() => navigate(entry.path)}
+                onDoubleClick={async (e) => {
+                  if (entry.path === '/settings') {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    await triggerExperimental();
+                  }
+                }}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}
                 className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
@@ -162,7 +199,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   return (
     <>
       <SidebarContent className="pt-16">
-        <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
+        <SidebarMenu>
+          {filteredMenuItems.map((entry, index) => renderMenuItem(entry, index))}
+        </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter className="pb-2 flex items-start">
