@@ -956,17 +956,13 @@ impl Agent {
                     break;
                 }
 
-                let conversation_with_moim = super::moim::inject_moim(
-                    conversation.clone(),
-                    &self.extension_manager,
-                ).await;
-
-                let mut stream = Self::stream_response_from_provider(
+                let mut stream = Self::reply_fast_and_slow(
                     self.provider().await?,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    &conversation,
                     &tools,
                     &toolshim_tools,
+                    &self.extension_manager,
                 ).await?;
 
                 let mut no_tools_called = true;

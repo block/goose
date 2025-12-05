@@ -4,19 +4,24 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::StreamExt;
 use serde_json::{json, Value};
-use tracing::debug;
+use tracing::{debug, info};
 
 use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
+use crate::providers::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderUsage, Usage,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+use futures::FutureExt;
 
+use crate::agents::fast_reply::FastReply;
 use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
+use crate::agents::ExtensionManager;
 use crate::session::SessionManager;
 #[cfg(test)]
 use crate::session::SessionType;
@@ -113,7 +118,6 @@ impl Agent {
         &self,
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get router enabled status
         let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
         // Get tools from extension manager
@@ -183,11 +187,17 @@ impl Agent {
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
         system_prompt: &str,
-        messages: &[Message],
+        conversation: &Conversation,
         tools: &[Tool],
         toolshim_tools: &[Tool],
+        extension_manager: &Arc<ExtensionManager>,
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
+
+        let conversation_with_moim =
+            super::moim::inject_moim(conversation.clone(), extension_manager).await;
+
+        let messages = conversation_with_moim.messages();
 
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
@@ -259,6 +269,75 @@ impl Agent {
                 yield (message, usage);
             }
         }))
+    }
+
+    /// Race a simple query against the fast model of the provider against a
+    /// complex query of the slow model. Use the output of the first to reply
+    /// or if the fast model doesn't think it can do it, go with the slow model
+    pub(crate) async fn reply_fast_and_slow(
+        provider: Arc<dyn Provider>,
+        system_prompt: &str,
+        conversation: &Conversation,
+        tools: &[Tool],
+        toolshim_tools: &[Tool],
+        extension_manager: &Arc<ExtensionManager>,
+    ) -> Result<MessageStream, ProviderError> {
+        let conversation_clone = conversation.clone();
+        let provider_for_fast = provider.clone();
+
+        let mut fast_handle = tokio::spawn(async move {
+            FastReply::fast_complete(provider_for_fast, &conversation_clone).await
+        });
+
+        // Clone everything for slow path
+        let provider_for_slow = provider.clone();
+        let system_prompt = system_prompt.to_owned();
+        let conversation_for_slow = conversation.clone();
+        let tools = tools.to_owned();
+        let toolshim_tools = toolshim_tools.to_owned();
+        let extension_manager_clone = extension_manager.clone();
+
+        let mut slow_handle = tokio::spawn(async move {
+            Agent::stream_response_from_provider(
+                provider_for_slow,
+                &system_prompt,
+                &conversation_for_slow,
+                &tools,
+                &toolshim_tools,
+                &extension_manager_clone,
+            ).await
+        });
+
+        tokio::select! {
+        fast_result = &mut fast_handle => {
+            match fast_result {
+                Ok(Ok(Some(fast_message))) => {
+                    info!("Fast path completed successfully");
+                    slow_handle.abort();
+                    let model_name = provider.get_model_config().model_name;
+                    let usage = ProviderUsage::new(model_name, Usage::new(None, None, None));
+                    Ok(stream_from_single_message(fast_message, usage))
+                }
+                _ => {
+                    debug!("Fast path passed/failed, using full agent");
+                    match slow_handle.await {
+                        Ok(result) => result,
+                        Err(e) if e.is_cancelled() => Err(ProviderError::ExecutionError("Task cancelled".to_string())),
+                        Err(e) => Err(ProviderError::ExecutionError(format!("Task panicked: {}", e))),
+                    }
+                }
+            }
+        }
+        slow_result = &mut slow_handle => {
+            debug!("Full agent stream ready first, fast path cancelled");
+            fast_handle.abort();
+            match slow_result {
+                Ok(result) => result,
+                Err(e) if e.is_cancelled() => Err(ProviderError::ExecutionError("Task cancelled".to_string())),
+                Err(e) => Err(ProviderError::ExecutionError(format!("Task panicked: {}", e))),
+            }
+        }
+    }
     }
 
     /// Categorize tool requests from the response into different types
