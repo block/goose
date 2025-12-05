@@ -12,7 +12,7 @@ struct ClassificationRequest {
     parameters: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct ClassificationLabel {
     label: String,
     score: f32,
@@ -27,7 +27,7 @@ pub struct ModelEndpointInfo {
     pub extra_params: HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelMappingConfig {
     #[serde(flatten)]
     pub models: HashMap<String, ModelEndpointInfo>,
@@ -121,7 +121,7 @@ impl ClassificationClient {
         let parameters = self
             .extra_params
             .as_ref()
-            .map(|params| serde_json::to_value(params))
+            .map(serde_json::to_value)
             .transpose()?;
 
         let request = ClassificationRequest {
@@ -161,7 +161,19 @@ impl ClassificationClient {
             .first()
             .context("Classification API returned empty response")?;
 
-        let top_label = batch_result
+        let is_probabilities = batch_result
+            .iter()
+            .all(|label| label.score >= 0.0 && label.score <= 1.0);
+
+        let normalized_results: Vec<ClassificationLabel> = if is_probabilities {
+            tracing::debug!("Detected probability scores (0-1 range)");
+            batch_result.to_vec()
+        } else {
+            tracing::debug!("Detected logit scores, applying softmax normalization");
+            self.apply_softmax(batch_result)?
+        };
+
+        let top_label = normalized_results
             .iter()
             .max_by(|a, b| {
                 a.score
@@ -187,10 +199,41 @@ impl ClassificationClient {
             injection_score = %injection_score,
             top_label = %top_label.label,
             top_score = %top_label.score,
+            normalized = !is_probabilities,
             "Classification complete"
         );
 
         Ok(injection_score)
+    }
+
+    fn apply_softmax(&self, labels: &[ClassificationLabel]) -> Result<Vec<ClassificationLabel>> {
+        if labels.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let max_score = labels
+            .iter()
+            .map(|l| l.score)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        let exp_scores: Vec<f32> = labels.iter().map(|l| (l.score - max_score).exp()).collect();
+
+        let sum_exp: f32 = exp_scores.iter().sum();
+
+        if sum_exp == 0.0 || !sum_exp.is_finite() {
+            anyhow::bail!("Softmax normalization failed: invalid sum");
+        }
+
+        let normalized: Vec<ClassificationLabel> = labels
+            .iter()
+            .zip(exp_scores.iter())
+            .map(|(label, &exp_score)| ClassificationLabel {
+                label: label.label.clone(),
+                score: exp_score / sum_exp,
+            })
+            .collect();
+
+        Ok(normalized)
     }
 }
 
@@ -254,7 +297,10 @@ mod tests {
         std::env::remove_var("SECURITY_ML_MODEL_MAPPING");
         let result = ClassificationClient::from_model_name("test-model", None);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("SECURITY_ML_MODEL_MAPPING"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("SECURITY_ML_MODEL_MAPPING"));
     }
 
     #[test]
