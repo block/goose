@@ -10,6 +10,8 @@ use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
 
+use super::client_fingerprint::create_fingerprint_attributes;
+
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
 pub type OtlpMetricsLayer = MetricsLayer<tracing_subscriber::Registry>;
@@ -55,12 +57,25 @@ impl OtlpConfig {
     }
 }
 
-pub fn init_otlp_tracing(config: &OtlpConfig) -> OtlpResult<()> {
-    let resource = Resource::new(vec![
+/// Create an OpenTelemetry Resource with service info and client fingerprint.
+///
+/// Includes:
+/// - service.name, service.version, service.namespace (standard OTLP attributes)
+/// - client.id (hashed, privacy-safe unique identifier)
+/// - os.type (macos, linux, windows)
+/// - host.arch (x86_64, aarch64)
+fn create_resource() -> Resource {
+    let mut attributes = vec![
         KeyValue::new("service.name", "goose"),
         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
         KeyValue::new("service.namespace", "goose"),
-    ]);
+    ];
+    attributes.extend(create_fingerprint_attributes());
+    Resource::new(attributes)
+}
+
+pub fn init_otlp_tracing(config: &OtlpConfig) -> OtlpResult<()> {
+    let resource = create_resource();
 
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
@@ -81,11 +96,7 @@ pub fn init_otlp_tracing(config: &OtlpConfig) -> OtlpResult<()> {
 }
 
 pub fn init_otlp_metrics(config: &OtlpConfig) -> OtlpResult<()> {
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "goose"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("service.namespace", "goose"),
-    ]);
+    let resource = create_resource();
 
     let exporter = opentelemetry_otlp::MetricExporter::builder()
         .with_http()
@@ -109,12 +120,7 @@ pub fn init_otlp_metrics(config: &OtlpConfig) -> OtlpResult<()> {
 
 pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
-
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "goose"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("service.namespace", "goose"),
-    ]);
+    let resource = create_resource();
 
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
@@ -138,12 +144,7 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
 
 pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
-
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "goose"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("service.namespace", "goose"),
-    ]);
+    let resource = create_resource();
 
     let exporter = opentelemetry_otlp::MetricExporter::builder()
         .with_http()
@@ -167,12 +168,7 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
 
 pub fn create_otlp_logs_layer() -> OtlpResult<OpenTelemetryTracingBridge<LoggerProvider, Logger>> {
     let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
-
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "goose"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("service.namespace", "goose"),
-    ]);
+    let resource = create_resource();
 
     let exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()

@@ -2025,7 +2025,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2659,6 +2659,7 @@ dependencies = [
  "etcetera",
  "fs2",
  "futures",
+ "hex",
  "ignore",
  "include_dir",
  "indexmap 2.12.0",
