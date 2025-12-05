@@ -311,8 +311,8 @@ export default function UserMessage({
                   </div>
                 )}
 
-                {/* Action buttons on hover */}
-                <div className="relative h-[22px] flex justify-start">
+                {/* Action buttons on hover - 0 height when not hovered, expands on hover */}
+                <div className="relative h-0 group-hover:h-[22px] flex justify-start transition-all duration-200 overflow-hidden">
                   <div className="absolute left-0 pt-1 flex items-center gap-2">
                     <button
                       onClick={handleEditClick}
