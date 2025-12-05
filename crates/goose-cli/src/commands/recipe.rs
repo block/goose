@@ -1,6 +1,7 @@
 use anyhow::Result;
 use console::style;
 use goose::recipe::validate_recipe::validate_recipe_template_from_file;
+use std::collections::HashMap;
 
 use crate::recipes::github_recipe::RecipeSource;
 use crate::recipes::search_recipe::{list_available_recipes, load_recipe_file};
@@ -20,8 +21,9 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
-    match generate_deeplink(recipe_name) {
+pub fn handle_deeplink(recipe_name: &str, params: &[String]) -> Result<String> {
+    let params_map = parse_params(params)?;
+    match generate_deeplink(recipe_name, params_map) {
         Ok((deeplink_url, recipe)) => {
             println!(
                 "{} Generated deeplink for: {}",
@@ -42,10 +44,11 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     }
 }
 
-pub fn handle_open(recipe_name: &str) -> Result<()> {
+pub fn handle_open(recipe_name: &str, params: &[String]) -> Result<()> {
     // Generate the deeplink using the helper function (no printing)
     // This reuses all the validation and encoding logic
-    match generate_deeplink(recipe_name) {
+    let params_map = parse_params(params)?;
+    match generate_deeplink(recipe_name, params_map) {
         Ok((deeplink_url, recipe)) => {
             // Attempt to open the deeplink
             match open::that(&deeplink_url) {
@@ -131,13 +134,40 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-fn generate_deeplink(recipe_name: &str) -> Result<(String, goose::recipe::Recipe)> {
+fn parse_params(params: &[String]) -> Result<HashMap<String, String>> {
+    let mut params_map = HashMap::new();
+    for param in params {
+        let parts: Vec<&str> = param.splitn(2, '=').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "Invalid parameter format: '{}'. Expected format: key=value",
+                param
+            ));
+        }
+        params_map.insert(parts[0].to_string(), parts[1].to_string());
+    }
+    Ok(params_map)
+}
+
+fn generate_deeplink(
+    recipe_name: &str,
+    params: HashMap<String, String>,
+) -> Result<(String, goose::recipe::Recipe)> {
     let recipe_file = load_recipe_file(recipe_name)?;
     // Load the recipe file first to validate it
     let recipe = validate_recipe_template_from_file(&recipe_file)?;
     match recipe_deeplink::encode(&recipe) {
         Ok(encoded) => {
-            let full_url = format!("goose://recipe?config={}", encoded);
+            let mut full_url = format!("goose://recipe?config={}", encoded);
+
+            // Append parameters as additional query parameters
+            for (key, value) in params {
+                // URL-encode the parameter keys and values
+                let encoded_key = urlencoding::encode(&key);
+                let encoded_value = urlencoding::encode(&value);
+                full_url.push_str(&format!("&{}={}", encoded_key, encoded_value));
+            }
+
             Ok((full_url, recipe))
         }
         Err(err) => Err(anyhow::anyhow!("Failed to encode recipe: {}", err)),
@@ -188,7 +218,7 @@ instructions: "Test instructions"
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path, &[]);
         assert!(result.is_ok());
         let url = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
@@ -197,11 +227,26 @@ instructions: "Test instructions"
     }
 
     #[test]
+    fn test_handle_deeplink_with_parameters() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let params = vec!["name=John".to_string(), "age=30".to_string()];
+        let result = handle_deeplink(&recipe_path, &params);
+        assert!(result.is_ok());
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+        assert!(url.contains("&name=John"));
+        assert!(url.contains("&age=30"));
+    }
+
+    #[test]
     fn test_handle_deeplink_invalid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path, &[]);
         assert!(result.is_err());
     }
 
@@ -213,10 +258,31 @@ instructions: "Test instructions"
 
         // Test handle_open - should attempt to open but may fail (that's expected in test environment)
         // We just want to ensure it doesn't panic and handles the error gracefully
-        let result = handle_open(&recipe_path);
+        let result = handle_open(&recipe_path, &[]);
         // The result may be Ok or Err depending on whether the system can open the URL
         // In a test environment, it will likely fail to open, but that's fine
         // We're mainly testing that the function doesn't panic and processes the recipe correctly
+        match result {
+            Ok(_) => {
+                // Successfully opened (unlikely in test environment)
+            }
+            Err(_) => {
+                // Failed to open (expected in test environment) - this is fine
+            }
+        }
+    }
+
+    #[test]
+    fn test_handle_open_with_parameters() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let params = vec!["name=Alice".to_string(), "role=developer".to_string()];
+        let result = handle_open(&recipe_path, &params);
+        // The result may be Ok or Err depending on whether the system can open the URL
+        // In a test environment, it will likely fail to open, but that's fine
+        // We're mainly testing that the function processes parameters correctly and doesn't panic
         match result {
             Ok(_) => {
                 // Successfully opened (unlikely in test environment)
@@ -252,7 +318,7 @@ instructions: "Test instructions"
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let result = generate_deeplink(&recipe_path);
+        let result = generate_deeplink(&recipe_path, HashMap::new());
         assert!(result.is_ok());
         let (url, recipe) = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
@@ -263,12 +329,105 @@ instructions: "Test instructions"
     }
 
     #[test]
+    fn test_generate_deeplink_with_parameters() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let mut params = HashMap::new();
+        params.insert("name".to_string(), "Alice".to_string());
+        params.insert("role".to_string(), "developer".to_string());
+
+        let result = generate_deeplink(&recipe_path, params);
+        assert!(result.is_ok());
+        let (url, recipe) = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+        assert!(url.contains("&name=Alice"));
+        assert!(url.contains("&role=developer"));
+        assert_eq!(recipe.title, "Test Recipe with Valid JSON Schema");
+    }
+
+    #[test]
     fn test_generate_deeplink_invalid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
 
-        let result = generate_deeplink(&recipe_path);
+        let result = generate_deeplink(&recipe_path, HashMap::new());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_params_basic() {
+        let params = vec!["name=John".to_string(), "age=30".to_string()];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(map.get("name"), Some(&"John".to_string()));
+        assert_eq!(map.get("age"), Some(&"30".to_string()));
+    }
+
+    #[test]
+    fn test_parse_params_with_equals_in_value() {
+        let params = vec!["key=value=with=equals".to_string()];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(map.get("key"), Some(&"value=with=equals".to_string()));
+    }
+
+    #[test]
+    fn test_parse_params_empty_value() {
+        let params = vec!["key=".to_string()];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(map.get("key"), Some(&"".to_string()));
+    }
+
+    #[test]
+    fn test_parse_params_no_equals() {
+        let params = vec!["invalid".to_string()];
+        let result = parse_params(&params);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Invalid parameter format"));
+    }
+
+    #[test]
+    fn test_parse_params_empty_key() {
+        let params = vec!["=value".to_string()];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        // Empty key is technically valid according to current implementation
+        assert_eq!(map.get(""), Some(&"value".to_string()));
+    }
+
+    #[test]
+    fn test_parse_params_special_characters() {
+        let params = vec![
+            "url=https://example.com/path?query=test".to_string(),
+            "message=Hello World!".to_string(),
+            "email=user@example.com".to_string(),
+        ];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert_eq!(
+            map.get("url"),
+            Some(&"https://example.com/path?query=test".to_string())
+        );
+        assert_eq!(map.get("message"), Some(&"Hello World!".to_string()));
+        assert_eq!(map.get("email"), Some(&"user@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_parse_params_empty_list() {
+        let params: Vec<String> = vec![];
+        let result = parse_params(&params);
+        assert!(result.is_ok());
+        let map = result.unwrap();
+        assert!(map.is_empty());
     }
 }

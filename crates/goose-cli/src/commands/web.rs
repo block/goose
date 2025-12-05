@@ -5,7 +5,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Query, Request, State,
     },
-    http::StatusCode,
+    http::{StatusCode, Uri},
     middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
@@ -240,7 +240,7 @@ pub async fn handle_web(
     Ok(())
 }
 
-async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
+async fn serve_index(uri: Uri) -> Result<Redirect, (http::StatusCode, String)> {
     let session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
@@ -249,7 +249,13 @@ async fn serve_index() -> Result<Redirect, (http::StatusCode, String)> {
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
-    Ok(Redirect::to(&format!("/session/{}", session.id)))
+    let redirect_url = if let Some(query) = uri.query() {
+        format!("/session/{}?{}", session.id, query)
+    } else {
+        format!("/session/{}", session.id)
+    };
+
+    Ok(Redirect::to(&redirect_url))
 }
 
 async fn serve_session(
