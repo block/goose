@@ -91,9 +91,101 @@ interface TabProviderProps {
 
 export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const [tabStates, setTabStates] = useState<TabState[]>(() => {
-    // CRITICAL FIX: Always start with fresh tabs to prevent session ID conflicts
-    // Shared session IDs from localStorage are the root cause of session isolation issues
-    console.log('🔄 TabProvider: Starting with fresh initial state to prevent session ID conflicts');
+    // Try to restore from localStorage on initial load
+    try {
+      const saved = localStorage.getItem(TAB_STATE_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // CRITICAL FIX: Ensure each restored tab gets a unique session ID
+          const sanitizedTabs = parsed.map((tabState: any) => {
+            const tab = tabState.tab;
+            
+            // Generate a new unique session ID for each restored tab to prevent conflicts
+            const uniqueSessionId = `temp_restored_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Validate Matrix tab properties (HYBRID APPROACH)
+            if (tab.type === 'matrix') {
+              // Matrix tabs must have matrixRoomId - sessionId can be any backend session ID
+              if (!tab.matrixRoomId) {
+                console.warn('🚨 Invalid Matrix tab detected during restore (missing matrixRoomId), converting to regular chat:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: uniqueSessionId, // Assign unique session ID
+                  },
+                  chat: {
+                    ...tabState.chat,
+                    sessionId: uniqueSessionId,
+                  }
+                };
+              } else {
+                // Valid Matrix tab - give it a unique session ID
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    sessionId: uniqueSessionId, // Assign unique session ID
+                  },
+                  chat: {
+                    ...tabState.chat,
+                    sessionId: uniqueSessionId,
+                  }
+                };
+              }
+            } else {
+              // Regular chat tabs must NOT have Matrix properties
+              if (tab.matrixRoomId || tab.matrixRecipientId) {
+                console.warn('🚨 Regular chat tab with Matrix properties detected during restore, sanitizing:', tab);
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    type: 'chat',
+                    matrixRoomId: undefined,
+                    matrixRecipientId: undefined,
+                    sessionId: uniqueSessionId, // Assign unique session ID
+                  },
+                  chat: {
+                    ...tabState.chat,
+                    sessionId: uniqueSessionId,
+                  }
+                };
+              } else {
+                // Valid regular tab - give it a unique session ID
+                return {
+                  ...tabState,
+                  tab: {
+                    ...tab,
+                    sessionId: uniqueSessionId, // Assign unique session ID
+                  },
+                  chat: {
+                    ...tabState.chat,
+                    sessionId: uniqueSessionId,
+                  }
+                };
+              }
+            }
+          });
+          
+          console.log('🔄 Restored and sanitized tab states with unique session IDs:', sanitizedTabs.map(ts => ({
+            id: ts.tab.id,
+            type: ts.tab.type,
+            sessionId: ts.tab.sessionId,
+            matrixRoomId: ts.tab.matrixRoomId,
+            title: ts.tab.title
+          })));
+          
+          return sanitizedTabs;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore tab state from localStorage:', error);
+    }
     return createInitialTabState();
   });
 
@@ -409,15 +501,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     setActiveTabId(initialState[0].tab.id);
   }, []);
 
-  // CRITICAL FIX: Clear localStorage on app start to prevent session ID conflicts
-  useEffect(() => {
-    console.log('🔄 TabProvider: Clearing localStorage on app start to ensure fresh session IDs');
-    try {
-      localStorage.removeItem(TAB_STATE_STORAGE_KEY);
-    } catch (error) {
-      console.warn('Failed to clear tab state on app start:', error);
-    }
-  }, []); // Run once on mount
+
 
   // Sync tab title with backend session description
   const syncTabTitleWithBackend = useCallback(async (tabId: string) => {
