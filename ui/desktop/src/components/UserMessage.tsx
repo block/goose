@@ -247,7 +247,7 @@ export default function UserMessage({
           // Slack-style left-aligned message with avatar on left
           <div className="message flex justify-start w-full gap-3">
             {/* Avatar on the left side - only show if showHeader is true */}
-            <div className="flex-shrink-0 mt-1">
+            <div className={`flex-shrink-0 ${showHeader ? 'mt-1' : ''}`}>
               {showHeader ? (
                 <AvatarImage
                   avatarUrl={senderInfo.avatarUrl}
@@ -256,8 +256,8 @@ export default function UserMessage({
                   className="ring-1 ring-background-accent ring-offset-1"
                 />
               ) : (
-                // Invisible spacer to maintain alignment for grouped messages
-                <div className="w-8 h-8" />
+                // Invisible spacer to maintain alignment for grouped messages - zero height for tight spacing
+                <div className="w-8 h-0" />
               )}
             </div>
             
