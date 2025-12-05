@@ -2606,6 +2606,13 @@ export class MatrixService extends EventEmitter {
         console.log('🌌 Creating default room for new space:', room.room_id);
         const defaultRoomId = await this.createRoom('General', 'General discussion for this space', isPublic, room.room_id);
         console.log('✅ Default room created and added to space:', defaultRoomId);
+        
+        // Force clear cache again after room creation to ensure UI refresh
+        this.cachedRooms = null;
+        console.log('🔄 Cleared rooms cache after default room creation');
+        
+        // Emit a room update event to trigger UI refresh
+        this.emit('roomsUpdated', { spaceId: room.room_id, newRoomId: defaultRoomId });
       } catch (defaultRoomError) {
         console.error('❌ Failed to create default room for space:', defaultRoomError);
         // Don't fail space creation if default room creation fails
