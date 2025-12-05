@@ -1,6 +1,6 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::Usage;
+use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
@@ -17,10 +17,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::ops::Deref;
-
-// ============================================================================
-// Chat Completions API Types
-// ============================================================================
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -445,7 +441,7 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<crate::providers::base::ProviderUsage>)>> + 'static
+) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -469,7 +465,7 @@ where
 
             let usage = chunk.usage.as_ref().and_then(|u| {
                 chunk.model.as_ref().map(|model| {
-                    crate::providers::base::ProviderUsage {
+                    ProviderUsage {
                         usage: get_usage(u),
                         model: model.clone(),
                     }
