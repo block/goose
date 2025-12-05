@@ -3,6 +3,9 @@ import { EventEmitter } from 'events';
 import { sessionMappingService, SessionMappingService } from './SessionMappingService';
 import { matrixInviteStateService } from './MatrixInviteStateService';
 
+// Global Olm initialization flag
+let olmInitialized = false;
+
 export interface MatrixUser {
   userId: string;
   displayName?: string;
@@ -35,6 +38,8 @@ export interface SpaceChild {
   via?: string[];
   order?: string;
   memberCount?: number;
+  membership?: 'join' | 'invite' | 'leave' | 'ban' | null; // User's membership status in this room
+  canJoin?: boolean; // Whether the user can join this room
 }
 
 export interface GooseAIMessage {
@@ -179,10 +184,990 @@ export class MatrixService extends EventEmitter {
   }
 
   /**
+   * Handle key upload issues and conflicts
+   */
+  private async handleKeyUploadIssues(): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔐 Cannot handle key upload issues: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('🔑 Checking for key upload issues...');
+      
+      // Test if we can upload keys without errors
+      if (typeof this.client.crypto.uploadKeys === 'function') {
+        try {
+          await this.client.crypto.uploadKeys();
+          console.log('🔑 ✅ Key upload test successful');
+          return; // No issues, exit early
+        } catch (uploadError: any) {
+          console.warn('🔑 ⚠️ Key upload failed, attempting to resolve:', uploadError.message);
+          
+          // Check if it's a "key already exists" error
+          if (uploadError.message && uploadError.message.includes('already exists')) {
+            console.log('🔑 Detected key conflict, attempting resolution...');
+            
+            // Try to mark existing keys as published
+            if (this.client.crypto.olmDevice && typeof this.client.crypto.olmDevice.markKeysAsPublished === 'function') {
+              try {
+                this.client.crypto.olmDevice.markKeysAsPublished();
+                console.log('🔑 ✅ Marked existing keys as published');
+                
+                // Generate new keys
+                if (typeof this.client.crypto.olmDevice.generateOneTimeKeys === 'function') {
+                  this.client.crypto.olmDevice.generateOneTimeKeys(10);
+                  console.log('🔑 ✅ Generated new one-time keys');
+                }
+                
+                // Try uploading again
+                await this.client.crypto.uploadKeys();
+                console.log('🔑 ✅ Key upload successful after conflict resolution');
+                
+              } catch (resolutionError) {
+                console.warn('🔑 ⚠️ Key conflict resolution failed:', resolutionError.message);
+              }
+            }
+          } else {
+            // Other types of upload errors
+            console.warn('🔑 ⚠️ Non-conflict key upload error:', uploadError.message);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('🔑 ❌ Failed to handle key upload issues:', error);
+      // Don't throw - we want to continue even if key handling fails
+    }
+  }
+
+  /**
+   * Verify our own device to prevent UnknownDeviceError and handle device verification popups
+   */
+  private async verifyOwnDevice(): Promise<void> {
+    if (!this.client?.crypto || !this.config.userId || !this.config.deviceId) {
+      console.log('🔐 Cannot verify own device: missing crypto, userId, or deviceId');
+      return;
+    }
+
+    try {
+      console.log('🔐 Verifying own device:', this.config.deviceId);
+      
+      // Get our own device
+      const devices = await this.client.crypto.getStoredDevicesForUser(this.config.userId);
+      const ownDevice = devices.find(device => device.deviceId === this.config.deviceId);
+      
+      if (ownDevice) {
+        if (!ownDevice.isVerified()) {
+          console.log('🔐 Marking own device as verified...');
+          await this.client.crypto.setDeviceVerification(this.config.userId, this.config.deviceId, true);
+          console.log('🔐 ✅ Own device verified successfully');
+        } else {
+          console.log('🔐 ✅ Own device already verified');
+        }
+        
+        // Also ensure the device is not blocked
+        if (ownDevice.isBlocked()) {
+          console.log('🔐 Unblocking own device...');
+          await this.client.crypto.setDeviceBlocked(this.config.userId, this.config.deviceId, false);
+          console.log('🔐 ✅ Own device unblocked');
+        }
+      } else {
+        console.log('🔐 ⚠️ Own device not found in stored devices');
+        
+        // Try to get device info directly and mark as verified
+        try {
+          await this.client.crypto.setDeviceVerification(this.config.userId, this.config.deviceId, true);
+          console.log('🔐 ✅ Own device marked as verified directly');
+        } catch (directError) {
+          console.warn('🔐 ⚠️ Failed to verify own device directly:', directError);
+        }
+      }
+
+      // Enhanced verification to prevent "New login. Was this you?" popups
+      try {
+        // Check current device trust status
+        if (typeof this.client.crypto.checkDeviceTrust === 'function') {
+          const deviceTrust = this.client.crypto.checkDeviceTrust(this.config.userId, this.config.deviceId);
+          console.log('🔐 Device trust status:', {
+            isVerified: deviceTrust.isVerified(),
+            isCrossSigningVerified: deviceTrust.isCrossSigningVerified(),
+            isTofu: deviceTrust.isTofu(),
+            isLocallyVerified: deviceTrust.isLocallyVerified ? deviceTrust.isLocallyVerified() : 'unknown'
+          });
+          
+          // If not cross-signing verified, try to mark it as such
+          if (!deviceTrust.isCrossSigningVerified()) {
+            console.log('🔐 Attempting to mark device as cross-signing verified...');
+            try {
+              // Try different methods to mark as cross-signing verified
+              if (typeof this.client.crypto.setDeviceCrossSigningVerified === 'function') {
+                await this.client.crypto.setDeviceCrossSigningVerified(this.config.userId, this.config.deviceId, true);
+                console.log('🔐 ✅ Device marked as cross-signing verified');
+              }
+            } catch (crossSignError) {
+              console.warn('🔐 ⚠️ Could not set cross-signing verification:', crossSignError);
+            }
+          }
+        }
+
+        // Handle any pending verification requests for our own device
+        if (typeof this.client.crypto.getVerificationRequestsToDeviceInProgress === 'function') {
+          const verificationRequests = this.client.crypto.getVerificationRequestsToDeviceInProgress(this.config.userId);
+          console.log(`🔐 Found ${verificationRequests.length} pending verification requests`);
+          
+          for (const request of verificationRequests) {
+            // If this is a self-verification request, auto-accept it
+            if (request.otherUserId === this.config.userId && request.otherDeviceId === this.config.deviceId) {
+              console.log('🤝 Auto-accepting self-verification request:', request.requestId);
+              try {
+                if (typeof request.accept === 'function') {
+                  await request.accept();
+                  console.log('🔐 ✅ Self-verification request accepted');
+                }
+              } catch (acceptError) {
+                console.warn('🔐 ⚠️ Failed to accept verification request:', acceptError);
+              }
+            }
+          }
+        }
+
+        // Try to mark device as known/trusted in device list
+        try {
+          // Force the device to be marked as known and trusted
+          await this.client.crypto.setDeviceVerification(this.config.userId, this.config.deviceId, true);
+          
+          // Also try to mark it as not requiring verification
+          if (typeof this.client.crypto.setDeviceBlocked === 'function') {
+            await this.client.crypto.setDeviceBlocked(this.config.userId, this.config.deviceId, false);
+          }
+          
+          console.log('🔐 ✅ Device marked as known and trusted');
+        } catch (trustError) {
+          console.warn('🔐 ⚠️ Failed to mark device as trusted:', trustError);
+        }
+
+        // Additional step: Try to dismiss any active verification toasts/popups programmatically
+        try {
+          // Check if we can access any verification UI elements and dismiss them
+          if (typeof this.client.crypto.cancelVerificationRequest === 'function') {
+            // This might help dismiss pending verification UI
+            console.log('🔐 Checking for verification UI to dismiss...');
+          }
+        } catch (dismissError) {
+          console.warn('🔐 ⚠️ Could not dismiss verification UI:', dismissError);
+        }
+
+      } catch (advancedError) {
+        console.warn('🔐 ⚠️ Advanced device verification failed (non-critical):', advancedError);
+      }
+      
+    } catch (error) {
+      console.error('🔐 ❌ Failed to verify own device:', error);
+      // Don't throw - we want to continue even if device verification fails
+    }
+  }
+
+  /**
+   * Fix encryption key sharing issues for better decryption
+   */
+  private async fixEncryptionKeySharing(): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔐 Cannot fix key sharing: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('🔑 Fixing encryption key sharing issues...');
+      
+      // Get our own devices for key sharing
+      const ownDevices = await this.client.crypto.getStoredDevicesForUser(this.config.userId!);
+      const verifiedOwnDevices = ownDevices.filter(device => device.isVerified() && !device.isBlocked());
+      
+      console.log(`🔑 Found ${verifiedOwnDevices.length} verified own devices for key sharing`);
+      
+      // Ensure Olm sessions with our own devices
+      if (verifiedOwnDevices.length > 0 && typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+        const deviceMap = { [this.config.userId!]: verifiedOwnDevices };
+        await this.client.crypto.ensureOlmSessionsForDevices(deviceMap);
+        console.log('🔑 ✅ Ensured Olm sessions with own devices');
+      }
+      
+      // Get encrypted rooms and fix key sharing
+      const rooms = this.client.getRooms();
+      const encryptedRooms = rooms.filter(room => 
+        room.hasEncryptionStateEvent && 
+        room.hasEncryptionStateEvent() && 
+        room.getMyMembership() === 'join'
+      );
+      
+      console.log(`🔑 Processing ${encryptedRooms.length} encrypted rooms for key sharing`);
+      
+      let roomsProcessed = 0;
+      for (const room of encryptedRooms.slice(0, 5)) { // Process first 5 rooms to avoid overwhelming
+        try {
+          console.log(`🏠 Processing room: ${room.name || 'Unnamed'} (${room.roomId.substring(0, 20)}...)`);
+          
+          // Get room members and their devices
+          const members = room.getMembers();
+          const memberDevices = {};
+          
+          for (const member of members.slice(0, 10)) { // First 10 members
+            try {
+              const memberDeviceList = await this.client.crypto.getStoredDevicesForUser(member.userId);
+              const validDevices = memberDeviceList.filter(device => 
+                device.isVerified() || (!device.isBlocked() && device.isKnown())
+              );
+              
+              if (validDevices.length > 0) {
+                memberDevices[member.userId] = validDevices;
+              }
+            } catch (memberError) {
+              console.warn(`🔑 ⚠️ Could not get devices for ${member.userId}:`, memberError.message);
+            }
+          }
+          
+          // Ensure Olm sessions for room members
+          if (Object.keys(memberDevices).length > 0 && typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+            await this.client.crypto.ensureOlmSessionsForDevices(memberDevices);
+            console.log(`🔑 ✅ Ensured Olm sessions for ${Object.keys(memberDevices).length} users in room`);
+          }
+          
+          roomsProcessed++;
+        } catch (roomError) {
+          console.warn(`🔑 ⚠️ Failed to process room ${room.roomId}:`, roomError.message);
+        }
+      }
+      
+      // Cancel and resend key requests to fix undecryptable messages
+      try {
+        if (typeof this.client.crypto.cancelAndResendAllOutgoingKeyRequests === 'function') {
+          await this.client.crypto.cancelAndResendAllOutgoingKeyRequests();
+          console.log('🔑 ✅ Cancelled and resent all outgoing key requests');
+        }
+      } catch (keyRequestError) {
+        console.warn('🔑 ⚠️ Failed to resend key requests:', keyRequestError.message);
+      }
+      
+      console.log(`🔑 ✅ Key sharing fix completed: processed ${roomsProcessed} rooms`);
+      
+    } catch (error) {
+      console.error('🔑 ❌ Failed to fix encryption key sharing:', error);
+    }
+  }
+
+  /**
+   * Fix encryption key sharing issues (enhanced version)
+   */
+  private async fixEncryptionKeySharing(): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔐 Cannot fix key sharing: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('🔑 Fixing encryption key sharing issues (enhanced)...');
+      
+      // Step 1: Aggressively verify and prepare our own devices
+      console.log('🔑 Step 1: Preparing own devices for key sharing...');
+      const ownDevices = await this.client.crypto.getStoredDevicesForUser(this.config.userId!);
+      console.log(`🔑 Found ${ownDevices.length} own devices`);
+      
+      let verifiedOwnDevices = [];
+      for (const device of ownDevices) {
+        try {
+          // Force verify all our own devices
+          if (!device.isVerified()) {
+            await this.client.crypto.setDeviceVerification(this.config.userId!, device.deviceId, true);
+            console.log(`🔑 ✅ Force-verified own device: ${device.deviceId.substring(0, 12)}...`);
+          }
+          
+          // Unblock any blocked own devices
+          if (device.isBlocked()) {
+            await this.client.crypto.setDeviceBlocked(this.config.userId!, device.deviceId, false);
+            console.log(`🔑 ✅ Unblocked own device: ${device.deviceId.substring(0, 12)}...`);
+          }
+          
+          // Add to verified list if now verified and not blocked
+          if (device.isVerified() && !device.isBlocked()) {
+            verifiedOwnDevices.push(device);
+          }
+        } catch (deviceError) {
+          console.warn(`🔑 ⚠️ Failed to prepare device ${device.deviceId}:`, deviceError.message);
+        }
+      }
+      
+      console.log(`🔑 Prepared ${verifiedOwnDevices.length} verified own devices`);
+      
+      // Step 2: Establish Olm sessions with our own devices (critical for self-decryption)
+      if (verifiedOwnDevices.length > 0 && typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+        const ownDeviceMap = { [this.config.userId!]: verifiedOwnDevices };
+        await this.client.crypto.ensureOlmSessionsForDevices(ownDeviceMap);
+        console.log('🔑 ✅ Established Olm sessions with own devices');
+      }
+      
+      // Step 3: Process encrypted rooms with enhanced key sharing
+      const rooms = this.client.getRooms();
+      const encryptedRooms = rooms.filter(room => 
+        room.hasEncryptionStateEvent && 
+        room.hasEncryptionStateEvent() && 
+        room.getMyMembership() === 'join'
+      );
+      
+      console.log(`🔑 Processing ${encryptedRooms.length} encrypted rooms for enhanced key sharing`);
+      
+      let roomsProcessed = 0;
+      for (const room of encryptedRooms.slice(0, 5)) { // Process first 5 rooms to avoid overwhelming
+        try {
+          console.log(`🏠 Processing room: ${room.name || 'Unnamed'} (${room.roomId.substring(0, 20)}...)`);
+          
+          // Get room members and their devices
+          const members = room.getMembers();
+          const memberDevices = {};
+          
+          for (const member of members.slice(0, 10)) { // First 10 members
+            try {
+              const memberDeviceList = await this.client.crypto.getStoredDevicesForUser(member.userId);
+              
+              // Special handling for our own user ID
+              if (member.userId === this.config.userId) {
+                // For our own devices, use all verified devices
+                const validDevices = memberDeviceList.filter(device => device.isVerified() && !device.isBlocked());
+                if (validDevices.length > 0) {
+                  memberDevices[member.userId] = validDevices;
+                  console.log(`🔑 Added ${validDevices.length} own devices for room key sharing`);
+                }
+              } else {
+                // For other users, use verified or known devices
+                const validDevices = memberDeviceList.filter(device => 
+                  device.isVerified() || (!device.isBlocked() && device.isKnown())
+                );
+                if (validDevices.length > 0) {
+                  memberDevices[member.userId] = validDevices;
+                }
+              }
+            } catch (memberError) {
+              console.warn(`🔑 ⚠️ Could not get devices for ${member.userId}:`, memberError.message);
+            }
+          }
+          
+          // Ensure Olm sessions for room members
+          if (Object.keys(memberDevices).length > 0 && typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+            await this.client.crypto.ensureOlmSessionsForDevices(memberDevices);
+            console.log(`🔑 ✅ Ensured Olm sessions for ${Object.keys(memberDevices).length} users in room`);
+          }
+          
+          // Step 4: Try to force session refresh for this room
+          try {
+            if (typeof this.client.crypto.forceDiscardSession === 'function') {
+              await this.client.crypto.forceDiscardSession(room.roomId);
+              console.log(`🔑 ✅ Discarded stale sessions for room ${room.roomId.substring(0, 20)}...`);
+            }
+          } catch (discardError) {
+            console.warn(`🔑 ⚠️ Could not discard sessions for room:`, discardError.message);
+          }
+          
+          roomsProcessed++;
+        } catch (roomError) {
+          console.warn(`🔑 ⚠️ Failed to process room ${room.roomId}:`, roomError.message);
+        }
+      }
+      
+      // Step 5: Cancel and resend key requests multiple times for persistence
+      console.log('🔑 Step 5: Aggressively refreshing key requests...');
+      try {
+        if (typeof this.client.crypto.cancelAndResendAllOutgoingKeyRequests === 'function') {
+          // Do this multiple times to ensure it takes effect
+          for (let i = 0; i < 3; i++) {
+            await this.client.crypto.cancelAndResendAllOutgoingKeyRequests();
+            console.log(`🔑 ✅ Key request refresh attempt ${i + 1}/3 completed`);
+            
+            // Small delay between attempts
+            if (i < 2) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+      } catch (keyRequestError) {
+        console.warn('🔑 ⚠️ Failed to resend key requests:', keyRequestError.message);
+      }
+      
+      // Step 6: Try to manually trigger decryption for recent encrypted events
+      console.log('🔑 Step 6: Attempting to decrypt recent encrypted events...');
+      let eventsProcessed = 0;
+      
+      for (const room of encryptedRooms.slice(0, 3)) { // Process first 3 rooms
+        try {
+          const timeline = room.getLiveTimeline();
+          const events = timeline.getEvents();
+          const encryptedEvents = events.filter(event => event.getType() === 'm.room.encrypted');
+          const recentEncryptedEvents = encryptedEvents.slice(-5); // Last 5 encrypted events per room
+          
+          for (const event of recentEncryptedEvents) {
+            try {
+              const clearEvent = event.getClearEvent();
+              if (!clearEvent && typeof event.attemptDecryption === 'function') {
+                await event.attemptDecryption(this.client.crypto);
+                eventsProcessed++;
+              }
+            } catch (eventError) {
+              // Ignore individual event errors
+            }
+          }
+        } catch (roomError) {
+          console.warn(`🔑 ⚠️ Failed to process events for room:`, roomError.message);
+        }
+      }
+      
+      if (eventsProcessed > 0) {
+        console.log(`🔑 ✅ Attempted decryption for ${eventsProcessed} encrypted events`);
+      }
+      
+      console.log(`🔑 ✅ Enhanced key sharing fix completed: processed ${roomsProcessed} rooms`);
+      
+    } catch (error) {
+      console.error('🔑 ❌ Failed to fix encryption key sharing:', error);
+    }
+  }
+
+  /**
+   * Comprehensive historical message recovery and decryption
+   * This method implements multiple strategies to recover and decrypt historical messages
+   */
+  private async recoverHistoricalMessages(): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔐 Cannot recover historical messages: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('📜 Starting comprehensive historical message recovery...');
+      
+      // Step 1: Request keys for all undecryptable messages
+      await this.requestKeysForUndecryptableMessages();
+      
+      // Step 2: Check for and import key backup if available
+      await this.checkAndImportKeyBackup();
+      
+      // Step 3: Request room keys from other devices and participants
+      await this.requestRoomKeysFromParticipants();
+      
+      // Step 4: Force re-attempt decryption on all encrypted events
+      await this.forceRetryDecryption();
+      
+      console.log('📜 ✅ Historical message recovery completed');
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to recover historical messages:', error);
+    }
+  }
+
+  /**
+   * Request keys for all currently undecryptable messages
+   */
+  private async requestKeysForUndecryptableMessages(): Promise<void> {
+    console.log('📜 Step 1: Requesting keys for undecryptable messages...');
+    
+    try {
+      const rooms = this.client!.getRooms();
+      const encryptedRooms = rooms.filter(room => 
+        room.hasEncryptionStateEvent && 
+        room.hasEncryptionStateEvent() && 
+        room.getMyMembership() === 'join'
+      );
+      
+      let keysRequested = 0;
+      
+      for (const room of encryptedRooms) {
+        try {
+          const timeline = room.getLiveTimeline();
+          const events = timeline.getEvents();
+          const encryptedEvents = events.filter(event => event.getType() === 'm.room.encrypted');
+          
+          for (const event of encryptedEvents) {
+            try {
+              // Check if this event is undecryptable
+              const clearEvent = event.getClearEvent();
+              const isDecryptionFailure = typeof event.isDecryptionFailure === 'function' && event.isDecryptionFailure();
+              
+              if (!clearEvent || isDecryptionFailure) {
+                // This event needs key recovery
+                console.log(`📜 🔑 Requesting key for undecryptable event: ${event.getId()?.substring(0, 20)}...`);
+                
+                // Try multiple key request methods
+                if (typeof this.client!.crypto!.requestRoomKey === 'function') {
+                  await this.client!.crypto!.requestRoomKey(event);
+                  keysRequested++;
+                } else if (typeof event.requestKey === 'function') {
+                  await event.requestKey();
+                  keysRequested++;
+                }
+              }
+            } catch (eventError) {
+              console.warn(`📜 ⚠️ Failed to request key for event:`, eventError);
+            }
+          }
+        } catch (roomError) {
+          console.warn(`📜 ⚠️ Failed to process room for key requests:`, roomError);
+        }
+      }
+      
+      console.log(`📜 🔑 Requested keys for ${keysRequested} undecryptable messages`);
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to request keys for undecryptable messages:', error);
+    }
+  }
+
+  /**
+   * Check for and import server-side key backup
+   */
+  private async checkAndImportKeyBackup(): Promise<void> {
+    console.log('📜 Step 2: Checking for server-side key backup...');
+    
+    try {
+      if (!this.client?.crypto) return;
+      
+      // Check if key backup is available and configured
+      if (typeof this.client.crypto.checkKeyBackup === 'function') {
+        const backupInfo = await this.client.crypto.checkKeyBackup();
+        
+        if (backupInfo) {
+          console.log('📜 🔑 Found key backup, attempting to restore keys...');
+          
+          // Try to restore keys from backup
+          if (typeof this.client.crypto.restoreKeyBackup === 'function') {
+            try {
+              const restored = await this.client.crypto.restoreKeyBackup();
+              console.log(`📜 ✅ Restored ${restored.total} keys from backup (${restored.imported} imported)`);
+            } catch (restoreError) {
+              console.warn('📜 ⚠️ Failed to restore from key backup:', restoreError);
+            }
+          }
+        } else {
+          console.log('📜 ℹ️ No key backup found on server');
+        }
+      } else {
+        console.log('📜 ℹ️ Key backup methods not available');
+      }
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to check key backup:', error);
+    }
+  }
+
+  /**
+   * Request room keys from other devices and participants
+   */
+  private async requestRoomKeysFromParticipants(): Promise<void> {
+    console.log('📜 Step 3: Requesting room keys from other devices and participants...');
+    
+    try {
+      const rooms = this.client!.getRooms();
+      const encryptedRooms = rooms.filter(room => 
+        room.hasEncryptionStateEvent && 
+        room.hasEncryptionStateEvent() && 
+        room.getMyMembership() === 'join'
+      );
+      
+      for (const room of encryptedRooms.slice(0, 3)) { // Process first 3 rooms
+        try {
+          console.log(`📜 🔑 Requesting room keys for: ${room.name || 'Unnamed'} (${room.roomId.substring(0, 20)}...)`);
+          
+          // Get all participants in the room
+          const members = room.getMembers();
+          const participantDevices = {};
+          
+          for (const member of members) {
+            try {
+              const devices = await this.client!.crypto!.getStoredDevicesForUser(member.userId);
+              const verifiedDevices = devices.filter(device => 
+                device.isVerified() || (!device.isBlocked() && device.isKnown())
+              );
+              
+              if (verifiedDevices.length > 0) {
+                participantDevices[member.userId] = verifiedDevices;
+              }
+            } catch (memberError) {
+              console.warn(`📜 ⚠️ Failed to get devices for ${member.userId}:`, memberError);
+            }
+          }
+          
+          // Request room keys from all participants
+          if (Object.keys(participantDevices).length > 0) {
+            try {
+              // Try different methods to request room keys
+              if (typeof this.client!.crypto!.requestRoomKeyFromDevices === 'function') {
+                await this.client!.crypto!.requestRoomKeyFromDevices(room.roomId, participantDevices);
+                console.log(`📜 ✅ Requested room keys from ${Object.keys(participantDevices).length} participants`);
+              } else if (typeof this.client!.crypto!.sendRoomKeyRequest === 'function') {
+                // Alternative method
+                for (const [userId, devices] of Object.entries(participantDevices)) {
+                  for (const device of devices as any[]) {
+                    try {
+                      await this.client!.crypto!.sendRoomKeyRequest({
+                        room_id: room.roomId,
+                        algorithm: 'm.megolm.v1.aes-sha2',
+                        requesting_device_id: this.config.deviceId!,
+                        request_id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                      }, [{ userId, deviceId: device.deviceId }]);
+                    } catch (deviceRequestError) {
+                      console.warn(`📜 ⚠️ Failed to request keys from device ${device.deviceId}:`, deviceRequestError);
+                    }
+                  }
+                }
+                console.log(`📜 ✅ Sent individual key requests to participants`);
+              }
+            } catch (requestError) {
+              console.warn(`📜 ⚠️ Failed to request room keys:`, requestError);
+            }
+          }
+          
+        } catch (roomError) {
+          console.warn(`📜 ⚠️ Failed to request keys for room:`, roomError);
+        }
+      }
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to request room keys from participants:', error);
+    }
+  }
+
+  /**
+   * Force retry decryption on all encrypted events
+   */
+  private async forceRetryDecryption(): Promise<void> {
+    console.log('📜 Step 4: Force retrying decryption on all encrypted events...');
+    
+    try {
+      const rooms = this.client!.getRooms();
+      const encryptedRooms = rooms.filter(room => 
+        room.hasEncryptionStateEvent && 
+        room.hasEncryptionStateEvent() && 
+        room.getMyMembership() === 'join'
+      );
+      
+      let decryptionAttempts = 0;
+      let successfulDecryptions = 0;
+      
+      for (const room of encryptedRooms.slice(0, 3)) { // Process first 3 rooms
+        try {
+          const timeline = room.getLiveTimeline();
+          const events = timeline.getEvents();
+          const encryptedEvents = events.filter(event => event.getType() === 'm.room.encrypted');
+          
+          console.log(`📜 🔓 Attempting to decrypt ${encryptedEvents.length} encrypted events in room: ${room.name || 'Unnamed'}`);
+          
+          for (const event of encryptedEvents) {
+            try {
+              decryptionAttempts++;
+              
+              // Check current decryption status
+              const clearEvent = event.getClearEvent();
+              const isDecryptionFailure = typeof event.isDecryptionFailure === 'function' && event.isDecryptionFailure();
+              
+              if (!clearEvent || isDecryptionFailure) {
+                // Try to decrypt this event
+                if (typeof event.attemptDecryption === 'function') {
+                  await event.attemptDecryption(this.client!.crypto!);
+                  
+                  // Check if decryption succeeded
+                  const newClearEvent = event.getClearEvent();
+                  if (newClearEvent && newClearEvent.content && newClearEvent.content.body) {
+                    successfulDecryptions++;
+                    console.log(`📜 ✅ Successfully decrypted event: ${event.getId()?.substring(0, 20)}...`);
+                    
+                    // Emit an event to notify UI that a message was decrypted
+                    this.emit('messageDecrypted', {
+                      roomId: room.roomId,
+                      eventId: event.getId(),
+                      content: newClearEvent.content.body,
+                    });
+                  }
+                }
+              }
+            } catch (eventError) {
+              console.warn(`📜 ⚠️ Failed to decrypt event ${event.getId()}:`, eventError);
+            }
+          }
+        } catch (roomError) {
+          console.warn(`📜 ⚠️ Failed to process room for decryption retry:`, roomError);
+        }
+      }
+      
+      console.log(`📜 🔓 Decryption retry completed: ${successfulDecryptions}/${decryptionAttempts} events successfully decrypted`);
+      
+      if (successfulDecryptions > 0) {
+        // Emit a general event that historical messages were recovered
+        this.emit('historicalMessagesRecovered', {
+          decryptedCount: successfulDecryptions,
+          totalAttempts: decryptionAttempts,
+        });
+      }
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to force retry decryption:', error);
+    }
+  }
+
+  /**
+   * Auto-verify all devices in encrypted rooms for development (aggressive approach)
+   */
+  private async autoVerifyAllDevicesForDevelopment(): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔐 Cannot auto-verify devices: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('🔐 Auto-verifying all devices for development...');
+      
+      // Get all rooms and find encrypted ones
+      const rooms = this.client.getRooms();
+      const encryptedRooms = rooms.filter(room => room.hasEncryptionStateEvent && room.hasEncryptionStateEvent());
+      
+      console.log(`🔐 Found ${encryptedRooms.length} encrypted rooms to process`);
+      
+      let devicesVerified = 0;
+      let devicesUnblocked = 0;
+
+      for (const room of encryptedRooms) {
+        const members = room.getMembers();
+        
+        for (const member of members) {
+          try {
+            const devices = await this.client.crypto.getStoredDevicesForUser(member.userId);
+            
+            for (const device of devices) {
+              // Verify device if not already verified
+              if (!device.isVerified()) {
+                try {
+                  await this.client.crypto.setDeviceVerification(member.userId, device.deviceId, true);
+                  devicesVerified++;
+                  console.log(`🔐 ✅ Auto-verified device ${device.deviceId.substring(0, 8)}... for ${member.userId}`);
+                } catch (verifyError) {
+                  console.warn(`🔐 ⚠️ Failed to verify device ${device.deviceId} for ${member.userId}:`, verifyError);
+                }
+              }
+              
+              // Unblock device if blocked
+              if (device.isBlocked()) {
+                try {
+                  await this.client.crypto.setDeviceBlocked(member.userId, device.deviceId, false);
+                  devicesUnblocked++;
+                  console.log(`🔐 ✅ Auto-unblocked device ${device.deviceId.substring(0, 8)}... for ${member.userId}`);
+                } catch (unblockError) {
+                  console.warn(`🔐 ⚠️ Failed to unblock device ${device.deviceId} for ${member.userId}:`, unblockError);
+                }
+              }
+            }
+          } catch (memberError) {
+            console.warn(`🔐 ⚠️ Failed to process devices for ${member.userId}:`, memberError);
+          }
+        }
+      }
+
+      if (devicesVerified > 0 || devicesUnblocked > 0) {
+        console.log(`🔐 ✅ Auto-verification complete: ${devicesVerified} devices verified, ${devicesUnblocked} devices unblocked`);
+      } else {
+        console.log('🔐 ✅ All devices already verified and unblocked');
+      }
+
+    } catch (error) {
+      console.error('🔐 ❌ Failed to auto-verify devices:', error);
+    }
+  }
+
+  /**
+   * Initialize crypto if it's not available (for late initialization)
+   */
+  private async initializeCryptoIfNeeded(): Promise<boolean> {
+    if (this.client?.crypto) {
+      console.log('🔐 Crypto already available');
+      return true;
+    }
+
+    if (!this.client) {
+      console.log('🔐 No client available for crypto initialization');
+      return false;
+    }
+
+    console.log('🔐 Attempting to initialize crypto module...');
+    
+    try {
+      // First ensure Olm is available
+      await this.initializeOlm();
+      
+      // Try to initialize crypto
+      if (typeof this.client.initCrypto === 'function') {
+        await this.client.initCrypto();
+        
+        if (this.client.crypto) {
+          console.log('🔐 ✅ Crypto module initialized successfully');
+          
+          // Configure crypto settings
+          this.client.setGlobalBlacklistUnverifiedDevices(false);
+          console.log('🔐 ✅ Configured to allow unverified devices');
+          
+          // Handle key upload issues gracefully
+          await this.handleKeyUploadIssues();
+          
+          // Verify our own device to prevent UnknownDeviceError
+          await this.verifyOwnDevice();
+          
+          return true;
+        }
+      }
+      
+      console.log('🔐 ⚠️ Crypto initialization failed or not available');
+      return false;
+      
+    } catch (error) {
+      console.error('🔐 ❌ Failed to initialize crypto:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Initialize Olm library for end-to-end encryption
+   */
+  private async initializeOlm(): Promise<void> {
+    if (olmInitialized) {
+      console.log('🔐 Olm already initialized');
+      return;
+    }
+
+    try {
+      console.log('🔐 Initializing Olm library for end-to-end encryption...');
+      
+      // Check if Olm is already available globally
+      const globalObj = (typeof global !== 'undefined' ? global : window) as any;
+      if ((window as any).Olm && globalObj.Olm) {
+        console.log('🔐 Olm already available globally');
+        olmInitialized = true;
+        return;
+      }
+      
+      // Try different approaches to load Olm
+      let Olm: any = null;
+      
+      try {
+        // First try: Load from public directory (most reliable for Vite dev server)
+        console.log('🔐 Attempting to load Olm from public directory...');
+        const response = await fetch('/olm.js'); // Use absolute path
+        if (response.ok && response.headers.get('content-type')?.includes('javascript')) {
+          const olmScript = await response.text();
+          console.log('🔐 Successfully fetched Olm script from public directory, length:', olmScript.length);
+          
+          // Validate that it's actually the Olm script
+          if (olmScript.includes('var Olm = (function()') || olmScript.includes('function') && olmScript.includes('Olm')) {
+            console.log('🔐 Script validated as Olm JavaScript');
+            
+            // Execute the script in a way that makes Olm available
+            const scriptElement = document.createElement('script');
+            scriptElement.textContent = olmScript;
+            document.head.appendChild(scriptElement);
+            
+            // Wait for the script to execute
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            if ((window as any).Olm) {
+              Olm = (window as any).Olm;
+              console.log('🔐 Successfully loaded Olm from public directory');
+            } else {
+              throw new Error('Olm not available after loading script');
+            }
+          } else {
+            throw new Error('Fetched content does not appear to be Olm JavaScript');
+          }
+        } else {
+          throw new Error(`Failed to fetch Olm script: ${response.status} or wrong content-type: ${response.headers.get('content-type')}`);
+        }
+      } catch (publicDirError) {
+        console.warn('🔐 Public directory loading failed:', publicDirError);
+        
+        try {
+          // Second try: dynamic import (fallback for production builds)
+          console.log('🔐 Attempting dynamic import of Olm...');
+          const olmModule = await import('@matrix-org/olm');
+          
+          // Handle both default export and direct export patterns
+          if (olmModule.default) {
+            Olm = olmModule.default;
+            console.log('🔐 Using default export from dynamic import');
+          } else {
+            Olm = olmModule;
+            console.log('🔐 Using direct export from dynamic import');
+          }
+          
+          console.log('🔐 Dynamic import successful, Olm type:', typeof Olm);
+        } catch (importError) {
+          console.warn('🔐 Dynamic import failed:', importError);
+          
+          try {
+            // Third try: require (for Node.js environments)
+            console.log('🔐 Attempting require of Olm...');
+            Olm = require('@matrix-org/olm');
+            console.log('🔐 Require successful');
+          } catch (requireError) {
+            console.warn('🔐 Require failed:', requireError);
+            
+            // Fourth try: check if it's available on window (pre-loaded)
+            if ((window as any).Olm) {
+              Olm = (window as any).Olm;
+              console.log('🔐 Found Olm on window object');
+            } else {
+              throw new Error('Unable to load Olm library through any method');
+            }
+          }
+        }
+      }
+      
+      if (!Olm) {
+        throw new Error('Olm library not found');
+      }
+      
+      // Initialize Olm if it has an init method
+      if (typeof Olm.init === 'function') {
+        console.log('🔐 Calling Olm.init()...');
+        await Olm.init();
+        console.log('🔐 Olm.init() completed');
+      } else if (typeof Olm.default?.init === 'function') {
+        console.log('🔐 Calling Olm.default.init()...');
+        await Olm.default.init();
+        Olm = Olm.default;
+        console.log('🔐 Olm.default.init() completed');
+      } else {
+        console.log('🔐 No init method found, assuming Olm is ready');
+      }
+      
+      // Make Olm available globally for matrix-js-sdk
+      (globalObj as any).Olm = Olm; // Use globalObj for assignment
+      (window as any).Olm = Olm;
+      
+      olmInitialized = true;
+      console.log('🔐 ✅ Olm library initialized successfully');
+      
+    } catch (error) {
+      console.error('🔐 ❌ Failed to initialize Olm library:', error);
+      
+      // For development/testing, we can continue without encryption
+      console.warn('🔐 ⚠️ Continuing without end-to-end encryption support');
+      console.warn('🔐 ⚠️ This means encrypted rooms will not work properly');
+      
+      // Don't throw the error - let the Matrix client work without encryption
+      olmInitialized = true; // Mark as initialized to prevent retries
+    }
+  }
+
+  /**
    * Initialize and start the Matrix client
    */
   async initialize(): Promise<void> {
     try {
+      // Initialize Olm library first for encryption support
+      await this.initializeOlm();
+      
       // Try to load stored credentials first
       const storedConfig = await this.loadCredentials();
       if (storedConfig) {
@@ -192,12 +1177,68 @@ export class MatrixService extends EventEmitter {
 
       if (this.config.accessToken) {
         // Use existing access token (either passed in or loaded from storage)
+        console.log('🔐 Creating client with crypto store...');
         this.client = sdk.createClient({
           baseUrl: this.config.homeserverUrl,
           accessToken: this.config.accessToken,
           userId: this.config.userId,
           deviceId: this.config.deviceId,
+          // Enable crypto for encryption support with persistence
+          cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+          // Don't specify verificationMethods to avoid TypeError
         });
+        
+        // Initialize crypto immediately after client creation
+        console.log('🔐 Initializing crypto module...');
+        try {
+          if (typeof this.client.initCrypto === 'function') {
+            await this.client.initCrypto();
+            console.log('🔐 ✅ Crypto module initialized successfully');
+            console.log('🔐 Crypto module available:', !!this.client.crypto);
+            
+            // Configure crypto to allow sending to unverified devices (for development)
+            if (this.client.crypto) {
+              this.client.setGlobalBlacklistUnverifiedDevices(false);
+              console.log('🔐 ✅ Configured to allow unverified devices');
+              
+              // Handle key upload issues gracefully
+              await this.handleKeyUploadIssues();
+              
+              // Verify our own device to prevent UnknownDeviceError
+              await this.verifyOwnDevice();
+            }
+          } else {
+            console.log('🔐 ℹ️ initCrypto method not available');
+          }
+        } catch (cryptoError) {
+          console.warn('🔐 ⚠️ Failed to initialize crypto module:', cryptoError);
+          // Try alternative initialization
+          try {
+            console.log('🔐 Trying alternative crypto initialization...');
+            if (this.client.crypto) {
+              console.log('🔐 Crypto module exists, trying to start it...');
+            } else {
+              console.log('🔐 No crypto module found, recreating client with different config...');
+              // Recreate client with explicit crypto configuration
+              this.client = sdk.createClient({
+                baseUrl: this.config.homeserverUrl,
+                accessToken: this.config.accessToken,
+                userId: this.config.userId,
+                deviceId: this.config.deviceId,
+                cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+                // Try with explicit crypto callbacks
+                cryptoCallbacks: {},
+              });
+              
+              if (typeof this.client.initCrypto === 'function') {
+                await this.client.initCrypto();
+                console.log('🔐 ✅ Alternative crypto initialization successful');
+              }
+            }
+          } catch (altError) {
+            console.warn('🔐 ⚠️ Alternative crypto initialization also failed:', altError);
+          }
+        }
         
         this.setupEventListeners();
         
@@ -236,11 +1277,42 @@ export class MatrixService extends EventEmitter {
    * Login with username/password
    */
   async login(username: string, password: string): Promise<void> {
+    console.log('🔐 LOGIN ATTEMPT: ========== STARTING LOGIN PROCESS ==========');
+    console.log('🔐 LOGIN ATTEMPT: Username:', username);
+    console.log('🔐 LOGIN ATTEMPT: Password length:', password?.length || 0);
+    console.log('🔐 LOGIN ATTEMPT: Client initialized:', !!this.client);
+    console.log('🔐 LOGIN ATTEMPT: Client type:', this.client?.constructor?.name);
+    console.log('🔐 LOGIN ATTEMPT: Homeserver URL:', this.config.homeserverUrl);
+    console.log('🔐 LOGIN ATTEMPT: Current config:', JSON.stringify(this.config, null, 2));
+    console.log('🔐 LOGIN ATTEMPT: Client methods available:', this.client ? Object.getOwnPropertyNames(this.client).filter(name => typeof (this.client as any)[name] === 'function').slice(0, 10) : 'none');
+    
+    // Initialize Olm library first for encryption support
+    console.log('🔐 LOGIN ATTEMPT: Initializing Olm library...');
+    await this.initializeOlm();
+    
+    // Create a basic client for login if one doesn't exist
     if (!this.client) {
-      throw new Error('Client not initialized');
+      console.log('🔐 LOGIN ATTEMPT: Creating basic client for login...');
+      this.client = sdk.createClient({
+        baseUrl: this.config.homeserverUrl,
+      });
+      this.setupEventListeners();
+    }
+
+    if (!username || !password) {
+      console.error('🔐 LOGIN ERROR: Missing username or password');
+      throw new Error('Username and password are required');
     }
 
     try {
+      console.log('🔐 LOGIN ATTEMPT: About to call client.login...');
+      console.log('🔐 LOGIN ATTEMPT: Login method exists:', typeof this.client.login === 'function');
+      console.log('🔐 LOGIN ATTEMPT: Login parameters:', {
+        method: 'm.login.password',
+        user: username,
+        passwordProvided: !!password
+      });
+      
       const response = await this.client.login('m.login.password', {
         user: username,
         password: password,
@@ -251,12 +1323,68 @@ export class MatrixService extends EventEmitter {
       this.config.deviceId = response.device_id;
 
       // Recreate client with credentials
+      console.log('🔐 Creating client with crypto store after login...');
       this.client = sdk.createClient({
         baseUrl: this.config.homeserverUrl,
         accessToken: this.config.accessToken,
         userId: this.config.userId,
         deviceId: this.config.deviceId,
+        // Enable crypto for encryption support with persistence
+        cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+        // Don't specify verificationMethods to avoid TypeError
       });
+
+      // Initialize crypto immediately after client creation
+      console.log('🔐 Initializing crypto module after login...');
+      try {
+        if (typeof this.client.initCrypto === 'function') {
+          await this.client.initCrypto();
+          console.log('🔐 ✅ Crypto module initialized successfully after login');
+          console.log('🔐 Crypto module available after login:', !!this.client.crypto);
+          
+          // Configure crypto to allow sending to unverified devices (for development)
+          if (this.client.crypto) {
+            this.client.setGlobalBlacklistUnverifiedDevices(false);
+            console.log('🔐 ✅ Configured to allow unverified devices after login');
+            
+            // Handle key upload issues gracefully
+            await this.handleKeyUploadIssues();
+            
+            // Verify our own device to prevent UnknownDeviceError
+            await this.verifyOwnDevice();
+          }
+        } else {
+          console.log('🔐 ℹ️ initCrypto method not available after login');
+        }
+      } catch (cryptoError) {
+        console.warn('🔐 ⚠️ Failed to initialize crypto module after login:', cryptoError);
+        // Try alternative initialization
+        try {
+          console.log('🔐 Trying alternative crypto initialization after login...');
+          if (this.client.crypto) {
+            console.log('🔐 Crypto module exists after login, trying to start it...');
+          } else {
+            console.log('🔐 No crypto module found after login, recreating client...');
+            // Recreate client with explicit crypto configuration
+            this.client = sdk.createClient({
+              baseUrl: this.config.homeserverUrl,
+              accessToken: this.config.accessToken,
+              userId: this.config.userId,
+              deviceId: this.config.deviceId,
+              cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+              // Try with explicit crypto callbacks
+              cryptoCallbacks: {},
+            });
+            
+            if (typeof this.client.initCrypto === 'function') {
+              await this.client.initCrypto();
+              console.log('🔐 ✅ Alternative crypto initialization successful after login');
+            }
+          }
+        } catch (altError) {
+          console.warn('🔐 ⚠️ Alternative crypto initialization also failed after login:', altError);
+        }
+      }
 
       this.setupEventListeners();
       await this.startSync();
@@ -271,6 +1399,15 @@ export class MatrixService extends EventEmitter {
 
       this.emit('login', response);
     } catch (error: any) {
+      console.error('🔐 LOGIN ERROR: Caught error during login process:', error);
+      console.error('🔐 LOGIN ERROR: Error type:', typeof error);
+      console.error('🔐 LOGIN ERROR: Error name:', error.name);
+      console.error('🔐 LOGIN ERROR: Error message:', error.message);
+      console.error('🔐 LOGIN ERROR: Error stack:', error.stack);
+      console.error('🔐 LOGIN ERROR: Error httpStatus:', error.httpStatus);
+      console.error('🔐 LOGIN ERROR: Error data:', error.data);
+      console.error('🔐 LOGIN ERROR: Full error object:', JSON.stringify(error, null, 2));
+      
       // Provide more helpful error messages
       let errorMessage = 'Login failed';
       
@@ -288,8 +1425,12 @@ export class MatrixService extends EventEmitter {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (error.data?.error) {
         errorMessage = error.data.error;
+      } else if (error.message) {
+        errorMessage = `Login failed: ${error.message}`;
       }
 
+      console.error('🔐 LOGIN ERROR: Final error message:', errorMessage);
+      
       const enhancedError = new Error(errorMessage);
       this.emit('error', enhancedError);
       throw enhancedError;
@@ -300,6 +1441,9 @@ export class MatrixService extends EventEmitter {
    * Register a new account
    */
   async register(username: string, password: string): Promise<void> {
+    // Initialize Olm library first for encryption support
+    await this.initializeOlm();
+    
     if (!this.client) {
       throw new Error('Client not initialized');
     }
@@ -312,12 +1456,68 @@ export class MatrixService extends EventEmitter {
       this.config.deviceId = response.device_id;
 
       // Recreate client with credentials
+      console.log('🔐 Creating client with crypto store after registration...');
       this.client = sdk.createClient({
         baseUrl: this.config.homeserverUrl,
         accessToken: this.config.accessToken,
         userId: this.config.userId,
         deviceId: this.config.deviceId,
+        // Enable crypto for encryption support with persistence
+        cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+        // Don't specify verificationMethods to avoid TypeError
       });
+
+      // Initialize crypto immediately after client creation
+      console.log('🔐 Initializing crypto module after registration...');
+      try {
+        if (typeof this.client.initCrypto === 'function') {
+          await this.client.initCrypto();
+          console.log('🔐 ✅ Crypto module initialized successfully after registration');
+          console.log('🔐 Crypto module available after registration:', !!this.client.crypto);
+          
+          // Configure crypto to allow sending to unverified devices (for development)
+          if (this.client.crypto) {
+            this.client.setGlobalBlacklistUnverifiedDevices(false);
+            console.log('🔐 ✅ Configured to allow unverified devices after registration');
+            
+            // Handle key upload issues gracefully
+            await this.handleKeyUploadIssues();
+            
+            // Verify our own device to prevent UnknownDeviceError
+            await this.verifyOwnDevice();
+          }
+        } else {
+          console.log('🔐 ℹ️ initCrypto method not available after registration');
+        }
+      } catch (cryptoError) {
+        console.warn('🔐 ⚠️ Failed to initialize crypto module after registration:', cryptoError);
+        // Try alternative initialization
+        try {
+          console.log('🔐 Trying alternative crypto initialization after registration...');
+          if (this.client.crypto) {
+            console.log('🔐 Crypto module exists after registration, trying to start it...');
+          } else {
+            console.log('🔐 No crypto module found after registration, recreating client...');
+            // Recreate client with explicit crypto configuration
+            this.client = sdk.createClient({
+              baseUrl: this.config.homeserverUrl,
+              accessToken: this.config.accessToken,
+              userId: this.config.userId,
+              deviceId: this.config.deviceId,
+              cryptoStore: new sdk.LocalStorageCryptoStore(localStorage, 'goose-matrix-crypto'),
+              // Try with explicit crypto callbacks
+              cryptoCallbacks: {},
+            });
+            
+            if (typeof this.client.initCrypto === 'function') {
+              await this.client.initCrypto();
+              console.log('🔐 ✅ Alternative crypto initialization successful after registration');
+            }
+          }
+        } catch (altError) {
+          console.warn('🔐 ⚠️ Alternative crypto initialization also failed after registration:', altError);
+        }
+      }
 
       this.setupEventListeners();
       await this.startSync();
@@ -426,9 +1626,30 @@ export class MatrixService extends EventEmitter {
         });
         
         // Mark initial sync as complete - now we can process new invitations
-        setTimeout(() => {
+        setTimeout(async () => {
           this.isInitialSync = false;
           console.log('🔄 Initial sync complete - now processing new invitations');
+          
+          // Auto-verify all devices for development after sync is complete
+          try {
+            await this.autoVerifyAllDevicesForDevelopment();
+          } catch (error) {
+            console.warn('🔐 ⚠️ Auto-verification after sync failed (non-critical):', error);
+          }
+          
+          // Fix encryption key sharing issues after sync is complete
+          try {
+            await this.fixEncryptionKeySharing();
+          } catch (error) {
+            console.warn('🔑 ⚠️ Key sharing fix after sync failed (non-critical):', error);
+          }
+          
+          // Recover historical messages after sync is complete
+          try {
+            await this.recoverHistoricalMessages();
+          } catch (error) {
+            console.warn('📜 ⚠️ Historical message recovery failed (non-critical):', error);
+          }
         }, 2000); // Give 2 seconds for all initial events to settle
         
         console.log('✅ MatrixService: Sync prepared, emitting ready event');
@@ -444,7 +1665,8 @@ export class MatrixService extends EventEmitter {
         toStartOfTimeline
       });
       
-      if (event.getType() === 'm.room.message') {
+      // Handle both regular messages AND encrypted messages
+      if (event.getType() === 'm.room.message' || event.getType() === 'm.room.encrypted') {
         this.handleMessage(event, room);
       }
     });
@@ -564,6 +1786,25 @@ export class MatrixService extends EventEmitter {
       if (membership === 'leave' || membership === 'ban') {
         console.log('👋 Left or banned from room:', room.roomId);
         this.emit('roomLeft', { roomId: room.roomId, membership, prevMembership });
+      }
+    });
+
+    // Listen for decryption events to handle newly decrypted messages
+    this.client.on('Event.decrypted', (event) => {
+      console.log('🔓 Event decrypted:', {
+        eventType: event.getType(),
+        roomId: event.getRoomId(),
+        sender: event.getSender(),
+        eventId: event.getId()
+      });
+      
+      // If this is a message event that was just decrypted, re-process it
+      if (event.getType() === 'm.room.encrypted') {
+        const room = this.client?.getRoom(event.getRoomId());
+        if (room) {
+          console.log('🔓 Re-processing decrypted message for real-time display');
+          this.handleMessage(event, room);
+        }
       }
     });
   }
@@ -692,6 +1933,91 @@ export class MatrixService extends EventEmitter {
     const sender = event.getSender();
     const isFromSelf = sender === this.config.userId;
     
+    // CRITICAL FIX: Extract actual message content, handling both encrypted and unencrypted messages
+    let actualMessageContent = '';
+    let shouldEmitMessage = true; // Flag to control whether we should emit this message
+    
+    if (event.getType() === 'm.room.encrypted') {
+      // Handle encrypted messages
+      console.log('🔒 Processing encrypted message, crypto available:', !!this.client?.crypto);
+      
+      if (this.client?.crypto && typeof event.getClearEvent === 'function') {
+        try {
+          const clearEvent = event.getClearEvent();
+          if (clearEvent && clearEvent.content && clearEvent.content.body) {
+            actualMessageContent = clearEvent.content.body;
+            console.log('🔓 Successfully extracted content from decrypted message:', actualMessageContent.substring(0, 50) + '...');
+          } else if (typeof event.isDecryptionFailure === 'function' && event.isDecryptionFailure()) {
+            const failureReason = event.decryptionFailureReason || 'Unknown encryption error';
+            actualMessageContent = `🔒 [Unable to decrypt: ${failureReason}]`;
+            console.log('🔒 Decryption failure, using fallback content:', failureReason);
+          } else {
+            // Message not yet decrypted - DON'T emit a placeholder, just wait
+            console.log('🔄 Message not yet decrypted, skipping emission and attempting decryption');
+            shouldEmitMessage = false;
+            
+            // Try to manually trigger decryption
+            if (typeof event.attemptDecryption === 'function') {
+              console.log('🔄 Attempting manual decryption...');
+              event.attemptDecryption(this.client.crypto).then(() => {
+                const newClearEvent = event.getClearEvent();
+                if (newClearEvent && newClearEvent.content && newClearEvent.content.body) {
+                  console.log('🔓 Manual decryption successful, re-processing message');
+                  // Re-process the message after successful decryption
+                  setTimeout(() => this.handleMessage(event, room), 100);
+                }
+              }).catch(decryptError => {
+                console.warn('🔒 Manual decryption failed:', decryptError);
+              });
+            }
+          }
+        } catch (decryptError) {
+          console.warn('❌ Failed to extract decrypted content:', decryptError);
+          actualMessageContent = `🔒 [Encryption error: ${decryptError.message || 'Unknown'}]`;
+        }
+      } else {
+        // Crypto not available - DON'T emit a placeholder, just try to initialize
+        console.log('🔒 Crypto not available for encrypted message, attempting to initialize...');
+        shouldEmitMessage = false;
+        
+        // Try to initialize crypto if it's not available
+        this.initializeCryptoIfNeeded().then(cryptoAvailable => {
+          if (cryptoAvailable) {
+            console.log('🔓 Crypto initialized, re-processing encrypted message');
+            // Re-process the message after crypto initialization
+            setTimeout(() => this.handleMessage(event, room), 500);
+          } else {
+            console.log('🔒 Crypto initialization failed, message will remain encrypted');
+            // Only now emit a failure message if crypto initialization completely failed
+            this.handleMessage(event, room);
+          }
+        }).catch(initError => {
+          console.warn('🔒 Crypto initialization error:', initError);
+        });
+      }
+    } else {
+      // Handle unencrypted messages
+      actualMessageContent = content.body || '';
+    }
+    
+    // If we shouldn't emit this message (e.g., waiting for decryption), return early
+    if (!shouldEmitMessage) {
+      console.log('🔄 Skipping message emission - waiting for decryption or crypto initialization');
+      return;
+    }
+    
+    // ADDITIONAL SAFETY CHECK: Ensure we never have undefined content
+    if (actualMessageContent === undefined || actualMessageContent === null) {
+      console.warn('⚠️ Content extraction resulted in undefined/null, using fallback');
+      actualMessageContent = '[Message content unavailable]';
+    }
+    
+    // Ensure content is always a string
+    if (typeof actualMessageContent !== 'string') {
+      console.warn('⚠️ Content is not a string, converting:', typeof actualMessageContent, actualMessageContent);
+      actualMessageContent = String(actualMessageContent || '[Invalid content]');
+    }
+    
     // Debug: Log all incoming messages for troubleshooting
     console.log('🔍 MatrixService.handleMessage called:', {
       roomId: room.roomId,
@@ -699,8 +2025,11 @@ export class MatrixService extends EventEmitter {
       configUserId: this.config.userId,
       isFromSelf,
       senderEqualsConfig: sender === this.config.userId,
-      contentBody: content.body?.substring(0, 100) + '...',
       eventType: event.getType(),
+      originalContentBody: content.body?.substring(0, 50) + '...',
+      actualMessageContent: actualMessageContent?.substring(0, 50) + '...',
+      actualMessageContentType: typeof actualMessageContent,
+      actualMessageContentLength: actualMessageContent?.length || 0,
       timestamp: new Date(event.getTs())
     });
     
@@ -717,7 +2046,7 @@ export class MatrixService extends EventEmitter {
     const messageData = {
       roomId: room.roomId,
       sender,
-      content: content.body,
+      content: actualMessageContent, // Use the properly extracted content
       timestamp: new Date(event.getTs()),
       event,
       isFromSelf,
@@ -856,7 +2185,92 @@ export class MatrixService extends EventEmitter {
     };
 
     console.log('💬 Sending regular user message to room:', roomId, 'Message:', message.substring(0, 50) + '...');
-    await this.client.sendEvent(roomId, 'm.room.message', eventContent);
+    
+    try {
+      // Send the message
+      const result = await this.client.sendEvent(roomId, 'm.room.message', eventContent);
+      console.log('💬 ✅ Message sent successfully:', result.event_id);
+      
+      // After sending, ensure key sharing for this room to prevent decryption issues
+      setTimeout(async () => {
+        try {
+          await this.ensureKeySharingForRoom(roomId);
+        } catch (keyError) {
+          console.warn('🔑 ⚠️ Key sharing after message send failed (non-critical):', keyError);
+        }
+      }, 100); // Small delay to let the message propagate
+      
+    } catch (error) {
+      console.error('💬 ❌ Failed to send message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure proper key sharing for a specific room after sending a message
+   */
+  private async ensureKeySharingForRoom(roomId: string): Promise<void> {
+    if (!this.client?.crypto) {
+      console.log('🔑 Cannot ensure key sharing: crypto not available');
+      return;
+    }
+
+    try {
+      console.log('🔑 Ensuring key sharing for room after message send:', roomId.substring(0, 20) + '...');
+      
+      const room = this.client.getRoom(roomId);
+      if (!room || !room.hasEncryptionStateEvent()) {
+        console.log('🔑 Room is not encrypted, skipping key sharing');
+        return;
+      }
+
+      // Get our own devices for key sharing
+      const ownDevices = await this.client.crypto.getStoredDevicesForUser(this.config.userId!);
+      const verifiedOwnDevices = ownDevices.filter(device => device.isVerified() && !device.isBlocked());
+      
+      if (verifiedOwnDevices.length > 0) {
+        // Ensure Olm sessions with our own devices
+        const ownDeviceMap = { [this.config.userId!]: verifiedOwnDevices };
+        if (typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+          await this.client.crypto.ensureOlmSessionsForDevices(ownDeviceMap);
+          console.log('🔑 ✅ Ensured Olm sessions with own devices for room');
+        }
+      }
+
+      // Get room members and their devices for key sharing
+      const members = room.getMembers();
+      const memberDevices = {};
+      
+      for (const member of members.slice(0, 10)) { // First 10 members
+        try {
+          const memberDeviceList = await this.client.crypto.getStoredDevicesForUser(member.userId);
+          const validDevices = memberDeviceList.filter(device => 
+            device.isVerified() || (!device.isBlocked() && device.isKnown())
+          );
+          
+          if (validDevices.length > 0) {
+            memberDevices[member.userId] = validDevices;
+          }
+        } catch (memberError) {
+          console.warn(`🔑 ⚠️ Could not get devices for ${member.userId}:`, memberError.message);
+        }
+      }
+      
+      // Ensure Olm sessions for room members
+      if (Object.keys(memberDevices).length > 0 && typeof this.client.crypto.ensureOlmSessionsForDevices === 'function') {
+        await this.client.crypto.ensureOlmSessionsForDevices(memberDevices);
+        console.log(`🔑 ✅ Ensured Olm sessions for ${Object.keys(memberDevices).length} users in room`);
+      }
+
+      // Force key sharing by canceling and resending key requests
+      if (typeof this.client.crypto.cancelAndResendAllOutgoingKeyRequests === 'function') {
+        await this.client.crypto.cancelAndResendAllOutgoingKeyRequests();
+        console.log('🔑 ✅ Refreshed key requests after message send');
+      }
+      
+    } catch (error) {
+      console.error('🔑 ❌ Failed to ensure key sharing for room:', error);
+    }
   }
 
   /**
@@ -968,7 +2382,7 @@ export class MatrixService extends EventEmitter {
         let childInfo: SpaceChild;
 
         if (childRoom) {
-          // We have local information about this room
+          // We have local information about this room (we're joined or invited)
           const avatarEvent = childRoom.currentState.getStateEvents('m.room.avatar', '');
           const avatarUrl = avatarEvent?.getContent()?.url || null;
           
@@ -977,6 +2391,10 @@ export class MatrixService extends EventEmitter {
           
           const joinRulesEvent = childRoom.currentState.getStateEvents('m.room.join_rules', '');
           const isPublic = joinRulesEvent?.getContent()?.join_rule === 'public';
+
+          // Get our membership status in this room
+          const membership = childRoom.getMyMembership();
+          const canJoin = membership === 'invite' || isPublic || content.suggested;
 
           childInfo = {
             roomId: childRoomId,
@@ -989,21 +2407,47 @@ export class MatrixService extends EventEmitter {
             via: content.via || [],
             order: content.order,
             memberCount: childRoom.getMembers().length,
+            membership: membership as 'join' | 'invite' | 'leave' | 'ban' | null,
+            canJoin: canJoin,
           };
+
+          console.log('🌌 Child room with local info:', {
+            roomId: childRoomId.substring(0, 20) + '...',
+            name: childInfo.name,
+            membership: membership,
+            canJoin: canJoin,
+            isSpace: isChildSpace,
+            isPublic: isPublic,
+          });
         } else {
-          // We don't have local info, use what's in the space child event
+          // We don't have local info - we're not joined or invited to this room
+          // Use what's available in the space child event and try to determine if we can join
+          const isPublicFromContent = content.join_rule === 'public';
+          const canJoin = content.suggested || isPublicFromContent;
+
           childInfo = {
             roomId: childRoomId,
             name: content.name || 'Unknown Room',
             topic: content.topic,
             avatarUrl: content.avatar_url,
-            isSpace: false, // We can't determine this without the room
-            isPublic: false, // We can't determine this without the room
+            isSpace: content.type === 'm.space', // Check if the space child event indicates it's a space
+            isPublic: isPublicFromContent,
             suggested: content.suggested || false,
             via: content.via || [],
             order: content.order,
-            memberCount: 0,
+            memberCount: 0, // We don't know the member count
+            membership: null, // We're not a member
+            canJoin: canJoin,
           };
+
+          console.log('🌌 Child room without local info:', {
+            roomId: childRoomId.substring(0, 20) + '...',
+            name: childInfo.name,
+            membership: 'null (not joined)',
+            canJoin: canJoin,
+            suggested: content.suggested,
+            isPublic: isPublicFromContent,
+          });
         }
 
         children.push(childInfo);
@@ -1020,6 +2464,14 @@ export class MatrixService extends EventEmitter {
       });
 
       console.log('✅ Found', children.length, 'children in space:', spaceId);
+      console.log('🌌 Space children breakdown:', {
+        total: children.length,
+        joined: children.filter(c => c.membership === 'join').length,
+        invited: children.filter(c => c.membership === 'invite').length,
+        canJoin: children.filter(c => c.canJoin && c.membership !== 'join').length,
+        notAccessible: children.filter(c => !c.canJoin && c.membership !== 'join').length,
+      });
+      
       return children;
     } catch (error) {
       console.error('❌ Failed to get space children:', error);
@@ -1107,7 +2559,7 @@ export class MatrixService extends EventEmitter {
 
     try {
       // Create a Matrix Space room
-      const room = await this.client.createRoom({
+      const spaceResult = await this.client.createRoom({
         name: name,
         topic: topic,
         preset: isPublic ? 'public_chat' : 'private_chat',
@@ -1130,25 +2582,69 @@ export class MatrixService extends EventEmitter {
         ],
       });
 
-      console.log('✅ Matrix Space created successfully:', room.room_id);
+      const spaceId = spaceResult.room_id;
+      console.log('✅ Matrix Space created successfully:', spaceId);
       
-      // Create session mapping for the space
-      // This ensures the space has a 1:1 relationship with a Goose session
-      try {
-        const spaceRoom = this.client.getRoom(room.room_id);
-        if (spaceRoom) {
-          await this.ensureSessionMapping(room.room_id, spaceRoom);
-          console.log('📋 Session mapping created for Matrix Space:', room.room_id);
-        }
-      } catch (mappingError) {
-        console.error('❌ Failed to create session mapping for space:', mappingError);
-        // Don't fail the space creation if mapping fails
+      // Wait for the space to be available in the client's room list
+      console.log('⏳ Waiting for space to be available in client...');
+      let spaceRoom = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (!spaceRoom && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+        spaceRoom = this.client.getRoom(spaceId);
+        attempts++;
+        console.log(`🔍 Attempt ${attempts}/${maxAttempts}: Space available = ${!!spaceRoom}`);
       }
       
-      // Clear rooms cache to refresh space data
-      this.cachedRooms = null;
+      if (!spaceRoom) {
+        console.warn('⚠️ Space not available in client after waiting, continuing anyway');
+      } else {
+        console.log('✅ Space is now available in client');
+        
+        // Create session mapping for the space
+        try {
+          await this.ensureSessionMapping(spaceId, spaceRoom);
+          console.log('📋 Session mapping created for Matrix Space');
+        } catch (mappingError) {
+          console.error('❌ Failed to create session mapping for space:', mappingError);
+          // Don't fail the space creation if mapping fails
+        }
+      }
       
-      return room.room_id;
+      // Clear rooms cache to ensure fresh data is loaded
+      this.cachedRooms = null;
+      console.log('🔄 Cleared rooms cache to refresh UI');
+      
+      // Wait a bit more to ensure the Matrix client has fully processed the space
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Verify the space is in getRooms() before emitting the update
+      const rooms = this.getRooms();
+      const spaceInRooms = rooms.find(room => room.roomId === spaceId);
+      
+      if (spaceInRooms) {
+        console.log('✅ Space confirmed in getRooms(), emitting roomsUpdated');
+      } else {
+        console.warn('⚠️ Space not yet in getRooms(), emitting roomsUpdated anyway');
+      }
+      
+      // Emit a room update event to trigger UI refresh
+      this.emit('roomsUpdated', { 
+        spaceId: spaceId,
+        action: 'spaceCreated',
+        spaceInRooms: !!spaceInRooms
+      });
+      
+      console.log('🎉 Space creation completed:', {
+        spaceId: spaceId.substring(0, 20) + '...',
+        name: name,
+        availableInClient: !!spaceRoom,
+        inGetRooms: !!spaceInRooms
+      });
+      
+      return spaceId;
     } catch (error) {
       console.error('❌ Failed to create Matrix Space:', error);
       throw new Error('Failed to create space');
@@ -1206,8 +2702,14 @@ export class MatrixService extends EventEmitter {
       // If a parent space is specified, add this room as a child
       if (parentSpaceId) {
         console.log('🌌 Adding room to parent space:', parentSpaceId);
-        await this.addChildToSpace(parentSpaceId, room.room_id, false);
-        console.log('✅ Room added to parent space');
+        try {
+          await this.addChildToSpace(parentSpaceId, room.room_id, false);
+          console.log('✅ Room added to parent space');
+        } catch (spaceError) {
+          console.error('⚠️ Failed to add room to parent space (room still created):', spaceError);
+          // Don't fail the entire room creation if adding to space fails
+          // The room is still created successfully, just not linked to the space
+        }
       }
       
       // Clear rooms cache to refresh room data
@@ -1296,6 +2798,9 @@ export class MatrixService extends EventEmitter {
         
         // Still ensure session mapping exists for this room
         await this.ensureSessionMapping(roomId, existingRoom);
+        
+        // Check for and sync existing history even if already joined
+        await this.checkAndSyncRoomHistory(roomId, existingRoom);
         return;
       }
 
@@ -1310,10 +2815,14 @@ export class MatrixService extends EventEmitter {
       this.cachedRooms = null;
       this.cachedFriends = null;
       
-      // Get the room after joining to create session mapping
+      // Get the room after joining to create session mapping and sync history
       const joinedRoom = this.client.getRoom(roomId);
       if (joinedRoom) {
+        // First ensure session mapping exists
         await this.ensureSessionMapping(roomId, joinedRoom);
+        
+        // Then check for and sync existing chat history
+        await this.checkAndSyncRoomHistory(roomId, joinedRoom);
       }
       
       // Emit join event
@@ -1414,6 +2923,119 @@ export class MatrixService extends EventEmitter {
       const enhancedError = new Error(errorMessage);
       this.emit('error', enhancedError);
       throw enhancedError;
+    }
+  }
+
+  /**
+   * Check for existing chat history in a room and sync it to the backend session
+   * This is called when joining a room to ensure all existing messages are available in Goose
+   */
+  private async checkAndSyncRoomHistory(roomId: string, room: any): Promise<void> {
+    try {
+      console.log('📜 Checking and syncing room history for:', roomId.substring(0, 20) + '...');
+      
+      // Get the session mapping for this room
+      const mapping = sessionMappingService.getMapping(roomId);
+      if (!mapping) {
+        console.log('📜 No session mapping found for room, skipping history sync:', roomId.substring(0, 20) + '...');
+        return;
+      }
+
+      // Check if this room has existing message history
+      const roomHistory = await this.getRoomHistoryAsGooseMessages(roomId, 100); // Get up to 100 messages
+      
+      if (roomHistory.length === 0) {
+        console.log('📜 No message history found in room:', roomId.substring(0, 20) + '...');
+        return;
+      }
+
+      console.log(`📜 Found ${roomHistory.length} messages in room history, syncing to backend session:`, mapping.gooseSessionId);
+
+      // Import the API function to sync messages to backend
+      try {
+        const { syncMessagesToSession } = await import('../api');
+        
+        // Convert Matrix messages to backend format
+        const backendMessages = roomHistory.map((msg, index) => ({
+          id: `matrix_${msg.timestamp.getTime()}_${index}`,
+          role: msg.role,
+          content: [{
+            type: 'text' as const,
+            text: msg.content,
+          }],
+          created: Math.floor(msg.timestamp.getTime() / 1000),
+          // Include sender info for context
+          metadata: {
+            matrixSender: msg.metadata?.originalSender || msg.sender,
+            matrixSenderInfo: msg.metadata?.senderInfo,
+            matrixRoomId: roomId,
+            isFromSelf: msg.metadata?.isFromSelf || false,
+            syncedAt: Date.now(),
+          }
+        }));
+        
+        // Sync messages to backend session
+        await syncMessagesToSession({
+          body: {
+            session_id: mapping.gooseSessionId,
+            messages: backendMessages,
+          },
+          throwOnError: false, // Don't throw on error to prevent breaking the join process
+        });
+        
+        console.log(`📜 ✅ Successfully synced ${backendMessages.length} messages to backend session:`, mapping.gooseSessionId);
+        
+        // Emit event to notify UI that history has been synced
+        this.emit('roomHistorySynced', { 
+          roomId, 
+          sessionId: mapping.gooseSessionId, 
+          messageCount: backendMessages.length 
+        });
+        
+      } catch (apiError) {
+        console.warn('📜 ⚠️ syncMessagesToSession API not available, trying alternative approach:', apiError);
+        
+        // Fallback: try using replyHandler if syncMessagesToSession is not available
+        try {
+          const { replyHandler } = await import('../api');
+          
+          // Convert to the format expected by replyHandler
+          const backendMessages = roomHistory.map((msg, index) => ({
+            id: `matrix_${msg.timestamp.getTime()}_${index}`,
+            role: msg.role,
+            content: [{
+              type: 'text' as const,
+              text: msg.content,
+            }],
+            created: Math.floor(msg.timestamp.getTime() / 1000),
+          }));
+          
+          await replyHandler({
+            body: {
+              session_id: mapping.gooseSessionId,
+              messages: backendMessages,
+            },
+            throwOnError: false,
+          });
+          
+          console.log(`📜 ✅ Successfully synced ${backendMessages.length} messages using replyHandler:`, mapping.gooseSessionId);
+          
+          // Emit event to notify UI that history has been synced
+          this.emit('roomHistorySynced', { 
+            roomId, 
+            sessionId: mapping.gooseSessionId, 
+            messageCount: backendMessages.length 
+          });
+          
+        } catch (fallbackError) {
+          console.error('📜 ❌ Failed to sync room history using fallback method:', fallbackError);
+          // Don't throw - we don't want to break the join process if history sync fails
+        }
+      }
+      
+    } catch (error) {
+      console.error('📜 ❌ Failed to check and sync room history:', error);
+      // Don't throw - we don't want to break the join process if history sync fails
     }
   }
 
@@ -1547,7 +3169,21 @@ export class MatrixService extends EventEmitter {
 
     console.log('getRooms - fetching fresh room data');
     
-    this.cachedRooms = this.client.getRooms().map(room => {
+    // Filter to only include rooms where we are currently joined
+    const joinedRooms = this.client.getRooms().filter(room => {
+      const membership = room.getMyMembership();
+      const isJoined = membership === 'join';
+      
+      if (!isJoined) {
+        console.log('🚪 getRooms: Excluding room with membership:', membership, '→', room.roomId.substring(0, 20) + '...', room.name || 'Unnamed');
+      }
+      
+      return isJoined;
+    });
+    
+    console.log(`getRooms - filtered to ${joinedRooms.length} joined rooms (from ${this.client.getRooms().length} total)`);
+    
+    this.cachedRooms = joinedRooms.map(room => {
       // Get room avatar from state events
       const avatarEvent = room.currentState.getStateEvents('m.room.avatar', '');
       const avatarUrl = avatarEvent?.getContent()?.url || null;
@@ -1565,6 +3201,11 @@ export class MatrixService extends EventEmitter {
       // Debug logging for spaces
       if (isSpace) {
         console.log('🌌 getRooms: Found Matrix Space:', room.name || 'Unnamed Space', '→', room.roomId.substring(0, 20) + '...');
+      } else {
+        // Debug: Log rooms that are NOT detected as spaces to see if our new space is missing
+        const createEvent = room.currentState.getStateEvents('m.room.create', '');
+        const roomType = createEvent?.getContent()?.type;
+        console.log('🏠 getRooms: Regular room (not space):', room.name || 'Unnamed Room', '→', room.roomId.substring(0, 20) + '...', 'roomType:', roomType);
       }
       
       // Debug logging for avatar URLs
@@ -2410,9 +4051,36 @@ export class MatrixService extends EventEmitter {
       
       console.log('📜 Found', events.length, 'events in room timeline');
       
-      // Filter and convert message events
-      const messageEvents = events.filter(event => event.getType() === 'm.room.message');
-      console.log('📜 Found', messageEvents.length, 'message events');
+      // Debug: Log all event types to see what we're getting
+      const eventTypes = events.map(event => event.getType());
+      const eventTypeCounts = eventTypes.reduce((acc, type) => {
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('📜 Event type breakdown:', eventTypeCounts);
+      
+      // Filter and convert message events (including encrypted ones)
+      const messageEvents = events.filter(event => {
+        const eventType = event.getType();
+        return eventType === 'm.room.message' || eventType === 'm.room.encrypted';
+      });
+      console.log('📜 Found', messageEvents.length, 'message events (including encrypted)');
+      
+      // If no message events found, let's examine a few events to see what we have
+      if (messageEvents.length === 0 && events.length > 0) {
+        console.log('📜 No message events found. Examining first few events:');
+        events.slice(0, Math.min(5, events.length)).forEach((event, index) => {
+          const content = event.getContent();
+          console.log(`📜 Event ${index + 1}:`, {
+            type: event.getType(),
+            sender: event.getSender(),
+            content: content,
+            hasBody: !!content.body,
+            msgtype: content.msgtype,
+            timestamp: new Date(event.getTs()).toISOString()
+          });
+        });
+      }
       
       const messages = messageEvents
         .slice(-limit) // Get the last N messages
@@ -2438,10 +4106,50 @@ export class MatrixService extends EventEmitter {
             avatarUrl: senderMember?.getMxcAvatarUrl() || senderUser?.avatarUrl || null,
           };
 
-          // Parse session messages if present
-          let actualContent = content.body || '';
+          // Handle encrypted messages
+          let actualContent = '';
           let messageType: 'user' | 'assistant' | 'system' = 'user';
           let sessionData = null;
+          
+          if (event.getType() === 'm.room.encrypted') {
+            // Check if crypto is available
+            if (!this.client?.crypto) {
+              actualContent = '🔒 [Encrypted message - encryption not supported by this client]';
+              console.log('📜 🔒 Encrypted message found but crypto not initialized');
+            } else {
+              // Try to get the decrypted content
+              try {
+                // Check if getClearEvent method exists
+                if (typeof event.getClearEvent === 'function') {
+                  const clearEvent = event.getClearEvent();
+                  
+                  if (clearEvent && clearEvent.content && clearEvent.content.body) {
+                    actualContent = clearEvent.content.body;
+                    console.log('📜 🔓 Successfully decrypted message:', actualContent.substring(0, 50) + '...');
+                  } else if (typeof event.isDecryptionFailure === 'function' && event.isDecryptionFailure()) {
+                    // Specific decryption failure
+                    const failureReason = event.decryptionFailureReason || 'Unknown encryption error';
+                    actualContent = `🔒 [Unable to decrypt: ${failureReason}]`;
+                    console.log('📜 🔒 Decryption failure:', failureReason);
+                  } else {
+                    // Event not yet decrypted but no failure
+                    actualContent = '🔄 [Decrypting message...]';
+                    console.log('📜 🔄 Message not yet decrypted, may decrypt later');
+                  }
+                } else {
+                  // getClearEvent method not available
+                  actualContent = '🔒 [Encrypted message - decryption methods not available]';
+                  console.log('📜 🔒 getClearEvent method not available on event');
+                }
+              } catch (decryptError) {
+                console.warn('📜 ❌ Failed to decrypt message:', decryptError);
+                actualContent = `🔒 [Encryption error: ${decryptError.message || 'Unknown'}]`;
+              }
+            }
+          } else {
+            // Regular unencrypted message
+            actualContent = content.body || '';
+          }
 
           // Check if this is a session message that needs parsing
           if (actualContent.includes('goose-session-message:')) {

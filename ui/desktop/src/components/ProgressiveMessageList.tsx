@@ -24,6 +24,8 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
 import { MessageComment, TextSelection } from '../types/comment';
+import { groupMessages, GroupedMessage, getMessageSpacing } from '../utils/messageGrouping';
+import { useMatrix } from '../contexts/MatrixContext';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
@@ -198,71 +200,88 @@ export default function ProgressiveMessageList({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLoading, messages.length]);
 
+  // Get current user info from Matrix context for message grouping
+  const { currentUser } = useMatrix();
+
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
-    return messagesToRender
-      .map((message, index) => {
-        // Use custom render function if provided
-        if (renderMessage) {
-          return renderMessage(message, index);
-        }
+    
+    // Use custom render function if provided
+    if (renderMessage) {
+      return messagesToRender
+        .map((message, index) => renderMessage(message, index))
+        .filter(Boolean);
+    }
 
-        // Default rendering logic (for BaseChat)
-        if (!chat) {
-          console.warn(
-            'ProgressiveMessageList: chat prop is required when not using custom renderMessage'
-          );
-          return null;
-        }
+    // Default rendering logic with message grouping
+    if (!chat) {
+      console.warn(
+        'ProgressiveMessageList: chat prop is required when not using custom renderMessage'
+      );
+      return [];
+    }
 
-        const isUser = isUserMessage(message);
+    // Group messages for cleaner display
+    const groupedMessages = groupMessages(messagesToRender, isUserMessage, currentUser);
+
+    return groupedMessages
+      .map((groupedMessage, index) => {
+        const isUser = isUserMessage(groupedMessage);
+        const spacing = getMessageSpacing(groupedMessage);
 
         return (
           <div
-            key={message.id && `${message.id}-${message.content.length}`}
-            className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
+            key={groupedMessage.id && `${groupedMessage.id}-${groupedMessage.content.length}`}
+            className={`relative ${index === 0 ? 'mt-0' : spacing} ${isUser ? 'user' : 'assistant'}`}
             data-testid="message-container"
           >
             {isUser ? (
               <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
+                {hasCompactionMarker && hasCompactionMarker(groupedMessage) ? (
+                  <CompactionMarker message={groupedMessage} />
                 ) : (
-                  !hasOnlyToolResponses(message) && (
-                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                  !hasOnlyToolResponses(groupedMessage) && (
+                    <UserMessage 
+                      message={groupedMessage} 
+                      onMessageUpdate={onMessageUpdate}
+                      showHeader={groupedMessage.showHeader}
+                      isGrouped={groupedMessage.isGrouped}
+                    />
                   )
                 )}
               </>
             ) : (
               <>
-                {hasCompactionMarker && hasCompactionMarker(message) ? (
-                  <CompactionMarker message={message} />
+                {hasCompactionMarker && hasCompactionMarker(groupedMessage) ? (
+                  <CompactionMarker message={groupedMessage} />
                 ) : (
                   <GooseMessage
                     sessionId={chat.sessionId}
                     messageHistoryIndex={chat.messageHistoryIndex}
-                    message={message}
+                    message={groupedMessage}
                     messages={messages}
-                    messageIndex={index} // Pass the correct sequential message index
+                    messageIndex={messages.findIndex(m => m.id === groupedMessage.id)} // Find original index
                     append={append}
                     appendMessage={appendMessage}
                     toolCallNotifications={toolCallNotifications}
                     isStreaming={
                       isStreamingMessage &&
                       !isUser &&
-                      index === messagesToRender.length - 1 &&
-                      message.role === 'assistant'
+                      index === groupedMessages.length - 1 &&
+                      groupedMessage.role === 'assistant'
                     }
                     tabId={tabId}
+                    showHeader={groupedMessage.showHeader}
+                    isGrouped={groupedMessage.isGrouped}
                     // Comment props - use same unique ID logic as GooseMessage
                     comments={(() => {
                       // Generate the same unique ID that GooseMessage uses
-                      const uniqueMessageId = message.id || (() => {
-                        const contentHash = message.content
+                      const uniqueMessageId = groupedMessage.id || (() => {
+                        const contentHash = groupedMessage.content
                           .map(c => c.type === 'text' ? c.text.slice(0, 50) : c.type)
                           .join('|');
-                        return `${message.role}-${message.created}-${index}-${contentHash.length}`;
+                        return `${groupedMessage.role}-${groupedMessage.created}-${index}-${contentHash.length}`;
                       })();
                       return comments.get(uniqueMessageId) || [];
                     })()}
@@ -299,6 +318,7 @@ export default function ProgressiveMessageList({
     onMessageUpdate,
     hasCompactionMarker,
     tabId,
+    currentUser, // Add currentUser for message grouping
     // Comment dependencies
     comments,
     activeSelection,

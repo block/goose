@@ -14,9 +14,16 @@ import { useMatrix } from '../contexts/MatrixContext';
 interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  showHeader?: boolean; // Whether to show avatar and header
+  isGrouped?: boolean; // Whether this message is part of a group
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+export default function UserMessage({ 
+  message, 
+  onMessageUpdate, 
+  showHeader = true, 
+  isGrouped = false 
+}: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -192,7 +199,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   }, [editContent, isEditing]);
 
   return (
-    <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col group">
         {isEditing ? (
           // Truly wide, centered, in-place edit box replacing the bubble
@@ -239,39 +246,46 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         ) : (
           // Slack-style left-aligned message with avatar on left
           <div className="message flex justify-start w-full gap-3">
-            {/* Avatar on the left side */}
-            <div className="flex-shrink-0 mt-1">
-              <AvatarImage
-                avatarUrl={senderInfo.avatarUrl}
-                displayName={senderInfo.displayName || senderInfo.userId}
-                size="md"
-                className="ring-1 ring-background-accent ring-offset-1"
-              />
+            {/* Avatar on the left side - only show if showHeader is true */}
+            <div className={`flex-shrink-0 ${showHeader ? 'mt-1' : ''}`}>
+              {showHeader ? (
+                <AvatarImage
+                  avatarUrl={senderInfo.avatarUrl}
+                  displayName={senderInfo.displayName || senderInfo.userId}
+                  size="md"
+                  className="ring-1 ring-background-accent ring-offset-1"
+                />
+              ) : (
+                // Invisible spacer to maintain alignment for grouped messages - zero height for tight spacing
+                <div className="w-8 h-0" />
+              )}
             </div>
             
             <div className="flex-col flex-1 min-w-0">
               <div className="flex flex-col group">
-                {/* Username and timestamp header */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-semibold text-text-prominent">
-                    {senderInfo.displayName || senderInfo.userId}
-                  </span>
-                  <span className="text-xs text-text-muted font-mono">
-                    {timestamp}
-                  </span>
-                </div>
+                {/* Username and timestamp header - only show if showHeader is true */}
+                {showHeader && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-semibold text-text-prominent">
+                      {senderInfo.displayName || senderInfo.userId}
+                    </span>
+                    <span className="text-xs text-text-muted font-mono">
+                      {timestamp}
+                    </span>
+                  </div>
+                )}
 
                 {/* Message content */}
                 <div ref={contentRef} className="w-full">
                   {hasActionPills ? (
                     <MessageContent
                       content={displayText}
-                      className="user-message"
+                      className={`user-message ${isGrouped ? 'grouped-message' : ''}`}
                     />
                   ) : (
                     <MarkdownContent
                       content={displayText}
-                      className="user-message"
+                      className={`user-message ${isGrouped ? 'grouped-message' : ''}`}
                     />
                   )}
                 </div>
@@ -297,8 +311,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                   </div>
                 )}
 
-                {/* Action buttons on hover */}
-                <div className="relative h-[22px] flex justify-start">
+                {/* Action buttons on hover - 0 height when not hovered, expands on hover */}
+                <div className="relative h-0 group-hover:h-[22px] flex justify-start transition-all duration-200 overflow-hidden">
                   <div className="absolute left-0 pt-1 flex items-center gap-2">
                     <button
                       onClick={handleEditClick}

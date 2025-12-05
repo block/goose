@@ -115,6 +115,7 @@ function BaseChatContent({
     onSessionIdChange,
     isMatrixTab: !!matrixRoomId, // Pass Matrix tab flag based on whether we have a matrixRoomId
     tabId, // Pass tabId for sidecar filtering
+    matrixRoomId, // Pass Matrix room ID for loading historical messages
   });
 
   // Auto-send @goose off for Matrix chats on initial load

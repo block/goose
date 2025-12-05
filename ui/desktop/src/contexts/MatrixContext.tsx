@@ -171,6 +171,21 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       updateData();
     };
 
+    const handleRoomLeft = () => {
+      console.log('🚪 MatrixContext: Room left, refreshing data...');
+      updateData();
+    };
+
+    const handleRoomJoined = () => {
+      console.log('🚪 MatrixContext: Room joined, refreshing data...');
+      updateData();
+    };
+
+    const handleRoomsUpdated = (data: { spaceId: string; newRoomId?: string }) => {
+      console.log('🔄 MatrixContext: Rooms updated event received:', data);
+      updateData();
+    };
+
     // Add event listeners
     matrixService.on('connected', handleConnected);
     matrixService.on('ready', handleReady);
@@ -185,6 +200,9 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
     matrixService.on('roomNameUpdated', handleRoomNameUpdated);
     matrixService.on('roomTopicUpdated', handleRoomTopicUpdated);
     matrixService.on('roomAvatarUpdated', handleRoomAvatarUpdated);
+    matrixService.on('roomLeft', handleRoomLeft);
+    matrixService.on('roomJoined', handleRoomJoined);
+    matrixService.on('roomsUpdated', handleRoomsUpdated);
 
     // Cleanup
     return () => {
@@ -201,6 +219,9 @@ export const MatrixProvider: React.FC<MatrixProviderProps> = ({ children, matrix
       matrixService.off('roomNameUpdated', handleRoomNameUpdated);
       matrixService.off('roomTopicUpdated', handleRoomTopicUpdated);
       matrixService.off('roomAvatarUpdated', handleRoomAvatarUpdated);
+      matrixService.off('roomLeft', handleRoomLeft);
+      matrixService.off('roomJoined', handleRoomJoined);
+      matrixService.off('roomsUpdated', handleRoomsUpdated);
     };
   }, [matrixService]);
 

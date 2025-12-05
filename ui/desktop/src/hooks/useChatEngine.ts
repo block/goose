@@ -217,21 +217,47 @@ export const useChatEngine = ({
       
       // **PRIMARY USER CHECK**: Determine if this message is from the primary user
       const isPrimaryUserMessage = (() => {
-        // For Matrix sessions, check if the message is from a collaborator
+        // First check: If message has explicit metadata indicating it's from a collaborator
         if (message.metadata?.isFromCollaborator || message.metadata?.isMatrixSharedSession) {
-          // If the message has sender info, it's from a Matrix collaborator (not primary user)
-          if (message.sender?.userId) {
-            console.log('👥 Message from Matrix collaborator - not primary user:', {
-              senderUserId: message.sender.userId,
-              senderDisplayName: message.sender.displayName,
-              messageId: message.id,
-              contentPreview: messageText.substring(0, 50) + '...'
-            });
-            return false;
-          }
+          console.log('👥 Message marked as from collaborator via metadata - not primary user:', {
+            messageId: message.id,
+            contentPreview: messageText.substring(0, 50) + '...'
+          });
+          return false;
         }
         
-        // If no sender info or not from Matrix, assume it's from the primary user (local message)
+        // Second check: If message has sender info, check if sender is the current user
+        if (message.sender?.userId) {
+          // Get current user ID from session mapping service or other sources
+          const currentUserId = sessionMappingService.getCurrentUserId?.() || 
+                               (typeof window !== 'undefined' && (window as any).matrixService?.getCurrentUser?.()?.userId);
+          
+          const isCurrentUser = message.sender.userId === currentUserId;
+          
+          console.log('👤 Message sender check:', {
+            senderUserId: message.sender.userId,
+            currentUserId,
+            isCurrentUser,
+            messageId: message.id,
+            contentPreview: messageText.substring(0, 50) + '...'
+          });
+          
+          // If sender is the current user, it's a primary user message
+          if (isCurrentUser) {
+            return true;
+          }
+          
+          // If sender is someone else, it's from a collaborator
+          console.log('👥 Message from different user - not primary user:', {
+            senderUserId: message.sender.userId,
+            senderDisplayName: message.sender.displayName,
+            messageId: message.id,
+            contentPreview: messageText.substring(0, 50) + '...'
+          });
+          return false;
+        }
+        
+        // If no sender info or explicit metadata, assume it's from the primary user (local message)
         return true;
       })();
       

@@ -39,6 +39,9 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
   const [notifications, setNotifications] = useState<MessageNotificationData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
+  // Defensive check to prevent length access on undefined
+  const safeNotifications = notifications || [];
+
   // Listen for incoming messages
   useEffect(() => {
     if (!isConnected || !currentUser) return;
@@ -185,14 +188,14 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
 
   // Auto-dismiss notifications after 10 seconds
   useEffect(() => {
-    notifications.forEach(notification => {
+    safeNotifications.forEach(notification => {
       const timer = setTimeout(() => {
         handleDismiss(notification.id);
       }, 10000); // 10 seconds
 
       return () => clearTimeout(timer);
     });
-  }, [notifications]);
+  }, [safeNotifications]);
 
   const handleDismiss = (notificationId: string) => {
     setDismissedIds(prev => new Set([...prev, notificationId]));
@@ -210,6 +213,11 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
   };
 
   const formatMessagePreview = (content: string, maxLength: number = 100) => {
+    // Defensive check: ensure content exists and is a string
+    if (!content || typeof content !== 'string') {
+      return '[No content]';
+    }
+    
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
   };
@@ -224,14 +232,14 @@ const MessageNotification: React.FC<MessageNotificationProps> = ({
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
   };
 
-  if (!isConnected || notifications.length === 0) {
+  if (!isConnected || safeNotifications.length === 0) {
     return null;
   }
 
   return (
     <div className={`fixed top-4 right-4 z-50 space-y-2 ${className}`}>
       <AnimatePresence>
-        {notifications.map((notification) => (
+        {safeNotifications.map((notification) => (
           <motion.div
             key={notification.id}
             initial={{ opacity: 0, x: 300, scale: 0.8 }}

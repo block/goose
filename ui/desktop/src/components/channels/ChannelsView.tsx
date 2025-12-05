@@ -16,7 +16,11 @@ import {
   ArrowLeft,
   ChevronRight,
   Home,
-  Trash2
+  Trash2,
+  RefreshCw,
+  FolderPlus,
+  Check,
+  UserPlus
 } from 'lucide-react';
 import { useMatrix } from '../../contexts/MatrixContext';
 import MatrixAuth from '../peers/MatrixAuth';
@@ -36,6 +40,7 @@ interface Channel {
   lastActivity?: Date;
   unreadCount?: number;
   isFavorite?: boolean;
+  membership?: 'join' | 'invite' | 'leave' | 'ban' | null;
 }
 
 interface ChannelsViewProps {
@@ -47,7 +52,8 @@ const ChannelCard: React.FC<{
   onOpenChannel: (channel: Channel) => void;
   onEditChannel: (channel: Channel) => void;
   onToggleFavorite: (channel: Channel) => void;
-}> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite }) => {
+  onAcceptInvite?: (channel: Channel) => void;
+}> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite, onAcceptInvite }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -151,10 +157,38 @@ const ChannelCard: React.FC<{
             {channel.topic}
           </p>
         )}
-        <div className="flex items-center gap-2 text-xs text-text-muted">
+        <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
           <Users className="w-3 h-3" />
           <span>{channel.memberCount} members</span>
         </div>
+        
+        {/* Accept Invite Button - only show for invited spaces */}
+        {channel.membership === 'invite' && onAcceptInvite && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAcceptInvite(channel);
+            }}
+            className="w-full mt-2 px-3 py-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+            title="Accept space invite"
+          >
+            <UserPlus className="w-4 h-4" />
+            Accept Invite
+          </button>
+        )}
+        
+        {/* Membership Status Indicator */}
+        {channel.membership === 'invite' && (
+          <div className="mt-1 px-2 py-1 rounded-full bg-blue-500/20 text-blue-600 text-xs text-center">
+            Invited
+          </div>
+        )}
+        {channel.membership === 'join' && (
+          <div className="mt-1 px-2 py-1 rounded-full bg-green-500/20 text-green-600 text-xs text-center flex items-center justify-center gap-1">
+            <Check className="w-3 h-3" />
+            Member
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -751,7 +785,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     createSpace,
     createRoom,
     getSpaceChildren,
-    leaveRoom
+    leaveRoom,
+    joinRoom
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -790,6 +825,26 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       setShowMatrixAuth(true);
     }
   }, [isConnected, showMatrixAuth]);
+
+  // Listen for Matrix room updates to refresh the UI when spaces are created
+  useEffect(() => {
+    const handleRoomsUpdated = (data: { spaceId: string; newRoomId?: string }) => {
+      console.log('🔄 ChannelsView: Received roomsUpdated event:', data);
+      // Force refresh of rooms data by clearing cache in the Matrix context
+      // This will trigger a re-render with the new space visible
+      if (typeof (matrixService as any).cachedRooms !== 'undefined') {
+        (matrixService as any).cachedRooms = null;
+        console.log('🔄 ChannelsView: Cleared Matrix rooms cache to force refresh');
+      }
+    };
+
+    // Listen for the roomsUpdated event from MatrixService
+    matrixService.on('roomsUpdated', handleRoomsUpdated);
+
+    return () => {
+      matrixService.off('roomsUpdated', handleRoomsUpdated);
+    };
+  }, []);
 
   // Handle window resize for responsive empty tiles
   useEffect(() => {
@@ -839,21 +894,28 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     return mxcUrl;
   }, []);
 
-  // Filter spaces from Matrix rooms and add favorite status
+  // Filter spaces from Matrix rooms and add favorite status and membership
   const channels: Channel[] = rooms
     .filter(room => room.isSpace) // ✅ Now filtering for Matrix Spaces only
-    .map(room => ({
-      roomId: room.roomId,
-      name: room.name || 'Unnamed Channel',
-      topic: room.topic,
-      isPublic: room.isPublic || false,
-      memberCount: room.members.length,
-      avatarUrl: convertMxcToHttp(room.avatarUrl),
-      coverPhotoUrl: convertMxcToHttp(room.avatarUrl), // Use room avatar as cover photo
-      lastActivity: room.lastActivity,
-      unreadCount: 0, // TODO: Implement unread count
-      isFavorite: favorites.has(room.roomId),
-    }))
+    .map(room => {
+      // Get membership status from the Matrix client
+      const matrixRoom = (matrixService as any).client?.getRoom(room.roomId);
+      const membership = matrixRoom?.getMyMembership() || null;
+      
+      return {
+        roomId: room.roomId,
+        name: room.name || 'Unnamed Channel',
+        topic: room.topic,
+        isPublic: room.isPublic || false,
+        memberCount: room.members.length,
+        avatarUrl: convertMxcToHttp(room.avatarUrl),
+        coverPhotoUrl: convertMxcToHttp(room.avatarUrl), // Use room avatar as cover photo
+        lastActivity: room.lastActivity,
+        unreadCount: 0, // TODO: Implement unread count
+        isFavorite: favorites.has(room.roomId),
+        membership: membership as 'join' | 'invite' | 'leave' | 'ban' | null,
+      };
+    })
     // Sort: favorites first, then by name
     .sort((a, b) => {
       if (a.isFavorite && !b.isFavorite) return -1;
@@ -981,25 +1043,85 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
       if (currentSpace) {
         // We're inside a space, create a room within this space
         console.log('💬 Creating Matrix Room in space:', { name, topic, isPublic, parentSpaceId: currentSpace.roomId });
+        
+        // Validate inputs
+        if (!name.trim()) {
+          throw new Error('Room name is required');
+        }
+        
+        if (!currentSpace.roomId) {
+          throw new Error('Invalid space ID');
+        }
+        
         const roomId = await createRoom(name, topic, isPublic, currentSpace.roomId);
         console.log('✅ Matrix Room created successfully:', roomId);
         
         // Refresh space children to show the new room
-        const children = await getSpaceChildren(currentSpace.roomId);
-        setSpaceChildren(children);
+        // Wait a moment for the space relationship to be established
+        setTimeout(async () => {
+          try {
+            const children = await getSpaceChildren(currentSpace.roomId);
+            setSpaceChildren(children);
+          } catch (refreshError) {
+            console.error('⚠️ Failed to refresh space children after room creation:', refreshError);
+            // Still show success since the room was created
+          }
+        }, 1000);
+        
+        toastSuccess({
+          title: 'Room Created',
+          msg: `Successfully created room "${name}".`
+        });
       } else {
         // We're in the main spaces view, create a new space
         console.log('🌌 Creating Matrix Space:', { name, topic, isPublic });
+        
+        // Validate inputs
+        if (!name.trim()) {
+          throw new Error('Space name is required');
+        }
+        
         const spaceId = await createSpace(name, topic, isPublic);
         console.log('✅ Matrix Space created successfully:', spaceId);
+        
+        toastSuccess({
+          title: 'Space Created',
+          msg: `Successfully created space "${name}".`
+        });
       }
     } catch (error) {
       console.error('❌ Failed to create:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
+        currentSpace: currentSpace?.roomId,
+        isConnected,
+        isReady
+      });
+      
       const itemType = currentSpace ? 'room' : 'space';
+      let errorMessage = `Could not create ${itemType}. Please try again.`;
+      
+      if (error instanceof Error) {
+        // Provide more specific error messages
+        if (error.message.includes('M_FORBIDDEN')) {
+          errorMessage = `You don't have permission to create a ${itemType} here.`;
+        } else if (error.message.includes('M_LIMIT_EXCEEDED')) {
+          errorMessage = `Rate limit exceeded. Please wait a moment and try again.`;
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = `Network error. Please check your connection and try again.`;
+        } else if (error.message.includes('name') || error.message.includes('required')) {
+          errorMessage = `Invalid ${itemType} name. Please check your input.`;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      }
+      
       toastError({
         title: `Failed to Create ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
-        msg: `Could not create ${itemType}. Please try again.`,
-        traceback: error instanceof Error ? error.message : 'Unknown error'
+        msg: errorMessage,
+        traceback: error instanceof Error ? error.stack || error.message : 'Unknown error'
       });
     }
   };
@@ -1099,6 +1221,56 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleRefreshSpaceChildren = async () => {
+    if (!currentSpace) return;
+    
+    try {
+      console.log('🔄 Manually refreshing space children for:', currentSpace.name);
+      setLoadingSpaceChildren(true);
+      
+      const children = await getSpaceChildren(currentSpace.roomId);
+      console.log('✅ Space children refreshed:', children.length, 'items');
+      
+      setSpaceChildren(children);
+      
+      toastSuccess({
+        title: 'Space Refreshed',
+        msg: `Found ${children.length} rooms and sub-spaces.`
+      });
+    } catch (error) {
+      console.error('❌ Failed to refresh space children:', error);
+      toastError({
+        title: 'Failed to Refresh',
+        msg: 'Could not refresh space contents. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setLoadingSpaceChildren(false);
+    }
+  };
+
+  const handleAcceptSpaceInvite = async (channel: Channel) => {
+    try {
+      console.log('✅ Accepting space invite:', channel.name);
+      
+      await joinRoom(channel.roomId);
+      
+      toastSuccess({
+        title: 'Space Joined',
+        msg: `Successfully joined space "${channel.name}".`
+      });
+      
+      console.log('✅ Successfully joined space:', channel.roomId);
+    } catch (error) {
+      console.error('❌ Failed to accept space invite:', error);
+      toastError({
+        title: 'Failed to Join Space',
+        msg: 'Could not join the space. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  };
+
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
@@ -1160,6 +1332,28 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Space Management Buttons - only show when inside a space */}
+            {currentSpace && isConnected && isReady && (
+              <>
+                <button
+                  onClick={handleRefreshSpaceChildren}
+                  disabled={loadingSpaceChildren}
+                  className="p-2 rounded-lg hover:bg-background-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh space contents"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingSpaceChildren ? 'animate-spin' : ''}`} />
+                </button>
+                
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+                  title="Create new room in this space"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            
             {/* Connection Status */}
             <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-background-muted">
               {isConnected ? (
@@ -1269,6 +1463,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     onOpenChannel={handleOpenChannel}
                     onEditChannel={handleEditChannel}
                     onToggleFavorite={handleToggleFavorite}
+                    onAcceptInvite={handleAcceptSpaceInvite}
                   />
                 ))}
                 {/* Empty tiles for creating new channels */}
