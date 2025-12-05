@@ -135,16 +135,12 @@ export class SessionMappingService {
         ? `You are in a direct message conversation through Matrix. This is a 1:1 chat session. Be helpful and respond naturally to the user's messages.`
         : `You are participating in a collaborative AI session through Matrix. Multiple users may be participating in this conversation. Be helpful and collaborative in your responses.`;
 
-      // Create a backend session for this Matrix room
+      // Create a backend session for this Matrix room WITHOUT a recipe
+      // Matrix chats should never have recipes applied automatically
       const agentResponse = await startAgent({
         body: {
           working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-          // Create a recipe for Matrix collaboration
-          recipe: {
-            title: title || `Matrix ${roomType}: ${matrixRoomId.substring(1, 8)}`,
-            description: `${roomType} session for Matrix room ${matrixRoomId}`,
-            instructions: instructions, // Send as string, not array
-          },
+          // REMOVED: No recipe for Matrix sessions - they should be plain chat sessions
         },
         throwOnError: true,
       });
@@ -745,6 +741,20 @@ export class SessionMappingService {
     }
 
     return null;
+  }
+
+  /**
+   * Remove a mapping for a Matrix room
+   */
+  public removeMapping(matrixRoomId: string): void {
+    const mapping = this.mappings.get(matrixRoomId);
+    if (mapping) {
+      this.mappings.delete(matrixRoomId);
+      this.saveMappingsToStorage();
+      console.log('📋 SessionMappingService: Removed mapping for room:', matrixRoomId, '→', mapping.gooseSessionId);
+    } else {
+      console.log('📋 SessionMappingService: No mapping found to remove for room:', matrixRoomId);
+    }
   }
 
   /**
