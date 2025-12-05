@@ -211,6 +211,11 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
   const handleNewTab = useCallback(async () => {
     try {
       console.log('🆕 Creating new tab with immediate backend session');
+      console.log('🆕 Current tab states before creating new tab:', tabStates.map(ts => ({
+        tabId: ts.tab.id,
+        sessionId: ts.tab.sessionId,
+        title: ts.tab.title
+      })));
       
       // Create a new backend session immediately using startAgent
       const response = await startAgent({
@@ -234,20 +239,41 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         loadingChat: false
       };
       
-      setTabStates(prev => [...prev, newTabState]);
+      setTabStates(prev => {
+        const updatedStates = [...prev, newTabState];
+        console.log('🆕 Updated tab states after adding new tab:', updatedStates.map(ts => ({
+          tabId: ts.tab.id,
+          sessionId: ts.tab.sessionId,
+          title: ts.tab.title,
+          isActive: ts.tab.isActive
+        })));
+        return updatedStates;
+      });
       setActiveTabId(newTab.id);
       
-      console.log('✅ New tab created successfully:', { tabId: newTab.id, sessionId });
+      console.log('✅ New tab created successfully:', { 
+        tabId: newTab.id, 
+        sessionId,
+        uniqueSessionIds: [...new Set([...tabStates.map(ts => ts.tab.sessionId), sessionId])].length,
+        totalTabs: tabStates.length + 1
+      });
     } catch (error) {
       console.error('❌ Failed to create new tab with backend session:', error);
       
       // Fallback: create tab with temporary session ID and try to create backend session later
-      const newTab = createNewTab({ sessionId: `temp_${Date.now()}` });
+      const tempSessionId = `temp_${Date.now()}`;
+      const newTab = createNewTab({ sessionId: tempSessionId });
       const newTabState: TabState = {
         tab: newTab,
         chat: createNewChat(newTab.sessionId),
         loadingChat: false
       };
+      
+      console.log('🆕 Creating fallback tab with temp session:', {
+        tabId: newTab.id,
+        tempSessionId,
+        currentTabCount: tabStates.length
+      });
       
       setTabStates(prev => [...prev, newTabState]);
       setActiveTabId(newTab.id);
@@ -262,7 +288,7 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
         }
       }, 1000);
     }
-  }, []);
+  }, [tabStates]);
 
   const handleTabClose = useCallback(async (tabId: string) => {
     // Prevent closing the last tab

@@ -293,6 +293,7 @@ export function useChatStream({
   // Debug logging for Matrix parameters
   console.log('🔧 useChatStream called with Matrix params:', {
     sessionId: sessionId?.substring(0, 8),
+    fullSessionId: sessionId, // Show full session ID for debugging
     isMatrixTab,
     matrixRoomId: matrixRoomId ? matrixRoomId.substring(0, 20) + '...' : 'undefined',
     tabId
