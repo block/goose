@@ -1459,33 +1459,6 @@ export type UpdateCustomProviderResponses = {
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
-export type DetectCloudProviderData = {
-    body: DetectProviderRequest;
-    path?: never;
-    query?: never;
-    url: '/config/detect-cloud-provider';
-};
-
-export type DetectCloudProviderErrors = {
-    /**
-     * No matching cloud provider found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type DetectCloudProviderResponses = {
-    /**
-     * Cloud provider detected successfully
-     */
-    200: DetectProviderResponse;
-};
-
-export type DetectCloudProviderResponse = DetectCloudProviderResponses[keyof DetectCloudProviderResponses];
-
 export type DetectProviderData = {
     body: DetectProviderRequest;
     path?: never;

@@ -11,9 +11,7 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::auto_detect::{
-    detect_cloud_provider_from_api_key, detect_provider_from_api_key,
-};
+use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
@@ -732,28 +730,6 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
 }
 #[utoipa::path(
     post,
-    path = "/config/detect-cloud-provider",
-    request_body = DetectProviderRequest,
-    responses(
-        (status = 200, description = "Cloud provider detected successfully", body = DetectProviderResponse),
-        (status = 404, description = "No matching cloud provider found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn detect_cloud_provider(
-    Json(detect_request): Json<DetectProviderRequest>,
-) -> Result<Json<DetectProviderResponse>, StatusCode> {
-    match detect_cloud_provider_from_api_key(&detect_request.api_key).await {
-        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
-            provider_name,
-            models,
-        })),
-        None => Err(StatusCode::NOT_FOUND),
-    }
-}
-
-#[utoipa::path(
-    post,
     path = "/config/custom-providers",
     request_body = UpdateCustomProviderRequest,
     responses(
@@ -900,7 +876,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/detect-provider", post(detect_provider))
-        .route("/config/detect-cloud-provider", post(detect_cloud_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { detectCloudProvider } from '../api';
+import { detectProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
 import { Key } from './icons/Key';
@@ -47,7 +47,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
     setShowResults(true);
 
     try {
-      const response = await detectCloudProvider({
+      const response = await detectProvider({
         body: { api_key: actualValue },
         throwOnError: true,
       });
