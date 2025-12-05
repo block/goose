@@ -280,12 +280,12 @@ export default function UserMessage({
                   {hasActionPills ? (
                     <MessageContent
                       content={displayText}
-                      className="user-message"
+                      className={`user-message ${isGrouped ? 'grouped-message' : ''}`}
                     />
                   ) : (
                     <MarkdownContent
                       content={displayText}
-                      className="user-message"
+                      className={`user-message ${isGrouped ? 'grouped-message' : ''}`}
                     />
                   )}
                 </div>

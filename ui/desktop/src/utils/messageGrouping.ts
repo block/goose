@@ -216,7 +216,7 @@ export function getMessageSpacing(message: GroupedMessage): string {
     // First message in group gets normal spacing (16px)
     return 'mt-4';
   } else {
-    // Grouped messages get very tight spacing - like a single line break (2px)
-    return 'mt-0.5';
+    // Grouped messages get zero spacing - tightest possible
+    return 'mt-0';
   }
 }
