@@ -9,9 +9,14 @@ import { toastService } from '../../../toasts';
 interface ProviderSettingsProps {
   onClose: () => void;
   isOnboarding: boolean;
+  onProviderLaunched?: () => void;
 }
 
-export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
+export default function ProviderSettings({
+  onClose,
+  isOnboarding,
+  onProviderLaunched,
+}: ProviderSettingsProps) {
   const { getProviders } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
@@ -70,7 +75,11 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
           msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the dropdown.`,
         });
 
-        onClose();
+        if (onProviderLaunched) {
+          onProviderLaunched();
+        } else {
+          onClose();
+        }
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
 
@@ -83,7 +92,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         });
       }
     },
-    [onClose]
+    [onClose, onProviderLaunched]
   );
 
   return (

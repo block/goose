@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -255,14 +255,19 @@ interface WelcomeRouteProps {
 
 const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
-  const onClose = useCallback(() => {
-    onSelectProvider();
-    navigate('/');
-  }, [navigate, onSelectProvider]);
 
   return (
     <div className="w-screen h-screen bg-background-default">
-      <ProviderSettings onClose={onClose} isOnboarding={true} />
+      <ProviderSettings
+        onClose={() => {
+          navigate('/', { replace: true });
+        }}
+        isOnboarding={true}
+        onProviderLaunched={() => {
+          onSelectProvider();
+          navigate('/', { replace: true });
+        }}
+      />
     </div>
   );
 };
