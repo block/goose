@@ -9,12 +9,11 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
-  createToolErrorResponseMessage,
+  NotificationEvent,
 } from '../types/message';
-import { Message } from '../api';
+import { Message, confirmToolAction } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
-import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 
@@ -28,7 +27,6 @@ interface GooseMessageProps {
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
-  appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
 }
 
@@ -39,7 +37,6 @@ export default function GooseMessage({
   messages,
   toolCallNotifications,
   append,
-  appendMessage,
   isStreaming = false,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -103,18 +100,34 @@ export default function GooseMessage({
       messageIndex === messageHistoryIndex - 1 &&
       hasToolConfirmation &&
       toolConfirmationContent &&
-      !handledToolConfirmations.current.has(toolConfirmationContent.id)
+      !handledToolConfirmations.current.has(toolConfirmationContent.data.id)
     ) {
       const hasExistingResponse = messages.some((msg) =>
-        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.id)
+        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.data.id)
       );
 
       if (!hasExistingResponse) {
-        handledToolConfirmations.current.add(toolConfirmationContent.id);
+        handledToolConfirmations.current.add(toolConfirmationContent.data.id);
 
-        appendMessage(
-          createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
-        );
+        void (async () => {
+          try {
+            await confirmToolAction({
+              body: {
+                sessionId,
+                action: 'deny',
+                id: toolConfirmationContent.data.id,
+              },
+              throwOnError: true,
+            });
+          } catch (error) {
+            console.error('Failed to send tool cancellation to backend:', error);
+            const { toastError } = await import('../toasts');
+            toastError({
+              title: 'Failed to cancel tool',
+              msg: 'The agent may be waiting for a response. Please try restarting the session.',
+            });
+          }
+        })();
       }
     }
   }, [
@@ -123,7 +136,7 @@ export default function GooseMessage({
     hasToolConfirmation,
     toolConfirmationContent,
     messages,
-    appendMessage,
+    sessionId,
   ]);
 
   return (
@@ -203,7 +216,7 @@ export default function GooseMessage({
             sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationContent={toolConfirmationContent}
+            actionRequiredContent={toolConfirmationContent}
           />
         )}
       </div>

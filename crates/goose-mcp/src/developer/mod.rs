@@ -1,6 +1,7 @@
 pub mod analyze;
 mod editor_models;
 mod lang;
+pub mod paths;
 mod shell;
 mod text_editor;
 

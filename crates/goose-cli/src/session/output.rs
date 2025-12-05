@@ -2,7 +2,9 @@ use anstream::println;
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
-use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use goose::utils::safe_truncate;
@@ -166,6 +168,11 @@ pub fn render_message(message: &Message, debug: bool) {
 
     for content in &message.content {
         match content {
+            MessageContent::ActionRequired(action) => match &action.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    println!("action_required(tool_confirmation): {}", tool_name)
+                }
+            },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
@@ -261,7 +268,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
-            "todo__read" | "todo__write" => render_todo_request(call, debug),
+            "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -505,13 +512,9 @@ fn render_dynamic_task_request(call: &CallToolRequestParam, debug: bool) {
 fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     print_tool_header(call);
 
-    // For todo tools, always show the full content without redaction
     if let Some(args) = &call.arguments {
         if let Some(Value::String(content)) = args.get("content") {
             println!("{}: {}", style("content").dim(), style(content).green());
-        } else {
-            // For todo__read, there are no arguments
-            // Just print an empty line for consistency
         }
     }
     println!();

@@ -24,7 +24,15 @@ fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageC
 where
     D: Deserializer<'de>,
 {
-    let mut content: Vec<MessageContent> = Vec::deserialize(deserializer)?;
+    use serde::de::Error;
+
+    let mut raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+
+    // Filter out old "conversationCompacted" messages from pre-14.0
+    raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
+
+    let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
+        .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
@@ -53,6 +61,8 @@ pub struct ToolRequest {
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 impl ToolRequest {
@@ -89,6 +99,24 @@ pub struct ToolConfirmationRequest {
     pub tool_name: String,
     pub arguments: JsonObject,
     pub prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "actionType", rename_all = "camelCase")]
+pub enum ActionRequiredData {
+    #[serde(rename_all = "camelCase")]
+    ToolConfirmation {
+        id: String,
+        tool_name: String,
+        arguments: JsonObject,
+        prompt: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionRequired {
+    pub data: ActionRequiredData,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -134,6 +162,7 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    ActionRequired(ActionRequired),
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
@@ -159,6 +188,11 @@ impl fmt::Display for MessageContent {
             MessageContent::ToolConfirmationRequest(r) => {
                 write!(f, "[ToolConfirmationRequest: {}]", r.tool_name)
             }
+            MessageContent::ActionRequired(a) => match &a.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    write!(f, "[ActionRequired: ToolConfirmation for {}]", tool_name)
+                }
+            },
             MessageContent::FrontendToolRequest(r) => match &r.tool_call {
                 Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
                 Err(e) => write!(f, "[FrontendToolRequest: Error: {}]", e),
@@ -201,6 +235,19 @@ impl MessageContent {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
+            thought_signature: None,
+        })
+    }
+
+    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
+        id: S1,
+        tool_call: ToolResult<CallToolRequestParam>,
+        thought_signature: Option<S2>,
+    ) -> Self {
+        MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            thought_signature: thought_signature.map(|s| s.into()),
         })
     }
 
@@ -211,17 +258,19 @@ impl MessageContent {
         })
     }
 
-    pub fn tool_confirmation_request<S: Into<String>>(
+    pub fn action_required<S: Into<String>>(
         id: S,
         tool_name: String,
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
-            id: id.into(),
-            tool_name,
-            arguments,
-            prompt,
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::ToolConfirmation {
+                id: id.into(),
+                tool_name,
+                arguments,
+                prompt,
+            },
         })
     }
 
@@ -280,9 +329,9 @@ impl MessageContent {
         }
     }
 
-    pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
-        if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
-            Some(tool_confirmation_request)
+    pub fn as_action_required(&self) -> Option<&ActionRequired> {
+        if let MessageContent::ActionRequired(ref action_required) = self {
+            Some(action_required)
         } else {
             None
         }
@@ -559,15 +608,15 @@ impl Message {
         self.with_content(MessageContent::tool_response(id, result))
     }
 
-    /// Add a tool confirmation request to the message
-    pub fn with_tool_confirmation_request<S: Into<String>>(
+    /// Add an action required message for tool confirmation
+    pub fn with_action_required<S: Into<String>>(
         self,
         id: S,
         tool_name: String,
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        self.with_content(MessageContent::tool_confirmation_request(
+        self.with_content(MessageContent::action_required(
             id, tool_name, arguments, prompt,
         ))
     }

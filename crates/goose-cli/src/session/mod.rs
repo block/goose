@@ -30,7 +30,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGER};
+use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
@@ -40,7 +40,7 @@ use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::config::paths::Paths;
-use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
@@ -703,7 +703,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGER));
+                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
@@ -852,12 +852,24 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
-                            // If it's a confirmation request, get approval but otherwise do not render/persist
-                            if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
+                            let tool_call_confirmation = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    #[allow(irrefutable_let_patterns)] // this is a one variant enum right now but it will have more
+                                    if let ActionRequiredData::ToolConfirmation { id, tool_name, arguments, prompt } = &action.data {
+                                        Some((id.clone(), tool_name.clone(), arguments.clone(), prompt.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
+                            if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt - use security message if present, otherwise use generic message
-                                let prompt = if let Some(security_message) = &confirmation.prompt {
+                                let prompt = if let Some(security_message) = &security_prompt {
                                     println!("\n{}", security_message);
                                     "Do you allow this tool call?".to_string()
                                 } else {
@@ -865,7 +877,7 @@ impl CliSession {
                                 };
 
                                 // Get confirmation from user
-                                let permission_result = if confirmation.prompt.is_none() {
+                                let permission_result = if security_prompt.is_none() {
                                     // No security message - show all options including "Always Allow"
                                     cliclack::select(prompt)
                                         .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
@@ -883,13 +895,12 @@ impl CliSession {
                                 };
 
                                 let permission = match permission_result {
-                                    Ok(p) => p, // If Ok, use the selected permission
+                                    Ok(p) => p,
                                     Err(e) => {
-                                        // Check if the error is an interruption (Ctrl+C/Cmd+C, Escape)
                                         if e.kind() == std::io::ErrorKind::Interrupted {
-                                            Permission::Cancel // If interrupted, set permission to Cancel
+                                            Permission::Cancel
                                         } else {
-                                            return Err(e.into()); // Otherwise, convert and propagate the original error
+                                            return Err(e.into());
                                         }
                                     }
                                 };
@@ -899,7 +910,7 @@ impl CliSession {
 
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
-                                        confirmation.id.clone(),
+                                        id.clone(),
                                         Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
                                     ));
                                     self.messages.push(response_message);
@@ -907,10 +918,10 @@ impl CliSession {
                                     drop(stream);
                                     break;
                                 } else {
-                                    self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
                                         principal_type: PrincipalType::Tool,
                                         permission,
-                                    },).await;
+                                    }).await;
                                 }
                             }
                             else {

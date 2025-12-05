@@ -4,6 +4,18 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type ActionRequired = {
+    data: ActionRequiredData;
+};
+
+export type ActionRequiredData = {
+    actionType: 'toolConfirmation';
+    arguments: JsonObject;
+    id: string;
+    prompt?: string | null;
+    toolName: string;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -44,6 +56,8 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
+export type CommandType = 'Builtin' | 'Recipe';
+
 /**
  * Configuration key metadata for provider setup
  */
@@ -80,6 +94,13 @@ export type ConfigResponse = {
     config: {
         [key: string]: unknown;
     };
+};
+
+export type ConfirmToolActionRequest = {
+    action: string;
+    id: string;
+    principalType?: PrincipalType;
+    sessionId: string;
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
@@ -132,6 +153,17 @@ export type DecodeRecipeResponse = {
 export type DeleteRecipeRequest = {
     id: string;
 };
+
+export type EditMessageRequest = {
+    editType?: EditType;
+    timestamp: number;
+};
+
+export type EditMessageResponse = {
+    sessionId: string;
+};
+
+export type EditType = 'fork' | 'edit';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -357,7 +389,7 @@ export type KillJobResponse = {
 };
 
 export type ListRecipeResponse = {
-    recipe_manifest_responses: Array<RecipeManifestResponse>;
+    manifests: Array<RecipeManifest>;
 };
 
 export type ListSchedulesResponse = {
@@ -393,6 +425,8 @@ export type MessageContent = (TextContent & {
     type: 'toolResponse';
 }) | (ToolConfirmationRequest & {
     type: 'toolConfirmationRequest';
+}) | (ActionRequired & {
+    type: 'actionRequired';
 }) | (FrontendToolRequest & {
     type: 'frontendToolRequest';
 }) | (ThinkingContent & {
@@ -445,6 +479,16 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+export type ModelConfig = {
+    context_limit?: number | null;
+    fast_model?: string | null;
+    max_tokens?: number | null;
+    model_name: string;
+    temperature?: number | null;
+    toolshim: boolean;
+    toolshim_model?: string | null;
+};
+
 /**
  * Information about a model's capabilities
  */
@@ -481,13 +525,6 @@ export type ParseRecipeRequest = {
 
 export type ParseRecipeResponse = {
     recipe: Recipe;
-};
-
-export type PermissionConfirmationRequest = {
-    action: string;
-    id: string;
-    principal_type?: PrincipalType;
-    session_id: string;
 };
 
 /**
@@ -599,10 +636,13 @@ export type Recipe = {
     version?: string;
 };
 
-export type RecipeManifestResponse = {
+export type RecipeManifest = {
+    file_path: string;
     id: string;
-    lastModified: string;
+    last_modified: string;
     recipe: Recipe;
+    schedule_cron?: string | null;
+    slash_command?: string | null;
 };
 
 export type RecipeParameter = {
@@ -701,6 +741,11 @@ export type ScanRecipeResponse = {
     has_security_warnings: boolean;
 };
 
+export type ScheduleRecipeRequest = {
+    cron_schedule?: string | null;
+    id: string;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -722,8 +767,10 @@ export type Session = {
     id: string;
     input_tokens?: number | null;
     message_count: number;
+    model_config?: ModelConfig | null;
     name: string;
     output_tokens?: number | null;
+    provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
@@ -763,7 +810,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
     limit: number;
@@ -772,6 +819,11 @@ export type SessionsQuery = {
 export type SetProviderRequest = {
     model: string;
     provider: string;
+};
+
+export type SetSlashCommandRequest = {
+    id: string;
+    slash_command?: string | null;
 };
 
 export type Settings = {
@@ -783,6 +835,16 @@ export type Settings = {
 export type SetupResponse = {
     message: string;
     success: boolean;
+};
+
+export type SlashCommand = {
+    command: string;
+    command_type: CommandType;
+    help: string;
+};
+
+export type SlashCommandsResponse = {
+    commands: Array<SlashCommand>;
 };
 
 export type StartAgentRequest = {
@@ -849,6 +911,9 @@ export type TokenState = {
 };
 
 export type Tool = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: ToolAnnotations | {
         [key: string]: unknown;
     };
@@ -896,6 +961,7 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
+    thoughtSignature?: string | null;
     toolCall: {
         [key: string]: unknown;
     };
@@ -908,6 +974,15 @@ export type ToolResponse = {
     };
 };
 
+export type TunnelInfo = {
+    hostname: string;
+    secret: string;
+    state: TunnelState;
+    url: string;
+};
+
+export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
+
 export type UpdateAppRequest = {
     app: GooseApp;
 };
@@ -917,6 +992,9 @@ export type UpdateCustomProviderRequest = {
     api_url: string;
     display_name: string;
     engine: string;
+    headers?: {
+        [key: string]: string;
+    } | null;
     models: Array<string>;
     supports_streaming?: boolean | null;
 };
@@ -967,6 +1045,31 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type ConfirmToolActionData = {
+    body: ConfirmToolActionRequest;
+    path?: never;
+    query?: never;
+    url: '/action-required/tool-confirmation';
+};
+
+export type ConfirmToolActionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmToolActionResponses = {
+    /**
+     * Tool confirmation action is confirmed
+     */
+    200: unknown;
 };
 
 export type AgentAddExtensionData = {
@@ -1860,6 +1963,22 @@ export type SetConfigProviderData = {
     url: '/config/set_provider';
 };
 
+export type GetSlashCommandsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/slash_commands';
+};
+
+export type GetSlashCommandsResponses = {
+    /**
+     * Slash commands retrieved successfully
+     */
+    200: SlashCommandsResponse;
+};
+
+export type GetSlashCommandsResponse = GetSlashCommandsResponses[keyof GetSlashCommandsResponses];
+
 export type UpsertConfigData = {
     body: UpsertConfigQuery;
     path?: never;
@@ -1905,31 +2024,6 @@ export type ValidateConfigResponses = {
 };
 
 export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
-
-export type ConfirmPermissionData = {
-    body: PermissionConfirmationRequest;
-    path?: never;
-    query?: never;
-    url: '/confirm';
-};
-
-export type ConfirmPermissionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ConfirmPermissionResponses = {
-    /**
-     * Permission action is confirmed
-     */
-    200: unknown;
-};
 
 export type DiagnosticsData = {
     body?: never;
@@ -1981,6 +2075,32 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type McpUiProxyData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Secret key for authentication
+         */
+        secret: string;
+    };
+    url: '/mcp-ui-proxy';
+};
+
+export type McpUiProxyErrors = {
+    /**
+     * Unauthorized - invalid or missing secret
+     */
+    401: unknown;
+};
+
+export type McpUiProxyResponses = {
+    /**
+     * MCP UI proxy HTML page
+     */
+    200: unknown;
+};
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
@@ -2194,6 +2314,56 @@ export type ScanRecipeResponses = {
 };
 
 export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
+
+export type ScheduleRecipeData = {
+    body: ScheduleRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/schedule';
+};
+
+export type ScheduleRecipeErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ScheduleRecipeResponses = {
+    /**
+     * Recipe scheduled successfully
+     */
+    200: unknown;
+};
+
+export type SetRecipeSlashCommandData = {
+    body: SetSlashCommandRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/slash-command';
+};
+
+export type SetRecipeSlashCommandErrors = {
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SetRecipeSlashCommandResponses = {
+    /**
+     * Slash command set successfully
+     */
+    200: unknown;
+};
 
 export type ReplyData = {
     body: ChatRequest;
@@ -2677,6 +2847,46 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
+export type EditMessageData = {
+    body: EditMessageRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/edit_message';
+};
+
+export type EditMessageErrors = {
+    /**
+     * Bad request - Invalid message timestamp
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or message not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type EditMessageResponses = {
+    /**
+     * Session prepared for editing - frontend should submit the edited message
+     */
+    200: EditMessageResponse;
+};
+
+export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
+
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -2804,3 +3014,71 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type StartTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/start';
+};
+
+export type StartTunnelErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
+
+export type StartTunnelResponses = {
+    /**
+     * Tunnel started successfully
+     */
+    200: TunnelInfo;
+};
+
+export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
+
+export type GetTunnelStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/status';
+};
+
+export type GetTunnelStatusResponses = {
+    /**
+     * Tunnel info
+     */
+    200: TunnelInfo;
+};
+
+export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
+
+export type StopTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/stop';
+};
+
+export type StopTunnelErrors = {
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
+
+export type StopTunnelResponses = {
+    /**
+     * Tunnel stopped successfully
+     */
+    200: unknown;
+};
