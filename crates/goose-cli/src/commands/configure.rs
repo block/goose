@@ -729,6 +729,11 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                     "Tools to save and retrieve durable memories",
                 ),
                 (
+                    "shell",
+                    "Shell",
+                    "Shell-driven development with code analysis",
+                ),
+                (
                     "tutorial",
                     "Tutorial",
                     "Access interactive tutorials and guides",

@@ -2806,6 +2806,7 @@ dependencies = [
  "clap",
  "colored",
  "devgen-tree-sitter-swift",
+ "dirs 6.0.0",
  "docx-rs",
  "etcetera",
  "glob",
