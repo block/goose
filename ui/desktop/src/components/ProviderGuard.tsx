@@ -213,8 +213,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
                 <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get you setup with a provider so we can
-                  make incredible work together.
+                  Since it’s your first time here, let’s get you set up with an AI provider so goose
+                  can work its magic.
                 </p>
               </div>
 
