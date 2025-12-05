@@ -50,7 +50,9 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
           totalModels: models.length,
         });
 
-        onSuccess(provider_name, models[0], actualValue);
+        setTimeout(() => {
+          onSuccess(provider_name, models[0], actualValue);
+        }, 1500);
       }
     } catch {
       setError(true);
