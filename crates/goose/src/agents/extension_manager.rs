@@ -1,3 +1,5 @@
+use crate::conversation::Conversation;
+
 use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
@@ -1165,7 +1167,7 @@ impl ExtensionManager {
             .map(|ext| ext.get_client())
     }
 
-    pub async fn collect_moim(&self) -> Option<String> {
+    pub async fn collect_moim(&self, conversation: &Conversation) -> Option<String> {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
 
@@ -1174,7 +1176,7 @@ impl ExtensionManager {
             if let ExtensionConfig::Platform { .. } = &extension.config {
                 let client = extension.get_client();
                 let client_guard = client.lock().await;
-                if let Some(moim_content) = client_guard.get_moim().await {
+                if let Some(moim_content) = client_guard.get_moim(conversation).await {
                     tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
                     content.push('\n');
                     content.push_str(&moim_content);
