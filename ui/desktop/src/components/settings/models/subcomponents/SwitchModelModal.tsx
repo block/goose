@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeftRight, ExternalLink } from 'lucide-react';
+import { Bot, ExternalLink } from 'lucide-react';
 
 import {
   Dialog,
@@ -24,14 +24,24 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
+  onModelSelected?: () => void;
+  initialProvider?: string | null;
+  titleOverride?: string;
 };
-export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelModalProps) => {
+export const SwitchModelModal = ({
+  sessionId,
+  onClose,
+  setView,
+  onModelSelected,
+  initialProvider,
+  titleOverride,
+}: SwitchModelModalProps) => {
   const { getProviders, getProviderModels, read } = useConfig();
   const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string | null>(initialProvider || null);
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
@@ -95,6 +105,9 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       }
 
       await changeModel(sessionId, modelObj);
+      if (onModelSelected) {
+        onModelSelected();
+      }
       onClose();
     }
   };
@@ -277,30 +290,16 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ArrowLeftRight size={24} className="text-textStandard" />
-            Switch models
+            <Bot size={24} className="text-textStandard" />
+            {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
-            Configure your AI model providers by adding their API keys. Your keys are stored
-            securely and encrypted locally.
+            Select a provider and model to use for your conversations.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
-          <div>
-            <a
-              href={QUICKSTART_GUIDE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-textStandard font-medium text-sm"
-            >
-              <ExternalLink size={16} className="mr-1" />
-              View quick start guide
-            </a>
-          </div>
-
           {usePredefinedModels ? (
-            /* Predefined Models Section */
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-textStandard">Choose a model:</label>
@@ -448,13 +447,24 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
           )}
         </div>
 
-        <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={handleClose} type="button">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!isValid}>
-            Select model
-          </Button>
+        <DialogFooter className="pt-4 flex-col sm:flex-row gap-3">
+          <a
+            href={QUICKSTART_GUIDE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-text-muted hover:text-textStandard text-sm mr-auto"
+          >
+            <ExternalLink size={14} className="mr-1" />
+            Quick start guide
+          </a>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleClose} type="button">
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={!isValid}>
+              Select model
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
