@@ -697,6 +697,18 @@ export const useSessionSharing = ({
                 return;
               }
               
+              // GOOSE AVATAR FIX: For assistant messages, ensure proper Goose avatar and styling
+              if (finalRole === 'assistant') {
+                // Override sender data for Goose messages to ensure proper avatar display
+                senderData = {
+                  userId: 'goose-ai-assistant',
+                  displayName: 'Goose',
+                  avatarUrl: undefined, // Let the UI use the default Goose avatar
+                  isGoose: true, // Special flag to indicate this is Goose
+                };
+                console.log('🦆 Setting Goose avatar for assistant message from Matrix collaboration');
+              }
+              
               // Convert to local message format with proper sender attribution
               const message: Message = {
                 id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -706,7 +718,7 @@ export const useSessionSharing = ({
                   type: 'text',
                   text: messageText, // Use validated messageText instead of messageData.content
                 }],
-                sender: senderData, // Include sender information
+                sender: senderData, // Include sender information (with Goose avatar for assistant messages)
                 metadata: {
                   originalRole: messageData.role,
                   correctedRole: finalRole,
@@ -714,7 +726,8 @@ export const useSessionSharing = ({
                   skipLocalResponse: true, // Prevent triggering local AI response
                   preventAutoResponse: true,
                   isFromCollaborator: true,
-                  sessionMessageId: messageData.sessionId
+                  sessionMessageId: messageData.sessionId,
+                  isGooseMessage: finalRole === 'assistant' // Flag for UI to show Goose styling
                 }
               };
               
