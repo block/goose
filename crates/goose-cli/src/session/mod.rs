@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod editor;
 mod export;
 mod input;
 mod output;
@@ -467,7 +468,20 @@ impl CliSession {
             // Display context usage before each prompt
             self.display_context_usage().await?;
 
-            match input::get_input(&mut editor)? {
+            // Convert conversation messages to strings for editor mode
+            let conversation_strings: Vec<String> = self
+                .messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        rmcp::model::Role::User => "User",
+                        rmcp::model::Role::Assistant => "Assistant",
+                    };
+                    format!("## {}: {}", role, msg.as_concat_text())
+                })
+                .collect();
+
+            match input::get_input(&mut editor, Some(&conversation_strings))? {
                 InputResult::Message(content) => {
                     match self.run_mode {
                         RunMode::Normal => {
