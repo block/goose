@@ -2585,91 +2585,31 @@ export class MatrixService extends EventEmitter {
       const spaceId = spaceResult.room_id;
       console.log('✅ Matrix Space created successfully:', spaceId);
       
-      // CRITICAL: Automatically create a default room within the new space
-      // This ensures the space appears in the UI immediately.
-      let defaultRoomId: string | null = null;
+      // Create session mapping for the space
       try {
-        console.log('🌌 Creating default "General" room for new space...');
-        
-        // Create the default room with proper configuration
-        const defaultRoomResult = await this.client.createRoom({
-          name: 'General',
-          topic: 'General discussion for this space',
-          preset: isPublic ? 'public_chat' : 'private_chat',
-          initial_state: [
-            {
-              type: 'm.room.history_visibility',
-              content: {
-                history_visibility: isPublic ? 'world_readable' : 'invited',
-              },
-            },
-            {
-              type: 'm.room.guest_access',
-              content: {
-                guest_access: isPublic ? 'can_join' : 'forbidden',
-              },
-            },
-          ],
-        });
-        
-        defaultRoomId = defaultRoomResult.room_id;
-        console.log('✅ Default room created:', defaultRoomId);
-        
-        // Wait for the room to be fully propagated in the Matrix network
-        console.log('⏳ Waiting for room to propagate...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Add the default room as a child of the space
-        console.log('🔗 Adding default room to space...');
-        await this.addChildToSpace(spaceId, defaultRoomId, false);
-        console.log('✅ Default room successfully added to space');
-        
-      } catch (defaultRoomError) {
-        console.error('❌ Failed to create default room for space:', defaultRoomError);
-        // Continue without failing the space creation
-        // The space will still be created, just without the default room
-      }
-      
-      // Wait a bit more to ensure everything is propagated
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create session mappings for both the space and default room
-      try {
-        // Get the space room object
         const spaceRoom = this.client.getRoom(spaceId);
         if (spaceRoom) {
           await this.ensureSessionMapping(spaceId, spaceRoom);
           console.log('📋 Session mapping created for Matrix Space');
         }
-        
-        // Create session mapping for the default room if it was created
-        if (defaultRoomId) {
-          const defaultRoom = this.client.getRoom(defaultRoomId);
-          if (defaultRoom) {
-            await this.ensureSessionMapping(defaultRoomId, defaultRoom);
-            console.log('📋 Session mapping created for default room');
-          }
-        }
       } catch (mappingError) {
-        console.error('❌ Failed to create session mappings:', mappingError);
+        console.error('❌ Failed to create session mapping for space:', mappingError);
         // Don't fail the space creation if mapping fails
       }
       
-      // Clear rooms cache to ensure fresh data
+      // Clear rooms cache to ensure fresh data is loaded
       this.cachedRooms = null;
       console.log('🔄 Cleared rooms cache to refresh UI');
       
       // Emit a room update event to trigger UI refresh
       this.emit('roomsUpdated', { 
-        spaceId: spaceId, 
-        newRoomId: defaultRoomId,
+        spaceId: spaceId,
         action: 'spaceCreated'
       });
       
       console.log('🎉 Space creation completed:', {
         spaceId: spaceId.substring(0, 20) + '...',
-        defaultRoomId: defaultRoomId ? defaultRoomId.substring(0, 20) + '...' : null,
-        hasDefaultRoom: !!defaultRoomId
+        name: name
       });
       
       return spaceId;
