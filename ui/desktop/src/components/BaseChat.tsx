@@ -367,7 +367,7 @@ function BaseChatContent({
                   append={(text: string) => handleSubmit(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  //parameterValues={recipeParameters || {}}
+                  parameterValues={session?.user_recipe_values || {}}
                 />
               </div>
             )}
