@@ -305,7 +305,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   Set up additional providers manually through settings.
                 </p>
                 <button
-                  onClick={() => navigate('/configure-providers')}
+                  onClick={() => navigate('/welcome', { replace: true })}
                   className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
                 >
                   Go to Provider Settings →
