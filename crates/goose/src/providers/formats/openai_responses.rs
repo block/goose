@@ -10,10 +10,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
 
-// ============================================================================
-// Responses API Types (for gpt-5.1-codex and similar models)
-// ============================================================================
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
     pub id: String,
@@ -82,10 +78,6 @@ pub struct ResponseUsage {
     pub output_tokens: i32,
     pub total_tokens: i32,
 }
-
-// ============================================================================
-// Responses API Streaming Types
-// ============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -233,12 +225,6 @@ pub enum ContentPart {
     },
 }
 
-// ============================================================================
-// Responses API Helper Functions
-// ============================================================================
-
-/// Check if we have fresh tool responses that need to be sent
-/// Fresh = last assistant message has tool requests, followed by tool responses, with no assistant text after
 fn has_fresh_tool_responses(messages: &[Message]) -> bool {
     if let Some(last_idx) = messages.iter().rposition(|m| m.role == Role::Assistant) {
         let last_assistant = &messages[last_idx];
@@ -269,10 +255,8 @@ fn has_fresh_tool_responses(messages: &[Message]) -> bool {
     }
 }
 
-/// Add conversation history (text messages only, excluding tool content)
 fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        // Skip messages that only contain tool requests or responses
         let has_only_tool_content = message.content.iter().all(|c| {
             matches!(
                 c,
@@ -284,7 +268,6 @@ fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) 
             continue;
         }
 
-        // Only User and Assistant roles are valid
         if message.role != Role::User && message.role != Role::Assistant {
             continue;
         }
@@ -320,7 +303,6 @@ fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) 
     }
 }
 
-/// Add function_call items (tool invocations from assistant)
 fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         if message.role == Role::Assistant {
@@ -353,7 +335,6 @@ fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
     }
 }
 
-/// Add function_call_output items (tool results)
 fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         for content in &message.content {
@@ -387,7 +368,6 @@ fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message])
     }
 }
 
-/// Add full conversation (all message history, excluding tool requests/responses)
 fn add_full_conversation(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         // Only User and Assistant messages
@@ -440,7 +420,6 @@ pub fn create_responses_request(
 ) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
-    // Add system message as first item if present
     if !system.is_empty() {
         input_items.push(json!({
             "role": "system",
@@ -451,8 +430,6 @@ pub fn create_responses_request(
         }));
     }
 
-    // If we have fresh tool responses, replay the function_call + output
-    // (store: false means server has no memory, so we must provide context)
     if has_fresh_tool_responses(messages) {
         add_conversation_history(&mut input_items, messages);
         add_function_calls(&mut input_items, messages);
