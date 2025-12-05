@@ -461,10 +461,8 @@ export default function ChatInput({
           console.log('💬 ChatInput: *** APPEND FUNCTION RETURNED ***:', result);
           console.log('💬 ChatInput: *** APPEND SUCCESSFUL - MESSAGE SHOULD APPEAR IN MATRIX TAB ***');
           
-          // Also dispatch a custom event to verify message was processed
-          window.dispatchEvent(new CustomEvent('matrix-message-received', {
-            detail: { message, timestamp: new Date().toISOString() }
-          }));
+          // REMOVED: Duplicate event dispatch that was causing session mismatch
+          // The BaseChat2 component already dispatches the proper matrix-message-received event with targetSessionId
           
         } catch (error) {
           console.error('💬 ChatInput: *** APPEND FUNCTION FAILED ***:', error);
