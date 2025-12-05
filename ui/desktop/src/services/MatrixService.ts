@@ -3168,6 +3168,11 @@ export class MatrixService extends EventEmitter {
       // Debug logging for spaces
       if (isSpace) {
         console.log('🌌 getRooms: Found Matrix Space:', room.name || 'Unnamed Space', '→', room.roomId.substring(0, 20) + '...');
+      } else {
+        // Debug: Log rooms that are NOT detected as spaces to see if our new space is missing
+        const createEvent = room.currentState.getStateEvents('m.room.create', '');
+        const roomType = createEvent?.getContent()?.type;
+        console.log('🏠 getRooms: Regular room (not space):', room.name || 'Unnamed Room', '→', room.roomId.substring(0, 20) + '...', 'roomType:', roomType);
       }
       
       // Debug logging for avatar URLs
