@@ -42,6 +42,8 @@ interface GooseMessageProps {
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
   tabId?: string; // Tab ID for opening sidecars
+  showHeader?: boolean; // Whether to show avatar and header
+  isGrouped?: boolean; // Whether this message is part of a group
   // Comment-related props
   comments?: MessageComment[];
   activeSelection?: TextSelection | null;
@@ -69,6 +71,8 @@ export default function GooseMessage({
   appendMessage,
   isStreaming = false,
   tabId,
+  showHeader = true,
+  isGrouped = false,
   // Comment props
   comments = [],
   activeSelection,
@@ -277,36 +281,43 @@ export default function GooseMessage({
         displayMode === 'condensed' && 'pr-16'
       )}
     >
-      {/* Goose Avatar on the left side with optional user badge */}
+      {/* Goose Avatar on the left side with optional user badge - only show if showHeader is true */}
       <div className="flex-shrink-0 relative" style={{ marginTop: '0.25rem' }}>
-        {/* Main Goose dot avatar */}
-        <div className="w-8 h-8 flex items-center justify-center">
-          <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
-        </div>
-        
-        {/* Small user badge for collaborator messages - positioned to the left */}
-        {isFromCollaborator && senderInfo.avatarUrl && (
-          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden bg-background-default" style={{ right: '20px' }}>
-            <AvatarImage
-              avatarUrl={senderInfo.avatarUrl}
-              displayName={senderInfo.displayName || 'User'}
-              size="xs"
-            />
-          </div>
-        )}
-        {isFromCollaborator && !senderInfo.avatarUrl && (
-          <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center" style={{ right: '20px' }}>
-            <span className="text-[8px] text-white font-bold">
-              {(senderInfo.displayName || senderInfo.userId || 'U').charAt(0).toUpperCase()}
-            </span>
-          </div>
+        {showHeader ? (
+          <>
+            {/* Main Goose dot avatar */}
+            <div className="w-8 h-8 flex items-center justify-center">
+              <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full"></div>
+            </div>
+            
+            {/* Small user badge for collaborator messages - positioned to the left */}
+            {isFromCollaborator && senderInfo.avatarUrl && (
+              <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default overflow-hidden bg-background-default" style={{ right: '20px' }}>
+                <AvatarImage
+                  avatarUrl={senderInfo.avatarUrl}
+                  displayName={senderInfo.displayName || 'User'}
+                  size="xs"
+                />
+              </div>
+            )}
+            {isFromCollaborator && !senderInfo.avatarUrl && (
+              <div className="absolute top-0 w-4 h-4 rounded-full border-2 border-background-default bg-blue-500 flex items-center justify-center" style={{ right: '20px' }}>
+                <span className="text-[8px] text-white font-bold">
+                  {(senderInfo.displayName || senderInfo.userId || 'U').charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+          </>
+        ) : (
+          // Invisible spacer to maintain alignment for grouped messages
+          <div className="w-8 h-8" />
         )}
       </div>
       
       {/* Message content - back to original single column layout */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Username and timestamp header - only show if we have text content or it's the start of a chain */}
-        {(displayText || isFirstInChain) && (
+        {/* Username and timestamp header - only show if showHeader is true and we have text content or it's the start of a chain */}
+        {showHeader && (displayText || isFirstInChain) && (
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-semibold text-text-prominent">
               {isFromCollaborator ? `Goose (${senderInfo.displayName || 'User'})` : 'Goose'}
