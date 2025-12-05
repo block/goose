@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
+use super::canonical::{canonical_name, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -413,6 +414,19 @@ pub trait Provider: Send + Sync {
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
+    }
+
+    async fn map_to_canonical_model(
+        &self,
+        provider_model: &str,
+    ) -> Result<Option<String>, ProviderError> {
+        let canonical = canonical_name(self.get_name(), provider_model);
+
+        if CanonicalModelRegistry::bundled_contains(&canonical)? {
+            Ok(Some(canonical))
+        } else {
+            Ok(None)
+        }
     }
 
     fn supports_embeddings(&self) -> bool {

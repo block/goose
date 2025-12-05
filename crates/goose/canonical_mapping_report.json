@@ -1,0 +1,4413 @@
+{
+  "timestamp": "2025-11-12T18:31:21.379526+00:00",
+  "unmapped_models": [
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-01-20-06-09-37"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-03-22-57-10"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-03-23-17-02"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-03-23-39-19"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-00-06-28"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-00-26-44"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-04-45"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-25-59"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-35-31"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-49-59"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-52-25"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-53-11"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-54-49"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-56-59"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-01-58-41"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-00-26"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-02-17"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-03-39"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-05-16"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-06-44"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-04-02-08-18"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-22-05-09-46"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-22-05-27-21"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-27-17-40-56"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-27-19-20-20"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-27-19-35-21"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-02-27-21-26-06"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-03-01-19-58-17"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-03-02-11-40-22"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-03-02-16-01-19"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-03-06-11-43-24"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-04-05-18-59-44"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square-2023-06-14-21-43-36"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:ada-fine-tuned-pb-books-2023-06-10-01-41-30"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:get-classify-test-1-2023-03-01-22-20-54"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:get-classify-test-2-2023-03-01-23-00-30"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:latha-2023-06-07-06-56-00"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:mcc-from-items-2023-03-09-23-20-33"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:mcc-from-items-2023-03-10-02-02-01"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:sq-interview-rubrics-2023-03-01-23-25-00"
+    },
+    {
+      "provider": "openai",
+      "model": "ada:ft-square:test-2023-06-07-07-05-04"
+    },
+    {
+      "provider": "openai",
+      "model": "babbage-002"
+    },
+    {
+      "provider": "openai",
+      "model": "babbage:ft-square-2023-02-28-14-48-38"
+    },
+    {
+      "provider": "openai",
+      "model": "codex-mini-latest"
+    },
+    {
+      "provider": "openai",
+      "model": "computer-use-preview"
+    },
+    {
+      "provider": "openai",
+      "model": "computer-use-preview-2025-03-11"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-01-04-00-17-01"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-20-54-03"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-22-00-22"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-23-12-33"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-23-38-15"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-23-50-25"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-03-23-56-35"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-04-00-10-16"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-04-00-30-47"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-04-01-10-58"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-14-03-10-35"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-14-05-13-05"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-24-12-25-24"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-24-13-42-34"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-24-16-41-35"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-24-18-12-55"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-27-22-00-27"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-28-12-28-40"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-28-16-08-29"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-02-28-23-14-48"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-03-02-01-48-30"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-03-02-13-12-20"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-03-02-16-17-24"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-03-06-14-16-22"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-03-09-04-37-07"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-04-05-19-33-31"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-04-05-23-44-20"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-05-01-19-30-51"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-05-02-16-19-15"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-08-20-11-11"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-12-14-33-09"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-14-22-55-22"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-14-23-23-37"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-14-23-25-31"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-14-23-37-23"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-15-14-24-56"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-15-15-16-31"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square-2023-06-15-15-21-41"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square:andrewbyers-iso-dates-2-2023-06-09-19-23-52"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square:andrewbyers-iso-dates-2023-06-09-16-22-54"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square:bartosz-2023-06-15-16-50-00"
+    },
+    {
+      "provider": "openai",
+      "model": "curie:ft-square:bartosz-2023-06-15-17-40-30"
+    },
+    {
+      "provider": "openai",
+      "model": "dall-e-2"
+    },
+    {
+      "provider": "openai",
+      "model": "dall-e-3"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci-002"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-01-31-46"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-01-35-06"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-01-38-32"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-19-52-40"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-19-56-06"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-19-58-46"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-20-02-03"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-20-05-47"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-20-11-53"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-03-20-15-38"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-24-18-22-49"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-19-06-04"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-20-03-10"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-20-43-03"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-21-15-51"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-21-56-57"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-27-23-00-36"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-28-15-35-39"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-02-28-22-02-29"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-01-01-34-16"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-01-04-50-27"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-01-21-52-35"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-01-23-53-42"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-06-29-26"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-07-43-23"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-08-33-27"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-09-27-04"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-19-42-43"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-23-34-00"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-23-40-51"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-23-46-02"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-02-23-54-35"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-03-01-26-16"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-03-06-07-40-58"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-05-02-17-37-42"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-06-03-01-27-58"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-06-03-02-41-38"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-06-04-20-17-25"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square-2023-07-31-06-04-37"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:conversational-ordering-2023-03-01-03-35-26"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:conversational-ordering-2023-03-01-19-34-59"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:martech-fox-2023-07-03-12-08-51"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:ppg-1-2023-03-03-22-44-53"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:ppg-2-2023-03-04-00-09-06"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:product-descriptions-1-2023-02-18-02-01-38"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:product-descriptions-2023-02-18-01-37-53"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:sq-interview-rubrics-2023-03-01-06-12-57"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:test-2023-06-02-21-46-09"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:test-2023-06-07-07-18-50"
+    },
+    {
+      "provider": "openai",
+      "model": "davinci:ft-square:testmodel-2023-06-09-06-33-46"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::979OeECc"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::979X87hI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::979tUAKY"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9BaZ6utW"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9BaZ962b:ckpt-step-418"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9BaZ9TI9:ckpt-step-1254"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9BaZ9yXw:ckpt-step-836"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9f7y6Fq3:ckpt-step-132"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9f7y6d94:ckpt-step-66"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:babbage-002:square::9f7y6tDo"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:davinci-002:square::8IHIFNF8"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:davinci-002:square::979av0Ca"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdO7p4k"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdO9dyB:ckpt-step-418"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdOAZhy:ckpt-step-1254"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdOAzyd:ckpt-step-836"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdjnxSh"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9Bdjq2HN:ckpt-step-836"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdjqEL2:ckpt-step-418"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9BdjqWL2:ckpt-step-1254"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9CBYL14U"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9CBYOIYz:ckpt-step-531"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9CBYOe1X:ckpt-step-1062"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9CBYPJjH:ckpt-step-1593"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9dWw13R5:ckpt-step-531"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9dWw21NB:ckpt-step-1062"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9dWw2Jmx"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9w2wKEHK:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9w2wKRUk"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9w2wKfxt:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wDsxF0M:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wDsxJU5"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wDsxcuJ:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wLTi98n:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wLTiHPk:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::9wLTiuf3"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A1oa308p:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A1oa4UVH:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A1oa4fY2"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A21LQ3B7:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A21LQjft:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A21LRYaU"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F6X0tu:ckpt-step-906"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F6XYh7:ckpt-step-1812"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F6YGI4"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F7A46A:ckpt-step-906"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F7AHaO:ckpt-step-1812"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::A3F7AoD8"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDIOxNBa"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDIOxtLv:ckpt-step-499"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDIOxz40:ckpt-step-998"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDIbgGdy"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDM8mQGM"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BDQoyuDs"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BPmNgoWc:ckpt-step-80"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BPmNj3MY:ckpt-step-90"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square::BPmNkBwY"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square:regex-generator:BV3pHd69"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square:regex-generator:BV3pHfFP:ckpt-step-608"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0125:square:regex-generator:BV3pHz34:ckpt-step-304"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0613:square::7xkXhz2F"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-0613:square:recipe-ner:8m9bUTJB"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square::8INlSFiD"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square::8IittuHW"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square::8VQq2h9i"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:presale-prod-update:A1VCz1Ng:ckpt-step-772"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:presale-prod-update:A1VCz1dF"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:presale-prod-update:A1VCzSam:ckpt-step-1544"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9esUGGea:ckpt-step-1522"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9esUGnko"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9f8il0PV"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9f8iljLm:ckpt-step-1611"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9f9O9vmz:ckpt-step-751"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9f9OA72b:ckpt-step-1502"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9f9OAsBX"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fAO711i:ckpt-step-753"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fAO71NV"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fAO7nhv:ckpt-step-1506"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fB61NQG"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fB61ZZn:ckpt-step-1520"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fB61cPW:ckpt-step-760"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fCbI5U9"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-fmac:9fCbICqK:ckpt-step-761"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-pm-35:9djnKK85:ckpt-step-1533"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-3.5-turbo-1106:square:tarkin-pm-35:9djnL0G0"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9BpIi1ah"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9BpIlVui:ckpt-step-418"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9BpIle5X:ckpt-step-836"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9BpImGbJ:ckpt-step-1254"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9CERwrnZ"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9CERyuVp:ckpt-step-531"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9CERz6l4:ckpt-step-1593"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9CERzjIk:ckpt-step-1062"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9dWi6cve:ckpt-step-531"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9dWi7AH4"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9dWi7d0k:ckpt-step-1062"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wGGcJwE:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wGGceZ1:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wGGcsCI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wLlEcBS:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wLlFM71"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wLlFtmK:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wP6wXmY:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wP6xJ7K"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9wP6xUW9:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9yR6Pmck:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9yR6Q01x"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9yR6QRCI:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9ySoC7vZ"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9ySoC9RL:ckpt-step-1482"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::9ySoCHH9:ckpt-step-741"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::A1os36ZY:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::A1os3SzM:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square::A1os4RF0"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:g11n-helper:ALxGZf5Y:ckpt-step-54"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:g11n-helper:ALxGaifK:ckpt-step-72"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:g11n-helper:ALxGasbI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:presale-prod-update:A1VkM3KW:ckpt-step-772"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:presale-prod-update:A1VkMPxN:ckpt-step-1544"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:presale-prod-update:A1VkMugi"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9a8eE6A4:ckpt-step-763"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9a8eEWdX"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9a8eEkGS:ckpt-step-1526"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9aDzHMdR:ckpt-step-3054"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9aDzHdca:ckpt-step-1527"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9aDzI3c1"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9ckg06KE:ckpt-step-70636"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9ckg06yx:ckpt-step-35318"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4-0613:square:tarkin:9ckg1W41"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:hotel-sys-design:Bn8TRXx7:ckpt-step-77"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:hotel-sys-design:Bn8TSnvc"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:hotel-sys-design:Bn8TSuqu:ckpt-step-88"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:picasso-tbl:Be4ohJ5c:ckpt-step-555"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:picasso-tbl:Be4okWcV"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:picasso-tbl:Be4okcLm:ckpt-step-1110"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square::BmTIcrto:ckpt-step-666"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square::BmTIfHgD"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square::BmTIfv3N:ckpt-step-1332"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square::BwjlIHbe"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square::BwjlIMor:ckpt-step-1018"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-nano-2025-04-14:square:qliao-plathelp-v1:CRNAywx8"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eTWHHtG"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eTWHI2d:ckpt-step-80"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eTWHWR7:ckpt-step-90"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eoDA1QR:ckpt-step-32"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eoDARki"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eoDAkYo:ckpt-step-64"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eqA79i0:ckpt-step-59"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eqA8TBe:ckpt-step-118"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9eqA8pCn"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9hgDsAHH:ckpt-step-66"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9hgDsHOi:ckpt-step-132"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9hgDtDpP"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9yPneKZF:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9yPnf26m:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square::9yPnfZ3w"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi-golang:9smel7hl:ckpt-step-434"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi-golang:9smelXOJ"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi-golang:9smeltpg:ckpt-step-217"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi:9sjuwq38:ckpt-step-505"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi:9sjux561"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:pfi:9sjuxLbk:ckpt-step-1010"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e48jPvC:ckpt-step-1510"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e48kfSc"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e4FyHOk:ckpt-step-528"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e4FzikM:ckpt-step-1056"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e4Fzzq8"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e6FlhBM"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e6Flnjr:ckpt-step-1526"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e8EgHNk"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9e8Egd2H:ckpt-step-1526"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9ePrc2Qr"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fma:9ePrcUgW:ckpt-step-1524"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9eSm4CmX:ckpt-step-1513"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9eSm4Nvi"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9eVTYdgL:ckpt-step-1513"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9eVTZNWy"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9ellv805:ckpt-step-812"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmac:9ellvsEx"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmar:9gCyNcoZ:ckpt-step-753"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmar:9gCyOII4"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmar:9gCyOTcP:ckpt-step-1506"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmar:9gEX8El2:ckpt-step-1552"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmar:9gEX9ft2"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmas:9eq84If3"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-fmas:9eq84hU9:ckpt-step-1522"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-full-meal:9e2Qax41:ckpt-step-528"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-full-meal:9e2Qb1sn"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-full-meal:9e2QbHP1:ckpt-step-1056"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-piece-meal:9dgu0Q1g:ckpt-step-1533"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-piece-meal:9dgu1KXd"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-pm-4o:9dkScYcs"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin-pm-4o:9dkScysk:ckpt-step-1533"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:tarkin:9dfz3A8x"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:test-ft:9e4bJAtq:ckpt-step-27"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:test-ft:9e4bKBv0:ckpt-step-54"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:test-ft:9e4bKlvw"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:thunderbird:9bd8MQGp:ckpt-step-88"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:thunderbird:9bd8NB8K"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-05-13:square:thunderbird:9bd8NX77:ckpt-step-132"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:12-21-24:Ah0F4uLP:ckpt-step-185"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:12-21-24:Ah0FNFHQ:ckpt-step-370"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:12-21-24:Ah0FNFS1"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yOpXJbd:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yOpXVGv"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yOpXmyQ:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yWRL773:ckpt-step-1482"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yWRLeLB:ckpt-step-741"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::9yWRM8Zn"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A1pIt632"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A1pItfDC:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A1pItofx:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A218TwmT:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A218UZjU:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A218UzZf"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A3FCYhcv:ckpt-step-906"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A3FCYpNh:ckpt-step-1812"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A3FCZe3h"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A6lkYKvg:ckpt-step-80"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A6lkYTPi:ckpt-step-90"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::A6lkZ4nA"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADYnVcKn:ckpt-step-153"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADYnWDpr:ckpt-step-306"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADYnWF7g"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADcZL13Y:ckpt-step-149"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADcZLJjk:ckpt-step-298"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADcZMaZB"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADdWL6S7:ckpt-step-149"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADdWLGiA:ckpt-step-298"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADdWLpNL"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADv4G9ED:ckpt-step-310"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADv4GfJI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ADv4GslV:ckpt-step-155"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AFvffbd6:ckpt-step-60"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AFvfgOvb"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AFvfgYxS:ckpt-step-75"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrPDXh4:ckpt-step-70"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrPE1Jn:ckpt-step-84"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrPFDOA"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrRI7Py"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrRIbun:ckpt-step-70"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AIrRIz3n:ckpt-step-84"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AJPMFYjn:ckpt-step-70"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AJPMSMwR:ckpt-step-84"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AJPMTSQg"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZQz9s:ckpt-step-57"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZbB0b:ckpt-step-57"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZlhsT:ckpt-step-57"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZrh8z:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZrhRU:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZrhWY:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZs4af"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZsBZ7"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALDZsiMB"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALelRGKV:ckpt-step-75"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALelRQjh:ckpt-step-50"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALelSl5l"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALfXG00U:ckpt-step-26"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALfXHUyM"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ALfXHdnT:ckpt-step-52"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AM3Kk6bJ:ckpt-step-57"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AM3Km10T:ckpt-step-114"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AM3KmncS"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMHzrhbX:ckpt-step-58"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI02GZM:ckpt-step-58"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0CTR7:ckpt-step-58"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0MEJb:ckpt-step-116"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0MZIn:ckpt-step-116"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0MbSE:ckpt-step-116"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0NAKb:ckpt-step-116"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0NGtf"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0NZqn:ckpt-step-58"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0NfHv"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0Nkxa"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMI0NxXJ"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgDbCpJ:ckpt-step-61"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgDmR8i:ckpt-step-61"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgDwgwF:ckpt-step-61"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE01SL"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE0Zqi"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE0dya:ckpt-step-122"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE0l6B"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE0lmy:ckpt-step-122"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::AMgE0x9A:ckpt-step-122"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhCPM4:ckpt-step-71"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhNQrL:ckpt-step-71"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhXvS0:ckpt-step-71"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBheCpk:ckpt-step-142"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBheHqF:ckpt-step-142"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhelmB:ckpt-step-142"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhfHg0"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhfP3K"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANBhfWTj"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANR81FlE:ckpt-step-71"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANR8340Y"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANR83UMp:ckpt-step-142"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxC4R0:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxMc5r:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxWkuX:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxb3ul"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxbR1m:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxbZ7u:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxbueA:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxbx9d"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANWxcbir"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTNQfB:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTXwXd:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTeBFW:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTeWRz"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTedmK:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANnTenB6"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2D506:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2OJoT:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2Ykg1:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2f35h:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2fWSn:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2fkPg:ckpt-step-152"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2g1fc"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2g4RI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::ANq2gT5D"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::BDcdETt3"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::BDgw3aRR:ckpt-step-770"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::BDgwAYDm"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:presale-prod-update:A1VLdLFo:ckpt-step-772"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:presale-prod-update:A1VLdpp9:ckpt-step-1544"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:presale-prod-update:A1VLef0R"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025-733pm:Aln8wDEd:ckpt-step-57"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025-733pm:Aln99EJs:ckpt-step-76"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025-733pm:Aln99po1"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025:AljIGSIY:ckpt-step-114"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025:AljIUDTx:ckpt-step-228"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-1-3-2025:AljIUw1E"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2gb0ZW:ckpt-step-99"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2glfI3:ckpt-step-99"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2goBN9:ckpt-step-198"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2goRoo:ckpt-step-198"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2gpUkI"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uip-4o-beta1:AU2gpkQO"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uipath:AStGEJCN:ckpt-step-140"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uipath:AStGEPHu"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square:uipath:AStGErTc:ckpt-step-70"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yQURl9e:ckpt-step-702"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yQUS8UO"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yQUSboN:ckpt-step-1404"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yS9rcIf:ckpt-step-741"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yS9sWBR:ckpt-step-1482"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yS9sZgG"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yYfNBYp"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yYfNYZR:ckpt-step-741"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::9yYfNa27:ckpt-step-1482"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A1o0y9c3:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A1o0yYU0"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A1o0yoGv:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A20kHEh1:ckpt-step-1536"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A20kHL5C"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A20kHQH6:ckpt-step-768"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A3Ew9LPO:ckpt-step-1812"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A3Ew9Pfa:ckpt-step-906"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::A3EwAWC6"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::C9PyMpaX:ckpt-step-926"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square::C9PyNU6h"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:merchant-mappings-v1:BVLby6lj:ckpt-step-80"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:merchant-mappings-v1:BVLc6ocQ:ckpt-step-90"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:merchant-mappings-v1:BVLc6zzK"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:merchant-tokens:BUsD3Vq9"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:presale-prod-update:A1V43nWF:ckpt-step-772"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:presale-prod-update:A1V44IqT"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:presale-prod-update:A1V44Vjp:ckpt-step-1544"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:ql-plathelp-241:CRPREgy9:ckpt-step-241"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:ql-plathelp-241:CRPRFEus:ckpt-step-482"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:ql-plathelp-241:CRPRGYXt"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-250:Ao0TXJT1:ckpt-step-250"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-250:Ao0TYWiG"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-250:Ao0TYf9o:ckpt-step-500"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-50:AnziWXoE:ckpt-step-50"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-50:AnziY3TM"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:support-50:AnziYbeg:ckpt-step-100"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9ozEIZnh:ckpt-step-1751"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9ozEMo2r"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9qecJUHK:ckpt-step-2223"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9qecJuVm"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9qvs9txe:ckpt-step-2241"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9qvsAbS8"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9rJTBC8M:ckpt-step-2241"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-mini-2024-07-18:square:tarkin:9rJTCzuI"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-audio-preview"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-audio-preview-2024-12-17"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-realtime-preview"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-realtime-preview-2024-12-17"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-transcribe"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini-tts"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-realtime-preview"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-realtime-preview-2024-10-01"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-realtime-preview-2024-12-17"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-realtime-preview-2025-06-03"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-transcribe"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-transcribe-diarize"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-chat-latest"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-search-api"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-search-api-2025-10-14"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-audio"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-audio-2025-08-28"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-audio-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-audio-mini-2025-10-06"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-image-1"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-image-1-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-realtime"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-realtime-2025-08-28"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-realtime-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-realtime-mini-2025-10-06"
+    },
+    {
+      "provider": "openai",
+      "model": "o1-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "o1-mini-2024-09-12"
+    },
+    {
+      "provider": "openai",
+      "model": "omni-moderation-2024-09-26"
+    },
+    {
+      "provider": "openai",
+      "model": "omni-moderation-latest"
+    },
+    {
+      "provider": "openai",
+      "model": "sora-2"
+    },
+    {
+      "provider": "openai",
+      "model": "sora-2-pro"
+    },
+    {
+      "provider": "openai",
+      "model": "text-embedding-3-large"
+    },
+    {
+      "provider": "openai",
+      "model": "text-embedding-3-small"
+    },
+    {
+      "provider": "openai",
+      "model": "text-embedding-ada-002"
+    },
+    {
+      "provider": "openai",
+      "model": "tts-1"
+    },
+    {
+      "provider": "openai",
+      "model": "tts-1-1106"
+    },
+    {
+      "provider": "openai",
+      "model": "tts-1-hd"
+    },
+    {
+      "provider": "openai",
+      "model": "tts-1-hd-1106"
+    },
+    {
+      "provider": "openai",
+      "model": "whisper-1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "ai21/jamba-large-1.7"
+    },
+    {
+      "provider": "openrouter",
+      "model": "ai21/jamba-mini-1.7"
+    },
+    {
+      "provider": "openrouter",
+      "model": "alibaba/tongyi-deepresearch-30b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "alibaba/tongyi-deepresearch-30b-a3b:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "amazon/nova-lite-v1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "amazon/nova-micro-v1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "amazon/nova-premier-v1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "amazon/nova-pro-v1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "arcee-ai/virtuoso-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "baidu/ernie-4.5-21b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "baidu/ernie-4.5-vl-28b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "cohere/command-r-08-2024"
+    },
+    {
+      "provider": "openrouter",
+      "model": "cohere/command-r-plus-08-2024"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepcogito/cogito-v2-preview-llama-109b-moe"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepcogito/cogito-v2-preview-llama-405b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepcogito/cogito-v2-preview-llama-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat-v3-0324"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat-v3-0324:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat-v3.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1-0528"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1-distill-llama-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v3.1-terminus"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v3.1-terminus:exacto"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v3.2-exp"
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-2.0-flash-exp:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "inception/mercury"
+    },
+    {
+      "provider": "openrouter",
+      "model": "inception/mercury-coder"
+    },
+    {
+      "provider": "openrouter",
+      "model": "inclusionai/ling-1t"
+    },
+    {
+      "provider": "openrouter",
+      "model": "inclusionai/ring-1t"
+    },
+    {
+      "provider": "openrouter",
+      "model": "kwaipilot/kat-coder-pro:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meituan/longcat-flash-chat:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3-70b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3-8b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.1-405b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.1-70b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.1-8b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.2-3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.3-70b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.3-70b-instruct:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.3-8b-instruct:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-4-maverick"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-4-maverick:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-4-scout"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-4-scout:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "microsoft/phi-3-medium-128k-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "microsoft/phi-3-mini-128k-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "microsoft/phi-3.5-mini-128k-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "minimax/minimax-m1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "minimax/minimax-m2"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/codestral-2501"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/codestral-2508"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-medium"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-small"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-small-2505"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/magistral-medium-2506"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/magistral-medium-2506:thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/magistral-small-2506"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-8b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-7b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-7b-instruct-v0.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-7b-instruct:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large-2407"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large-2411"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-medium-3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-medium-3.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-nemo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-saba"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-24b-instruct-2501"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.1-24b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.1-24b-instruct:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.2-24b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.2-24b-instruct:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-tiny"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mixtral-8x22b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mixtral-8x7b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/pixtral-12b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/pixtral-large-2411"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/voxtral-small-24b-2507"
+    },
+    {
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2"
+    },
+    {
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2-0905"
+    },
+    {
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2-0905:exacto"
+    },
+    {
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nousresearch/deephermes-3-mistral-24b-preview"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nousresearch/hermes-3-llama-3.1-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nousresearch/hermes-4-405b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nousresearch/hermes-4-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/llama-3.1-nemotron-70b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-nano-12b-v2-vl:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-nano-9b-v2"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-nano-9b-v2:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-20b:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openrouter/polaris-alpha"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-2.5-72b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-2.5-7b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-max"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus-2025-07-28"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus-2025-07-28:thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-turbo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen-vl-max"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-14b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b-2507"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b-thinking-2507"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b-instruct-2507"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b-thinking-2507"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-32b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-4b:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-8b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-30b-a3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-flash"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-plus"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder:exacto"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-max"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-235b-a22b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-235b-a22b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-30b-a3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-30b-a3b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-8b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwq-32b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "sao10k/l3-euryale-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "sao10k/l3.1-euryale-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "stepfun-ai/step3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "thedrummer/rocinante-12b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "thedrummer/unslopnemo-12b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "tngtech/deepseek-r1t2-chimera"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3-beta"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3-mini-beta"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4-fast"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-code-fast-1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4-32b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.5"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.5-air"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.5-air:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.5v"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.6"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.6:exacto"
+    },
+    {
+      "provider": "databricks",
+      "model": "baxen-migration-demo"
+    },
+    {
+      "provider": "databricks",
+      "model": "big-hack"
+    },
+    {
+      "provider": "databricks",
+      "model": "case_history_hackweek"
+    },
+    {
+      "provider": "databricks",
+      "model": "case-history-checker"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-3-5-haiku"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-3-5-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-3-5-sonnet-2"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-3-7-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-4"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-4-opus"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-haiku"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-opus"
+    },
+    {
+      "provider": "databricks",
+      "model": "claude-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "cmg-test-iris"
+    },
+    {
+      "provider": "databricks",
+      "model": "code-review-gpt-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "code-review-gpt-5-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "codellama-7b-hf-ift"
+    },
+    {
+      "provider": "databricks",
+      "model": "column-mapping-model-endpoint"
+    },
+    {
+      "provider": "databricks",
+      "model": "column-mapping-model-endpoint-v2"
+    },
+    {
+      "provider": "databricks",
+      "model": "dummy-model-ml-gp-endpoint"
+    },
+    {
+      "provider": "databricks",
+      "model": "e5-large-v2"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-1-5-flash"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-1-5-pro"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-2-0-flash"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-2-5-flash"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-2-5-flash-latest"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-2-5-pro"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-2-5-pro-exp"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-flash-lite-latest"
+    },
+    {
+      "provider": "databricks",
+      "model": "gemini-pro"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-3-5-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-3-7-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-4-5-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-4-opus"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-4-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-4-sonnet-bedrock"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gemini-2-5-pro"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gpt-4-1"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gpt-4o"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gpt-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gpt-oss"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-o1"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-o3"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-o4-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-3-5-turbo"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-3-5-turbo-0125"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-3-5-turbo-16k"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-3-5-turbo-instruct"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-0125-preview"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-1-2025-04-14"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-1-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-1-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-turbo"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-turbo-2024-04-09"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4-vision-preview"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4o"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4o-2024-05-13"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4o-2024-11-20"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4o-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-4o-mini-2024-07-18"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-5-mini-high"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-5-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "gpt-vision"
+    },
+    {
+      "provider": "databricks",
+      "model": "hackweek-snowflake-gpt-query-generator"
+    },
+    {
+      "provider": "databricks",
+      "model": "headless-goose"
+    },
+    {
+      "provider": "databricks",
+      "model": "headless-goose-claude-4-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "headless-goose-o3-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "icg-poc"
+    },
+    {
+      "provider": "databricks",
+      "model": "invoice_parser_test"
+    },
+    {
+      "provider": "databricks",
+      "model": "jina-reranker-v1-turbo-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-cashapp-claude-4-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-cashapp-claude-sonnet-4-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-claude-4-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-claude-haiku-4-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-claude-sonnet-4-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gemini-2-5-flash"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-4-1"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-4-1-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-4-1-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-4o"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-5-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-gpt-5-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-o3"
+    },
+    {
+      "provider": "databricks",
+      "model": "kgoose-o4-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "korhan-openai-test"
+    },
+    {
+      "provider": "databricks",
+      "model": "korhan-openai-wrapper"
+    },
+    {
+      "provider": "databricks",
+      "model": "moderation"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-claude-haiku-3-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-claude-opus-4"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-claude-opus-4-1"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-claude-sonnet-3-7"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-claude-sonnet-4"
+    },
+    {
+      "provider": "databricks",
+      "model": "ng-tools-gpt-5-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "o1"
+    },
+    {
+      "provider": "databricks",
+      "model": "o1-2024-12-17"
+    },
+    {
+      "provider": "databricks",
+      "model": "o1-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "o1-preview"
+    },
+    {
+      "provider": "databricks",
+      "model": "o3"
+    },
+    {
+      "provider": "databricks",
+      "model": "o3-cdd-autopilot"
+    },
+    {
+      "provider": "databricks",
+      "model": "o3-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "optimized-llama2-7b"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-en-es"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-en-fr"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-en-ja"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-es-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-fr-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "opus-mt-ja-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "p2p-device-recovery-classify"
+    },
+    {
+      "provider": "databricks",
+      "model": "picasso_embeddings"
+    },
+    {
+      "provider": "databricks",
+      "model": "prime_model"
+    },
+    {
+      "provider": "databricks",
+      "model": "raml-claude-sonnet-4-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "reportiq_selector_1"
+    },
+    {
+      "provider": "databricks",
+      "model": "reportiq_selector_md_file"
+    },
+    {
+      "provider": "databricks",
+      "model": "snowflake-gpt-query-generator-v3"
+    },
+    {
+      "provider": "databricks",
+      "model": "sq-bank-statement-classifier"
+    },
+    {
+      "provider": "databricks",
+      "model": "sq-bank-statement-parser"
+    },
+    {
+      "provider": "databricks",
+      "model": "support-article-intent-mapping"
+    },
+    {
+      "provider": "databricks",
+      "model": "text-embedding-3-large"
+    },
+    {
+      "provider": "databricks",
+      "model": "text-embedding-3-small"
+    },
+    {
+      "provider": "databricks",
+      "model": "text-embedding-ada-002"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gpt-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gemini-2-5-flash"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-claude-sonnet-4-5"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gpt-oss-120b"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gpt-5-mini"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gpt-5-nano"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gemini-2-5-pro"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gpt-oss-20b"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-llama-4-maverick"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gemma-3-12b"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-meta-llama-3-1-8b-instruct"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-meta-llama-3-3-70b-instruct"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-claude-opus-4-1"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-claude-sonnet-4"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-claude-3-7-sonnet"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-gte-large-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-bge-large-en"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-meta-llama-3-1-405b-instruct"
+    },
+    {
+      "provider": "databricks",
+      "model": "databricks-claude-opus-4"
+    },
+    {
+      "provider": "google",
+      "model": "aqa"
+    },
+    {
+      "provider": "google",
+      "model": "embedding-001"
+    },
+    {
+      "provider": "google",
+      "model": "embedding-gecko-001"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-exp-image-generation"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-preview-image-generation"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-thinking-exp"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-thinking-exp-01-21"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-thinking-exp-1219"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-pro-exp"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-pro-exp-02-05"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-computer-use-preview-10-2025"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-flash-preview-tts"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-pro-preview-tts"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-001"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-exp"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-exp-03-07"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-exp-1206"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-flash-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-flash-lite-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-pro-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-robotics-er-1.5-preview"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3-1b-it"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3n-e2b-it"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-generate-preview-06-06"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-ultra-generate-preview-06-06"
+    },
+    {
+      "provider": "google",
+      "model": "learnlm-2.0-flash-experimental"
+    },
+    {
+      "provider": "google",
+      "model": "text-embedding-004"
+    }
+  ],
+  "all_mappings": {
+    "openrouter": [
+      {
+        "provider_model": "anthropic/claude-3-haiku",
+        "canonical_model": "anthropic/claude-3-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3-opus",
+        "canonical_model": "anthropic/claude-3-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-haiku",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-haiku-20241022",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-sonnet",
+        "canonical_model": "anthropic/claude-3.5-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.5-sonnet-20240620",
+        "canonical_model": "anthropic/claude-3.5-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.7-sonnet",
+        "canonical_model": "anthropic/claude-3.7-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-3.7-sonnet:thinking",
+        "canonical_model": "anthropic/claude-3.7-sonnet:thinking",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-haiku-4.5",
+        "canonical_model": "anthropic/claude-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-opus-4",
+        "canonical_model": "anthropic/claude-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-opus-4.1",
+        "canonical_model": "anthropic/claude-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-sonnet-4",
+        "canonical_model": "anthropic/claude-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "anthropic/claude-sonnet-4.5",
+        "canonical_model": "anthropic/claude-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.0-flash-001",
+        "canonical_model": "google/gemini-2.0-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.0-flash-lite-001",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite-preview-06-17",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-lite-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-flash-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro-preview",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemini-2.5-pro-preview-05-06",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "google/gemma-3-27b-it",
+        "canonical_model": "google/gemma-3-27b-it",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/codex-mini",
+        "canonical_model": "openai/codex-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo-0613",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-3.5-turbo-16k",
+        "canonical_model": "openai/gpt-3.5-turbo-16k",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-0314",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-1106-preview",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-turbo",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4-turbo-preview",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1-mini",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4.1-nano",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-05-13",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-08-06",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-2024-11-20",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-audio-preview",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-mini",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o-mini-2024-07-18",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-4o:extended",
+        "canonical_model": "openai/gpt-4o:extended",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-codex",
+        "canonical_model": "openai/gpt-5-codex",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-image",
+        "canonical_model": "openai/gpt-5-image",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-image-mini",
+        "canonical_model": "openai/gpt-5-image-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-mini",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-nano",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-5-pro",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-120b",
+        "canonical_model": "openai/gpt-oss-120b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-120b:exacto",
+        "canonical_model": "openai/gpt-oss-120b:exacto",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-20b",
+        "canonical_model": "openai/gpt-oss-20b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/gpt-oss-safeguard-20b",
+        "canonical_model": "openai/gpt-oss-safeguard-20b",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o1",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-deep-research",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-mini",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-mini-high",
+        "canonical_model": "openai/o3-mini-high",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o3-pro",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini-deep-research",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "openai/o4-mini-high",
+        "canonical_model": "openai/o4-mini-high",
+        "verified": true
+      }
+    ],
+    "anthropic": [
+      {
+        "provider_model": "claude-3-5-haiku-20241022",
+        "canonical_model": "anthropic/claude-3.5-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-7-sonnet-20250219",
+        "canonical_model": "anthropic/claude-3.7-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-haiku-20240307",
+        "canonical_model": "anthropic/claude-3-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-3-opus-20240229",
+        "canonical_model": "anthropic/claude-3-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-haiku-4-5-20251001",
+        "canonical_model": "anthropic/claude-haiku",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-opus-4-1-20250805",
+        "canonical_model": "anthropic/claude-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-opus-4-20250514",
+        "canonical_model": "anthropic/claude-opus",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-sonnet-4-20250514",
+        "canonical_model": "anthropic/claude-sonnet",
+        "verified": true
+      },
+      {
+        "provider_model": "claude-sonnet-4-5-20250929",
+        "canonical_model": "anthropic/claude-sonnet",
+        "verified": true
+      }
+    ],
+    "openai": [
+      {
+        "provider_model": "chatgpt-4o-latest",
+        "canonical_model": "openai/chatgpt-4o-latest",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-0125",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-1106",
+        "canonical_model": "openai/gpt-3.5-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-16k",
+        "canonical_model": "openai/gpt-3.5-turbo-16k",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct-0914",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0125-preview",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0314",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-0613",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-1106-preview",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo-2024-04-09",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4-turbo-preview",
+        "canonical_model": "openai/gpt-4-turbo",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-2025-04-14",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-mini",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-mini-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-nano",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4.1-nano-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-05-13",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-08-06",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-2024-11-20",
+        "canonical_model": "openai/gpt-4o",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2024-10-01",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2024-12-17",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2025-06-03",
+        "canonical_model": "openai/gpt-4o-audio",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-2024-07-18",
+        "canonical_model": "openai/gpt-4o-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview",
+        "canonical_model": "openai/gpt-4o-mini-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-mini-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-search-preview",
+        "canonical_model": "openai/gpt-4o-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-4o-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-search",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-2025-08-07",
+        "canonical_model": "openai/gpt",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-codex",
+        "canonical_model": "openai/gpt-5-codex",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-mini",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-mini-2025-08-07",
+        "canonical_model": "openai/gpt-5-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-nano",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-nano-2025-08-07",
+        "canonical_model": "openai/gpt-5-nano",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-pro",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gpt-5-pro-2025-10-06",
+        "canonical_model": "openai/gpt-5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o1",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-2024-12-17",
+        "canonical_model": "openai/o1",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-pro",
+        "canonical_model": "openai/o1-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o1-pro-2025-03-19",
+        "canonical_model": "openai/o1-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o3",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-2025-04-16",
+        "canonical_model": "openai/o3",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-deep-research",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-deep-research-2025-06-26",
+        "canonical_model": "openai/o3-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-mini",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-mini-2025-01-31",
+        "canonical_model": "openai/o3-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-pro",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o3-pro-2025-06-10",
+        "canonical_model": "openai/o3-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-2025-04-16",
+        "canonical_model": "openai/o4-mini",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-deep-research",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      },
+      {
+        "provider_model": "o4-mini-deep-research-2025-06-26",
+        "canonical_model": "openai/o4-mini-deep-research",
+        "verified": true
+      }
+    ],
+    "google": [
+      {
+        "provider_model": "gemini-2.0-flash",
+        "canonical_model": "google/gemini-2.0-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-001",
+        "canonical_model": "google/gemini-2.0-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-exp",
+        "canonical_model": "google/gemini-2.0-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-001",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-preview",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-preview-02-05",
+        "canonical_model": "google/gemini-2.0-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-image",
+        "canonical_model": "google/gemini-2.5-flash-image",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-image-preview",
+        "canonical_model": "google/gemini-2.5-flash-image",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-lite",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-lite-preview-06-17",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-lite-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash-lite",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-preview-05-20",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-flash-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-pro",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-pro-preview-03-25",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-pro-preview-05-06",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gemini-2.5-pro-preview-06-05",
+        "canonical_model": "google/gemini-2.5-pro",
+        "verified": true
+      },
+      {
+        "provider_model": "gemma-3-12b-it",
+        "canonical_model": "google/gemma-3-12b-it",
+        "verified": true
+      },
+      {
+        "provider_model": "gemma-3-27b-it",
+        "canonical_model": "google/gemma-3-27b-it",
+        "verified": true
+      },
+      {
+        "provider_model": "gemma-3-4b-it",
+        "canonical_model": "google/gemma-3-4b-it",
+        "verified": true
+      },
+      {
+        "provider_model": "gemma-3n-e4b-it",
+        "canonical_model": "google/gemma-3n-e4b-it",
+        "verified": true
+      }
+    ],
+    "databricks": [],
+    "tetrate": []
+  },
+  "model_counts": {
+    "openrouter": 217,
+    "anthropic": 9,
+    "openai": 625,
+    "tetrate": 0,
+    "databricks": 143,
+    "google": 50
+  },
+  "canonical_models_used": [
+    "openai/gpt-5-image-mini",
+    "google/gemini-2.5-flash-image",
+    "openai/gpt-4.1-mini",
+    "openai/o4-mini-high",
+    "google/gemini-2.5-flash-lite",
+    "openai/gpt-4-turbo",
+    "anthropic/claude-sonnet",
+    "openai/gpt-4o-mini",
+    "google/gemma-3-4b-it",
+    "openai/gpt-3.5-turbo-instruct",
+    "openai/gpt-3.5-turbo-16k",
+    "google/gemma-3n-e4b-it",
+    "anthropic/claude-3-opus",
+    "google/gemma-3-12b-it",
+    "openai/o3",
+    "openai/gpt-oss-safeguard-20b",
+    "anthropic/claude-3.5-haiku",
+    "openai/o1-pro",
+    "openai/o3-mini",
+    "openai/chatgpt-4o-latest",
+    "openai/gpt-3.5-turbo",
+    "anthropic/claude-3-haiku",
+    "openai/gpt",
+    "openai/gpt-5-codex",
+    "openai/o3-deep-research",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "anthropic/claude-haiku",
+    "anthropic/claude-3.7-sonnet",
+    "openai/gpt-4.1-nano",
+    "openai/o4-mini",
+    "openai/o3-mini-high",
+    "openai/o4-mini-deep-research",
+    "openai/gpt-oss-120b",
+    "openai/gpt-4o-audio",
+    "openai/o3-pro",
+    "openai/gpt-5-image",
+    "google/gemini-2.5-flash",
+    "google/gemma-3-27b-it",
+    "openai/gpt-oss-20b",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-3.5-sonnet",
+    "openai/o1",
+    "openai/gpt-oss-120b:exacto",
+    "openai/gpt-4o-mini-search",
+    "openai/gpt-5-pro",
+    "openai/gpt-4o",
+    "openai/codex-mini",
+    "google/gemini-2.0-flash-lite",
+    "anthropic/claude-opus",
+    "openai/gpt-4o:extended",
+    "google/gemini-2.0-flash",
+    "openai/gpt-5-mini",
+    "openai/gpt-5-nano",
+    "openai/gpt-4o-search"
+  ]
+}
