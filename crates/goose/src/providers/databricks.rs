@@ -1,13 +1,8 @@
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io;
 use std::time::Duration;
-use tokio::pin;
-use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -17,21 +12,19 @@ use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
-    RequestLog,
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error,
+    stream_openai_compat, ImageFormat, RequestLog,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
+use crate::providers::formats::openai::get_usage;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
 use rmcp::model::Tool;
 use serde_json::json;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost";
@@ -347,20 +340,7 @@ impl Provider for DatabricksProvider {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        stream_openai_compat(response, log)
     }
 
     fn supports_streaming(&self) -> bool {

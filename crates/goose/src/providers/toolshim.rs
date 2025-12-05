@@ -162,6 +162,7 @@ impl OllamaInterpreter {
             &messages,
             &[], // No tools
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
 
         payload["stream"] = json!(false); // needed for the /api/chat endpoint to work
