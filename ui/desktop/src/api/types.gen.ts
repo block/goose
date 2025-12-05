@@ -4,6 +4,18 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type ActionRequired = {
+    data: ActionRequiredData;
+};
+
+export type ActionRequiredData = {
+    actionType: 'toolConfirmation';
+    arguments: JsonObject;
+    id: string;
+    prompt?: string | null;
+    toolName: string;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -74,6 +86,13 @@ export type ConfigResponse = {
     config: {
         [key: string]: unknown;
     };
+};
+
+export type ConfirmToolActionRequest = {
+    action: string;
+    id: string;
+    principalType?: PrincipalType;
+    sessionId: string;
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
@@ -371,6 +390,8 @@ export type MessageContent = (TextContent & {
     type: 'toolResponse';
 }) | (ToolConfirmationRequest & {
     type: 'toolConfirmationRequest';
+}) | (ActionRequired & {
+    type: 'actionRequired';
 }) | (FrontendToolRequest & {
     type: 'frontendToolRequest';
 }) | (ThinkingContent & {
@@ -469,13 +490,6 @@ export type ParseRecipeRequest = {
 
 export type ParseRecipeResponse = {
     recipe: Recipe;
-};
-
-export type PermissionConfirmationRequest = {
-    action: string;
-    id: string;
-    principal_type?: PrincipalType;
-    session_id: string;
 };
 
 /**
@@ -761,7 +775,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
     limit: number;
@@ -921,11 +935,23 @@ export type ToolResponse = {
     };
 };
 
+export type TunnelInfo = {
+    hostname: string;
+    secret: string;
+    state: TunnelState;
+    url: string;
+};
+
+export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
     display_name: string;
     engine: string;
+    headers?: {
+        [key: string]: string;
+    } | null;
     models: Array<string>;
     supports_streaming?: boolean | null;
 };
@@ -976,6 +1002,31 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type ConfirmToolActionData = {
+    body: ConfirmToolActionRequest;
+    path?: never;
+    query?: never;
+    url: '/action-required/tool-confirmation';
+};
+
+export type ConfirmToolActionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmToolActionResponses = {
+    /**
+     * Tool confirmation action is confirmed
+     */
+    200: unknown;
 };
 
 export type AgentAddExtensionData = {
@@ -1713,31 +1764,6 @@ export type ValidateConfigResponses = {
 };
 
 export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
-
-export type ConfirmPermissionData = {
-    body: PermissionConfirmationRequest;
-    path?: never;
-    query?: never;
-    url: '/confirm';
-};
-
-export type ConfirmPermissionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ConfirmPermissionResponses = {
-    /**
-     * Permission action is confirmed
-     */
-    200: unknown;
-};
 
 export type DiagnosticsData = {
     body?: never;
@@ -2728,3 +2754,71 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type StartTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/start';
+};
+
+export type StartTunnelErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
+
+export type StartTunnelResponses = {
+    /**
+     * Tunnel started successfully
+     */
+    200: TunnelInfo;
+};
+
+export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
+
+export type GetTunnelStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/status';
+};
+
+export type GetTunnelStatusResponses = {
+    /**
+     * Tunnel info
+     */
+    200: TunnelInfo;
+};
+
+export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
+
+export type StopTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/tunnel/stop';
+};
+
+export type StopTunnelErrors = {
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
+
+export type StopTunnelResponses = {
+    /**
+     * Tunnel stopped successfully
+     */
+    200: unknown;
+};

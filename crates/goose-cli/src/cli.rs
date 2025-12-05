@@ -14,6 +14,9 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
+use crate::commands::term::{
+    handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
+};
 
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -377,6 +380,14 @@ enum RecipeCommand {
             help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
         )]
         recipe_name: String,
+        /// Recipe parameters in key=value format (can be specified multiple times)
+        #[arg(
+            short = 'p',
+            long = "param",
+            value_name = "KEY=VALUE",
+            help = "Recipe parameter in key=value format (can be specified multiple times)"
+        )]
+        params: Vec<String>,
     },
 
     /// Open a recipe in Goose Desktop
@@ -385,6 +396,14 @@ enum RecipeCommand {
         /// Recipe name to get recipe file to open
         #[arg(help = "recipe name or full path to the recipe file")]
         recipe_name: String,
+        /// Recipe parameters in key=value format (can be specified multiple times)
+        #[arg(
+            short = 'p',
+            long = "param",
+            value_name = "KEY=VALUE",
+            help = "Recipe parameter in key=value format (can be specified multiple times)"
+        )]
+        params: Vec<String>,
     },
 
     /// List available recipes
@@ -830,6 +849,84 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
     },
+
+    /// Terminal-integrated session (one session per terminal)
+    #[command(
+        about = "Terminal-integrated goose session",
+        long_about = "Runs a goose session tied to your terminal window.\n\
+                      Each terminal maintains its own persistent session that resumes automatically.\n\n\
+                      Setup:\n  \
+                        eval \"$(goose term init zsh)\"  # Add to ~/.zshrc\n\n\
+                      Usage:\n  \
+                        goose term run \"list files in this directory\"\n  \
+                        @goose \"create a python script\"  # using alias\n  \
+                        @g \"quick question\"  # short alias"
+    )]
+    Term {
+        #[command(subcommand)]
+        command: TermCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TermCommand {
+    /// Print shell initialization script
+    #[command(
+        about = "Print shell initialization script",
+        long_about = "Prints shell configuration to set up terminal-integrated sessions.\n\
+                      Each terminal gets a persistent goose session that automatically resumes.\n\n\
+                      Setup:\n  \
+                        echo 'eval \"$(goose term init zsh)\"' >> ~/.zshrc\n  \
+                        source ~/.zshrc\n\n\
+                      With --default (anything typed that isn't a command goes to goose):\n  \
+                        echo 'eval \"$(goose term init zsh --default)\"' >> ~/.zshrc"
+    )]
+    Init {
+        /// Shell type (bash, zsh, fish, powershell)
+        #[arg(value_enum)]
+        shell: Shell,
+
+        #[arg(short, long, help = "Name for the terminal session")]
+        name: Option<String>,
+
+        /// Make goose the default handler for unknown commands
+        #[arg(
+            long = "default",
+            help = "Make goose the default handler for unknown commands",
+            long_help = "When enabled, anything you type that isn't a valid command will be sent to goose. Only supported for zsh and bash."
+        )]
+        default: bool,
+    },
+
+    /// Log a shell command (called by shell hook)
+    #[command(about = "Log a shell command to the session", hide = true)]
+    Log {
+        /// The command that was executed
+        command: String,
+    },
+
+    /// Run a prompt in the terminal session
+    #[command(
+        about = "Run a prompt in the terminal session",
+        long_about = "Run a prompt in the terminal-integrated session.\n\n\
+                      Examples:\n  \
+                        goose term run list files in this directory\n  \
+                        @goose list files  # using alias\n  \
+                        @g why did that fail  # short alias"
+    )]
+    Run {
+        /// The prompt to send to goose (multiple words allowed without quotes)
+        #[arg(required = true, num_args = 1..)]
+        prompt: Vec<String>,
+    },
+
+    /// Print session info for prompt integration
+    #[command(
+        about = "Print session info for prompt integration",
+        long_about = "Prints compact session info (token usage, model) for shell prompt integration.\n\
+                      Example output: ●○○○○ sonnet"
+    )]
+    Info,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -875,6 +972,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Term { .. }) => "term",
         None => "default_session",
     };
 
@@ -1368,11 +1466,17 @@ pub async fn cli() -> anyhow::Result<()> {
                 RecipeCommand::Validate { recipe_name } => {
                     handle_validate(&recipe_name)?;
                 }
-                RecipeCommand::Deeplink { recipe_name } => {
-                    handle_deeplink(&recipe_name)?;
+                RecipeCommand::Deeplink {
+                    recipe_name,
+                    params,
+                } => {
+                    handle_deeplink(&recipe_name, &params)?;
                 }
-                RecipeCommand::Open { recipe_name } => {
-                    handle_open(&recipe_name)?;
+                RecipeCommand::Open {
+                    recipe_name,
+                    params,
+                } => {
+                    handle_open(&recipe_name, &params)?;
                 }
                 RecipeCommand::List { format, verbose } => {
                     handle_list(&format, verbose)?;
@@ -1387,6 +1491,27 @@ pub async fn cli() -> anyhow::Result<()> {
             auth_token,
         }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
+            return Ok(());
+        }
+        Some(Command::Term { command }) => {
+            match command {
+                TermCommand::Init {
+                    shell,
+                    name,
+                    default,
+                } => {
+                    handle_term_init(shell, name, default).await?;
+                }
+                TermCommand::Log { command } => {
+                    handle_term_log(command).await?;
+                }
+                TermCommand::Run { prompt } => {
+                    handle_term_run(prompt).await?;
+                }
+                TermCommand::Info => {
+                    handle_term_info().await?;
+                }
+            }
             return Ok(());
         }
         None => {

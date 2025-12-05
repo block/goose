@@ -338,7 +338,6 @@ impl ShellServer {
         let peer = context.peer;
         let request_id = context.id;
 
-        // Validate the shell command
         self.validate_shell_command(command)?;
 
         let cancellation_token = CancellationToken::new();
@@ -348,12 +347,10 @@ impl ShellServer {
             processes.insert(request_id_str.clone(), cancellation_token.clone());
         }
 
-        // Execute the wrapped command
         let output_result = self
             .execute_shell_command(command, &peer, cancellation_token.clone())
             .await;
 
-        // Clean up the process from tracking
         {
             let mut processes = self.running_processes.write().await;
             let request_id_str = request_id.to_string();
@@ -362,10 +359,8 @@ impl ShellServer {
 
         let output_str = output_result?;
 
-        // Validate output size
         self.validate_shell_output_size(command, &output_str)?;
 
-        // Process and format the output
         let (final_output, user_output) = self.process_shell_output(&output_str)?;
 
         Ok(CallToolResult::success(vec![
@@ -419,7 +414,6 @@ impl ShellServer {
             }
         };
 
-        // Check if file is ignored
         if self.is_ignored(&path) {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -431,7 +425,6 @@ impl ShellServer {
             ));
         }
 
-        // Check if file exists
         if !path.exists() {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -440,7 +433,6 @@ impl ShellServer {
             ));
         }
 
-        // Check file size (10MB limit)
         const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
         let file_size = std::fs::metadata(&path)
             .map_err(|e| {
@@ -464,7 +456,6 @@ impl ShellServer {
             ));
         }
 
-        // Open and decode the image
         let image = xcap::image::open(&path).map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -473,7 +464,6 @@ impl ShellServer {
             )
         })?;
 
-        // Resize if necessary
         let mut processed_image = image;
         let max_width = 768;
         if processed_image.width() > max_width {
@@ -487,7 +477,6 @@ impl ShellServer {
             ));
         }
 
-        // Convert to PNG and encode as base64
         let mut bytes: Vec<u8> = Vec::new();
         processed_image
             .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
@@ -510,8 +499,6 @@ impl ShellServer {
             Content::image(data, "image/png").with_priority(0.0),
         ]))
     }
-
-    // Helper methods
 
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ErrorData> {
         let cwd = std::env::current_dir().expect("should have a current working dir");

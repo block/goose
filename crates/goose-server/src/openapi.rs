@@ -19,9 +19,9 @@ use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
-    FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SystemNotificationContent, SystemNotificationType, ThinkingContent, TokenState,
-    ToolConfirmationRequest, ToolRequest, ToolResponse,
+    ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
+    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
+    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;
@@ -358,7 +358,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_router_tool_selector,
-        super::routes::reply::confirm_permission,
+        super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
         super::routes::session::get_session,
@@ -391,6 +391,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
+        super::routes::tunnel::start_tunnel,
+        super::routes::tunnel::stop_tunnel,
+        super::routes::tunnel::get_tunnel_status,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -408,7 +411,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::config_management::CheckProviderRequest,
         super::routes::config_management::SetProviderRequest,
-        super::routes::reply::PermissionConfirmationRequest,
+        super::routes::action_required::ConfirmToolActionRequest,
         super::routes::reply::ChatRequest,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
@@ -435,6 +438,8 @@ derive_utoipa!(Icon as IconSchema);
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
+        ActionRequired,
+        ActionRequiredData,
         ThinkingContent,
         RedactedThinkingContent,
         FrontendToolRequest,
@@ -513,6 +518,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::AddExtensionRequest,
         super::routes::agent::RemoveExtensionRequest,
         super::routes::setup::SetupResponse,
+        super::tunnel::TunnelInfo,
+        super::tunnel::TunnelState,
     ))
 )]
 pub struct ApiDoc;

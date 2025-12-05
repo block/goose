@@ -208,9 +208,8 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {
-                    // Skip tool confirmation requests
-                }
+                MessageContent::ToolConfirmationRequest(_) => {}
+                MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
                     content_array.push(convert_image(image, image_format));
                 }
@@ -263,7 +262,7 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
 
-    let is_gemini = model_name.starts_with("gemini");
+    let is_gemini = model_name.contains("gemini");
 
     for tool in tools {
         if !tool_names.insert(&tool.name) {
@@ -697,7 +696,11 @@ mod tests {
             "http://json-schema.org/draft-07/schema#"
         );
 
-        let spec = format_tools(&[tool], "gemini-2-5-flash")?;
+        let spec = format_tools(&[tool.clone()], "gemini-2-5-flash")?;
+        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+
+        let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
         assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
         assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 

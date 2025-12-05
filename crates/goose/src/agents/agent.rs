@@ -299,7 +299,7 @@ impl Agent {
     async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
-        message_tool_response: Arc<Mutex<Message>>,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
@@ -334,16 +334,23 @@ impl Agent {
             }
         }
 
-        // Handle denied tools
-        for request in &permission_check_result.denied {
-            let mut response = message_tool_response.lock().await;
-            *response = response.clone().with_tool_response(
-                request.id.clone(),
-                Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
-            );
-        }
-
+        Self::handle_denied_tools(permission_check_result, request_to_response_map).await;
         Ok(tool_futures)
+    }
+
+    async fn handle_denied_tools(
+        permission_check_result: &PermissionCheckResult,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
+    ) {
+        for request in &permission_check_result.denied {
+            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                let mut response = response_msg.lock().await;
+                *response = response.clone().with_tool_response(
+                    request.id.clone(),
+                    Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+                );
+            }
+        }
     }
 
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
@@ -1000,7 +1007,6 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -1016,33 +1022,44 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
+                                    messages_to_add.push(response.clone());
                                     continue;
                                 }
 
-                                let message_tool_response = Arc::new(Mutex::new(Message::user().with_id(
-                                    format!("msg_{}", Uuid::new_v4())
-                                )));
+                                let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
+                                        format!("msg_{}", Uuid::new_v4())
+                                    ))))
+                                    .collect();
 
-                                let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                                    &frontend_requests,
-                                    message_tool_response.clone(),
-                                );
-
-                                while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                    yield AgentEvent::Message(msg);
+                                let mut request_to_response_map = HashMap::new();
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
                                 }
 
+                                for (idx, request) in frontend_requests.iter().enumerate() {
+                                    let mut frontend_tool_stream = self.handle_frontend_tool_request(
+                                        request,
+                                        tool_response_messages[idx].clone(),
+                                    );
+
+                                    while let Some(msg) = frontend_tool_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
+                                    }
+                                }
                                 if goose_mode == GooseMode::Chat {
-                                    // Skip all tool calls in chat mode
-                                    for request in remaining_requests {
-                                        let mut response = message_tool_response.lock().await;
-                                        *response = response.clone().with_tool_response(
-                                            request.id.clone(),
-                                            Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                                        );
+                                    // Skip all remaining tool calls in chat mode
+                                    for request in remaining_requests.iter() {
+                                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                            let mut response = response_msg.lock().await;
+                                            *response = response.clone().with_tool_response(
+                                                request.id.clone(),
+                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                            );
+                                        }
                                     }
                                 } else {
-                                    // Run all tool inspectors (security, repetition, permission, etc.)
+                                    // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &remaining_requests,
@@ -1050,14 +1067,12 @@ impl Agent {
                                         )
                                         .await?;
 
-                                    // Process inspection results into permission decisions using the permission inspector
                                     let permission_check_result = self.tool_inspection_manager
                                         .process_inspection_results_with_permission_inspector(
                                             &remaining_requests,
                                             &inspection_results,
                                         )
                                         .unwrap_or_else(|| {
-                                            // Fallback if permission inspector not found - default to needs approval
                                             let mut result = PermissionCheckResult {
                                                 approved: vec![],
                                                 needs_approval: vec![],
@@ -1067,7 +1082,7 @@ impl Agent {
                                             result
                                         });
 
-                                    // Track extension requests for special handling
+                                    // Track extension requests
                                     let mut enable_extension_request_ids = vec![];
                                     for request in &remaining_requests {
                                         if let Ok(tool_call) = &request.tool_call {
@@ -1079,7 +1094,7 @@ impl Agent {
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                     ).await?;
@@ -1089,7 +1104,7 @@ impl Agent {
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                         &inspection_results,
@@ -1125,14 +1140,13 @@ impl Agent {
                                                 {
                                                     all_install_successful = false;
                                                 }
-                                                let mut response = message_tool_response.lock().await;
-                                                *response =
-                                                    response.clone().with_tool_response(request_id, output);
+                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let mut response = response_msg.lock().await;
+                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                }
                                             }
                                             ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((
-                                                    request_id, msg,
-                                                ));
+                                                yield AgentEvent::McpNotification((request_id, msg));
                                             }
                                         }
                                     }
@@ -1145,11 +1159,20 @@ impl Agent {
                                     }
                                 }
 
-                                let final_message_tool_resp = message_tool_response.lock().await.clone();
-                                yield AgentEvent::Message(final_message_tool_resp.clone());
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    if request.tool_call.is_ok() {
+                                        let request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                        messages_to_add.push(request_msg);
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
+                                    }
+                                }
 
                                 no_tools_called = false;
-                                messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {

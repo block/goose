@@ -13,6 +13,40 @@
     "version": "1.15.0"
   },
   "paths": {
+    "/action-required/tool-confirmation": {
+      "post": {
+        "tags": [
+          "super::routes::action_required"
+        ],
+        "operationId": "confirm_tool_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmToolActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tool confirmation action is confirmed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/add_extension": {
       "post": {
         "tags": [
@@ -950,40 +984,6 @@
           },
           "422": {
             "description": "Config file is corrupted"
-          }
-        }
-      }
-    },
-    "/confirm": {
-      "post": {
-        "tags": [
-          "super::routes::reply"
-        ],
-        "operationId": "confirm_permission",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PermissionConfirmationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Permission action is confirmed",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -2263,10 +2263,144 @@
           }
         }
       }
+    },
+    "/tunnel/start": {
+      "post": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Start the tunnel",
+        "operationId": "start_tunnel",
+        "responses": {
+          "200": {
+            "description": "Tunnel started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TunnelInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tunnel/status": {
+      "get": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Get tunnel info",
+        "operationId": "get_tunnel_status",
+        "responses": {
+          "200": {
+            "description": "Tunnel info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TunnelInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tunnel/stop": {
+      "post": {
+        "tags": [
+          "super::routes::tunnel"
+        ],
+        "summary": "Stop the tunnel",
+        "operationId": "stop_tunnel",
+        "responses": {
+          "200": {
+            "description": "Tunnel stopped successfully"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ActionRequired": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ActionRequiredData"
+          }
+        }
+      },
+      "ActionRequiredData": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "toolName",
+              "arguments",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "toolConfirmation"
+                ]
+              },
+              "arguments": {
+                "$ref": "#/components/schemas/JsonObject"
+              },
+              "id": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string",
+                "nullable": true
+              },
+              "toolName": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "actionType"
+        }
+      },
       "AddExtensionRequest": {
         "type": "object",
         "required": [
@@ -2427,6 +2561,28 @@
           "config": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "ConfirmToolActionRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "sessionId"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principalType": {
+            "$ref": "#/components/schemas/PrincipalType"
+          },
+          "sessionId": {
+            "type": "string"
           }
         }
       },
@@ -3435,6 +3591,27 @@
           {
             "allOf": [
               {
+                "$ref": "#/components/schemas/ActionRequired"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "actionRequired"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
                 "$ref": "#/components/schemas/FrontendToolRequest"
               },
               {
@@ -3783,28 +3960,6 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
-          }
-        }
-      },
-      "PermissionConfirmationRequest": {
-        "type": "object",
-        "required": [
-          "id",
-          "action",
-          "session_id"
-        ],
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "principal_type": {
-            "$ref": "#/components/schemas/PrincipalType"
-          },
-          "session_id": {
-            "type": "string"
           }
         }
       },
@@ -4670,7 +4825,8 @@
           "user",
           "scheduled",
           "sub_agent",
-          "hidden"
+          "hidden",
+          "terminal"
         ]
       },
       "SessionsQuery": {
@@ -5133,6 +5289,39 @@
           }
         }
       },
+      "TunnelInfo": {
+        "type": "object",
+        "required": [
+          "state",
+          "url",
+          "hostname",
+          "secret"
+        ],
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TunnelState"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "TunnelState": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "starting",
+          "running",
+          "error",
+          "disabled"
+        ]
+      },
       "UpdateCustomProviderRequest": {
         "type": "object",
         "required": [
@@ -5154,6 +5343,13 @@
           },
           "engine": {
             "type": "string"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
           },
           "models": {
             "type": "array",
