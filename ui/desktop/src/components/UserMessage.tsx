@@ -199,7 +199,7 @@ export default function UserMessage({
   }, [editContent, isEditing]);
 
   return (
-    <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col group">
         {isEditing ? (
           // Truly wide, centered, in-place edit box replacing the bubble

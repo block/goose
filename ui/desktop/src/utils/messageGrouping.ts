@@ -213,10 +213,10 @@ export function isGroupedMessage(message: GroupedMessage): boolean {
  */
 export function getMessageSpacing(message: GroupedMessage): string {
   if (message.showHeader) {
-    // First message in group gets normal spacing
+    // First message in group gets normal spacing (16px)
     return 'mt-4';
   } else {
-    // Grouped messages get reduced spacing
-    return 'mt-1';
+    // Grouped messages get minimal spacing - like a single line break (8px)
+    return 'mt-2';
   }
 }
