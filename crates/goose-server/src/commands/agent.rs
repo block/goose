@@ -1,8 +1,10 @@
+use crate::auth::check_token;
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
-use goose_server::auth::check_token;
+use axum::Router;
+use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -25,6 +27,38 @@ async fn shutdown_signal() {
 #[cfg(not(unix))]
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
+}
+
+pub async fn build_app() -> Result<(Router, TcpListener)> {
+    let settings = configuration::Settings::new()?;
+
+    if let Err(e) = initialize_pricing_cache().await {
+        tracing::warn!(
+            "Failed to initialize pricing cache: {}. Pricing data may not be available.",
+            e
+        );
+    }
+
+    let secret_key =
+        std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
+
+    let app_state = state::AppState::new().await?;
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = crate::routes::configure(app_state, secret_key.clone())
+        .layer(middleware::from_fn_with_state(
+            secret_key.clone(),
+            check_token,
+        ))
+        .layer(cors);
+
+    let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
+
+    Ok((app, listener))
 }
 
 pub async fn run() -> Result<()> {
@@ -57,6 +91,7 @@ pub async fn run() -> Result<()> {
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
+
     info!("listening on {}", listener.local_addr()?);
 
     let tunnel_manager = app_state.tunnel_manager.clone();
