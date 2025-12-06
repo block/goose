@@ -7,10 +7,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the common setup script
-source "$SCRIPT_DIR/node-setup-common.sh"
+source "${SCRIPT_DIR}/node-setup-common.sh"
 
 # Final step: Execute npx with passed arguments
-log "Executing 'npx' command with arguments: $*"
-npx "$@" || log "Failed to execute 'npx' with arguments: $*"
+log "Executing 'npx' command with arguments: ${*}"
+npx "${@}" || log "Failed to execute 'npx' with arguments: ${*}"
 
 log "npx script completed successfully."
