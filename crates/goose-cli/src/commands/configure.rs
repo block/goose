@@ -1891,7 +1891,7 @@ fn add_provider() -> anyhow::Result<()> {
         .mask('▪')
         .interact()?;
 
-    let models_input: String = cliclack::input("Available models (seperate with commas):")
+    let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
         .validate(|input: &String| {
             if input.trim().is_empty() {
