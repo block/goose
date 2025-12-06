@@ -588,11 +588,11 @@ retry:
    - Recipe execution starts over
 4. Process continues until either success or max retries reached
 
-See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#automated-retry-with-success-validation) for complete retry configuration options and examples.
+See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#retry) for complete retry configuration options and examples.
 
 ### Structured Output for Automation
 
-Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#structured-output-with-response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
+Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
 
 - **Reliable parsing**: Consistent JSON format for scripts, automation, and CI/CD pipelines
 - **Built-in validation**: Ensures output matches your requirements  
