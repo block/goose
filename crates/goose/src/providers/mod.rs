@@ -8,6 +8,7 @@ pub mod bedrock;
 pub mod claude_code;
 pub mod cursor_agent;
 pub mod databricks;
+pub mod embedded;
 pub mod embedding;
 pub mod errors;
 mod factory;
