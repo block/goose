@@ -1,5 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::conversation::Conversation;
 use crate::session::extension_data::ExtensionState;
 use crate::session::{extension_data, SessionManager};
 use anyhow::Result;
@@ -8,7 +9,7 @@ use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    Role, ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,16 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "todo";
+
+const AUTONOMOUS_MODE_TRIGGERS: &[&str] = &["Act autonomously.", "Work independently."];
+
+const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
+    - [ ] Capture all requirements (explicit, implicit, and edge cases) in .task_requirements.md
+    - [ ] Plan: break down into steps, update this todo
+    - [ ] Implement
+    - [ ] Test: deterministic verification required (run tests, lints, type checks)
+    - [ ] Reread .task_requirements.md and confirm every requirement is satisfied
+"#};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct TodoWriteParams {
@@ -158,6 +169,8 @@ impl TodoClient {
                     - Task tracking and progress updates
                     - Important notes and reminders
 
+                    Update TODO after each step - it's the user's window into your progress.
+
                     WARNING: This operation completely replaces the existing content. Always include
                     all content you want to keep, not just the changes.
                 "#}
@@ -171,6 +184,51 @@ impl TodoClient {
             idempotent_hint: Some(false),
             open_world_hint: Some(false),
         })]
+    }
+
+    fn should_initialize_autonomous_mode(conversation: &Conversation) -> bool {
+        if conversation.messages().len() != 1 {
+            return false;
+        }
+
+        let first_message = match conversation.messages().first() {
+            Some(msg) if msg.role == Role::User => msg,
+            _ => return false,
+        };
+
+        let text = first_message.as_concat_text();
+        AUTONOMOUS_MODE_TRIGGERS
+            .iter()
+            .any(|trigger| text.contains(trigger))
+    }
+
+    async fn initialize_autonomous_todo(&self) {
+        let session_id = match &self.context.session_id {
+            Some(id) => id,
+            None => return,
+        };
+
+        let session = match SessionManager::get_session(session_id, false).await {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        let existing = extension_data::TodoState::from_extension_data(&session.extension_data);
+        if existing.is_some_and(|t| !t.content.trim().is_empty()) {
+            return;
+        }
+
+        let todo_state = extension_data::TodoState::new(AUTONOMOUS_MODE_TODO_TEMPLATE.to_string());
+        let mut extension_data = session.extension_data;
+
+        if todo_state.to_extension_data(&mut extension_data).is_err() {
+            return;
+        }
+
+        let _ = SessionManager::update_session(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await;
     }
 }
 
@@ -248,7 +306,11 @@ impl McpClientTrait for TodoClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self) -> Option<String> {
+    async fn get_moim(&self, conversation: &Conversation) -> Option<String> {
+        if Self::should_initialize_autonomous_mode(conversation) {
+            self.initialize_autonomous_todo().await;
+        }
+
         let session_id = self.context.session_id.as_ref()?;
         let metadata = SessionManager::get_session(session_id, false).await.ok()?;
         let state = extension_data::TodoState::from_extension_data(&metadata.extension_data)?;

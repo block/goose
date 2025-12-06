@@ -16,7 +16,7 @@ pub async fn inject_moim(
         return conversation;
     }
 
-    if let Some(moim) = extension_manager.collect_moim().await {
+    if let Some(moim) = extension_manager.collect_moim(&conversation).await {
         let mut messages = conversation.messages().clone();
         let idx = messages
             .iter()

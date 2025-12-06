@@ -1,5 +1,6 @@
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::types::SharedProvider;
+use crate::conversation::Conversation;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{
     Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode,
@@ -81,7 +82,7 @@ pub trait McpClientTrait: Send + Sync {
 
     fn get_info(&self) -> Option<&InitializeResult>;
 
-    async fn get_moim(&self) -> Option<String> {
+    async fn get_moim(&self, _conversation: &Conversation) -> Option<String> {
         None
     }
 }
