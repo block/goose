@@ -444,6 +444,7 @@ mod tests {
                     toolshim: false,
                     toolshim_model: None,
                     fast_model: None,
+                    request_params: None,
                 },
                 max_tool_responses: None,
             }

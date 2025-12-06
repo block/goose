@@ -43,6 +43,8 @@ pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
     session_id: String,
+    context_limit: Option<usize>,
+    request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -219,6 +221,19 @@ async fn resume_agent(
         let config = Config::global();
 
         let provider_result = async {
+            // Try to use the AgentManager's default_provider first (set by update_agent_provider)
+            // This ensures all sessions use the same provider config (including context_limit)
+            if let Some(default_provider) = state.agent_manager.get_default_provider().await {
+                return agent
+                    .update_provider(default_provider, &payload.session_id)
+                    .await
+                    .map_err(|e| ErrorResponse {
+                        message: format!("Could not configure agent: {}", e),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    });
+            }
+
+            // Fall back to session-saved config or global config
             let provider_name = session
                 .provider_name
                 .clone()
@@ -433,12 +448,15 @@ async fn update_agent_provider(
         }
     };
 
-    let model_config = ModelConfig::new(&model).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid model config: {}", e),
-        )
-    })?;
+    let model_config = ModelConfig::new(&model)
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid model config: {}", e),
+            )
+        })?
+        .with_context_limit(payload.context_limit)
+        .with_request_params(payload.request_params);
 
     let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
         (
@@ -448,7 +466,7 @@ async fn update_agent_provider(
     })?;
 
     agent
-        .update_provider(new_provider, &payload.session_id)
+        .update_provider(Arc::clone(&new_provider), &payload.session_id)
         .await
         .map_err(|e| {
             (
@@ -456,6 +474,8 @@ async fn update_agent_provider(
                 format!("Failed to update provider: {}", e),
             )
         })?;
+
+    state.agent_manager.set_default_provider(new_provider).await;
 
     Ok(())
 }
