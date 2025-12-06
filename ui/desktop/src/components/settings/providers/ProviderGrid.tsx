@@ -157,7 +157,7 @@ function ProviderCards({
   }, [providers, isOnboarding, configureProviderViaModal, onProviderLaunch]);
 
   const initialData = editingProvider && {
-    engine: editingProvider.config.engine.toLowerCase() + '_compatible',
+    engine: editingProvider.config.engine.toLowerCase(),
     display_name: editingProvider.config.display_name,
     api_url: editingProvider.config.base_url,
     api_key: '',
