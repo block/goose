@@ -319,16 +319,18 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
     echo "or rerun this install script after updating your PATH."
   else
     SHELL_NAME=$(basename "$SHELL")
-    
+
     echo ""
     echo "The \$GOOSE_BIN_DIR is not in your PATH."
-    echo "What would you like to do?"
-    echo "1) Add it for me"
-    echo "2) I'll add it myself, show instructions"
-    
-    read -p "Enter choice [1/2]: " choice
-    
-    case "$choice" in
+
+    if [ "$CONFIGURE" = true ]; then
+      echo "What would you like to do?"
+      echo "1) Add it for me"
+      echo "2) I'll add it myself, show instructions"
+
+      read -p "Enter choice [1/2]: " choice
+
+      case "$choice" in
       1)
         RC_FILE="$HOME/.${SHELL_NAME}rc"
         echo "Adding \$GOOSE_BIN_DIR to $RC_FILE..."
@@ -344,7 +346,12 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
       *)
         echo "Invalid choice. Please add \$GOOSE_BIN_DIR to your PATH manually."
         ;;
-    esac
+      esac
+    else
+      echo ""
+      echo "Configure disabled. Please add \$GOOSE_BIN_DIR to your PATH manually."
+    fi
+
   fi
   
   echo ""
