@@ -2,7 +2,7 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
-    recipe::Recipe,
+    recipe::{Recipe, Response},
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
@@ -13,6 +13,14 @@ use tracing::{debug, info};
 
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
+
+fn is_valid_response(response: &&Response) -> bool {
+    response
+        .json_schema
+        .as_ref()
+        .and_then(|s| s.as_object())
+        .is_some_and(|obj| !obj.is_empty())
+}
 
 /// Standalone function to run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
@@ -131,9 +139,9 @@ fn get_agent_messages(
             }
         }
 
-        let has_response_schema = recipe.response.is_some();
+        let valid_response = recipe.response.as_ref().filter(is_valid_response).cloned();
         agent
-            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .apply_recipe_components(recipe.sub_recipes.clone(), valid_response.clone(), true)
             .await;
 
         let user_message = Message::user().with_text(text_instruction);
@@ -170,7 +178,7 @@ fn get_agent_messages(
             }
         }
 
-        let final_output = if has_response_schema {
+        let final_output = if valid_response.is_some() {
             agent
                 .final_output_tool
                 .lock()
