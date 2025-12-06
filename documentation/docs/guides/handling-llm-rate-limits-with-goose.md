@@ -11,7 +11,7 @@ import { PanelLeft } from 'lucide-react';
 
 Rate limiting is the process of restricting the number of requests a user or application can send to an LLM API within a specific timeframe. LLM providers enforce this with the purpose of managing resources and preventing abuse. 
 
-Since goose is working very quickly to implement your tasks, you may need to manage rate limits imposed by the provider. If you frequently hit rate limits, consider upgrading your LLM plan to access higher tier limits or [configure a provider](/docs/getting-started/providers#configure-provider) that has built-in rate limiting:
+Since goose is working very quickly to implement your tasks, you may need to manage rate limits imposed by the provider. If you frequently hit rate limits, consider upgrading your LLM plan to access higher tier limits or [configure a provider](/docs/getting-started/providers#configure-provider-and-model) that has built-in rate limiting:
 
 :::info
 goose supports automatic setup for both providers that takes you through OAuth account creation and secure API key generation.

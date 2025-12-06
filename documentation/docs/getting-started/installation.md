@@ -320,7 +320,7 @@ You can change your LLM provider and/or model or update your API key at any time
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
     3. Click the `Models` tab.
-    4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider).
+    4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider-and-model).
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     1. Run the following command:
