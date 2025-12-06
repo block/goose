@@ -10,6 +10,8 @@ import {
 import { Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
+import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
+import type { View } from '../../../utils/navigationUtils';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -50,20 +52,29 @@ function ProviderCards({
   providers,
   isOnboarding,
   refreshProviders,
-  onProviderLaunch,
+  setView,
+  onModelSelected,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
   refreshProviders?: () => void;
-  onProviderLaunch: (provider: ProviderDetails) => void;
+  setView?: (view: View) => void;
+  onModelSelected?: () => void;
 }) {
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
+  const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
+  const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<{
     id: string;
     config: DeclarativeProviderConfig;
     isEditable: boolean;
   } | null>(null);
+
+  const handleProviderLaunchWithModelSelection = useCallback((provider: ProviderDetails) => {
+    setSwitchModelProvider(provider.name);
+    setShowSwitchModelModal(true);
+  }, []);
 
   const openModal = useCallback(
     (provider: ProviderDetails) => setConfiguringProvider(provider),
@@ -101,11 +112,14 @@ function ProviderCards({
         body: data,
         throwOnError: true,
       });
+      const providerId = editingProvider.id;
       setShowCustomProviderModal(false);
       setEditingProvider(null);
       if (refreshProviders) {
         refreshProviders();
       }
+      setSwitchModelProvider(providerId);
+      setShowSwitchModelModal(true);
     },
     [editingProvider, refreshProviders]
   );
@@ -122,6 +136,32 @@ function ProviderCards({
     }
   }, [refreshProviders]);
 
+  const onProviderConfigured = useCallback(
+    (provider: ProviderDetails) => {
+      setConfiguringProvider(null);
+      if (refreshProviders) {
+        refreshProviders();
+      }
+      setSwitchModelProvider(provider.name);
+      setShowSwitchModelModal(true);
+    },
+    [refreshProviders]
+  );
+
+  const onCloseSwitchModelModal = useCallback(() => {
+    setShowSwitchModelModal(false);
+  }, []);
+
+  const handleSetView = useCallback(
+    (view: View) => {
+      setShowSwitchModelModal(false);
+      if (setView) {
+        setView(view);
+      }
+    },
+    [setView]
+  );
+
   const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
@@ -130,6 +170,7 @@ function ProviderCards({
       if (refreshProviders) {
         refreshProviders();
       }
+      setShowSwitchModelModal(true);
     },
     [refreshProviders]
   );
@@ -144,7 +185,7 @@ function ProviderCards({
         key={provider.name}
         provider={provider}
         onConfigure={() => configureProviderViaModal(provider)}
-        onLaunch={() => onProviderLaunch(provider)}
+        onLaunch={() => handleProviderLaunchWithModelSelection(provider)}
         isOnboarding={isOnboarding}
       />
     ));
@@ -154,7 +195,7 @@ function ProviderCards({
     );
 
     return cards;
-  }, [providers, isOnboarding, configureProviderViaModal, onProviderLaunch]);
+  }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
 
   const initialData = editingProvider && {
     engine: editingProvider.config.engine.toLowerCase() + '_compatible',
@@ -187,6 +228,17 @@ function ProviderCards({
         <ProviderConfigurationModal
           provider={configuringProvider}
           onClose={onCloseProviderConfig}
+          onConfigured={onProviderConfigured}
+        />
+      )}
+      {showSwitchModelModal && (
+        <SwitchModelModal
+          sessionId={null}
+          onClose={onCloseSwitchModelModal}
+          setView={handleSetView}
+          onModelSelected={onModelSelected}
+          initialProvider={switchModelProvider}
+          titleOverride="Choose Model"
         />
       )}
     </>
@@ -197,12 +249,14 @@ export default function ProviderGrid({
   providers,
   isOnboarding,
   refreshProviders,
-  onProviderLaunch,
+  setView,
+  onModelSelected,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
   refreshProviders?: () => void;
-  onProviderLaunch?: (provider: ProviderDetails) => void;
+  setView?: (view: View) => void;
+  onModelSelected?: () => void;
 }) {
   return (
     <GridLayout>
@@ -210,7 +264,8 @@ export default function ProviderGrid({
         providers={providers}
         isOnboarding={isOnboarding}
         refreshProviders={refreshProviders}
-        onProviderLaunch={onProviderLaunch || (() => {})}
+        setView={setView}
+        onModelSelected={onModelSelected}
       />
     </GridLayout>
   );
