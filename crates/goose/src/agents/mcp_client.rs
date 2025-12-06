@@ -78,7 +78,11 @@ pub trait McpClientTrait: Send + Sync {
 
     fn get_info(&self) -> Option<&InitializeResult>;
 
-    async fn get_moim(&self, _conversation: &Conversation) -> Option<String> {
+    async fn get_moim(
+        &self,
+        _conversation: &Conversation,
+        _system_prompt: Option<&str>,
+    ) -> Option<String> {
         None
     }
 }

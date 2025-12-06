@@ -22,11 +22,21 @@ pub static EXTENSION_NAME: &str = "todo";
 const AUTONOMOUS_MODE_TRIGGERS: &[&str] = &["Act autonomously.", "Work independently."];
 
 const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
-    - [ ] Capture all requirements (explicit, implicit, and edge cases) in .task_requirements.md
-    - [ ] Plan: break down into steps, update this todo
+    Start on this list right away before proceeding with the user instructions.
+    You will perform ideally on the user's task if you follow this list verbatim.
+    Skipping any of these steps is an error and will result in failure:
+    - [ ] IMMEDIATELY write the task verbatim to the file .goose_task.md
+    - [ ] Think hard out loud and then write all requirements (explicit, implicit, and edge cases) to the file .goose_task_requirements.md
+    - [ ] Plan: break down task into steps, update this todo
     - [ ] Implement
     - [ ] Test: deterministic verification required (run tests, lints, type checks)
-    - [ ] Reread .task_requirements.md and confirm every requirement is satisfied
+    - [ ] Reread .goose_task.md and .goose_task_requirements.md and confirm every requirement is satisfied
+    Remember, you must write the files with the task and requirements to disk using your file editor tool.
+    You MUST reread both .goose_task.md and .goose_task_requirements.md at the end of your work to verify.
+    Write down this reread step in your updated todo list.
+    Do not create documentation unless asked to do so here or by the user's prompt.
+    Your context degrades rapidly and you will forget them by the end of your work. Writing them to disk
+    is essential for success in doing what the user has asked. DO IT NOW.
 "#};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -186,7 +196,21 @@ impl TodoClient {
         })]
     }
 
-    fn should_initialize_autonomous_mode(conversation: &Conversation) -> bool {
+    fn should_initialize_autonomous_mode(
+        conversation: &Conversation,
+        system_prompt: Option<&str>,
+    ) -> bool {
+        // Check system prompt first (recipe instructions go here)
+        if let Some(prompt) = system_prompt {
+            if AUTONOMOUS_MODE_TRIGGERS
+                .iter()
+                .any(|trigger| prompt.contains(trigger))
+            {
+                return conversation.messages().len() == 1;
+            }
+        }
+
+        // Fall back to checking the first user message (recipe prompt goes here)
         if conversation.messages().len() != 1 {
             return false;
         }
@@ -306,8 +330,12 @@ impl McpClientTrait for TodoClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self, conversation: &Conversation) -> Option<String> {
-        if Self::should_initialize_autonomous_mode(conversation) {
+    async fn get_moim(
+        &self,
+        conversation: &Conversation,
+        system_prompt: Option<&str>,
+    ) -> Option<String> {
+        if Self::should_initialize_autonomous_mode(conversation, system_prompt) {
             self.initialize_autonomous_todo().await;
         }
 
@@ -320,5 +348,104 @@ impl McpClientTrait for TodoClient {
         }
 
         Some(format!("Current tasks and notes:\n{}\n", state.content))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::Message;
+
+    #[test]
+    fn test_should_initialize_autonomous_mode_from_user_message() {
+        // Single user message with trigger should return true
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Act autonomously. Build me a web app.")
+        ]);
+        assert!(TodoClient::should_initialize_autonomous_mode(&conv, None));
+
+        // Single user message with different trigger
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Work independently. Fix the bug.")
+        ]);
+        assert!(TodoClient::should_initialize_autonomous_mode(&conv, None));
+
+        // Single user message without trigger should return false
+        let conv =
+            Conversation::new_unvalidated(vec![Message::user().with_text("Build me a web app.")]);
+        assert!(!TodoClient::should_initialize_autonomous_mode(&conv, None));
+    }
+
+    #[test]
+    fn test_should_initialize_autonomous_mode_from_system_prompt() {
+        // System prompt with trigger and single user message should return true
+        let conv =
+            Conversation::new_unvalidated(vec![Message::user().with_text("Build me a web app.")]);
+        let system_prompt = "You are a helpful assistant. Act autonomously. Be thorough.";
+        assert!(TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
+
+        // System prompt with different trigger
+        let system_prompt = "Work independently. Complete the task without asking questions.";
+        assert!(TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
+
+        // System prompt without trigger should return false
+        let system_prompt = "You are a helpful assistant.";
+        assert!(!TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
+    }
+
+    #[test]
+    fn test_should_initialize_autonomous_mode_multiple_messages() {
+        // Multiple messages should return false even with trigger in system prompt
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there!"),
+            Message::user().with_text("Build me a web app."),
+        ]);
+        let system_prompt = "Act autonomously.";
+        assert!(!TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
+
+        // Multiple messages should return false even with trigger in user message
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Act autonomously. Build me a web app."),
+            Message::assistant().with_text("Sure!"),
+        ]);
+        assert!(!TodoClient::should_initialize_autonomous_mode(&conv, None));
+    }
+
+    #[test]
+    fn test_should_initialize_autonomous_mode_empty_conversation() {
+        let conv = Conversation::new_unvalidated(vec![]);
+        assert!(!TodoClient::should_initialize_autonomous_mode(&conv, None));
+
+        let system_prompt = "Act autonomously.";
+        assert!(!TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
+    }
+
+    #[test]
+    fn test_should_initialize_autonomous_mode_system_prompt_takes_precedence() {
+        // If system prompt has trigger, user message doesn't need it
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Just a regular message without any trigger")
+        ]);
+        let system_prompt = "Act autonomously. Be helpful.";
+        assert!(TodoClient::should_initialize_autonomous_mode(
+            &conv,
+            Some(system_prompt)
+        ));
     }
 }

@@ -11,12 +11,16 @@ thread_local! {
 pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
+    system_prompt: Option<&str>,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) {
         return conversation;
     }
 
-    if let Some(moim) = extension_manager.collect_moim(&conversation).await {
+    if let Some(moim) = extension_manager
+        .collect_moim(&conversation, system_prompt)
+        .await
+    {
         let mut messages = conversation.messages().clone();
         let idx = messages
             .iter()
@@ -55,7 +59,7 @@ mod tests {
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim(conv, &em).await;
+        let result = inject_moim(conv, &em, None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -77,7 +81,7 @@ mod tests {
         let em = ExtensionManager::new_without_provider();
 
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
-        let result = inject_moim(conv, &em).await;
+        let result = inject_moim(conv, &em, None).await;
 
         assert_eq!(result.messages().len(), 1);
 
@@ -119,7 +123,7 @@ mod tests {
             Message::user().with_tool_response("search_2", Ok(vec![])),
         ]);
 
-        let result = inject_moim(conv, &em).await;
+        let result = inject_moim(conv, &em, None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 6);
