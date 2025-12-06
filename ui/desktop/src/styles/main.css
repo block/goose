@@ -261,17 +261,6 @@
 @font-face {
   font-family: 'Cash Sans Mono';
   src:
-    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSansMono-Regular.woff2)
-      format('woff2'),
-    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSansMono-Regular.woff)
-      format('woff');
-  font-weight: 500;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Cash Sans Mono';
-  src:
     url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSansMono-Light.woff2)
       format('woff2'),
     url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSansMono-Light.woff)
