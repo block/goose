@@ -415,7 +415,7 @@ impl<'a> Component for InputComponent<'a> {
                                     self.textarea.delete_char();
                                 }
                                 let suffix = if is_dir { "/" } else { " " };
-                                self.textarea.insert_str(&format!("{name}{suffix}"));
+                                self.textarea.insert_str(format!("{name}{suffix}"));
                                 self.file_completions.clear();
                                 self.completion_selected = 0;
                             }
