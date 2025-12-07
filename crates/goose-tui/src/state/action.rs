@@ -27,6 +27,10 @@ pub enum Action {
     ShowFlash(String),
 
     SendMessage(goose::conversation::message::Message),
+    SendMessageWithFlash {
+        message: goose::conversation::message::Message,
+        flash: String,
+    },
     Interrupt,
     ToggleInputMode,
 

@@ -1,3 +1,4 @@
+use crate::hidden_blocks::CWD_ANALYSIS_TAG;
 use anyhow::Result;
 use goose::conversation::message::{Message, MessageContent};
 use goose_client::Client;
@@ -5,8 +6,6 @@ use goose_server::routes::reply::MessageEvent;
 use std::io::Write;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-
-const CWD_ANALYSIS_TAG: &str = "cwd_analysis";
 
 fn prepend_context(prompt: &str, context: Option<&str>) -> String {
     match context {

@@ -7,6 +7,7 @@ fn test_state() -> AppState {
     let config = TuiConfig::load().unwrap_or_else(|_| TuiConfig {
         theme: goose_tui::utils::styles::Theme::default(),
         custom_commands: Vec::new(),
+        smart_context: true,
     });
     AppState::new("test-session".to_string(), config, None, None)
 }

@@ -2218,7 +2218,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3166,6 +3166,7 @@ dependencies = [
  "clap",
  "crossterm 0.28.1",
  "directories",
+ "dirs 6.0.0",
  "futures",
  "git2",
  "goose",
@@ -3177,6 +3178,7 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
+ "tempfile",
  "termimad",
  "tokio",
  "tokio-stream",
@@ -7283,16 +7285,15 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.17.1"
+version = "3.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e5a0acb1f3f55f65cc4a866c361b2fb2a0ff6366785ae6fbb5f85df07ba230"
+checksum = "2d31c77bdf42a745371d260a26ca7163f1e0924b64afa0b688e61b5a9fa02f16"
 dependencies = [
- "cfg-if",
  "fastrand",
  "getrandom 0.3.1",
  "once_cell",
- "rustix 0.38.44",
- "windows-sys 0.59.0",
+ "rustix 1.0.7",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -8010,6 +8011,7 @@ checksum = "0a5318dd619ed73c52a9417ad19046724effc1287fb75cdcc4eca1d6ac1acbae"
 dependencies = [
  "crossterm 0.28.1",
  "ratatui",
+ "regex",
  "unicode-width 0.2.0",
 ]
 

@@ -1,8 +1,10 @@
 mod action_handler;
 mod app;
+mod at_mention;
 mod cli;
 mod components;
 mod headless;
+mod hidden_blocks;
 mod runner;
 mod services;
 mod state;

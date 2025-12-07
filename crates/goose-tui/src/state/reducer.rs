@@ -134,6 +134,13 @@ fn handle_chat(state: &mut AppState, action: &Action) -> bool {
             state.has_worked = true;
             true
         }
+        Action::SendMessageWithFlash { message, flash } => {
+            state.messages.push(message.clone());
+            state.is_working = true;
+            state.has_worked = true;
+            state.flash_message = Some((flash.clone(), Instant::now() + FLASH_DURATION_NORMAL));
+            true
+        }
         Action::Interrupt => {
             state.is_working = false;
             state.flash_message = Some((

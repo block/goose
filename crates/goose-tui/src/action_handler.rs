@@ -1,3 +1,4 @@
+use crate::hidden_blocks::CWD_ANALYSIS_TAG;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, CwdAnalysisState};
@@ -6,8 +7,6 @@ use goose_client::Client;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-
-const CWD_ANALYSIS_TAG: &str = "cwd_analysis";
 const CWD_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(30);
 const CWD_ANALYSIS_GRACE_PERIOD: Duration = Duration::from_secs(2);
 const CWD_ANALYSIS_DEPTH: u32 = 3;
@@ -60,6 +59,9 @@ pub fn handle_action(
     match action {
         Action::SendMessage(message_to_send) => {
             handle_send_message(message_to_send, state, client, tx, reply_task);
+        }
+        Action::SendMessageWithFlash { message, .. } => {
+            handle_send_message(message, state, client, tx, reply_task);
         }
         Action::ResumeSession(id) => {
             handle_resume_session(id, client, tx);

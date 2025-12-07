@@ -1,4 +1,5 @@
 use super::Component;
+use crate::hidden_blocks::strip_hidden_blocks;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, InputMode, PendingToolConfirmation};
@@ -109,20 +110,6 @@ impl ChatComponent {
         (items, map)
     }
 
-    fn strip_cwd_analysis(text: &str) -> String {
-        const START_TAG: &str = "<cwd_analysis>";
-        const END_TAG: &str = "</cwd_analysis>";
-
-        if let Some(start) = text.find(START_TAG) {
-            if let Some(end) = text[start..].find(END_TAG) {
-                let before = &text[..start];
-                let after = &text[start + end + END_TAG.len()..];
-                return format!("{}{}", before, after.trim_start());
-            }
-        }
-        text.to_string()
-    }
-
     fn render_user_text(
         t: &rmcp::model::TextContent,
         msg_idx: usize,
@@ -131,11 +118,7 @@ impl ChatComponent {
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
     ) {
-        let display_text = if msg_idx == 0 {
-            Self::strip_cwd_analysis(&t.text)
-        } else {
-            t.text.clone()
-        };
+        let display_text = strip_hidden_blocks(&t.text, msg_idx == 0);
 
         let user_text_style = Style::default().fg(theme.base.user_message_foreground);
         let renderer = MarkdownRenderer::new(theme, Some(user_text_style));
