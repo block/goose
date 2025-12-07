@@ -15,6 +15,7 @@ pub struct CustomCommand {
 pub struct TuiConfig {
     pub theme: Theme,
     pub custom_commands: Vec<CustomCommand>,
+    pub smart_context: bool,
 }
 
 impl TuiConfig {
@@ -29,9 +30,14 @@ impl TuiConfig {
             .get_param::<Vec<CustomCommand>>("tui_custom_commands")
             .unwrap_or_else(|_| Self::default_commands());
 
+        let smart_context = global
+            .get_param::<bool>("tui_smart_context")
+            .unwrap_or(true);
+
         Ok(Self {
             theme: Theme::from_name(&theme_name),
             custom_commands,
+            smart_context,
         })
     }
 

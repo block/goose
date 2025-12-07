@@ -64,4 +64,5 @@ pub enum Action {
         id: String,
         approved: bool,
     },
+    CwdAnalysisComplete(Option<String>),
 }

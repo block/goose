@@ -1,13 +1,58 @@
 use crate::services::events::Event;
 use crate::state::action::Action;
-use crate::state::AppState;
+use crate::state::{AppState, CwdAnalysisState};
+use goose::conversation::message::Message;
 use goose_client::Client;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
+const CWD_ANALYSIS_TAG: &str = "cwd_analysis";
+const CWD_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(30);
+const CWD_ANALYSIS_GRACE_PERIOD: Duration = Duration::from_secs(2);
+const CWD_ANALYSIS_DEPTH: u32 = 3;
+
+fn detect_analysis_target(cwd: &std::path::Path) -> (std::path::PathBuf, u32) {
+    let monorepo_markers = [
+        "pnpm-workspace.yaml",
+        "lerna.json",
+        "nx.json",
+        "turbo.json",
+        "rush.json",
+        "go.work",
+    ];
+
+    let is_rust_workspace = std::fs::read_to_string(cwd.join("Cargo.toml"))
+        .map(|content| content.contains("[workspace]"))
+        .unwrap_or(false);
+
+    let is_monorepo = is_rust_workspace || monorepo_markers.iter().any(|m| cwd.join(m).exists());
+
+    if is_monorepo {
+        let monorepo_dirs = ["crates", "packages", "apps", "libs", "cmd", "internal"];
+        for dir in monorepo_dirs {
+            let path = cwd.join(dir);
+            if path.is_dir() {
+                return (path, CWD_ANALYSIS_DEPTH);
+            }
+        }
+        return (cwd.to_path_buf(), 1);
+    }
+
+    let source_dirs = ["src", "lib", "app", "cmd", "Sources", "internal"];
+    for dir in source_dirs {
+        let path = cwd.join(dir);
+        if path.is_dir() {
+            return (path, CWD_ANALYSIS_DEPTH);
+        }
+    }
+
+    (cwd.to_path_buf(), 1)
+}
+
 pub fn handle_action(
     action: &Action,
-    state: &AppState,
+    state: &mut AppState,
     client: &Client,
     tx: &mpsc::UnboundedSender<Event>,
     reply_task: &mut Option<tokio::task::JoinHandle<()>>,
@@ -20,7 +65,7 @@ pub fn handle_action(
             handle_resume_session(id, client, tx);
         }
         Action::CreateNewSession => {
-            handle_create_new_session(client, tx);
+            handle_create_new_session(state, client, tx);
         }
         Action::OpenSessionPicker => {
             handle_open_session_picker(client, tx);
@@ -59,9 +104,120 @@ pub fn handle_action(
     false
 }
 
+pub fn spawn_cwd_analysis(session_id: &str, client: &Client, tx: &mpsc::UnboundedSender<Event>) {
+    let client = client.clone();
+    let tx = tx.clone();
+    let session_id = session_id.to_string();
+    tokio::spawn(async move {
+        let result = fetch_cwd_analysis(&client, &session_id).await;
+        let _ = tx.send(Event::CwdAnalysisComplete(result));
+    });
+}
+
+pub async fn fetch_cwd_analysis_sync(client: &Client, session_id: &str) -> Option<String> {
+    fetch_cwd_analysis(client, session_id).await
+}
+
+async fn fetch_cwd_analysis(client: &Client, session_id: &str) -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let (target_path, depth) = detect_analysis_target(&cwd);
+    let start = std::time::Instant::now();
+    tracing::info!(
+        "Smart context: analyzing {} (depth={})",
+        target_path.display(),
+        depth
+    );
+
+    let analyze_future = client.call_tool(
+        session_id,
+        "developer__analyze",
+        Some(serde_json::json!({
+            "path": target_path.to_string_lossy(),
+            "max_depth": depth
+        })),
+    );
+
+    let result = tokio::time::timeout(CWD_ANALYSIS_TIMEOUT, analyze_future).await;
+    let elapsed = start.elapsed();
+
+    match result {
+        Ok(Ok(response)) if !response.is_error && !response.output.is_empty() => {
+            tracing::info!(
+                "Smart context: completed in {:.2}s ({} chars)",
+                elapsed.as_secs_f64(),
+                response.output.len()
+            );
+            Some(response.output)
+        }
+        Ok(Ok(response)) if response.is_error => {
+            tracing::warn!(
+                "Smart context: failed in {:.2}s: {}",
+                elapsed.as_secs_f64(),
+                response.output
+            );
+            None
+        }
+        Ok(Err(e)) => {
+            tracing::warn!(
+                "Smart context: error in {:.2}s: {}",
+                elapsed.as_secs_f64(),
+                e
+            );
+            None
+        }
+        Err(_) => {
+            tracing::warn!(
+                "Smart context: timed out after {:.2}s",
+                elapsed.as_secs_f64()
+            );
+            None
+        }
+        _ => {
+            tracing::debug!(
+                "Smart context: empty result in {:.2}s",
+                elapsed.as_secs_f64()
+            );
+            None
+        }
+    }
+}
+
+fn prepend_cwd_analysis(message: &Message, analysis: &str) -> Message {
+    let original_text = message.as_concat_text();
+    let augmented =
+        format!("<{CWD_ANALYSIS_TAG}>\n{analysis}\n</{CWD_ANALYSIS_TAG}>\n\n{original_text}");
+    Message::user().with_text(augmented)
+}
+
+async fn wait_for_pending_analysis(
+    client: &Client,
+    session_id: &str,
+    tx: &mpsc::UnboundedSender<Event>,
+) -> Option<String> {
+    let (result_tx, mut result_rx) = mpsc::unbounded_channel();
+    let client = client.clone();
+    let session_id = session_id.to_string();
+
+    tokio::spawn(async move {
+        let result = fetch_cwd_analysis(&client, &session_id).await;
+        let _ = result_tx.send(result);
+    });
+
+    match tokio::time::timeout(CWD_ANALYSIS_GRACE_PERIOD, result_rx.recv()).await {
+        Ok(Some(result)) => {
+            let _ = tx.send(Event::CwdAnalysisComplete(result.clone()));
+            result
+        }
+        _ => {
+            tracing::info!("Smart context: grace period expired, proceeding without analysis");
+            None
+        }
+    }
+}
+
 fn handle_send_message(
-    message_to_send: &goose::conversation::message::Message,
-    state: &AppState,
+    message_to_send: &Message,
+    state: &mut AppState,
     client: &Client,
     tx: &mpsc::UnboundedSender<Event>,
     reply_task: &mut Option<tokio::task::JoinHandle<()>>,
@@ -69,10 +225,34 @@ fn handle_send_message(
     let client = client.clone();
     let tx = tx.clone();
     let mut messages_snapshot = state.messages.clone();
-    messages_snapshot.push(message_to_send.clone());
     let session_id = state.session_id.clone();
 
+    let is_first_message = messages_snapshot.is_empty();
+    let analysis_result = if is_first_message {
+        state.cwd_analysis.take_result()
+    } else {
+        None
+    };
+    let analysis_pending = is_first_message && state.cwd_analysis.is_pending();
+
+    let user_message = message_to_send.clone();
+
     let task = tokio::spawn(async move {
+        let analysis = if analysis_result.is_some() {
+            analysis_result
+        } else if analysis_pending {
+            wait_for_pending_analysis(&client, &session_id, &tx).await
+        } else {
+            None
+        };
+
+        let final_user_message = match analysis {
+            Some(ref a) => prepend_cwd_analysis(&user_message, a),
+            None => user_message,
+        };
+
+        messages_snapshot.push(final_user_message);
+
         match client.reply(messages_snapshot, session_id).await {
             Ok(mut stream) => {
                 while let Some(result) = stream.next().await {
@@ -110,7 +290,15 @@ fn handle_resume_session(id: &str, client: &Client, tx: &mpsc::UnboundedSender<E
     });
 }
 
-fn handle_create_new_session(client: &Client, tx: &mpsc::UnboundedSender<Event>) {
+fn handle_create_new_session(
+    state: &mut AppState,
+    client: &Client,
+    tx: &mpsc::UnboundedSender<Event>,
+) {
+    let smart_context = state.config.smart_context;
+    if smart_context {
+        state.cwd_analysis = CwdAnalysisState::Pending;
+    }
     let client = client.clone();
     let tx = tx.clone();
     tokio::spawn(async move {
@@ -118,6 +306,9 @@ fn handle_create_new_session(client: &Client, tx: &mpsc::UnboundedSender<Event>)
         match client.start_agent(cwd.to_string_lossy().to_string()).await {
             Ok(s) => {
                 crate::configure_session_from_global(&client, &s.id).await;
+                if smart_context {
+                    spawn_cwd_analysis(&s.id, &client, &tx);
+                }
                 let _ = tx.send(Event::SessionResumed(Box::new(s)));
             }
             Err(e) => {

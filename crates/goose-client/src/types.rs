@@ -1,7 +1,7 @@
 pub use goose::agents::extension::ToolInfo;
 pub use goose_server::routes::agent::{
-    AddExtensionRequest, RemoveExtensionRequest, ResumeAgentRequest, StartAgentRequest,
-    UpdateProviderRequest,
+    AddExtensionRequest, CallToolRequest, CallToolResponse, RemoveExtensionRequest,
+    ResumeAgentRequest, StartAgentRequest, UpdateProviderRequest,
 };
 pub use goose_server::routes::config_management::{
     ConfigResponse, ExtensionQuery, ExtensionResponse, ProviderDetails, UpsertConfigQuery,

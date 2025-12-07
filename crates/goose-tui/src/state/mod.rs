@@ -43,6 +43,31 @@ pub struct TodoItem {
     pub done: bool,
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum CwdAnalysisState {
+    #[default]
+    NotStarted,
+    Pending,
+    Complete(String),
+    Failed,
+}
+
+impl CwdAnalysisState {
+    pub fn take_result(&mut self) -> Option<String> {
+        match std::mem::take(self) {
+            CwdAnalysisState::Complete(s) => Some(s),
+            other => {
+                *self = other;
+                None
+            }
+        }
+    }
+
+    pub fn is_pending(&self) -> bool {
+        matches!(self, CwdAnalysisState::Pending)
+    }
+}
+
 pub struct AppState {
     pub session_id: String,
     pub messages: Vec<Message>,
@@ -65,6 +90,7 @@ pub struct AppState {
     pub needs_refresh: bool,
     pub copy_mode: bool,
     pub pending_confirmation: Option<PendingToolConfirmation>,
+    pub cwd_analysis: CwdAnalysisState,
 }
 
 impl AppState {
@@ -96,6 +122,7 @@ impl AppState {
             needs_refresh: false,
             copy_mode: false,
             pending_confirmation: None,
+            cwd_analysis: CwdAnalysisState::default(),
         }
     }
 }

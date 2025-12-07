@@ -146,6 +146,9 @@ impl<'a> Component for App<'a> {
             Event::Error(e) => return Ok(Some(Action::Error(e.clone()))),
             Event::Flash(msg) => return Ok(Some(Action::ShowFlash(msg.clone()))),
             Event::Resize => return Ok(Some(Action::Resize)),
+            Event::CwdAnalysisComplete(result) => {
+                return Ok(Some(Action::CwdAnalysisComplete(result.clone())))
+            }
             _ => {}
         }
 

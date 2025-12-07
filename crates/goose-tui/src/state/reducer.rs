@@ -1,5 +1,7 @@
 use super::action::Action;
-use crate::state::{ActivePopup, AppState, InputMode, PendingToolConfirmation, TodoItem};
+use crate::state::{
+    ActivePopup, AppState, CwdAnalysisState, InputMode, PendingToolConfirmation, TodoItem,
+};
 use goose::conversation::message::{Message, MessageContent, ToolConfirmationRequest};
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
@@ -28,6 +30,24 @@ pub fn update(state: &mut AppState, action: Action) {
         Action::ServerMessage(msg) => handle_server_message(state, msg),
         Action::ModelsLoaded { provider, models } => handle_models_loaded(state, provider, models),
         Action::ConfigLoaded(config) => handle_config_loaded(state, config),
+        Action::CwdAnalysisComplete(result) => {
+            state.cwd_analysis = match result {
+                Some(s) => {
+                    state.flash_message = Some((
+                        "✓ Project context loaded".to_string(),
+                        Instant::now() + FLASH_DURATION_SHORT,
+                    ));
+                    CwdAnalysisState::Complete(s)
+                }
+                None => {
+                    state.flash_message = Some((
+                        "⚠ Project context unavailable".to_string(),
+                        Instant::now() + FLASH_DURATION_SHORT,
+                    ));
+                    CwdAnalysisState::Failed
+                }
+            };
+        }
         _ => {
             if !handle_data_loaded(state, &action)
                 && !handle_chat(state, &action)
@@ -41,6 +61,7 @@ pub fn update(state: &mut AppState, action: Action) {
 fn handle_data_loaded(state: &mut AppState, action: &Action) -> bool {
     match action {
         Action::SessionResumed(session) => {
+            let is_new_session = state.session_id != session.id;
             state.session_id = session.id.clone();
             state.messages = session
                 .conversation
@@ -60,6 +81,9 @@ fn handle_data_loaded(state: &mut AppState, action: &Action) -> bool {
             state.active_popup = ActivePopup::None;
             state.is_working = false;
             state.pending_confirmation = None;
+            if is_new_session && !state.messages.is_empty() {
+                state.cwd_analysis = CwdAnalysisState::Failed;
+            }
 
             let pending = state.messages.last().and_then(|last_msg| {
                 extract_tool_confirmation(last_msg).map(|req| PendingToolConfirmation {

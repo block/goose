@@ -14,11 +14,11 @@ use serde::Serialize;
 use tokio_stream::StreamExt;
 
 use types::{
-    AddExtensionRequest, ChatRequest, ConfigResponse, ExtensionQuery, ExtensionResponse,
-    RemoveExtensionRequest, ResumeAgentRequest, SessionListResponse, StartAgentRequest,
-    UpdateProviderRequest, UpsertConfigQuery,
+    AddExtensionRequest, CallToolRequest, ChatRequest, ConfigResponse, ExtensionQuery,
+    ExtensionResponse, RemoveExtensionRequest, ResumeAgentRequest, SessionListResponse,
+    StartAgentRequest, UpdateProviderRequest, UpsertConfigQuery,
 };
-pub use types::{ProviderDetails, ToolInfo};
+pub use types::{CallToolResponse, ProviderDetails, ToolInfo};
 
 pub struct ClientBuilder {
     host: String,
@@ -390,5 +390,22 @@ impl Client {
                 .context("Failed to parse SSE event"),
             Err(e) => Err(anyhow::anyhow!("SSE stream error: {}", e)),
         }))
+    }
+
+    pub async fn call_tool(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<CallToolResponse> {
+        self.post("/agent/call_tool")
+            .json(&CallToolRequest {
+                session_id: session_id.to_string(),
+                tool_name: tool_name.to_string(),
+                arguments,
+            })
+            .send()
+            .await
+            .context("Failed to call tool")
     }
 }

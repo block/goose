@@ -288,6 +288,7 @@ async fn run_recipe_mode(
     recipe_path: PathBuf,
     headless: bool,
 ) -> Result<()> {
+    let config = TuiConfig::load()?;
     let recipe = load_recipe(&recipe_path)?;
     let prompt = recipe
         .prompt
@@ -302,12 +303,18 @@ async fn run_recipe_mode(
 
     configure_session_from_global(&client, &initial_session.id).await;
 
+    let cwd_analysis = if config.smart_context {
+        action_handler::fetch_cwd_analysis_sync(&client, &initial_session.id).await
+    } else {
+        None
+    };
+
     let use_headless = headless || !std::io::stdout().is_terminal();
 
     if use_headless {
-        headless::run_headless(client, initial_session.id, prompt).await
+        headless::run_headless(client, initial_session.id, prompt, cwd_analysis).await
     } else {
-        run_recipe_tui_mode(client, initial_session, prompt).await
+        run_recipe_tui_mode(client, initial_session, prompt, cwd_analysis).await
     }
 }
 
@@ -320,9 +327,11 @@ async fn run_text_mode(
 ) -> Result<()> {
     info!("Running with text input");
 
-    let initial_session = if let Some(id) = session {
+    let config = TuiConfig::load()?;
+
+    let (initial_session, is_new_session) = if let Some(id) = session {
         info!("Resuming session: {}", id);
-        client.resume_agent(&id).await?
+        (client.resume_agent(&id).await?, false)
     } else {
         let new_session = client
             .start_agent(cwd.to_string_lossy().to_string())
@@ -337,18 +346,30 @@ async fn run_text_mode(
             }
         }
 
-        new_session
+        (new_session, true)
     };
 
     configure_session_from_global(&client, &initial_session.id).await;
 
-    headless::run_headless(client, initial_session.id, prompt).await
+    let has_messages = initial_session
+        .conversation
+        .as_ref()
+        .is_some_and(|c| !c.messages().is_empty());
+
+    let cwd_analysis = if config.smart_context && is_new_session && !has_messages {
+        action_handler::fetch_cwd_analysis_sync(&client, &initial_session.id).await
+    } else {
+        None
+    };
+
+    headless::run_headless(client, initial_session.id, prompt, cwd_analysis).await
 }
 
 async fn run_recipe_tui_mode(
     client: Client,
     initial_session: goose::session::Session,
     prompt: String,
+    cwd_analysis: Option<String>,
 ) -> Result<()> {
     let config = TuiConfig::load()?;
     let mut state = AppState::new(initial_session.id.clone(), config, None, None);
@@ -357,6 +378,10 @@ async fn run_recipe_tui_mode(
         .conversation
         .map(|c| c.messages().clone())
         .unwrap_or_default();
+
+    if let Some(analysis) = cwd_analysis {
+        state.cwd_analysis = state::CwdAnalysisState::Complete(analysis);
+    }
 
     let terminal = tui::init()?;
     let app = App::new();
@@ -374,9 +399,13 @@ async fn run_interactive_mode(
     session: Option<String>,
     name: Option<String>,
 ) -> Result<()> {
-    let initial_session = if let Some(id) = session {
+    let config = TuiConfig::load()?;
+    let event_handler = EventHandler::new();
+    let tx = event_handler.sender();
+
+    let (initial_session, is_new_session) = if let Some(id) = session {
         info!("Resuming agent session: {}", id);
-        client.resume_agent(&id).await?
+        (client.resume_agent(&id).await?, false)
     } else {
         let new_session = client
             .start_agent(cwd.to_string_lossy().to_string())
@@ -391,12 +420,11 @@ async fn run_interactive_mode(
             }
         }
 
-        new_session
+        (new_session, true)
     };
 
     let (provider, model) = configure_session_from_global(&client, &initial_session.id).await;
 
-    let config = TuiConfig::load()?;
     let mut state = AppState::new(
         initial_session.id.clone(),
         config,
@@ -422,9 +450,13 @@ async fn run_interactive_mode(
     state.token_state.input_tokens = initial_session.input_tokens.unwrap_or(0);
     state.token_state.output_tokens = initial_session.output_tokens.unwrap_or(0);
 
+    if state.config.smart_context && is_new_session && state.messages.is_empty() {
+        state.cwd_analysis = state::CwdAnalysisState::Pending;
+        action_handler::spawn_cwd_analysis(&initial_session.id, &client, &tx);
+    }
+
     let terminal = tui::init()?;
     let app = App::new();
-    let event_handler = EventHandler::new();
 
     let result = run_event_loop(terminal, app, event_handler, state, client).await;
 
@@ -440,9 +472,11 @@ async fn run_cli_mode(
 ) -> Result<()> {
     info!("Starting CLI mode");
 
-    let initial_session = if let Some(id) = session {
+    let config = TuiConfig::load()?;
+
+    let (initial_session, is_new_session) = if let Some(id) = session {
         info!("Resuming session: {}", id);
-        client.resume_agent(&id).await?
+        (client.resume_agent(&id).await?, false)
     } else {
         let new_session = client
             .start_agent(cwd.to_string_lossy().to_string())
@@ -457,7 +491,7 @@ async fn run_cli_mode(
             }
         }
 
-        new_session
+        (new_session, true)
     };
 
     let (provider, model) = configure_session_from_global(&client, &initial_session.id).await;
@@ -471,5 +505,24 @@ async fn run_cli_mode(
         })
         .unwrap_or(goose_tui::DEFAULT_CONTEXT_LIMIT);
 
-    cli::run_cli(client, initial_session.id, provider, model, context_limit).await
+    let has_messages = initial_session
+        .conversation
+        .as_ref()
+        .is_some_and(|c| !c.messages().is_empty());
+
+    let cwd_analysis = if config.smart_context && is_new_session && !has_messages {
+        action_handler::fetch_cwd_analysis_sync(&client, &initial_session.id).await
+    } else {
+        None
+    };
+
+    cli::run_cli(
+        client,
+        initial_session.id,
+        provider,
+        model,
+        context_limit,
+        cwd_analysis,
+    )
+    .await
 }

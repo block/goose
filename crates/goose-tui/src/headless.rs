@@ -6,10 +6,22 @@ use std::io::Write;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
+const CWD_ANALYSIS_TAG: &str = "cwd_analysis";
+
+fn prepend_context(prompt: &str, context: Option<&str>) -> String {
+    match context {
+        Some(analysis) => {
+            format!("<{CWD_ANALYSIS_TAG}>\n{analysis}\n</{CWD_ANALYSIS_TAG}>\n\n{prompt}")
+        }
+        None => prompt.to_string(),
+    }
+}
+
 pub async fn run_headless(
     client: Client,
     session_id: String,
     initial_prompt: String,
+    cwd_analysis: Option<String>,
 ) -> Result<()> {
     let cancel_token = CancellationToken::new();
 
@@ -20,7 +32,8 @@ pub async fn run_headless(
         cancel_clone.cancel();
     });
 
-    let user_message = Message::user().with_text(&initial_prompt);
+    let full_prompt = prepend_context(&initial_prompt, cwd_analysis.as_deref());
+    let user_message = Message::user().with_text(&full_prompt);
     println!("[user] {initial_prompt}");
 
     let messages = vec![user_message];

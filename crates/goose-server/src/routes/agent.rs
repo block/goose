@@ -11,6 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
+use uuid::Uuid;
 
 use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
@@ -632,6 +633,89 @@ async fn stop_agent(
     Ok(StatusCode::OK)
 }
 
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    pub session_id: String,
+    pub tool_name: String,
+    #[schema(value_type = Option<Object>)]
+    pub arguments: Option<Value>,
+}
+
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    pub output: String,
+    pub is_error: bool,
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/call_tool",
+    request_body = CallToolRequest,
+    responses(
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
+        (status = 404, description = "Session not found"),
+        (status = 424, description = "Agent not initialized for session"),
+        (status = 500, description = "Tool execution failed")
+    )
+)]
+async fn call_tool(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: "Agent not initialized for this session".into(),
+            status,
+        })?;
+
+    let session = SessionManager::get_session(&request.session_id, false)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Session not found: {}", e),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    let tool_call = rmcp::model::CallToolRequestParam {
+        name: request.tool_name.clone().into(),
+        arguments: request.arguments.and_then(|v| v.as_object().cloned()),
+    };
+
+    let request_id = Uuid::new_v4().to_string();
+
+    let (_req_id, result) = agent
+        .dispatch_tool_call(tool_call, request_id, None, &session)
+        .await;
+
+    match result {
+        Ok(tool_result) => {
+            let content_result = tool_result.result.await;
+            match content_result {
+                Ok(content) => {
+                    let output = content
+                        .iter()
+                        .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    Ok(Json(CallToolResponse {
+                        output,
+                        is_error: false,
+                    }))
+                }
+                Err(error_data) => Ok(Json(CallToolResponse {
+                    output: error_data.message.to_string(),
+                    is_error: true,
+                })),
+            }
+        }
+        Err(error_data) => Ok(Json(CallToolResponse {
+            output: error_data.message.to_string(),
+            is_error: true,
+        })),
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -646,5 +730,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
         .route("/agent/stop", post(stop_agent))
+        .route("/agent/call_tool", post(call_tool))
         .with_state(state)
 }

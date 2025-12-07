@@ -109,6 +109,20 @@ impl ChatComponent {
         (items, map)
     }
 
+    fn strip_cwd_analysis(text: &str) -> String {
+        const START_TAG: &str = "<cwd_analysis>";
+        const END_TAG: &str = "</cwd_analysis>";
+
+        if let Some(start) = text.find(START_TAG) {
+            if let Some(end) = text[start..].find(END_TAG) {
+                let before = &text[..start];
+                let after = &text[start + end + END_TAG.len()..];
+                return format!("{}{}", before, after.trim_start());
+            }
+        }
+        text.to_string()
+    }
+
     fn render_user_text(
         t: &rmcp::model::TextContent,
         msg_idx: usize,
@@ -117,12 +131,17 @@ impl ChatComponent {
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
     ) {
+        let display_text = if msg_idx == 0 {
+            Self::strip_cwd_analysis(&t.text)
+        } else {
+            t.text.clone()
+        };
+
         let user_text_style = Style::default().fg(theme.base.user_message_foreground);
         let renderer = MarkdownRenderer::new(theme, Some(user_text_style));
-        let mut rendered_lines = renderer.render_lines(&t.text, width.saturating_sub(4));
+        let mut rendered_lines = renderer.render_lines(&display_text, width.saturating_sub(4));
 
-        // Remove trailing empty line if text doesn't end with double newline
-        if !t.text.ends_with("\n\n")
+        if !display_text.ends_with("\n\n")
             && rendered_lines
                 .last()
                 .is_some_and(|line| line.spans.is_empty() || line.width() == 0)

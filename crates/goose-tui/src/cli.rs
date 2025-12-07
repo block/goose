@@ -239,12 +239,24 @@ fn print_help() {
     println!();
 }
 
+const CWD_ANALYSIS_TAG: &str = "cwd_analysis";
+
+fn print_context_status(success: bool) {
+    use colors::*;
+    if success {
+        println!("{GREEN}✓{RESET} {DIM}Project context loaded{RESET}");
+    } else {
+        println!("{YELLOW}⚠{RESET} {DIM}Project context unavailable{RESET}");
+    }
+}
+
 pub async fn run_cli(
     client: Client,
     session_id: String,
     provider: String,
     model: Option<String>,
     context_limit: usize,
+    cwd_analysis: Option<String>,
 ) -> Result<()> {
     use colors::*;
 
@@ -255,8 +267,11 @@ pub async fn run_cli(
     );
     let mut messages: Vec<Message> = Vec::new();
     let mut last_token_count: i32 = 0;
+    let mut cwd_analysis_used = false;
 
     print_session_header(&provider, model.as_deref(), &session_id);
+    print_context_status(cwd_analysis.is_some());
+    println!();
 
     let mut pending_tools: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
@@ -266,7 +281,6 @@ pub async fn run_cli(
             print_context_usage(last_token_count, context_limit);
         }
 
-        // Read input with readline support
         let prompt = format!("{CYAN}{BOLD}( O)>{RESET} ");
         let input = match rl.readline(&prompt) {
             Ok(line) => {
@@ -288,7 +302,6 @@ pub async fn run_cli(
             continue;
         }
 
-        // Handle commands
         match trimmed {
             "/exit" | "/quit" | "/q" => break,
             "/help" | "/?" => {
@@ -309,8 +322,19 @@ pub async fn run_cli(
             _ => {}
         }
 
-        // Send message and stream response
-        let user_message = Message::user().with_text(trimmed);
+        let message_text = if !cwd_analysis_used {
+            if let Some(ref analysis) = cwd_analysis {
+                cwd_analysis_used = true;
+                format!("<{CWD_ANALYSIS_TAG}>\n{analysis}\n</{CWD_ANALYSIS_TAG}>\n\n{trimmed}")
+            } else {
+                cwd_analysis_used = true;
+                trimmed.to_string()
+            }
+        } else {
+            trimmed.to_string()
+        };
+
+        let user_message = Message::user().with_text(&message_text);
         messages.push(user_message.clone());
 
         // Start spinner while waiting for response
