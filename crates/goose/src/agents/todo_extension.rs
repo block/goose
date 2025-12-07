@@ -23,20 +23,41 @@ const AUTONOMOUS_MODE_TRIGGERS: &[&str] = &["Act autonomously.", "Work independe
 
 const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
     Start on this list right away before proceeding with the user instructions.
-    You will perform ideally on the user's task if you follow this list verbatim.
     Skipping any of these steps is an error and will result in failure:
-    - [ ] IMMEDIATELY write the task verbatim to the file .goose_task.md
-    - [ ] Think hard out loud and then write all requirements (explicit, implicit, and edge cases) to the file .goose_task_requirements.md
-    - [ ] Plan: break down task into steps, update this todo
-    - [ ] Implement
-    - [ ] Test: deterministic verification required (run tests, lints, type checks)
-    - [ ] Reread .goose_task.md and .goose_task_requirements.md and confirm every requirement is satisfied
-    Remember, you must write the files with the task and requirements to disk using your file editor tool.
-    You MUST reread both .goose_task.md and .goose_task_requirements.md at the end of your work to verify.
-    Write down this reread step in your updated todo list.
-    Do not create documentation unless asked to do so here or by the user's prompt.
-    Your context degrades rapidly and you will forget them by the end of your work. Writing them to disk
-    is essential for success in doing what the user has asked. DO IT NOW.
+
+    ## Phase 1: Capture & Scope
+    - [ ] IMMEDIATELY write the task verbatim to .goose_task.md
+    - [ ] Write all requirements (explicit, implicit, edge cases) to .goose_task_requirements.md
+    - [ ] Write what is OUT OF SCOPE to .goose_task_requirements.md - resist scope creep
+
+    ## Phase 2: Understand & Plan
+    - [ ] If unfamiliar with the codebase/system, spawn Investigator to understand relevant areas
+    - [ ] For complex tasks (3+ steps), spawn Planner to create an action plan
+    - [ ] Update this TODO with the concrete steps from your plan
+
+    ## Phase 3: Implement
+    - [ ] Implement following the plan, verifying each step before proceeding
+    - [ ] If tempted to add something, check: is it in scope? If not, don't do it.
+
+    ## Phase 4: Verify
+    - [ ] Test: run tests, lints, type checks - deterministic verification required
+    - [ ] Anti-pattern checklist:
+      - [ ] Did I handle errors appropriately?
+      - [ ] Did I test both happy path AND failure paths?
+      - [ ] Did I leave any debug code or temporary hacks?
+      - [ ] Did I break any existing functionality?
+    - [ ] Reread .goose_task.md and .goose_task_requirements.md
+    - [ ] Confirm EVERY requirement is satisfied and nothing out-of-scope was added
+
+    ## Subagent Guidance
+    • Investigator: Use when you need to understand how something works before changing it
+    • Planner: Use when the path forward is unclear or involves multiple steps
+
+    IMPORTANT: Subagents have NO context from your conversation. When spawning them,
+    instruct them to first read .goose_task.md and .goose_task_requirements.md so
+    they understand the full task and constraints.
+
+    Your context degrades rapidly. Writing to disk is essential. DO IT NOW.
 "#};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
