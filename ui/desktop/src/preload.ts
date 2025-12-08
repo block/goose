@@ -46,7 +46,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
+  directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -136,8 +136,7 @@ const electronAPI: ElectronAPI = {
     return config;
   },
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: (replaceInCurrentWindow?: boolean) =>
-    ipcRenderer.invoke('directory-chooser', replaceInCurrentWindow),
+  directoryChooser: () => ipcRenderer.invoke('directory-chooser'),
   createChatWindow: (
     query?: string,
     dir?: string,

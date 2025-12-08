@@ -1152,24 +1152,12 @@ ipcMain.handle('open-external', async (_event, url: string) => {
 });
 
 // Handle directory chooser
-ipcMain.handle('directory-chooser', async (_event, replaceInCurrentWindow?: boolean) => {
-  console.log(
-    '[Main] directory-chooser called with replaceInCurrentWindow:',
-    replaceInCurrentWindow
-  );
-
-  if (replaceInCurrentWindow) {
-    // Just return the dialog result for in-place directory change
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'openDirectory', 'createDirectory'],
-      defaultPath: os.homedir(),
-    });
-    console.log('[Main] Dialog result for in-place change:', JSON.stringify(result));
-    return result;
-  }
-  // Original behavior - open in new window
-  console.log('[Main] Using original behavior - opening new window');
-  return openDirectoryDialog();
+ipcMain.handle('directory-chooser', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'openDirectory', 'createDirectory'],
+    defaultPath: os.homedir(),
+  });
+  return result;
 });
 
 // Handle scheduling engine settings

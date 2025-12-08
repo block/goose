@@ -28,7 +28,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
 
     let result;
     try {
-      result = await window.electron.directoryChooser(true);
+      result = await window.electron.directoryChooser();
     } finally {
       setIsDirectoryChooserOpen(false);
     }
