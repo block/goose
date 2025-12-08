@@ -23,7 +23,7 @@ export const ConversationLimitsDropdown = ({
         onClick={toggleExpanded}
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all group"
       >
-        <h3 className="text-text-default font-medium">Conversation Limits</h3>
+        <h3 className="text-text-default">Conversation Limits</h3>
 
         <ChevronDown
           className={`w-4 h-4 text-text-muted transition-transform duration-200 ease-in-out ${

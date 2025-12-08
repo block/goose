@@ -1,4 +1,6 @@
-use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
@@ -340,6 +342,28 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
     let mut md = String::new();
     for content in &message.content {
         match content {
+            MessageContent::ActionRequired(action) => match &action.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (tool_confirmation): {}\n\n",
+                        tool_name
+                    ));
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation): {}\n\n",
+                        message
+                    ));
+                }
+                ActionRequiredData::ElicitationResponse { id, user_data } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation_response): {}\n```json\n{}\n```\n\n",
+                        id,
+                        serde_json::to_string_pretty(user_data)
+                            .unwrap_or_else(|_| "{}".to_string())
+                    ));
+                }
+            },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
                 md.push_str("\n\n");
@@ -512,6 +536,7 @@ mod tests {
         let tool_request = ToolRequest {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
+            thought_signature: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -535,6 +560,7 @@ mod tests {
         let tool_request = ToolRequest {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
+            thought_signature: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -662,6 +688,7 @@ mod tests {
         let tool_request = ToolRequest {
             id: "shell-cat".to_string(),
             tool_call: Ok(tool_call),
+            thought_signature: None,
         };
 
         let python_code = r#"#!/usr/bin/env python3
@@ -708,6 +735,7 @@ if __name__ == "__main__":
         let tool_request = ToolRequest {
             id: "git-status".to_string(),
             tool_call: Ok(git_status_call),
+            thought_signature: None,
         };
 
         let git_output = " M src/main.rs\n?? temp.txt\n A new_feature.rs";
@@ -746,6 +774,7 @@ if __name__ == "__main__":
         let _tool_request = ToolRequest {
             id: "cargo-build".to_string(),
             tool_call: Ok(cargo_build_call),
+            thought_signature: None,
         };
 
         let build_output = r#"   Compiling goose-cli v0.1.0 (/Users/user/goose)
@@ -790,6 +819,7 @@ warning: unused variable `x`
         let _tool_request = ToolRequest {
             id: "curl-api".to_string(),
             tool_call: Ok(curl_call),
+            thought_signature: None,
         };
 
         let api_response = r#"{
@@ -838,6 +868,7 @@ warning: unused variable `x`
         let tool_request = ToolRequest {
             id: "editor-write".to_string(),
             tool_call: Ok(editor_call),
+            thought_signature: None,
         };
 
         let text_content = TextContent {
@@ -878,6 +909,7 @@ warning: unused variable `x`
         let _tool_request = ToolRequest {
             id: "editor-view".to_string(),
             tool_call: Ok(editor_call),
+            thought_signature: None,
         };
 
         let python_code = r#"import os
@@ -927,6 +959,7 @@ def process_data(data: List[Dict]) -> List[Dict]:
         let _tool_request = ToolRequest {
             id: "shell-error".to_string(),
             tool_call: Ok(error_call),
+            thought_signature: None,
         };
 
         let error_output = r#"python: can't open file 'nonexistent_script.py': [Errno 2] No such file or directory
@@ -962,6 +995,7 @@ Command failed with exit code 2"#;
         let tool_request = ToolRequest {
             id: "script-exec".to_string(),
             tool_call: Ok(script_call),
+            thought_signature: None,
         };
 
         let script_output = r#"Python 3.11.5 (main, Aug 24 2023, 15:18:16) [Clang 14.0.3 ]
@@ -1008,6 +1042,7 @@ Command failed with exit code 2"#;
         let _tool_request = ToolRequest {
             id: "multi-cmd".to_string(),
             tool_call: Ok(multi_call),
+            thought_signature: None,
         };
 
         let multi_output = r#"total 24
@@ -1052,6 +1087,7 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         let tool_request = ToolRequest {
             id: "grep-search".to_string(),
             tool_call: Ok(grep_call),
+            thought_signature: None,
         };
 
         let grep_output = r#"src/main.rs:15:async fn process_request(req: Request) -> Result<Response> {
@@ -1095,6 +1131,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let _tool_request = ToolRequest {
             id: "json-test".to_string(),
             tool_call: Ok(tool_call),
+            thought_signature: None,
         };
 
         let json_output = r#"{"status": "success", "data": {"count": 42}}"#;
@@ -1129,6 +1166,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let tool_request = ToolRequest {
             id: "npm-install".to_string(),
             tool_call: Ok(npm_call),
+            thought_signature: None,
         };
 
         let npm_output = r#"added 57 packages, and audited 58 packages in 3s

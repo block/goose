@@ -9,6 +9,7 @@ import {
   Trash2,
   Download,
   Upload,
+  ExternalLink,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -488,16 +489,29 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       [loadSessions]
     );
 
+    const handleOpenInNewWindow = useCallback((session: Session, e: React.MouseEvent) => {
+      e.stopPropagation();
+      window.electron.createChatWindow(
+        undefined,
+        session.working_dir,
+        undefined,
+        session.id,
+        'pair'
+      );
+    }, []);
+
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
       onDeleteClick,
       onExportClick,
+      onOpenInNewWindow,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
       onExportClick: (session: Session, e: React.MouseEvent) => void;
+      onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
@@ -526,6 +540,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onExportClick, session]
       );
 
+      const handleOpenInNewWindowClick = useCallback(
+        (e: React.MouseEvent) => {
+          onOpenInNewWindow(session, e);
+        },
+        [onOpenInNewWindow, session]
+      );
+
       return (
         <Card
           onClick={handleCardClick}
@@ -535,6 +556,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <button
+                onClick={handleOpenInNewWindowClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Open in new window"
+              >
+                <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
               <button
                 onClick={handleEditClick}
                 className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
@@ -674,6 +702,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onEditClick={handleEditSession}
                     onDeleteClick={handleDeleteSession}
                     onExportClick={handleExportSession}
+                    onOpenInNewWindow={handleOpenInNewWindow}
                   />
                 ))}
               </div>
