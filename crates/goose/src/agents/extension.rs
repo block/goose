@@ -1,4 +1,5 @@
 use crate::agents::chatrecall_extension;
+use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::skills_extension;
 use crate::agents::todo_extension;
@@ -84,6 +85,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description: "Load and use skills from .claude/skills or .goose/skills directories",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            code_execution_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: code_execution_extension::EXTENSION_NAME,
+                description: "Execute JavaScript code in a sandboxed environment",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
+                },
             },
         );
 
