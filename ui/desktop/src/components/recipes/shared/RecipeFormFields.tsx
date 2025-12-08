@@ -255,7 +255,7 @@ export function RecipeFormFields({
               className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
               }`}
-              placeholder="Detailed instructions for the AI, hidden from the user..."
+              placeholder="Detailed instructions for the AI, hidden from the user"
               rows={8}
               data-testid="instructions-input"
             />
@@ -308,7 +308,7 @@ export function RecipeFormFields({
                 updateParametersFromFields();
               }}
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Pre-filled prompt when the recipe starts..."
+              placeholder="Pre-filled prompt when the recipe starts"
               rows={3}
               data-testid="prompt-input"
             />
@@ -318,16 +318,14 @@ export function RecipeFormFields({
 
       {/* Advanced Section - Collapsible */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-6">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 px-4 bg-bgSubtle hover:bg-bgSubtle/80 rounded-lg transition-colors border border-borderSubtle">
+        <CollapsibleTrigger className="flex items-baseline gap-2 w-full py-3 px-4 bg-bgSubtle hover:bg-bgSubtle/80 rounded-lg transition-colors border border-borderSubtle">
           <ChevronDown
-            className={`w-4 h-4 text-textSubtle transition-transform duration-200 ${
+            className={`w-4 h-4 text-textSubtle transition-transform duration-200 flex-shrink-0 relative top-0.5 ${
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
           <span className="text-sm font-medium text-textStandard">Advanced Options</span>
-          <span className="text-xs text-textSubtle ml-2">
-            Activities, parameters, response schema
-          </span>
+          <span className="text-xs text-textSubtle">Activities, parameters, response schema</span>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-borderSubtle ml-2">

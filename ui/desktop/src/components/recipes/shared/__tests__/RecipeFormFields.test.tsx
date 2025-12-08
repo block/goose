@@ -179,7 +179,7 @@ describe('RecipeFormFields', () => {
       render(<TestWrapper />);
 
       const instructionsInput = screen.getByPlaceholderText(
-        'Detailed instructions for the AI, hidden from the user...'
+        'Detailed instructions for the AI, hidden from the user'
       );
 
       // Type instructions with template variables - use paste to avoid curly brace issues
@@ -287,7 +287,7 @@ describe('RecipeFormFields', () => {
       render(<TestComponent />);
 
       const instructionsInput = screen.getByPlaceholderText(
-        'Detailed instructions for the AI, hidden from the user...'
+        'Detailed instructions for the AI, hidden from the user'
       );
 
       // Add instructions with template variables
