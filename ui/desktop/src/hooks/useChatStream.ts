@@ -367,8 +367,8 @@ export function useChatStream({
     const isSessionIdUpdate = session?.id && session.id !== sessionId && 
       (sessionId.startsWith('temp_') || session.id.startsWith('temp_'));
     
-    if (isSessionIdUpdate) {
-      console.log('🔄 Session ID update detected (temp->real or real->temp), preserving state:', {
+    if (isSessionIdUpdate && messages.length > 0) {
+      console.log('🔄 Session ID update detected with existing messages, preserving state:', {
         from: session.id,
         to: sessionId,
         messagesLength: messages.length
@@ -380,26 +380,16 @@ export function useChatStream({
       return;
     }
 
-    // Only reset state for truly different sessions
-    const isDifferentSession = session?.id && session.id !== sessionId && 
-      !sessionId.startsWith('temp_') && !session.id.startsWith('temp_');
-    
-    if (isDifferentSession || !session) {
-      log.session('loading', sessionId, {
-        previousSessionId: session?.id,
-        currentMessagesCount: messages.length,
-        willReset: isDifferentSession,
-        reason: isDifferentSession ? 'different session' : 'no session'
-      });
-      
-      // Only reset if it's actually a different session
-      if (isDifferentSession) {
-        setMessagesAndLog([], 'session-reset');
-        setSession(undefined);
-        setSessionLoadError(undefined);
-        setChatState(ChatState.Idle);
-      }
-    }
+    // Reset state when sessionId changes (but allow initial loading)
+    log.session('loading', sessionId, {
+      previousSessionId: session?.id,
+      currentMessagesCount: messages.length,
+      willReset: true
+    });
+    setMessagesAndLog([], 'session-reset');
+    setSession(undefined);
+    setSessionLoadError(undefined);
+    setChatState(ChatState.Idle);
 
     // Check if this is a cached session first
     const cached = resultsCache.get(sessionId);
