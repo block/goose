@@ -96,6 +96,7 @@ function BaseChatContent({
     messages,
     chatState,
     handleSubmit,
+    submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
@@ -274,6 +275,7 @@ function BaseChatContent({
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}
         onMessageUpdate={onMessageUpdate}
+        submitElicitationResponse={submitElicitationResponse}
       />
     </>
   );
@@ -367,7 +369,7 @@ function BaseChatContent({
                   append={(text: string) => handleSubmit(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  //parameterValues={recipeParameters || {}}
+                  parameterValues={session?.user_recipe_values || {}}
                 />
               </div>
             )}
@@ -449,6 +451,10 @@ function BaseChatContent({
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
           onClose={() => setView('chat')}
+          initialValues={
+            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+            undefined
+          }
         />
       )}
 

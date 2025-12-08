@@ -142,6 +142,7 @@ export default function ChatInput({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1014,12 +1015,18 @@ export default function ChatInput({
   };
 
   const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
+    if (isFilePickerOpen) return;
+    setIsFilePickerOpen(true);
+    try {
+      const path = await window.electron.selectFileOrDirectory();
+      if (path) {
+        const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+        setDisplayValue(newValue);
+        setValue(newValue);
+        textAreaRef.current?.focus();
+      }
+    } finally {
+      setIsFilePickerOpen(false);
     }
   };
 
@@ -1457,9 +1464,10 @@ export default function ChatInput({
             <Button
               type="button"
               onClick={handleFileSelect}
+              disabled={isFilePickerOpen}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className={`flex items-center justify-center text-text-default/70 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <Attach className="w-4 h-4" />
             </Button>
@@ -1499,7 +1507,7 @@ export default function ChatInput({
               <BottomMenuExtensionSelection sessionId={sessionId} />
             </>
           )}
-          {sessionId && (
+          {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <div className="flex items-center h-full">

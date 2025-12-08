@@ -172,6 +172,12 @@ pub fn render_message(message: &Message, debug: bool) {
                 ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                     println!("action_required(tool_confirmation): {}", tool_name)
                 }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    println!("action_required(elicitation): {}", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    println!("action_required(elicitation_response): {}", id)
+                }
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),

@@ -202,6 +202,7 @@ pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     [
         merge_text_content_items,
+        trim_assistant_text_whitespace,
         remove_empty_messages,
         fix_tool_calling,
         merge_consecutive_messages,
@@ -255,6 +256,32 @@ fn merge_text_content_items(messages: Vec<Message>) -> (Vec<Message>, Vec<String
             (messages, issues)
         },
     )
+}
+
+fn trim_assistant_text_whitespace(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    let mut issues = Vec::new();
+
+    let fixed_messages = messages
+        .into_iter()
+        .map(|mut message| {
+            if message.role == Role::Assistant {
+                for content in &mut message.content {
+                    if let MessageContent::Text(text) = content {
+                        let trimmed = text.text.trim_end();
+                        if trimmed.len() != text.text.len() {
+                            issues.push(
+                                "Trimmed trailing whitespace from assistant message".to_string(),
+                            );
+                            text.text = trimmed.to_string();
+                        }
+                    }
+                }
+            }
+            message
+        })
+        .collect();
+
+    (fixed_messages, issues)
 }
 
 fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {

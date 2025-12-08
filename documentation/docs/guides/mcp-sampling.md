@@ -14,6 +14,8 @@ This feature is automatically enabled in goose, no configuration required! Any M
 - goose users can get more targeted responses tailored to the extension's specific capabilities
 - developers can add sampling support to their MCP servers to provide enhanced capabilities in goose
 
+Try out the [Council of Mine](/docs/mcp/council-of-mine-mcp) extension to see MCP sampling in action!
+
 :::info
 [MCP Sampling](https://modelcontextprotocol.io/specification/draft/client/sampling) is a feature in the Model Context Protocol.
 :::
@@ -78,3 +80,22 @@ MCP Sampling enables powerful capabilities like:
 ## For Extension Developers
 
 Want to add MCP Sampling to your own extensions? See our [Building Custom Extensions](/docs/tutorials/custom-extensions) tutorial to learn more about how MCP servers can leverage goose's AI capabilities.
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import mcpSampling from '@site/blog/2025-12-04-mcp-sampling/mcp-sampling.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'blog',
+      title: 'MCP Sampling: When Your Tools Need to Think',
+      description: 'Learn how MCP Sampling lets your tools call the AI instead of the other way around.',
+      thumbnailUrl: mcpSampling,
+      linkUrl: '/goose/blog/2025/12/04/mcp-sampling',
+      date: '2025-12-04',
+      duration: '6 min read'
+    }
+  ]}
+/>
