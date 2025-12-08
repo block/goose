@@ -1507,7 +1507,7 @@ export default function ChatInput({
               <BottomMenuExtensionSelection sessionId={sessionId} />
             </>
           )}
-          {sessionId && (
+          {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <div className="flex items-center h-full">
