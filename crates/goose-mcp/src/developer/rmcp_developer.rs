@@ -966,8 +966,7 @@ impl DeveloperServer {
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
-        
-        // Get the working directory from environment variable if set by the agent
+
         let working_dir = std::env::var("GOOSE_WORKING_DIR")
             .ok()
             .map(std::path::PathBuf::from);

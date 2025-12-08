@@ -610,11 +610,16 @@ async fn restore_agent_provider(
         })
 }
 
-async fn restore_agent_extensions(agent: Arc<Agent>, working_dir: &std::path::Path) -> Result<(), ErrorResponse> {
-    // Set the working directory as an environment variable that MCP extensions can use
-    tracing::info!("Setting GOOSE_WORKING_DIR environment variable to: {:?}", working_dir);
+async fn restore_agent_extensions(
+    agent: Arc<Agent>,
+    working_dir: &std::path::Path,
+) -> Result<(), ErrorResponse> {
+    tracing::info!(
+        "Setting GOOSE_WORKING_DIR environment variable to: {:?}",
+        working_dir
+    );
     std::env::set_var("GOOSE_WORKING_DIR", working_dir);
-    
+
     let enabled_configs = goose::config::get_enabled_extensions();
     let extension_futures = enabled_configs
         .into_iter()
@@ -651,20 +656,17 @@ async fn restart_agent(
     Json(payload): Json<RestartAgentRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
     let session_id = payload.session_id.clone();
-    
+
     tracing::info!("=== RESTART AGENT START ===");
     tracing::info!("Session ID: {}", session_id);
-    
-    // First, remove the existing agent (this will shut down MCP extensions)
+
     tracing::info!("Attempting to remove existing agent...");
     if let Err(e) = state.agent_manager.remove_session(&session_id).await {
         tracing::warn!("Agent not found for removal during restart: {}", e);
-        // Continue anyway - the agent might not exist yet
     } else {
         tracing::info!("Successfully removed existing agent");
     }
-    
-    // Get the session to retrieve configuration
+
     tracing::info!("Fetching session to get configuration...");
     let session = SessionManager::get_session(&session_id, false)
         .await
@@ -675,12 +677,14 @@ async fn restart_agent(
                 status: StatusCode::NOT_FOUND,
             }
         })?;
-    
+
     tracing::info!("Session retrieved successfully");
     tracing::info!("Session working_dir: {:?}", session.working_dir);
-    tracing::info!("Session working_dir as string: {}", session.working_dir.display());
-    
-    // Create a new agent (this will use the updated working_dir from the session)
+    tracing::info!(
+        "Session working_dir as string: {}",
+        session.working_dir.display()
+    );
+
     tracing::info!("Creating new agent...");
     let agent = state
         .get_agent_for_route(session_id.clone())
@@ -690,21 +694,19 @@ async fn restart_agent(
             status: code,
         })?;
     tracing::info!("New agent created successfully");
-    
-    // Restore the provider and extensions
+
     let provider_result = restore_agent_provider(&agent, &session, &session_id);
     let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
-    
+
     let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
     provider_result?;
     extensions_result?;
-    
-    // Apply recipe if present
+
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
         render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
-    
+
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             &recipe,
@@ -729,11 +731,14 @@ async fn restart_agent(
         }
     }
     agent.extend_system_prompt(update_prompt).await;
-    
+
     tracing::info!("=== RESTART AGENT COMPLETE ===");
     tracing::info!("Final session_id: {}", session_id);
-    tracing::info!("Agent should now be using working_dir: {}", session.working_dir.display());
-    
+    tracing::info!(
+        "Agent should now be using working_dir: {}",
+        session.working_dir.display()
+    );
+
     Ok(StatusCode::OK)
 }
 
