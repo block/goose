@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Parameter } from '../../../recipe';
+import { ChevronDown } from 'lucide-react';
 
 import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
 import { Button } from '../../ui/button';
-import { RecipeFormApi } from './recipeFormSchema';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
+import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -143,6 +145,15 @@ export function RecipeFormFields({
     return usedInInstructions || usedInPrompt || usedInActivities;
   };
 
+  const checkHasAdvancedData = React.useCallback((values: RecipeFormData) => {
+    const hasActivities = Boolean(values.activities && values.activities.length > 0);
+    const hasParameters = Boolean(values.parameters && values.parameters.length > 0);
+    const hasJsonSchema = Boolean(values.jsonSchema && values.jsonSchema.trim());
+    return hasActivities || hasParameters || hasJsonSchema;
+  }, []);
+
+  const [advancedOpen, setAdvancedOpen] = useState(() => checkHasAdvancedData(form.state.values));
+
   return (
     <div className="space-y-4" data-testid="recipe-form">
       {/* Title Field */}
@@ -249,7 +260,8 @@ export function RecipeFormFields({
               data-testid="instructions-input"
             />
             <p className="text-xs text-text-muted mt-1">
-              Use {`{{parameter_name}}`} to define parameters that users can fill in
+              Use {`{{parameter_name}}`} to define parameters that can be filled in when running the
+              recipe.
             </p>
             {field.state.meta.errors.length > 0 && (
               <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
@@ -304,187 +316,208 @@ export function RecipeFormFields({
         )}
       </form.Field>
 
-      {/* Activities Field */}
-      <form.Field name="activities">
-        {(field: FormFieldApi<string[]>) => (
-          <div>
-            <RecipeActivityEditor
-              activities={field.state.value}
-              setActivities={(activities) => field.handleChange(activities)}
-              onBlur={updateParametersFromFields}
-            />
-          </div>
-        )}
-      </form.Field>
+      {/* Advanced Section - Collapsible */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-6">
+        <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 px-4 bg-bgSubtle hover:bg-bgSubtle/80 rounded-lg transition-colors border border-borderSubtle">
+          <ChevronDown
+            className={`w-4 h-4 text-textSubtle transition-transform duration-200 ${
+              advancedOpen ? 'rotate-0' : '-rotate-90'
+            }`}
+          />
+          <span className="text-sm font-medium text-textStandard">Advanced Options</span>
+          <span className="text-xs text-textSubtle ml-2">
+            Activities, parameters, response schema
+          </span>
+        </CollapsibleTrigger>
 
-      {/* Parameters Field */}
-      <form.Field name="parameters">
-        {(field: FormFieldApi<Parameter[]>) => {
-          const handleAddParameter = () => {
-            if (newParameterName.trim()) {
-              const newParam: Parameter = {
-                key: newParameterName.trim(),
-                description: `Enter value for ${newParameterName.trim()}`,
-                input_type: 'string',
-                requirement: 'required',
-              };
-              field.handleChange([...field.state.value, newParam]);
-              setNewParameterName('');
-              // Expand the newly added parameter by default
-              setExpandedParameters((prev) => {
-                const newSet = new Set(prev);
-                newSet.add(newParam.key);
-                return newSet;
-              });
-            }
-          };
-
-          const handleKeyPress = (e: React.KeyboardEvent) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleAddParameter();
-            }
-          };
-
-          const handleDeleteParameter = (parameterKey: string) => {
-            const updatedParams = field.state.value.filter(
-              (param: Parameter) => param.key !== parameterKey
-            );
-            field.handleChange(updatedParams);
-            // Remove from expanded set if it was expanded
-            setExpandedParameters((prev) => {
-              const newSet = new Set(prev);
-              newSet.delete(parameterKey);
-              return newSet;
-            });
-          };
-
-          const handleToggleExpanded = (parameterKey: string) => {
-            setExpandedParameters((prev) => {
-              const newSet = new Set(prev);
-              if (newSet.has(parameterKey)) {
-                newSet.delete(parameterKey);
-              } else {
-                newSet.add(parameterKey);
-              }
-              return newSet;
-            });
-          };
-
-          return (
-            <div>
-              <label className="block text-md text-textProminent mb-2 font-bold">Parameters</label>
-              <p className="text-textSubtle text-sm space-y-2 pb-4">
-                Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
-                instructions/prompt/activities or you can manually add them below.
-              </p>
-
-              {/* Add Parameter Input - Always Visible */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={newParameterName}
-                  onChange={(e) => setNewParameterName(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Enter parameter name..."
-                  className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+        <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-borderSubtle ml-2">
+          {/* Activities Field */}
+          <form.Field name="activities">
+            {(field: FormFieldApi<string[]>) => (
+              <div>
+                <RecipeActivityEditor
+                  activities={field.state.value}
+                  setActivities={(activities) => field.handleChange(activities)}
+                  onBlur={updateParametersFromFields}
                 />
-                <button
-                  type="button"
-                  onClick={handleAddParameter}
-                  disabled={!newParameterName.trim()}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  Add parameter
-                </button>
-              </div>
-
-              {field.state.value.length > 0 &&
-                field.state.value
-                  .filter((parameter: Parameter) => parameter.key && parameter.key.trim()) // Filter out empty parameters
-                  .map((parameter: Parameter) => {
-                    const currentValues = form.state.values;
-                    const isUnused = !isParameterUsed(
-                      parameter.key,
-                      currentValues.instructions,
-                      currentValues.prompt,
-                      currentValues.activities
-                    );
-
-                    return (
-                      <ParameterInput
-                        key={parameter.key}
-                        parameter={parameter}
-                        isUnused={isUnused}
-                        isExpanded={expandedParameters.has(parameter.key)}
-                        onToggleExpanded={handleToggleExpanded}
-                        onDelete={handleDeleteParameter}
-                        onChange={(name, value) => {
-                          const updatedParams = field.state.value.map((param: Parameter) =>
-                            param.key === name ? { ...param, ...value } : param
-                          );
-                          field.handleChange(updatedParams);
-                        }}
-                      />
-                    );
-                  })}
-            </div>
-          );
-        }}
-      </form.Field>
-
-      {/* JSON Schema Field */}
-      <form.Field name="jsonSchema">
-        {(field: FormFieldApi<string | undefined>) => (
-          <div>
-            <label className="block text-md text-textProminent mb-2 font-bold">
-              Response JSON Schema
-            </label>
-            <p className="text-textSubtle text-sm space-y-2 pb-4">
-              Define the expected structure of the AI's response using JSON Schema format
-            </p>
-            <div className="flex items-center justify-between mb-2">
-              <Button
-                type="button"
-                onClick={() => setShowJsonSchemaEditor(true)}
-                variant="outline"
-                size="sm"
-                className="text-xs"
-              >
-                Open Editor
-              </Button>
-            </div>
-
-            {field.state.value && field.state.value.trim() && (
-              <div
-                className={`border rounded-lg p-3 bg-background-muted ${
-                  field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
-                }`}
-              >
-                <pre className="text-xs font-mono text-text-standard whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
-                  {field.state.value}
-                </pre>
               </div>
             )}
+          </form.Field>
 
-            {field.state.meta.errors.length > 0 && (
-              <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
+          {/* Parameters Field */}
+          <form.Field name="parameters">
+            {(field: FormFieldApi<Parameter[]>) => {
+              const handleAddParameter = () => {
+                if (newParameterName.trim()) {
+                  const newParam: Parameter = {
+                    key: newParameterName.trim(),
+                    description: `Enter value for ${newParameterName.trim()}`,
+                    input_type: 'string',
+                    requirement: 'required',
+                  };
+                  field.handleChange([...field.state.value, newParam]);
+                  setNewParameterName('');
+                  // Expand the newly added parameter by default
+                  setExpandedParameters((prev) => {
+                    const newSet = new Set(prev);
+                    newSet.add(newParam.key);
+                    return newSet;
+                  });
+                }
+              };
+
+              const handleKeyPress = (e: React.KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddParameter();
+                }
+              };
+
+              const handleDeleteParameter = (parameterKey: string) => {
+                const updatedParams = field.state.value.filter(
+                  (param: Parameter) => param.key !== parameterKey
+                );
+                field.handleChange(updatedParams);
+                // Remove from expanded set if it was expanded
+                setExpandedParameters((prev) => {
+                  const newSet = new Set(prev);
+                  newSet.delete(parameterKey);
+                  return newSet;
+                });
+              };
+
+              const handleToggleExpanded = (parameterKey: string) => {
+                setExpandedParameters((prev) => {
+                  const newSet = new Set(prev);
+                  if (newSet.has(parameterKey)) {
+                    newSet.delete(parameterKey);
+                  } else {
+                    newSet.add(parameterKey);
+                  }
+                  return newSet;
+                });
+              };
+
+              return (
+                <div>
+                  <label className="block text-md text-textProminent mb-2 font-bold">
+                    Parameters
+                  </label>
+                  <p className="text-textSubtle text-sm space-y-2 pb-4">
+                    Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
+                    instructions/prompt/activities or you can manually add them below.
+                  </p>
+
+                  {/* Add Parameter Input - Always Visible */}
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={newParameterName}
+                      onChange={(e) => setNewParameterName(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Enter parameter name..."
+                      className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddParameter}
+                      disabled={!newParameterName.trim()}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Add parameter
+                    </button>
+                  </div>
+
+                  {field.state.value.length > 0 &&
+                    field.state.value
+                      .filter((parameter: Parameter) => parameter.key && parameter.key.trim()) // Filter out empty parameters
+                      .map((parameter: Parameter) => {
+                        const currentValues = form.state.values;
+                        const isUnused = !isParameterUsed(
+                          parameter.key,
+                          currentValues.instructions,
+                          currentValues.prompt,
+                          currentValues.activities
+                        );
+
+                        return (
+                          <ParameterInput
+                            key={parameter.key}
+                            parameter={parameter}
+                            isUnused={isUnused}
+                            isExpanded={expandedParameters.has(parameter.key)}
+                            onToggleExpanded={handleToggleExpanded}
+                            onDelete={handleDeleteParameter}
+                            onChange={(name, value) => {
+                              const updatedParams = field.state.value.map((param: Parameter) =>
+                                param.key === name ? { ...param, ...value } : param
+                              );
+                              field.handleChange(updatedParams);
+                            }}
+                          />
+                        );
+                      })}
+                </div>
+              );
+            }}
+          </form.Field>
+
+          {/* JSON Schema Field */}
+          <form.Field name="jsonSchema">
+            {(field: FormFieldApi<string | undefined>) => (
+              <div>
+                <label className="block text-md text-textProminent mb-2 font-bold">
+                  Response JSON Schema
+                </label>
+                <p className="text-textSubtle text-sm space-y-2 pb-4">
+                  Define the expected structure of the AI's response using JSON Schema format
+                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <Button
+                    type="button"
+                    onClick={() => setShowJsonSchemaEditor(true)}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                  >
+                    Open Editor
+                  </Button>
+                </div>
+
+                {field.state.value && field.state.value.trim() && (
+                  <div
+                    className={`border rounded-lg p-3 bg-background-muted ${
+                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
+                    }`}
+                  >
+                    <pre className="text-xs font-mono text-text-standard whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                      {field.state.value}
+                    </pre>
+                  </div>
+                )}
+
+                {field.state.meta.errors.length > 0 && (
+                  <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
+                )}
+
+                {/* JSON Schema Editor Modal */}
+                <JsonSchemaEditor
+                  isOpen={showJsonSchemaEditor}
+                  onClose={() => setShowJsonSchemaEditor(false)}
+                  value={field.state.value || ''}
+                  onChange={(value) => {
+                    field.handleChange(value);
+                    onJsonSchemaChange?.(value);
+                  }}
+                  error={
+                    field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined
+                  }
+                />
+              </div>
             )}
-
-            {/* JSON Schema Editor Modal */}
-            <JsonSchemaEditor
-              isOpen={showJsonSchemaEditor}
-              onClose={() => setShowJsonSchemaEditor(false)}
-              value={field.state.value || ''}
-              onChange={(value) => {
-                field.handleChange(value);
-                onJsonSchemaChange?.(value);
-              }}
-              error={field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined}
-            />
-          </div>
-        )}
-      </form.Field>
+          </form.Field>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

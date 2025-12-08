@@ -6,6 +6,14 @@ import { useForm } from '@tanstack/react-form';
 import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
 
+const expandAdvancedSection = async (user: ReturnType<typeof userEvent.setup>) => {
+  const advancedTrigger = screen.getByRole('button', { name: /advanced options/i });
+  const activitiesField = screen.queryByText('Activities');
+  if (!activitiesField) {
+    await user.click(advancedTrigger);
+  }
+};
+
 describe('RecipeFormFields', () => {
   const useTestForm = (initialValues?: Partial<RecipeFormData>) => {
     const defaultValues: RecipeFormData = {
@@ -48,13 +56,19 @@ describe('RecipeFormFields', () => {
       expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
     });
 
-    it('renders required form fields', () => {
+    it('renders required form fields', async () => {
+      const user = userEvent.setup();
       render(<TestWrapper />);
 
       expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/description/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/instructions/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/prompt/i)).toBeInTheDocument();
+
+      expect(screen.getByRole('button', { name: /advanced options/i })).toBeInTheDocument();
+
+      await expandAdvancedSection(user);
+
       expect(screen.getAllByText(/activities/i)[0]).toBeInTheDocument();
       expect(screen.getAllByText(/parameters/i)[0]).toBeInTheDocument();
       expect(screen.getByText(/response json schema/i)).toBeInTheDocument();
@@ -99,8 +113,11 @@ describe('RecipeFormFields', () => {
   });
 
   describe('Parameter Management', () => {
-    it('shows parameter input section', () => {
+    it('shows parameter input section', async () => {
+      const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       expect(screen.getByPlaceholderText('Enter parameter name...')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /add parameter/i })).toBeInTheDocument();
@@ -109,6 +126,8 @@ describe('RecipeFormFields', () => {
     it('allows adding parameters manually', async () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
       const addButton = screen.getByRole('button', { name: /add parameter/i });
@@ -173,6 +192,8 @@ describe('RecipeFormFields', () => {
       // Just verify the component doesn't crash and the text is there
       expect(instructionsInput).toHaveValue('Hello {{name}}, please {{action}} the {{item}}');
 
+      await expandAdvancedSection(user);
+
       // Check that the parameter section exists
       expect(screen.getByText('Parameters')).toBeInTheDocument();
       expect(
@@ -185,6 +206,8 @@ describe('RecipeFormFields', () => {
     it('allows manual parameter addition', async () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
@@ -200,8 +223,11 @@ describe('RecipeFormFields', () => {
       expect(parameterInput).toHaveValue('');
     });
 
-    it('shows parameter management UI', () => {
+    it('shows parameter management UI', async () => {
+      const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       // Check parameter section exists
       expect(screen.getByText('Parameters')).toBeInTheDocument();
@@ -215,6 +241,8 @@ describe('RecipeFormFields', () => {
     it('handles activities field for parameter detection', async () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       // Check that activities section exists
       expect(screen.getByText('Activities')).toBeInTheDocument();
@@ -271,6 +299,8 @@ describe('RecipeFormFields', () => {
 
       // Wait a moment for the parameter detection to process
       await new Promise((resolve) => setTimeout(resolve, 100));
+
+      await expandAdvancedSection(user);
 
       // Check if parameters were detected and added
       // The parameters should appear as text in the parameter section
@@ -407,6 +437,8 @@ describe('RecipeFormFields', () => {
     it('renders parameter form fields when manually adding parameters', async () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
@@ -617,6 +649,8 @@ describe('RecipeFormFields', () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
 
+      await expandAdvancedSection(user);
+
       // Add a manual parameter
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
       const addButton = screen.getByText('Add parameter');
@@ -647,6 +681,8 @@ describe('RecipeFormFields', () => {
     it('supports different parameter input types', async () => {
       const user = userEvent.setup();
       render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
 
       // Add a parameter and test changing its type
       const parameterInput = screen.getByPlaceholderText('Enter parameter name...');
