@@ -49,7 +49,7 @@
 :root {
   /* fonts */
   --font-sans: 'Cash Sans', sans-serif;
-  --font-mono: 'Cash Sans Mono', monospace;
+  --font-mono: monospace;
 
   /* theming accents */
   --background-accent: var(--color-accent);
@@ -192,7 +192,7 @@
   --color-text-info: var(--text-info);
 
   --font-sans: 'Cash Sans', sans-serif;
-  --font-mono: 'Cash Sans Mono', monospace;
+  --font-mono: monospace;
   --font-serif: serif;
 
   --color-ring: var(--ring);
@@ -255,17 +255,6 @@
       format('woff2'),
     url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Bold.woff) format('woff');
   font-weight: 700;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Cash Sans Mono';
-  src:
-    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSansMono-Light.woff2)
-      format('woff2'),
-    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSansMono-Light.woff)
-      format('woff');
-  font-weight: 300;
   font-style: normal;
 }
 
@@ -511,7 +500,7 @@ body {
 .bg-inline-code {
   border-radius: 4px;
   color: var(--color-neutral-200);
-  font-family: 'Cash Sans Mono', monospace;
+  font-family: monospace;
   font-size: 12px;
   font-style: normal;
   font-weight: 400;
