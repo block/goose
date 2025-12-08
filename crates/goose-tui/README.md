@@ -58,6 +58,9 @@ The default mode. Start a new session or resume an existing one:
 ```bash
 goose-tui                      # New session
 goose-tui --session abc123     # Resume session
+
+# Pipe stdin with additional instructions
+cat document.md | goose-tui -t "rewrite for clarity"
 ```
 
 ### Recipe Mode

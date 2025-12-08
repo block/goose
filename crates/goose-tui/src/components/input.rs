@@ -225,7 +225,13 @@ impl<'a> InputComponent<'a> {
         let (row, col) = self.textarea.cursor();
         let line = self.textarea.lines().get(row)?;
 
-        let before_cursor = &line[..col.min(line.len())];
+        let byte_pos = line
+            .char_indices()
+            .nth(col)
+            .map(|(i, _)| i)
+            .unwrap_or(line.len());
+
+        let before_cursor = &line[..byte_pos];
         let at_pos = before_cursor.rfind('@')?;
 
         let before_at = &before_cursor[..at_pos];
@@ -411,7 +417,7 @@ impl<'a> Component for InputComponent<'a> {
                             if let Some((name, is_dir)) =
                                 self.file_completions.get(self.completion_selected).cloned()
                             {
-                                for _ in 0..partial.len() {
+                                for _ in 0..partial.chars().count() {
                                     self.textarea.delete_char();
                                 }
                                 let suffix = if is_dir { "/" } else { " " };
