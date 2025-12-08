@@ -87,27 +87,3 @@ curl -X POST http://localhost:8000/classify \
 # Response:
 # [[{"label": "INJECTION", "score": 0.98}, {"label": "SAFE", "score": 0.02}]]
 ```
-
-## Implementation Guidelines - TBD
-
-### Text Preprocessing
-
-Implementations SHOULD:
-- Normalize whitespace (collapse multiple spaces/newlines)
-- Trim leading/trailing whitespace
-- Handle Unicode text correctly
-
-### Chunking for Long Text
-
-If the input text exceeds the model's token limit (typically 512 tokens for BERT models):
-
-1. **Split into overlapping chunks** with a stride (e.g., 256 tokens)
-2. **Score each chunk independently**
-3. **Return the maximum score** across all chunks
-
-**Rationale:** If ANY part of the input contains prompt injection, the entire input should be flagged.
-
-### Performance Considerations
-
-- **Latency target:** < 500ms for typical inputs (< 512 tokens)
-- **Throughput:** Should handle concurrent requests
