@@ -379,6 +379,14 @@ enum RecipeCommand {
             help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
         )]
         recipe_name: String,
+        /// Recipe parameters in key=value format (can be specified multiple times)
+        #[arg(
+            short = 'p',
+            long = "param",
+            value_name = "KEY=VALUE",
+            help = "Recipe parameter in key=value format (can be specified multiple times)"
+        )]
+        params: Vec<String>,
     },
 
     /// Open a recipe in Goose Desktop
@@ -387,6 +395,14 @@ enum RecipeCommand {
         /// Recipe name to get recipe file to open
         #[arg(help = "recipe name or full path to the recipe file")]
         recipe_name: String,
+        /// Recipe parameters in key=value format (can be specified multiple times)
+        #[arg(
+            short = 'p',
+            long = "param",
+            value_name = "KEY=VALUE",
+            help = "Recipe parameter in key=value format (can be specified multiple times)"
+        )]
+        params: Vec<String>,
     },
 
     /// List available recipes
@@ -1448,11 +1464,17 @@ pub async fn cli() -> anyhow::Result<()> {
                 RecipeCommand::Validate { recipe_name } => {
                     handle_validate(&recipe_name)?;
                 }
-                RecipeCommand::Deeplink { recipe_name } => {
-                    handle_deeplink(&recipe_name)?;
+                RecipeCommand::Deeplink {
+                    recipe_name,
+                    params,
+                } => {
+                    handle_deeplink(&recipe_name, &params)?;
                 }
-                RecipeCommand::Open { recipe_name } => {
-                    handle_open(&recipe_name)?;
+                RecipeCommand::Open {
+                    recipe_name,
+                    params,
+                } => {
+                    handle_open(&recipe_name, &params)?;
                 }
                 RecipeCommand::List { format, verbose } => {
                     handle_list(&format, verbose)?;

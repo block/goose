@@ -14,6 +14,15 @@ export type ActionRequiredData = {
     id: string;
     prompt?: string | null;
     toolName: string;
+} | {
+    actionType: 'elicitation';
+    id: string;
+    message: string;
+    requested_schema: unknown;
+} | {
+    actionType: 'elicitationResponse';
+    id: string;
+    user_data: unknown;
 };
 
 export type AddExtensionRequest = {
@@ -140,6 +149,15 @@ export type DecodeRecipeResponse = {
 
 export type DeleteRecipeRequest = {
     id: string;
+};
+
+export type DetectProviderRequest = {
+    api_key: string;
+};
+
+export type DetectProviderResponse = {
+    models: Array<string>;
+    provider_name: string;
 };
 
 export type EditMessageRequest = {
@@ -1451,6 +1469,29 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
+
+export type DetectProviderData = {
+    body: DetectProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/detect-provider';
+};
+
+export type DetectProviderErrors = {
+    /**
+     * No matching provider found
+     */
+    404: unknown;
+};
+
+export type DetectProviderResponses = {
+    /**
+     * Provider detected successfully
+     */
+    200: DetectProviderResponse;
+};
+
+export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;

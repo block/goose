@@ -40,26 +40,28 @@ Then click the link above to configure it in goose.
 
 ### goose Output
 
+:::note Desktop
 I'd be happy to consult the I Ching for guidance on your team's product roadmap decision. Let me cast a hexagram for you using the traditional three coins method.
+
 ─── cast_hexagram | iching ──────────────────────────
 
 
-
 Now let me get a detailed interpretation of this reading for your situation:
-─── interpret_reading | iching ──────────────────────────
-changing_lines:
-    -
-        5
-hexagram: 29
+
+─── interpret_reading | iching ─────────────────────────
+
+changing_lines:  
+&#45;  
+    5  
+hexagram: 29  
 transformed_hexagram: 13
 
 
-
-## I Ching Guidance for Your Product Roadmap Decision
+#### I Ching Guidance for Your Product Roadmap Decision
 
 The oracle has given you **Hexagram 29 - Darkness (The Abysmal)** with a changing line in the 5th position, transforming to **Hexagram 13 - Seeking Harmony (Fellowship with Men)**.
 
-### Key Insights for Your Team's Situation:
+**Key Insights for Your Team's Situation:**
 
 **Current Challenge (Hexagram 29):**
 - Your team is facing what the I Ching recognizes as a "repetition of danger" - this suggests you're in a challenging situation that requires careful navigation
@@ -77,7 +79,7 @@ The situation naturally evolves toward **Fellowship with Men** - suggesting that
 - **Open collaboration** rather than closed-door decisions
 - **Crossing the great water** - taking on significant challenges, but doing so together
 
-### Practical Recommendations:
+**Practical Recommendations:**
 
 1. **Acknowledge the Difficulty**: Don't minimize the complexity of your roadmap decision. Accept that it's genuinely challenging.
 
@@ -88,3 +90,4 @@ The situation naturally evolves toward **Fellowship with Men** - suggesting that
 4. **Focus on Execution**: Once you decide, commit fully. The hexagram emphasizes that success comes from thorough implementation, not perfect strategy.
 
 The I Ching suggests this challenging decision will ultimately strengthen your team's unity and collaboration if approached with patience, sincerity, and collective wisdom.
+:::
