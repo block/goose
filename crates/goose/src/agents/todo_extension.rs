@@ -22,6 +22,30 @@ pub static EXTENSION_NAME: &str = "todo";
 const AUTONOMOUS_MODE_TRIGGERS: &[&str] = &["Act autonomously.", "Work independently."];
 
 const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
+    Operating principles (hard-won lesson that you need to consider when operating as an llm agent):
+        Extract all requirements as checklist before coding. Missing one means failure.
+        Read test files first - they define the spec. Filenames, paths, JSON keys, casing are immutable contracts.
+        Follow existing codebase patterns. Examine similar code first. Consistency over innovation.
+        Test with realistic inputs. Import success doesn't mean it works.
+        Never run foreground services or use & operator - blocks execution. Use proper daemonization.
+        Modify source config files directly, not runtime workarounds. Validate syntax before applying.
+        Use pre-configured tools before manual setup. Existing over new.
+        Preserve exact format, case, structure. Downstream tools need exact matches.
+        Redirect large outputs to files. Summarize for context.
+        Test simple commands manually before full automation.
+        Repeated failures need root cause investigation - processes, scheduled tasks, interference.
+        Multi-component systems need ALL pieces started explicitly. Any missing piece fails everything.
+        Set explicit timeouts (30-300s) for all network operations. No timeout means indefinite hang.
+        No interactive prompts anywhere in tool chain. Use non-interactive flags: git commit -m, docker run -d, etc.
+        Implement completely after diagnosis. Identifying problems without fixing fails the task.
+        Stop when tests pass. Don't optimize beyond requirements.
+        chmod +x scripts with shebangs. Test write permissions with touch before actual writes.
+        Match exact output format expectations - JSON/CSV/plain. Human-readable isn't machine-readable.
+        Retry network operations 3x with 2-5s waits. Distinguish transient from permanent failures.
+        Verify immediately after creating - files exist with correct content, APIs respond, services healthy.
+        Sanitize inputs, check bounds, handle nulls, cover edge cases. Think like malicious QA.
+        Python first. Bash only if system-specific. Other languages only when required.
+
     Start on this list right away before proceeding with the user instructions.
     Skipping any of these steps is an error and will result in failure:
 
@@ -29,6 +53,7 @@ const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
     - [ ] IMMEDIATELY write the task verbatim to .goose_task.md
     - [ ] Write all requirements (explicit, implicit, edge cases) to .goose_task_requirements.md
     - [ ] Write what is OUT OF SCOPE to .goose_task_requirements.md - resist scope creep
+    - [ ] Write any relevant operating principles to the end of .goose_task_requirements.md
 
     ## Phase 2: Understand & Plan
     - [ ] If unfamiliar with the codebase/system, spawn Investigator to understand relevant areas
@@ -56,6 +81,9 @@ const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
     IMPORTANT: Subagents have NO context from your conversation. When spawning them,
     instruct them to first read .goose_task.md and .goose_task_requirements.md so
     they understand the full task and constraints.
+
+    You must include the "Reread .goose_task.md and .goose_task_requirements.md" step in your updated
+    todo list.
 
     Your context degrades rapidly. Writing to disk is essential. DO IT NOW.
 "#};
