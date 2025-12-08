@@ -20,6 +20,44 @@ import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInt
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 
+const PREFERRED_MODEL_PATTERNS = [
+  /claude-sonnet-4/i,
+  /claude-4/i,
+  /gpt-4o(?!-mini)/i,
+  /claude-3-5-sonnet/i,
+  /claude-3\.5-sonnet/i,
+  /gpt-4-turbo/i,
+  /gpt-4(?!-|o)/i,
+  /claude-3-opus/i,
+  /claude-3-sonnet/i,
+  /gemini-pro/i,
+  /llama-3/i,
+  /gpt-4o-mini/i,
+  /claude-3-haiku/i,
+  /gemini/i,
+];
+
+function findPreferredModel(
+  models: { value: string; label: string; provider: string }[]
+): string | null {
+  if (models.length === 0) return null;
+
+  const validModels = models.filter(
+    (m) => m.value !== 'custom' && m.value !== '__loading__' && !m.value.startsWith('__')
+  );
+
+  if (validModels.length === 0) return null;
+
+  for (const pattern of PREFERRED_MODEL_PATTERNS) {
+    const match = validModels.find((m) => pattern.test(m.value));
+    if (match) {
+      return match.value;
+    }
+  }
+
+  return validModels[0].value;
+}
+
 type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
@@ -222,10 +260,24 @@ export const SwitchModelModal = ({
     })();
   }, [getProviders, getProviderModels, usePredefinedModels, read]);
 
-  // Filter model options based on selected provider
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
     : [];
+
+  useEffect(() => {
+    if (!provider || loadingModels || model || isCustomModel) return;
+
+    const providerModels = modelOptions
+      .filter((group) => group.options[0]?.provider === provider)
+      .flatMap((group) => group.options);
+
+    if (providerModels.length > 0) {
+      const preferredModel = findPreferredModel(providerModels);
+      if (preferredModel) {
+        setModel(preferredModel);
+      }
+    }
+  }, [provider, modelOptions, loadingModels, model, isCustomModel]);
 
   // Handle model selection change
   const handleModelChange = (newValue: unknown) => {
