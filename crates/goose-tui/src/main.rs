@@ -147,7 +147,12 @@ fn main() -> Result<()> {
     }
 
     let stdin_input = read_stdin_if_piped();
-    let text_input = cli_args.text.or(stdin_input);
+    let text_input = match (stdin_input, cli_args.text) {
+        (Some(stdin), Some(text)) => Some(format!("{stdin}\n\n{text}")),
+        (Some(stdin), None) => Some(stdin),
+        (None, Some(text)) => Some(text),
+        (None, None) => None,
+    };
 
     let secret_key = Uuid::new_v4().to_string();
     std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
