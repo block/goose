@@ -258,6 +258,22 @@ export const useSessionSharing = ({
       fullRegistry: Array.from(globalMatrixListenerRegistry.current.entries())
     });
 
+    // CRITICAL FIX: Update room ownership when session ID changes from temp to real
+    // This ensures MatrixRealtimeSync can find the correct mapping
+    const handleSessionIdChange = (event: CustomEvent) => {
+      const { oldSessionId, newSessionId } = event.detail;
+      if (oldSessionId === sessionId && targetRoomId) {
+        console.log('🔄 useSessionSharing: Updating Matrix room ownership for session ID change:', {
+          roomId: targetRoomId,
+          oldOwner: oldSessionId,
+          newOwner: newSessionId
+        });
+        globalMatrixListenerRegistry.current.set(targetRoomId, newSessionId);
+      }
+    };
+
+    window.addEventListener('session-id-changed', handleSessionIdChange as EventListener);
+
     console.log('🔧 useSessionSharing: Setting up session management listeners for session:', sessionId);
 
     // Only handle session management messages (invitations, joins)
@@ -817,6 +833,9 @@ export const useSessionSharing = ({
           registrySize: globalMatrixListenerRegistry.current.size
         });
       }
+      
+      // Clean up event listeners
+      window.removeEventListener('session-id-changed', handleSessionIdChange as EventListener);
       
       sessionCleanup();
       messageCleanup();
