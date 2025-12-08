@@ -22,7 +22,7 @@ pub static EXTENSION_NAME: &str = "todo";
 const AUTONOMOUS_MODE_TRIGGERS: &[&str] = &["Act autonomously.", "Work independently."];
 
 const AUTONOMOUS_MODE_TODO_TEMPLATE: &str = indoc! {r#"
-    Operating principles (hard-won lesson that you need to consider when operating as an llm agent):
+    Operating principles (hard-won lessons that you need to consider when operating as an llm agent):
         Extract all requirements as checklist before coding. Missing one means failure.
         Read test files first - they define the spec. Filenames, paths, JSON keys, casing are immutable contracts.
         Follow existing codebase patterns. Examine similar code first. Consistency over innovation.
