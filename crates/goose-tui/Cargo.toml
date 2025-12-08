@@ -13,7 +13,7 @@ goose-server = { path = "../goose-server" }
 goose-client = { path = "../goose-client" }
 rmcp = { workspace = true }
 anyhow = "1.0"
-ratatui = "0.29.0"
+ratatui = { version = "0.29.0", features = ["unstable-rendered-line-info"] }
 crossterm = { version = "0.28.1", features = ["event-stream"] }
 tui-textarea = { version = "0.7.0", features = ["search"] }
 tokio = { version = "1.43", features = ["full"] }

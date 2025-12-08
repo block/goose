@@ -261,34 +261,23 @@ impl Component for MessagePopup {
         let area = centered_rect(80, 80, area);
         f.render_widget(Clear, area);
 
-        let [content_area, hints_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
-                .margin(1)
-                .areas(area);
+        let block = popup_block(" Message Details ", theme);
+        let inner_area = block.inner(area);
 
-        f.render_widget(popup_block(" Message Details ", theme), area);
+        let [content_area, hints_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner_area);
+
+        f.render_widget(block, area);
 
         let lines = self.render_content(message, theme);
 
-        // Calculate wrapped height
-        let inner_width = content_area.width.max(1);
-        let mut wrapped_height = 0;
-        for line in &lines {
-            let width = line.width() as u16;
-            if width == 0 {
-                wrapped_height += 1;
-            } else {
-                wrapped_height += width.div_ceil(inner_width);
-            }
-        }
+        let p = Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false });
 
-        self.scroll_state.content_height = wrapped_height;
+        self.scroll_state.content_height = p.line_count(content_area.width) as u16;
         self.scroll_state.viewport_height = content_area.height;
         self.scroll_state.clamp();
 
-        let p = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.scroll_state.scroll, 0));
+        let p = p.scroll((self.scroll_state.scroll, 0));
 
         f.render_widget(p, content_area);
 

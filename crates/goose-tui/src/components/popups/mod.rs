@@ -65,15 +65,15 @@ impl PopupScrollState {
             if last.elapsed() < SCROLLBAR_VISIBLE_DURATION
                 && self.content_height > self.viewport_height
             {
+                let max_scroll = self.max_scroll().max(1) as usize;
                 let mut scrollbar_state = ScrollbarState::default()
-                    .content_length(self.content_height as usize)
-                    .viewport_content_length(self.viewport_height as usize)
+                    .content_length(max_scroll)
                     .position(self.scroll as usize);
 
                 f.render_stateful_widget(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(Some("↑"))
-                        .end_symbol(Some("↓")),
+                        .begin_symbol(None)
+                        .end_symbol(None),
                     area,
                     &mut scrollbar_state,
                 );
