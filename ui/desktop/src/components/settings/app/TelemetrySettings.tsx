@@ -6,10 +6,10 @@ import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 
 interface TelemetrySettingsProps {
-  variant?: 'card' | 'welcome';
+  isWelcome?: boolean;
 }
 
-export default function TelemetrySettings({ variant = 'card' }: TelemetrySettingsProps) {
+export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -50,8 +50,6 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
   if (!TELEMETRY_UI_ENABLED) {
     return null;
   }
-
-  const isWelcome = variant === 'welcome';
 
   const title = 'Privacy';
   const description = 'Control how your data is used';
@@ -94,7 +92,7 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
     </div>
   );
 
-  if (variant === 'welcome') {
+  if (isWelcome) {
     return (
       <>
         <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
