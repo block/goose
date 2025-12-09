@@ -1221,7 +1221,8 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
+                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1256,6 +1257,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(

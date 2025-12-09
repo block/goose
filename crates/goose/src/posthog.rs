@@ -209,6 +209,30 @@ pub fn emit_session_started() {
     });
 }
 
+pub fn emit_error(error_type: &str) {
+    if !is_telemetry_enabled() {
+        return;
+    }
+
+    let installation = load_or_create_installation();
+    let error_type = error_type.to_string();
+
+    tokio::spawn(async move {
+        let _ = send_error_event(&installation, &error_type).await;
+    });
+}
+
+async fn send_error_event(installation: &InstallationData, error_type: &str) -> Result<(), String> {
+    let client = posthog_rs::client(POSTHOG_API_KEY).await;
+    let mut event = posthog_rs::Event::new("error", &installation.installation_id);
+
+    event.insert_prop("error_type", error_type).ok();
+    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
+    event.insert_prop("interface", get_session_interface()).ok();
+
+    client.capture(event).await.map_err(|e| format!("{:?}", e))
+}
+
 async fn send_session_event(installation: &InstallationData) -> Result<(), String> {
     let client = posthog_rs::client(POSTHOG_API_KEY).await;
     let mut event = posthog_rs::Event::new("session_started", &installation.installation_id);
