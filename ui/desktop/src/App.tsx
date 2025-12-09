@@ -703,7 +703,7 @@ export default function App() {
         <AppInner />
       </HashRouter>
       <AnnouncementModal />
-      <TelemetryOptOutModal />
+      <TelemetryOptOutModal controlled={false} />
     </ModelAndProviderProvider>
   );
 }

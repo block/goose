@@ -6,22 +6,20 @@ import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
 
-interface TelemetryOptOutModalProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-  showOnFirstLaunch?: boolean;
-}
+type TelemetryOptOutModalProps =
+  | { controlled: false }
+  | { controlled: true; isOpen: boolean; onClose: () => void };
 
-export default function TelemetryOptOutModal({
-  isOpen: controlledIsOpen,
-  onClose,
-  showOnFirstLaunch = true,
-}: TelemetryOptOutModalProps) {
+export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
+  const isControlled = props.controlled;
+  const controlledIsOpen = isControlled ? props.isOpen : undefined;
+  const onClose = isControlled ? props.onClose : undefined;
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Only check telemetry choice on first launch in uncontrolled mode
   useEffect(() => {
-    if (!showOnFirstLaunch) return;
+    if (isControlled) return;
 
     const checkTelemetryChoice = async () => {
       try {
@@ -45,12 +43,13 @@ export default function TelemetryOptOutModal({
         toastService.error({
           title: 'Configuration Error',
           msg: 'Failed to check telemetry configuration.',
+          traceback: error instanceof Error ? error.stack || '' : '',
         });
       }
     };
 
     checkTelemetryChoice();
-  }, [showOnFirstLaunch]);
+  }, [isControlled]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);

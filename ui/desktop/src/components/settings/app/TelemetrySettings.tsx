@@ -74,9 +74,7 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     />
   );
 
-  const modal = (
-    <TelemetryOptOutModal isOpen={showModal} onClose={handleModalClose} showOnFirstLaunch={false} />
-  );
+  const modal = <TelemetryOptOutModal controlled isOpen={showModal} onClose={handleModalClose} />;
 
   const toggleRow = (
     <div className="flex items-center justify-between">
