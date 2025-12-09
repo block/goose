@@ -20,6 +20,7 @@ pub mod session;
 pub mod session_context;
 pub mod slash_commands;
 pub mod subprocess;
+pub mod telemetry;
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;

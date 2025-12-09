@@ -887,6 +887,7 @@ impl SessionStorage {
             .await?;
 
         tx.commit().await?;
+        crate::telemetry::emit_session_started();
         Ok(session)
     }
 
