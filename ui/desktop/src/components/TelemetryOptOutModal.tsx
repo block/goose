@@ -19,29 +19,23 @@ export default function TelemetryOptOutModal({
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check if user has made a telemetry choice (only for first launch mode)
-  // Only show for existing users who have a provider but haven't made a telemetry choice
   useEffect(() => {
     if (!showOnFirstLaunch) return;
 
     const checkTelemetryChoice = async () => {
       try {
-        // First check if user has a provider configured (existing user)
         const providerResponse = await readConfig({
           body: { key: 'GOOSE_PROVIDER', is_secret: false },
         });
 
-        // If no provider, user is new and will see the inline settings on Welcome page
         if (!providerResponse.data || providerResponse.data === '') {
           return;
         }
 
-        // User has a provider, check if they've made a telemetry choice
         const telemetryResponse = await readConfig({
           body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
         });
 
-        // If the config value is null/undefined, user hasn't made a choice yet
         if (telemetryResponse.data === null || telemetryResponse.data === undefined) {
           setShowModal(true);
         }
@@ -72,7 +66,6 @@ export default function TelemetryOptOutModal({
     return null;
   }
 
-  // Use controlled state if provided, otherwise use internal state
   const isModalOpen = controlledIsOpen !== undefined ? controlledIsOpen : showModal;
 
   if (!isModalOpen) {
