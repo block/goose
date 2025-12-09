@@ -20,6 +20,8 @@ const toolConfirmationState = new Map<
   }
 >();
 
+type ToolConfirmationData = Extract<ActionRequired['data'], { actionType: 'toolConfirmation' }>;
+
 interface ToolConfirmationProps {
   sessionId: string;
   isCancelledMessage: boolean;
@@ -33,7 +35,8 @@ export default function ToolConfirmation({
   isClicked,
   actionRequiredContent,
 }: ToolConfirmationProps) {
-  const { id: toolConfirmationId, toolName, prompt } = actionRequiredContent.data;
+  const data = actionRequiredContent.data as ToolConfirmationData;
+  const { id: toolConfirmationId, toolName, prompt } = data;
 
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);

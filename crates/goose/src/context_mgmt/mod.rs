@@ -1,4 +1,4 @@
-use crate::conversation::message::MessageMetadata;
+use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_global_file;
@@ -376,11 +376,14 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 format!("tool_confirmation_request: {}", req.tool_name)
             }
             MessageContent::ActionRequired(action) => match &action.data {
-                crate::conversation::message::ActionRequiredData::ToolConfirmation {
-                    tool_name,
-                    ..
-                } => {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                     format!("action_required(tool_confirmation): {}", tool_name)
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    format!("action_required(elicitation): {}", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    format!("action_required(elicitation_response): {}", id)
                 }
             },
             MessageContent::FrontendToolRequest(req) => {
