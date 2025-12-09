@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { useConfig } from '../../ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
+import { toastService } from '../../../toasts';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -23,6 +24,11 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
       setTelemetryEnabled(value === null ? true : Boolean(value));
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
+      toastService.error({
+        title: 'Configuration Error',
+        msg: 'Failed to load telemetry settings.',
+        traceback: error instanceof Error ? error.stack || '' : '',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -38,6 +44,11 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
       setTelemetryEnabled(checked);
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
+      toastService.error({
+        title: 'Configuration Error',
+        msg: 'Failed to update telemetry settings.',
+        traceback: error instanceof Error ? error.stack || '' : '',
+      });
     }
   };
 
