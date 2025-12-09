@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -32,6 +32,7 @@ import { generateDeepLink, Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { SearchView } from '../conversation/SearchView';
 import cronstrue from 'cronstrue';
 
 export default function RecipesView() {
@@ -56,6 +57,26 @@ export default function RecipesView() {
     useState<RecipeManifest | null>(null);
   const [slashCommand, setSlashCommand] = useState<string>('');
   const [scheduleValid, setScheduleIsValid] = useState(true);
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredRecipes = useMemo(() => {
+    if (!searchTerm) return savedRecipes;
+
+    const searchLower = searchTerm.toLowerCase();
+    return savedRecipes.filter((recipeManifest) => {
+      const { recipe, slash_command } = recipeManifest;
+      const title = recipe.title?.toLowerCase() || '';
+      const description = recipe.description?.toLowerCase() || '';
+      const slashCmd = slash_command?.toLowerCase() || '';
+
+      return (
+        title.includes(searchLower) ||
+        description.includes(searchLower) ||
+        slashCmd.includes(searchLower)
+      );
+    });
+  }, [savedRecipes, searchTerm]);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -485,9 +506,19 @@ export default function RecipesView() {
       );
     }
 
+    if (filteredRecipes.length === 0 && searchTerm) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
+          <FileText className="h-12 w-12 mb-4" />
+          <p className="text-lg mb-2">No matching recipes found</p>
+          <p className="text-sm">Try adjusting your search terms</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-2">
-        {savedRecipes.map((recipeManifestResponse: RecipeManifest) => (
+        {filteredRecipes.map((recipeManifestResponse: RecipeManifest) => (
           <RecipeItem
             key={recipeManifestResponse.id}
             recipeManifestResponse={recipeManifestResponse}
@@ -520,20 +551,22 @@ export default function RecipesView() {
               </div>
               <p className="text-sm text-text-muted mb-1">
                 View and manage your saved recipes to quickly start new sessions with predefined
-                configurations.
+                configurations. ⌘F/Ctrl+F to search.
               </p>
             </div>
           </div>
 
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
-              <div
-                className={`h-full relative transition-all duration-300 ${
-                  showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
-                }`}
-              >
-                {renderContent()}
-              </div>
+              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search recipes...">
+                <div
+                  className={`h-full relative transition-all duration-300 ${
+                    showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
+                  }`}
+                >
+                  {renderContent()}
+                </div>
+              </SearchView>
             </ScrollArea>
           </div>
         </div>

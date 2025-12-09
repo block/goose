@@ -10,7 +10,7 @@ if exist "C:\Program Files\nodejs\node.exe" (
 
 REM Check if Node.js is installed in Program Files (x86)
 if exist "C:\Program Files (x86)\nodejs\node.exe" (
-    echo Node.js found in Program Files (x86)
+    echo "Node.js found in Program Files (x86)"
     set "NODE_EXE=C:\Program Files (x86)\nodejs\node.exe"
     goto :found
 )

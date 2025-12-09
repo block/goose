@@ -17,6 +17,28 @@ export function createUserMessage(text: string): Message {
   };
 }
 
+export function createElicitationResponseMessage(
+  elicitationId: string,
+  userData: Record<string, unknown>
+): Message {
+  return {
+    id: generateMessageId(),
+    role: 'user',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'actionRequired',
+        data: {
+          actionType: 'elicitationResponse',
+          id: elicitationId,
+          user_data: userData,
+        },
+      },
+    ],
+    metadata: { userVisible: false, agentVisible: true },
+  };
+}
+
 export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
@@ -48,6 +70,15 @@ export function getToolConfirmationContent(
   return message.content.find(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
+  );
+}
+
+export function getElicitationContent(
+  message: Message
+): (ActionRequired & { type: 'actionRequired' }) | undefined {
+  return message.content.find(
+    (content): content is ActionRequired & { type: 'actionRequired' } =>
+      content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
 }
 

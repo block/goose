@@ -13,6 +13,7 @@ use rmcp::transport::{
 };
 use std::collections::HashMap;
 use std::option::Option;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -142,6 +143,16 @@ fn normalize(input: String) -> String {
         });
     }
     result.to_lowercase()
+}
+
+fn resolve_command(cmd: &str) -> PathBuf {
+    SearchPaths::builder()
+        .with_npm()
+        .resolve(cmd)
+        .unwrap_or_else(|_| {
+            // let the OS raise the error
+            PathBuf::from(cmd)
+        })
 }
 
 fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a str, ErrorData> {
@@ -474,12 +485,15 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let command = Command::new(cmd).configure(|command| {
-                    command.args(args).envs(all_envs);
-                });
 
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
+                let cmd = resolve_command(cmd);
+
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
 
                 let client = child_process_client(command, timeout, self.provider.clone()).await?;
                 Box::new(client)

@@ -585,6 +585,39 @@
         }
       }
     },
+    "/config/detect-provider": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "detect_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider detected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectProviderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No matching provider found"
+          }
+        }
+      }
+    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -2446,6 +2479,50 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "requested_schema",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitation"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requested_schema": {}
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "user_data",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitationResponse"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "user_data": {}
+            }
           }
         ],
         "discriminator": {
@@ -2821,6 +2898,35 @@
         ],
         "properties": {
           "id": {
+            "type": "string"
+          }
+        }
+      },
+      "DetectProviderRequest": {
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          }
+        }
+      },
+      "DetectProviderResponse": {
+        "type": "object",
+        "required": [
+          "provider_name",
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_name": {
             "type": "string"
           }
         }
