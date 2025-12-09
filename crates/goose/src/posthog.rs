@@ -36,11 +36,6 @@ pub fn is_telemetry_enabled() -> bool {
         .unwrap_or(true)
 }
 
-pub fn set_telemetry_enabled(enabled: bool) -> Result<(), crate::config::ConfigError> {
-    let config = Config::global();
-    config.set_param(TELEMETRY_ENABLED_KEY, enabled)
-}
-
 pub fn emit_session_started() {
     if !is_telemetry_enabled() {
         return;

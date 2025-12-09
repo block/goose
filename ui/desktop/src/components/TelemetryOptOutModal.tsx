@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './ui/BaseModal';
 import { Button } from './ui/button';
-import { readConfig, setTelemetryStatus } from '../api';
+import { readConfig, upsertConfig } from '../api';
 import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
+
+const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 type TelemetryOptOutModalProps =
   | { controlled: false }
@@ -32,7 +34,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
         }
 
         const telemetryResponse = await readConfig({
-          body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
+          body: { key: TELEMETRY_CONFIG_KEY, is_secret: false },
         });
 
         if (!telemetryResponse.data) {
@@ -54,7 +56,9 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
     try {
-      await setTelemetryStatus({ body: { enabled } });
+      await upsertConfig({
+        body: { key: TELEMETRY_CONFIG_KEY, value: enabled, is_secret: false },
+      });
       setShowModal(false);
       onClose?.();
     } catch (error) {
