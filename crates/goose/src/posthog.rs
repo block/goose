@@ -42,6 +42,8 @@ async fn send_session_event() -> Result<(), String> {
 
     let extensions = get_enabled_extensions();
     event.insert_prop("extensions_count", extensions.len()).ok();
+    let extension_names: Vec<String> = extensions.iter().map(|e| e.name()).collect();
+    event.insert_prop("extensions", extension_names).ok();
 
     if let Ok(insights) = SessionManager::get_insights().await {
         event
