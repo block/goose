@@ -6,7 +6,7 @@ import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 
 interface TelemetrySettingsProps {
-  variant?: 'card' | 'inline' | 'welcome';
+  variant?: 'card' | 'welcome';
 }
 
 export default function TelemetrySettings({ variant = 'card' }: TelemetrySettingsProps) {
@@ -93,15 +93,6 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
       <div className="flex items-center">{toggle}</div>
     </div>
   );
-
-  if (variant === 'inline') {
-    return (
-      <>
-        {toggleRow}
-        {modal}
-      </>
-    );
-  }
 
   if (variant === 'welcome') {
     return (
