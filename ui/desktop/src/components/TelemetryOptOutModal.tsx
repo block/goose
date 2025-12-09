@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { readConfig, setTelemetryStatus } from '../api';
 import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
+import { toastService } from '../toasts';
 
 interface TelemetryOptOutModalProps {
   isOpen?: boolean;
@@ -36,11 +37,15 @@ export default function TelemetryOptOutModal({
           body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
         });
 
-        if (telemetryResponse.data === null || telemetryResponse.data === undefined) {
+        if (!telemetryResponse.data) {
           setShowModal(true);
         }
       } catch (error) {
         console.error('Failed to check telemetry config:', error);
+        toastService.error({
+          title: 'Configuration Error',
+          msg: 'Failed to check telemetry configuration.',
+        });
       }
     };
 

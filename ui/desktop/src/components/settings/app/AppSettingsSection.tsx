@@ -398,7 +398,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       <TunnelSection />
 
-      <TelemetrySettings />
+      <TelemetrySettings isWelcome={false} />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

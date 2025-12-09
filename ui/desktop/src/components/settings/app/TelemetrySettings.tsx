@@ -6,7 +6,7 @@ import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 
 interface TelemetrySettingsProps {
-  isWelcome?: boolean;
+  isWelcome: boolean;
 }
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
