@@ -7,15 +7,37 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
 
-static TELEMETRY_DISABLED: Lazy<AtomicBool> = Lazy::new(|| {
+/// Config key for telemetry opt-out preference
+pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
+
+static TELEMETRY_DISABLED_BY_ENV: Lazy<AtomicBool> = Lazy::new(|| {
     std::env::var("GOOSE_TELEMETRY_OFF")
         .map(|v| v == "1" || v.to_lowercase() == "true")
         .unwrap_or(false)
         .into()
 });
 
+/// Check if telemetry is enabled.
+///
+/// Returns false if:
+/// - GOOSE_TELEMETRY_OFF environment variable is set to "1" or "true"
+/// - GOOSE_TELEMETRY_ENABLED config value is set to false
+///
+/// Returns true otherwise (telemetry is opt-out, enabled by default)
+pub fn is_telemetry_enabled() -> bool {
+    // Environment variable takes precedence
+    if TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed) {
+        return false;
+    }
+
+    let config = Config::global();
+    config
+        .get_param::<bool>(TELEMETRY_ENABLED_KEY)
+        .unwrap_or(true)
+}
+
 pub fn emit_session_started() {
-    if TELEMETRY_DISABLED.load(Ordering::Relaxed) {
+    if !is_telemetry_enabled() {
         return;
     }
 
