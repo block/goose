@@ -308,7 +308,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </button>
               </div>
               <div className="mt-6">
-                <TelemetrySettings />
+                <TelemetrySettings variant="welcome" />
               </div>
             </div>
           </div>

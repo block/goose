@@ -6,7 +6,7 @@ import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 
 interface TelemetrySettingsProps {
-  variant?: 'card' | 'inline';
+  variant?: 'card' | 'inline' | 'welcome';
 }
 
 export default function TelemetrySettings({ variant = 'card' }: TelemetrySettingsProps) {
@@ -85,6 +85,40 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
     return (
       <>
         {content}
+        {modal}
+      </>
+    );
+  }
+
+  if (variant === 'welcome') {
+    return (
+      <>
+        <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
+          <h3 className="font-medium text-text-standard text-sm sm:text-base mb-1">Privacy</h3>
+          <p className="text-text-muted text-sm sm:text-base mb-4">Control how your data is used</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-text-default text-sm">Anonymous usage data</h4>
+              <p className="text-sm text-text-muted max-w-md mt-[2px]">
+                Help improve goose by sharing anonymous usage statistics.{' '}
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Learn more
+                </button>
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={telemetryEnabled}
+                onCheckedChange={handleTelemetryToggle}
+                disabled={isLoading}
+                variant="mono"
+              />
+            </div>
+          </div>
+        </div>
         {modal}
       </>
     );
