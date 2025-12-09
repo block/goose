@@ -32,8 +32,8 @@ jobs:
             code:
               - '!documentation/**'
 
-  rust-format:
-    name: Check Rust Code Format
+  structure-check:
+    name: Repository Structure Checks
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
@@ -41,10 +41,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Run cargo fmt
-        run: cargo fmt --check
+      - name: Run structure checks
+        run: |
+          source ./bin/activate-hermit
+          just structure-check
 
   rust-build-and-test:
     name: Build and Test Rust Project

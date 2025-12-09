@@ -4,19 +4,50 @@
 default:
   @just --list
 
+# Run repository structure checks
+structure-check:
+    #!/usr/bin/env bash
+    set -e
+    echo "Running repository structure checks..."
+
+    # Find all executable scripts
+    # Use -perm for BSD/macOS compatibility (GNU find uses -executable)
+    mapfile -t scripts < <(find scripts/ci/structure -name "*.sh" -type f \( -perm -u=x -o -perm -g=x -o -perm -o=x \) 2>/dev/null | sort)
+
+    if [ ${#scripts[@]} -eq 0 ]; then
+        echo "ERROR: No structure check scripts found in scripts/ci/structure/"
+        exit 1
+    fi
+
+    for script in "${scripts[@]}"; do
+        echo ""
+        echo "========================================"
+        echo "Running: $script"
+        echo "========================================"
+        "$script" || exit 1
+    done
+
+    echo ""
+    echo "All structure checks passed"
+
 # Run all style checks and formatting (precommit validation)
 check-everything:
-    @echo "🔧 RUNNING ALL STYLE CHECKS..."
-    @echo "  → Formatting Rust code..."
-    cargo fmt --all
-    @echo "  → Running clippy linting..."
+    #!/usr/bin/env bash
+    set -e
+    echo "RUNNING ALL STYLE CHECKS..."
+    echo ""
+    just structure-check
+    echo ""
+    echo "Running clippy linting..."
     ./scripts/clippy-lint.sh
-    @echo "  → Checking UI code formatting..."
+    echo ""
+    echo "Checking UI code formatting..."
     cd ui/desktop && npm run lint:check
-    @echo "  → Validating OpenAPI schema..."
+    echo ""
+    echo "Validating OpenAPI schema..."
     ./scripts/check-openapi-schema.sh
-    @echo ""
-    @echo "✅ All style checks passed!"
+    echo ""
+    echo "All style checks passed!"
 
 # Default release command
 release-binary:
