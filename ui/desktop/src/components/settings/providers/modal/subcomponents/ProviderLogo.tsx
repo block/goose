@@ -7,7 +7,6 @@ import DatabricksLogo from './icons/databricks@3x.png';
 import OpenRouterLogo from './icons/openrouter@3x.png';
 import SnowflakeLogo from './icons/snowflake@3x.png';
 import XaiLogo from './icons/xai@3x.png';
-import InceptionLogo from './icons/inception@3x.png';
 import DefaultLogo from './icons/default@3x.png';
 
 // Map provider names to their logos
@@ -21,7 +20,6 @@ const providerLogos: Record<string, string> = {
   openrouter: OpenRouterLogo,
   snowflake: SnowflakeLogo,
   xai: XaiLogo,
-  inception: InceptionLogo,
   default: DefaultLogo,
 };
 
