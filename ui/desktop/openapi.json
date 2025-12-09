@@ -932,6 +932,57 @@
         }
       }
     },
+    "/config/telemetry": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_telemetry_status",
+        "responses": {
+          "200": {
+            "description": "Telemetry status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "set_telemetry_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTelemetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Telemetry preference updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/upsert": {
       "post": {
         "tags": [
@@ -4871,6 +4922,17 @@
           }
         }
       },
+      "SetTelemetryRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "Settings": {
         "type": "object",
         "properties": {
@@ -5042,6 +5104,17 @@
           "thinkingMessage",
           "inlineMessage"
         ]
+      },
+      "TelemetryStatusResponse": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
       },
       "TextContent": {
         "type": "object",

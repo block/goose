@@ -5,12 +5,13 @@ import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
-import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
+import { COST_TRACKING_ENABLED, UPDATES_ENABLED, TELEMETRY_UI_ENABLED } from '../../../updates';
 import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
+import { getTelemetryStatus, setTelemetryStatus } from '../../../api';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -28,6 +29,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(true);
+  const [isTelemetryLoading, setIsTelemetryLoading] = useState(true);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -67,6 +70,33 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     checkPricingStatus();
   }, []);
+
+  useEffect(() => {
+    const loadTelemetryStatus = async () => {
+      try {
+        const response = await getTelemetryStatus();
+        if (response.data) {
+          setTelemetryEnabled(response.data.enabled);
+        }
+      } catch (error) {
+        console.error('Failed to load telemetry status:', error);
+      } finally {
+        setIsTelemetryLoading(false);
+      }
+    };
+    loadTelemetryStatus();
+  }, []);
+
+  const handleTelemetryToggle = async (checked: boolean) => {
+    try {
+      const response = await setTelemetryStatus({ body: { enabled: checked } });
+      if (response.data) {
+        setTelemetryEnabled(response.data.enabled);
+      }
+    } catch (error) {
+      console.error('Failed to update telemetry status:', error);
+    }
+  };
 
   const checkPricingStatus = async () => {
     try {
@@ -288,7 +318,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Prevent Sleep</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Keep your computer awake while Goose is running a task (screen can still lock)
+                Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
             <div className="flex items-center">
@@ -396,6 +426,34 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
 
       <TunnelSection />
+
+      {TELEMETRY_UI_ENABLED && (
+        <Card className="rounded-lg">
+          <CardHeader className="pb-0">
+            <CardTitle className="mb-1">Privacy</CardTitle>
+            <CardDescription>Control how your data is used</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-text-default text-xs">Anonymous usage data</h3>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                  Help improve goose by sharing anonymous usage statistics (OS, version, provider,
+                  extension count). No conversations or personal data is collected.
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={telemetryEnabled}
+                  onCheckedChange={handleTelemetryToggle}
+                  disabled={isTelemetryLoading}
+                  variant="mono"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

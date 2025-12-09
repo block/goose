@@ -791,6 +791,10 @@ export type SetSlashCommandRequest = {
     slash_command?: string | null;
 };
 
+export type SetTelemetryRequest = {
+    enabled: boolean;
+};
+
 export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
@@ -846,6 +850,10 @@ export type SystemNotificationContent = {
 };
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
+
+export type TelemetryStatusResponse = {
+    enabled: boolean;
+};
 
 export type TextContent = {
     _meta?: {
@@ -1718,6 +1726,45 @@ export type GetSlashCommandsResponses = {
 };
 
 export type GetSlashCommandsResponse = GetSlashCommandsResponses[keyof GetSlashCommandsResponses];
+
+export type GetTelemetryStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/telemetry';
+};
+
+export type GetTelemetryStatusResponses = {
+    /**
+     * Telemetry status retrieved successfully
+     */
+    200: TelemetryStatusResponse;
+};
+
+export type GetTelemetryStatusResponse = GetTelemetryStatusResponses[keyof GetTelemetryStatusResponses];
+
+export type SetTelemetryStatusData = {
+    body: SetTelemetryRequest;
+    path?: never;
+    query?: never;
+    url: '/config/telemetry';
+};
+
+export type SetTelemetryStatusErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SetTelemetryStatusResponses = {
+    /**
+     * Telemetry preference updated successfully
+     */
+    200: TelemetryStatusResponse;
+};
+
+export type SetTelemetryStatusResponse = SetTelemetryStatusResponses[keyof SetTelemetryStatusResponses];
 
 export type UpsertConfigData = {
     body: UpsertConfigQuery;

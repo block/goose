@@ -802,6 +802,51 @@ pub async fn check_provider(
     Ok(())
 }
 
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TelemetryStatusResponse {
+    pub enabled: bool,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SetTelemetryRequest {
+    pub enabled: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/telemetry",
+    responses(
+        (status = 200, description = "Telemetry status retrieved successfully", body = TelemetryStatusResponse)
+    )
+)]
+pub async fn get_telemetry_status() -> Json<TelemetryStatusResponse> {
+    Json(TelemetryStatusResponse {
+        enabled: goose::posthog::is_telemetry_enabled(),
+    })
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/telemetry",
+    request_body = SetTelemetryRequest,
+    responses(
+        (status = 200, description = "Telemetry preference updated successfully", body = TelemetryStatusResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn set_telemetry_status(
+    Json(request): Json<SetTelemetryRequest>,
+) -> Result<Json<TelemetryStatusResponse>, StatusCode> {
+    goose::posthog::set_telemetry_enabled(request.enabled)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(TelemetryStatusResponse {
+        enabled: goose::posthog::is_telemetry_enabled(),
+    }))
+}
+
 #[utoipa::path(
     post,
     path = "/config/set_provider",
@@ -850,6 +895,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
+        .route(
+            "/config/telemetry",
+            get(get_telemetry_status).post(set_telemetry_status),
+        )
         .with_state(state)
 }
 
