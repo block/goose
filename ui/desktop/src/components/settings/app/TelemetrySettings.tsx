@@ -44,7 +44,6 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
 
   const handleModalClose = () => {
     setShowModal(false);
-    // Reload status after modal closes in case user made a choice
     loadTelemetryStatus();
   };
 
@@ -52,39 +51,53 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
     return null;
   }
 
-  const content = (
-    <div className="flex items-center justify-between">
-      <div>
-        <h3 className="text-text-default text-xs">Anonymous usage data</h3>
-        <p className="text-xs text-text-muted max-w-md mt-[2px]">
-          Help improve goose by sharing anonymous usage statistics.{' '}
-          <button
-            onClick={() => setShowModal(true)}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Learn more
-          </button>
-        </p>
-      </div>
-      <div className="flex items-center">
-        <Switch
-          checked={telemetryEnabled}
-          onCheckedChange={handleTelemetryToggle}
-          disabled={isLoading}
-          variant="mono"
-        />
-      </div>
-    </div>
+  const isWelcome = variant === 'welcome';
+
+  const title = 'Privacy';
+  const description = 'Control how your data is used';
+  const toggleLabel = 'Anonymous usage data';
+  const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
+
+  const learnMoreLink = (
+    <button
+      onClick={() => setShowModal(true)}
+      className="text-blue-600 dark:text-blue-400 hover:underline"
+    >
+      Learn more
+    </button>
+  );
+
+  const toggle = (
+    <Switch
+      checked={telemetryEnabled}
+      onCheckedChange={handleTelemetryToggle}
+      disabled={isLoading}
+      variant="mono"
+    />
   );
 
   const modal = (
     <TelemetryOptOutModal isOpen={showModal} onClose={handleModalClose} showOnFirstLaunch={false} />
   );
 
+  const toggleRow = (
+    <div className="flex items-center justify-between">
+      <div>
+        <h4 className={isWelcome ? 'text-text-default text-sm' : 'text-text-default text-xs'}>
+          {toggleLabel}
+        </h4>
+        <p className={`${isWelcome ? 'text-sm' : 'text-xs'} text-text-muted max-w-md mt-[2px]`}>
+          {toggleDescription} {learnMoreLink}
+        </p>
+      </div>
+      <div className="flex items-center">{toggle}</div>
+    </div>
+  );
+
   if (variant === 'inline') {
     return (
       <>
-        {content}
+        {toggleRow}
         {modal}
       </>
     );
@@ -94,30 +107,9 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
     return (
       <>
         <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
-          <h3 className="font-medium text-text-standard text-sm sm:text-base mb-1">Privacy</h3>
-          <p className="text-text-muted text-sm sm:text-base mb-4">Control how your data is used</p>
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-text-default text-sm">Anonymous usage data</h4>
-              <p className="text-sm text-text-muted max-w-md mt-[2px]">
-                Help improve goose by sharing anonymous usage statistics.{' '}
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Learn more
-                </button>
-              </p>
-            </div>
-            <div className="flex items-center">
-              <Switch
-                checked={telemetryEnabled}
-                onCheckedChange={handleTelemetryToggle}
-                disabled={isLoading}
-                variant="mono"
-              />
-            </div>
-          </div>
+          <h3 className="font-medium text-text-standard text-sm sm:text-base mb-1">{title}</h3>
+          <p className="text-text-muted text-sm sm:text-base mb-4">{description}</p>
+          {toggleRow}
         </div>
         {modal}
       </>
@@ -128,10 +120,10 @@ export default function TelemetrySettings({ variant = 'card' }: TelemetrySetting
     <>
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Privacy</CardTitle>
-          <CardDescription>Control how your data is used</CardDescription>
+          <CardTitle className="mb-1">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="pt-4 space-y-4 px-4">{content}</CardContent>
+        <CardContent className="pt-4 space-y-4 px-4">{toggleRow}</CardContent>
       </Card>
       {modal}
     </>
