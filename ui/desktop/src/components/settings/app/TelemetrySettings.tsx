@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Switch } from '../../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import { readConfig, upsertConfig } from '../../../api';
+import { useConfig } from '../../ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 
@@ -12,32 +12,29 @@ interface TelemetrySettingsProps {
 }
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
+  const { read, upsert } = useConfig();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
-  const loadTelemetryStatus = async () => {
+  const loadTelemetryStatus = useCallback(async () => {
     try {
-      const response = await readConfig({
-        body: { key: TELEMETRY_CONFIG_KEY, is_secret: false },
-      });
-      setTelemetryEnabled(response.data === null ? true : Boolean(response.data));
+      const value = await read(TELEMETRY_CONFIG_KEY, false);
+      setTelemetryEnabled(value === null ? true : Boolean(value));
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [read]);
 
   useEffect(() => {
     loadTelemetryStatus();
-  }, []);
+  }, [loadTelemetryStatus]);
 
   const handleTelemetryToggle = async (checked: boolean) => {
     try {
-      await upsertConfig({
-        body: { key: TELEMETRY_CONFIG_KEY, value: checked, is_secret: false },
-      });
+      await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
     } catch (error) {
       console.error('Failed to update telemetry status:', error);

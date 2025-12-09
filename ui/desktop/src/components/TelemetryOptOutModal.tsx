@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './ui/BaseModal';
 import { Button } from './ui/button';
-import { readConfig, upsertConfig } from '../api';
 import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
+import { useConfig } from './ConfigContext';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -13,6 +13,7 @@ type TelemetryOptOutModalProps =
   | { controlled: true; isOpen: boolean; onClose: () => void };
 
 export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
+  const { read, upsert } = useConfig();
   const isControlled = props.controlled;
   const controlledIsOpen = isControlled ? props.isOpen : undefined;
   const onClose = isControlled ? props.onClose : undefined;
@@ -25,19 +26,15 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
 
     const checkTelemetryChoice = async () => {
       try {
-        const providerResponse = await readConfig({
-          body: { key: 'GOOSE_PROVIDER', is_secret: false },
-        });
+        const provider = await read('GOOSE_PROVIDER', false);
 
-        if (!providerResponse.data || providerResponse.data === '') {
+        if (!provider || provider === '') {
           return;
         }
 
-        const telemetryResponse = await readConfig({
-          body: { key: TELEMETRY_CONFIG_KEY, is_secret: false },
-        });
+        const telemetryEnabled = await read(TELEMETRY_CONFIG_KEY, false);
 
-        if (!telemetryResponse.data) {
+        if (telemetryEnabled === null) {
           setShowModal(true);
         }
       } catch (error) {
@@ -51,14 +48,12 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
     };
 
     checkTelemetryChoice();
-  }, [isControlled]);
+  }, [isControlled, read]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
     try {
-      await upsertConfig({
-        body: { key: TELEMETRY_CONFIG_KEY, value: enabled, is_secret: false },
-      });
+      await upsert(TELEMETRY_CONFIG_KEY, enabled, false);
       setShowModal(false);
       onClose?.();
     } catch (error) {
