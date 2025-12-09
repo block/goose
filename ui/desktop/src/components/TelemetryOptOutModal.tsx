@@ -113,15 +113,16 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
         <div className="text-text-muted text-xs space-y-1">
           <p className="font-medium text-text-default">What we collect:</p>
           <ul className="list-disc list-inside space-y-0.5 ml-1">
-            <li>Operating system and architecture</li>
-            <li>goose version</li>
+            <li>Operating system, version, and architecture</li>
+            <li>goose version and install method</li>
             <li>Provider and model used</li>
-            <li>Number of extensions enabled</li>
-            <li>Session count and token usage (aggregated)</li>
+            <li>Extensions and tool usage counts (names only)</li>
+            <li>Session metrics (duration, interaction count, token usage)</li>
+            <li>Error types (e.g., "rate_limit", "auth" - no details)</li>
           </ul>
           <p className="mt-3 text-text-muted">
-            We never collect your conversations, code, or any personal data. You can change this
-            setting anytime in Settings → App.
+            We never collect your conversations, code, tool arguments, error messages, or any
+            personal data. You can change this setting anytime in Settings → App.
           </p>
         </div>
       </div>
