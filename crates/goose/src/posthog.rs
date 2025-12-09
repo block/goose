@@ -1,6 +1,7 @@
 //! PostHog telemetry - fires once per session creation.
 
-use crate::config::Config;
+use crate::config::{get_enabled_extensions, Config};
+use crate::session::SessionManager;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -37,6 +38,18 @@ async fn send_session_event() -> Result<(), String> {
     }
     if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
         event.insert_prop("model", model).ok();
+    }
+
+    let extensions = get_enabled_extensions();
+    event.insert_prop("extensions_count", extensions.len()).ok();
+
+    if let Ok(insights) = SessionManager::get_insights().await {
+        event
+            .insert_prop("total_sessions", insights.total_sessions)
+            .ok();
+        event
+            .insert_prop("total_tokens", insights.total_tokens)
+            .ok();
     }
 
     client.capture(event).await.map_err(|e| format!("{:?}", e))
