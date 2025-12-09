@@ -140,6 +140,14 @@ The feature request system helps you suggest improvements and new functionality 
   </TabItem>
 </Tabs>
 
+## Error Recovery with "Ask goose"
+
+When certain types of error occur in goose Desktop (such as failures to activate extensions), you'll see an `Ask goose` button in the error notification. This feature lets you quickly troubleshoot the issue with goose's help:
+
+1. When the error occurs, an `Ask goose` button appears in the error notification
+2. Click the button to send the error details to goose in a chat prompt
+3. goose provides diagnostic suggestions and potential solutions
+
 ## Additional Debugging
 
 For issues not resolved by diagnostics:

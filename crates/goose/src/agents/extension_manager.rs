@@ -13,6 +13,7 @@ use rmcp::transport::{
 };
 use std::collections::HashMap;
 use std::option::Option;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -142,6 +143,16 @@ fn normalize(input: String) -> String {
         });
     }
     result.to_lowercase()
+}
+
+fn resolve_command(cmd: &str) -> PathBuf {
+    SearchPaths::builder()
+        .with_npm()
+        .resolve(cmd)
+        .unwrap_or_else(|_| {
+            // let the OS raise the error
+            PathBuf::from(cmd)
+        })
 }
 
 fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a str, ErrorData> {
@@ -474,12 +485,15 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let command = Command::new(cmd).configure(|command| {
-                    command.args(args).envs(all_envs);
-                });
 
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
+                let cmd = resolve_command(cmd);
+
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
 
                 let client = child_process_client(command, timeout, self.provider.clone()).await?;
                 Box::new(client)
@@ -674,6 +688,7 @@ impl ExtensionManager {
                                 output_schema: tool.output_schema,
                                 icons: None,
                                 title: None,
+                                meta: None,
                             });
                         }
                     }
@@ -1162,6 +1177,28 @@ impl ExtensionManager {
             .await
             .get(&name.into())
             .map(|ext| ext.get_client())
+    }
+
+    pub async fn collect_moim(&self) -> Option<String> {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+
+        let extensions = self.extensions.lock().await;
+        for (name, extension) in extensions.iter() {
+            if let ExtensionConfig::Platform { .. } = &extension.config {
+                let client = extension.get_client();
+                let client_guard = client.lock().await;
+                if let Some(moim_content) = client_guard.get_moim().await {
+                    tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
+                    content.push('\n');
+                    content.push_str(&moim_content);
+                }
+            }
+        }
+
+        content.push_str("\n</info-msg>");
+
+        Some(content)
     }
 }
 

@@ -196,6 +196,39 @@
     "environmentVariables": []
   },
   {
+    "id": "council-of-mine",
+    "name": "Council of Mine",
+    "description": "LLM council debate with 9 distinct personas for decision-making",
+    "command": "uvx --from git+https://github.com/block/mcp-council-of-mine mcp_council_of_mine",
+    "link": "https://github.com/block/mcp-council-of-mine",
+    "installation_notes": "Requires uv to be installed (https://github.com/astral-sh/uv). Installs via uvx from GitHub.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "datahub-mcp",
+    "name": "DataHub",
+    "description": "Data discovery and metadata platform for exploring datasets, lineage, and queries",
+    "command": "uvx mcp-server-datahub@latest",
+    "link": "https://github.com/acryldata/mcp-server-datahub",
+    "installation_notes": "Install using uvx package manager. Requires Python 3.10+ and uv. Works with both DataHub Cloud and self-hosted DataHub instances.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "DATAHUB_GMS_URL",
+        "description": "DataHub GMS URL (e.g., https://your-instance.acryl.io or http://localhost:8080)",
+        "required": true
+      },
+      {
+        "name": "DATAHUB_GMS_TOKEN",
+        "description": "DataHub Personal Access Token for authentication",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "developer",
     "name": "Developer",
     "description": "Built-in developer tools for file editing and shell command execution",
@@ -309,6 +342,17 @@
     "environmentVariables": []
   },
   {
+    "id": "gotoHuman-mcp",
+    "name": "gotoHuman MCP Server",
+    "description": "Adds human approvals into your workflows",
+    "command": "npx -y @gotohuman/mcp-server",
+    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "i-ching",
     "name": "I Ching",
     "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
@@ -359,13 +403,13 @@
         "required": true
       },
       {
-        "name": "MQTT_USERNAME", 
+        "name": "MQTT_USERNAME",
         "description": "MQTT username (empty string if no auth required)",
         "required": true
       },
       {
         "name": "MQTT_PASSWORD",
-        "description": "MQTT password (empty string if no auth required)", 
+        "description": "MQTT password (empty string if no auth required)",
         "required": true
       }
     ]
@@ -391,6 +435,23 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
+  },
+  {
+    "id": "nano-banana-mcp",
+    "name": "Nano Banana",
+    "description": "AI-powered image generation and editing",
+    "command": "npx nano-banana-mcp",
+    "link": "https://github.com/ConechoAI/Nano-Banana-MCP",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "GEMINI_API_KEY",
+        "description": "API key from Google AI Studio",
+        "required": true
+      }
+    ]
   },
   {
     "id": "neon",
@@ -442,13 +503,13 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
-        {
-            "name": "AUTH_HEADER",
-            "description": "OpenMetadata Personal Access Token",
-            "required": true
-        }
+      {
+        "name": "AUTH_HEADER",
+        "description": "OpenMetadata Personal Access Token",
+        "required": true
+      }
     ]
-  },  
+  },
   {
     "id": "pdf_read",
     "name": "PDF Reader",
@@ -562,6 +623,24 @@
     ]
   },
   {
+    "id": "supabase",
+    "name": "Supabase",
+    "description": "Connect your Supabase projects to AI assistants. Manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly from your MCP client.",
+    "type": "streamable-http",
+    "url": "https://mcp.supabase.com/mcp",
+    "link": "https://github.com/supabase-community/supabase-mcp",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "SUPABASE_PERSONAL_ACCESS_TOKEN",
+        "description": "Personal access token (optional; use if not authenticating via browser OAuth)",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Web Search",
     "description": "Web search capabilities powered by Tavily",
@@ -590,34 +669,12 @@
     "environmentVariables": []
   },
   {
-    "id": "vscode",
-    "name": "VSCode",
-    "description": "Provides a VSCode IDE integration for development workflows",
-    "command": "npx vscode-mcp-server",
-    "link": "https://github.com/block/vscode-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-    {
-    "id": "gotoHuman-mcp",
-    "name": "gotoHuman MCP Server",
-    "description": "Adds human approvals into your workflows",
-    "command": "npx -y @gotohuman/mcp-server",
-    "link": "https://github.com/gotohuman/gotohuman-mcp-server",
-    "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

@@ -11,13 +11,14 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
+use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
 use goose::providers::providers as get_providers;
-use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
+use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -87,6 +88,7 @@ pub struct UpdateCustomProviderRequest {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -113,6 +115,33 @@ pub enum ConfigValueResponse {
     MaskedValue(MaskedSecret),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub enum CommandType {
+    Builtin,
+    Recipe,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SlashCommand {
+    pub command: String,
+    pub help: String,
+    pub command_type: CommandType,
+}
+#[derive(Serialize, ToSchema)]
+pub struct SlashCommandsResponse {
+    pub commands: Vec<SlashCommand>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct DetectProviderRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderResponse {
+    pub provider_name: String,
+    pub models: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -390,6 +419,30 @@ pub async fn get_provider_models(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/config/slash_commands",
+    responses(
+        (status = 200, description = "Slash commands retrieved successfully", body = SlashCommandsResponse)
+    )
+)]
+pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, StatusCode> {
+    let mut commands: Vec<_> = slash_commands::list_commands()
+        .iter()
+        .map(|command| SlashCommand {
+            command: command.command.clone(),
+            help: command.recipe_path.clone(),
+            command_type: CommandType::Recipe,
+        })
+        .collect();
+    commands.push(SlashCommand {
+        command: "compact".to_string(),
+        help: "Compact the current conversation to save tokens".to_string(),
+        command_type: CommandType::Builtin,
+    });
+    Ok(Json(SlashCommandsResponse { commands }))
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct PricingData {
     pub provider: String,
@@ -408,8 +461,7 @@ pub struct PricingResponse {
 
 #[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
-    /// If true, only return pricing for configured providers. If false, return all.
-    pub configured_only: Option<bool>,
+    pub configured_only: bool,
 }
 
 #[utoipa::path(
@@ -423,7 +475,7 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    let configured_only = query.configured_only.unwrap_or(true);
+    let configured_only = query.configured_only;
 
     // If refresh requested (configured_only = false), refresh the cache
     if !configured_only {
@@ -557,6 +609,29 @@ pub async fn upsert_permissions(
 
 #[utoipa::path(
     post,
+    path = "/config/detect-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching provider found"),
+    )
+)]
+pub async fn detect_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    let api_key = detect_request.api_key.trim();
+
+    match detect_provider_from_api_key(api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/config/backup",
     responses(
         (status = 200, description = "Config file backed up", body = String),
@@ -645,7 +720,6 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
         }
     }
 }
-
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
@@ -666,6 +740,7 @@ pub async fn create_custom_provider(
         request.api_key,
         request.models,
         request.supports_streaming,
+        request.headers,
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -792,6 +867,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/detect-provider", post(detect_provider))
+        .route("/config/slash_commands", get(get_slash_commands))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))

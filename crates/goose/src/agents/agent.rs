@@ -3,11 +3,15 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::final_output_tool::FinalOutputTool;
+use super::platform_tools;
+use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -25,12 +29,18 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD;
+use crate::context_mgmt::{
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
+use crate::conversation::message::{
+    ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
+};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -39,7 +49,10 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -53,19 +66,10 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
-use super::final_output_tool::FinalOutputTool;
-use super::model_selector::autopilot::AutoPilot;
-use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, MessageContent, SystemNotificationType, ToolRequest};
-use crate::scheduler_trait::SchedulerTrait;
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
-
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-pub const MANUAL_COMPACT_TRIGGER: &str = "Please compact this conversation";
+pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
+    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -103,7 +107,6 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
-    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -178,7 +181,6 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
-            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -241,6 +243,17 @@ impl Agent {
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
+    async fn drain_elicitation_messages(session_id: &str) -> Vec<Message> {
+        let mut messages = Vec::new();
+        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
+        while let Ok(elicitation_message) = elicitation_rx.try_recv() {
+            if let Err(e) = SessionManager::add_message(session_id, &elicitation_message).await {
+                warn!("Failed to save elicitation message to session: {}", e);
+            }
+            messages.push(elicitation_message);
+        }
+        messages
+    }
 
     async fn prepare_reply_context(
         &self,
@@ -299,7 +312,7 @@ impl Agent {
     async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
-        message_tool_response: Arc<Mutex<Message>>,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
@@ -334,16 +347,23 @@ impl Agent {
             }
         }
 
-        // Handle denied tools
-        for request in &permission_check_result.denied {
-            let mut response = message_tool_response.lock().await;
-            *response = response.clone().with_tool_response(
-                request.id.clone(),
-                Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
-            );
-        }
-
+        Self::handle_denied_tools(permission_check_result, request_to_response_map).await;
         Ok(tool_futures)
+    }
+
+    async fn handle_denied_tools(
+        permission_check_result: &PermissionCheckResult,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
+    ) {
+        for request in &permission_check_result.denied {
+            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                let mut response = response_msg.lock().await;
+                *response = response.clone().with_tool_response(
+                    request.id.clone(),
+                    Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+                );
+            }
+        }
     }
 
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
@@ -412,6 +432,20 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if session.session_type == crate::session::SessionType::SubAgent
+            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
+                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
+        {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Subagents cannot create other subagents".to_string(),
+                    None,
+                )),
+            );
+        }
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -763,25 +797,71 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let is_manual_compact = user_message.content.iter().any(|c| {
-            if let MessageContent::Text(text) = c {
-                text.text.trim() == MANUAL_COMPACT_TRIGGER
-            } else {
-                false
+        for content in &user_message.content {
+            if let MessageContent::ActionRequired(action_required) = content {
+                if let ActionRequiredData::ElicitationResponse { id, user_data } =
+                    &action_required.data
+                {
+                    if let Err(e) = ActionRequiredManager::global()
+                        .submit_response(id.clone(), user_data.clone())
+                        .await
+                    {
+                        let error_text = format!("Failed to submit elicitation response: {}", e);
+                        error!(error_text);
+                        return Ok(Box::pin(stream::once(async {
+                            Ok(AgentEvent::Message(
+                                Message::assistant().with_text(error_text),
+                            ))
+                        })));
+                    }
+                    SessionManager::add_message(&session_config.id, &user_message).await?;
+                    return Ok(Box::pin(futures::stream::empty()));
+                }
             }
-        });
+        }
 
-        SessionManager::add_message(&session_config.id, &user_message).await?;
+        let message_text = user_message.as_concat_text();
+        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
+
+        let slash_command_recipe = if message_text.trim().starts_with('/') {
+            let command = message_text.split_whitespace().next();
+            command.and_then(crate::slash_commands::resolve_slash_command)
+        } else {
+            None
+        };
+
+        if let Some(recipe) = slash_command_recipe {
+            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let prompt_message = Message::user()
+                .with_text(prompt)
+                .with_visibility(false, true);
+            SessionManager::add_message(&session_config.id, &prompt_message).await?;
+            SessionManager::add_message(
+                &session_config.id,
+                &user_message.with_visibility(true, false),
+            )
+            .await?;
+        } else {
+            SessionManager::add_message(&session_config.id, &user_message).await?;
+        }
         let session = SessionManager::get_session(&session_config.id, true).await?;
-
         let conversation = session
             .conversation
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         let needs_auto_compact = !is_manual_compact
-            && crate::context_mgmt::check_if_compaction_needed(self, &conversation, None, &session)
-                .await?;
+            && check_if_compaction_needed(
+                self.provider().await?.as_ref(),
+                &conversation,
+                None,
+                &session,
+            )
+            .await?;
 
         let conversation_to_compact = conversation.clone();
 
@@ -816,7 +896,7 @@ impl Agent {
                     )
                 );
 
-                match crate::context_mgmt::compact_messages(self, &conversation_to_compact, false).await {
+                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -912,23 +992,15 @@ impl Agent {
                     break;
                 }
 
-                {
-                    let mut autopilot = self.autopilot.lock().await;
-                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&conversation, self.provider().await?).await? {
-                        debug!("AutoPilot switching to {} role with model {}", role, model);
-                        self.update_provider(new_provider).await?;
-
-                        yield AgentEvent::ModelChange {
-                            model: model.clone(),
-                            mode: format!("autopilot:{}", role),
-                        };
-                    }
-                }
+                let conversation_with_moim = super::moim::inject_moim(
+                    conversation.clone(),
+                    &self.extension_manager,
+                ).await;
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    conversation.messages(),
+                    conversation_with_moim.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -971,7 +1043,6 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                messages_to_add.push(response.clone());
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -987,33 +1058,44 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
+                                    messages_to_add.push(response.clone());
                                     continue;
                                 }
 
-                                let message_tool_response = Arc::new(Mutex::new(Message::user().with_id(
-                                    format!("msg_{}", Uuid::new_v4())
-                                )));
+                                let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
+                                        format!("msg_{}", Uuid::new_v4())
+                                    ))))
+                                    .collect();
 
-                                let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                                    &frontend_requests,
-                                    message_tool_response.clone(),
-                                );
-
-                                while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                    yield AgentEvent::Message(msg);
+                                let mut request_to_response_map = HashMap::new();
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
                                 }
 
+                                for (idx, request) in frontend_requests.iter().enumerate() {
+                                    let mut frontend_tool_stream = self.handle_frontend_tool_request(
+                                        request,
+                                        tool_response_messages[idx].clone(),
+                                    );
+
+                                    while let Some(msg) = frontend_tool_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
+                                    }
+                                }
                                 if goose_mode == GooseMode::Chat {
-                                    // Skip all tool calls in chat mode
-                                    for request in remaining_requests {
-                                        let mut response = message_tool_response.lock().await;
-                                        *response = response.clone().with_tool_response(
-                                            request.id.clone(),
-                                            Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                                        );
+                                    // Skip all remaining tool calls in chat mode
+                                    for request in remaining_requests.iter() {
+                                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                            let mut response = response_msg.lock().await;
+                                            *response = response.clone().with_tool_response(
+                                                request.id.clone(),
+                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                            );
+                                        }
                                     }
                                 } else {
-                                    // Run all tool inspectors (security, repetition, permission, etc.)
+                                    // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &remaining_requests,
@@ -1021,14 +1103,12 @@ impl Agent {
                                         )
                                         .await?;
 
-                                    // Process inspection results into permission decisions using the permission inspector
                                     let permission_check_result = self.tool_inspection_manager
                                         .process_inspection_results_with_permission_inspector(
                                             &remaining_requests,
                                             &inspection_results,
                                         )
                                         .unwrap_or_else(|| {
-                                            // Fallback if permission inspector not found - default to needs approval
                                             let mut result = PermissionCheckResult {
                                                 approved: vec![],
                                                 needs_approval: vec![],
@@ -1038,7 +1118,7 @@ impl Agent {
                                             result
                                         });
 
-                                    // Track extension requests for special handling
+                                    // Track extension requests
                                     let mut enable_extension_request_ids = vec![];
                                     for request in &remaining_requests {
                                         if let Ok(tool_call) = &request.tool_call {
@@ -1050,7 +1130,7 @@ impl Agent {
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                     ).await?;
@@ -1060,7 +1140,7 @@ impl Agent {
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        message_tool_response.clone(),
+                                        &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                         &inspection_results,
@@ -1089,6 +1169,11 @@ impl Agent {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
+
+                                        for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                            yield AgentEvent::Message(msg);
+                                        }
+
                                         match item {
                                             ToolStreamItem::Result(output) => {
                                                 if enable_extension_request_ids.contains(&request_id)
@@ -1096,16 +1181,20 @@ impl Agent {
                                                 {
                                                     all_install_successful = false;
                                                 }
-                                                let mut response = message_tool_response.lock().await;
-                                                *response =
-                                                    response.clone().with_tool_response(request_id, output);
+                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let mut response = response_msg.lock().await;
+                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                }
                                             }
                                             ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((
-                                                    request_id, msg,
-                                                ));
+                                                yield AgentEvent::McpNotification((request_id, msg));
                                             }
                                         }
+                                    }
+
+                                    // check for remaining elicitation messages after all tools complete
+                                    for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                        yield AgentEvent::Message(msg);
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
@@ -1116,11 +1205,20 @@ impl Agent {
                                     }
                                 }
 
-                                let final_message_tool_resp = message_tool_response.lock().await.clone();
-                                yield AgentEvent::Message(final_message_tool_resp.clone());
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    if request.tool_call.is_ok() {
+                                        let request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                        messages_to_add.push(request_msg);
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
+                                    }
+                                }
 
                                 no_tools_called = false;
-                                messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
@@ -1137,7 +1235,7 @@ impl Agent {
                                 )
                             );
 
-                            match crate::context_mgmt::compact_messages(self, &conversation, true).await {
+                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
                                 Ok((compacted_conversation, usage)) => {
                                     SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     Self::update_session_metrics(&session_config, &usage, true).await?;
@@ -1228,13 +1326,23 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn update_provider(
+        &self,
+        provider: Arc<dyn Provider>,
+        session_id: &str,
+    ) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider), None)
+        self.update_router_tool_selector(Some(provider.clone()), None)
             .await?;
-        Ok(())
+
+        SessionManager::update_session(session_id)
+            .provider_name(provider.get_name())
+            .model_config(provider.get_model_config())
+            .apply()
+            .await
+            .context("Failed to persist provider config to session")
     }
 
     pub async fn update_router_tool_selector(

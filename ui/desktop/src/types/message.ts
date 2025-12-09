@@ -1,7 +1,8 @@
-import { Message, ToolConfirmationRequest, ToolRequest, ToolResponse } from '../api';
+import { Message, MessageEvent, ActionRequired, ToolRequest, ToolResponse } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
+export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
 const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
@@ -16,22 +17,25 @@ export function createUserMessage(text: string): Message {
   };
 }
 
-export function createToolErrorResponseMessage(id: string, error: string): Message {
+export function createElicitationResponseMessage(
+  elicitationId: string,
+  userData: Record<string, unknown>
+): Message {
   return {
     id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content: [
       {
-        type: 'toolResponse',
-        id,
-        toolResult: {
-          status: 'error',
-          error,
+        type: 'actionRequired',
+        data: {
+          actionType: 'elicitationResponse',
+          id: elicitationId,
+          user_data: userData,
         },
       },
     ],
-    metadata: { userVisible: true, agentVisible: true },
+    metadata: { userVisible: false, agentVisible: true },
   };
 }
 
@@ -62,10 +66,19 @@ export function getToolResponses(message: Message): (ToolResponse & { type: 'too
 
 export function getToolConfirmationContent(
   message: Message
-): (ToolConfirmationRequest & { type: 'toolConfirmationRequest' }) | undefined {
+): (ActionRequired & { type: 'actionRequired' }) | undefined {
   return message.content.find(
-    (content): content is ToolConfirmationRequest & { type: 'toolConfirmationRequest' } =>
-      content.type === 'toolConfirmationRequest'
+    (content): content is ActionRequired & { type: 'actionRequired' } =>
+      content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
+  );
+}
+
+export function getElicitationContent(
+  message: Message
+): (ActionRequired & { type: 'actionRequired' }) | undefined {
+  return message.content.find(
+    (content): content is ActionRequired & { type: 'actionRequired' } =>
+      content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
 }
 

@@ -85,13 +85,6 @@ echo "COMPACTION SMOKE TESTS"
 echo "=================================================="
 echo ""
 
-# Check if jq is available
-if ! command -v jq &> /dev/null; then
-  echo "⚠ WARNING: jq is not installed. Compaction structure validation will be limited."
-  echo "   Install jq to enable full validation: brew install jq (macOS) or apt-get install jq (Linux)"
-  echo ""
-fi
-
 RESULTS=()
 
 # ==================================================
@@ -214,6 +207,126 @@ fi
 unset GOOSE_AUTO_COMPACT_THRESHOLD
 
 rm -f "$OUTPUT"
+rm -rf "$TESTDIR"
+
+echo ""
+echo ""
+
+# ==================================================
+# TEST 3: Out-of-Context Error Compaction
+# ==================================================
+echo "---------------------------------------------------"
+echo "TEST 3: Compaction via out-of-context error (proxy)"
+echo "---------------------------------------------------"
+
+TESTDIR=$(mktemp -d)
+echo "test content" > "$TESTDIR/test.txt"
+echo "Test directory: $TESTDIR"
+echo ""
+
+# Use a random port to avoid conflicts
+PROXY_PORT=$((9000 + RANDOM % 1000))
+PROXY_DIR="$SCRIPT_DIR/scripts/provider-error-proxy"
+
+OUTPUT=$(mktemp)
+PROXY_LOG=$(mktemp)
+PROXY_SETUP_LOG=$(mktemp)
+
+# Pre-install proxy dependencies (so first run doesn't take forever)
+echo "Installing proxy dependencies..."
+export UV_INDEX_URL="https://pypi.org/simple"
+if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
+  echo "✗ FAILED: Could not install proxy dependencies"
+  echo "Setup log:"
+  cat "$PROXY_SETUP_LOG"
+  RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
+else
+  echo "✓ Dependencies installed"
+
+  # Start the error proxy in context-length error mode (3 errors)
+  echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
+  (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
+  PROXY_PID=$!
+
+  # Wait for proxy to be ready (check if port is listening)
+  echo "Waiting for proxy to be ready..."
+  PROXY_READY=false
+  for i in {1..60}; do
+    if kill -0 $PROXY_PID 2>/dev/null; then
+      # Check if port is listening using /dev/tcp
+      if timeout 1 bash -c "echo -n > /dev/tcp/localhost/$PROXY_PORT" 2>/dev/null; then
+        PROXY_READY=true
+        echo "✓ Proxy is ready on port $PROXY_PORT"
+        break
+      fi
+    else
+      echo "✗ FAILED: Error proxy process died"
+      break
+    fi
+    sleep 0.5
+  done
+
+  # Check if proxy is running and ready
+  if [ "$PROXY_READY" != "true" ]; then
+    echo "✗ FAILED: Error proxy failed to become ready"
+    echo "Proxy log:"
+    cat "$PROXY_LOG"
+    kill $PROXY_PID 2>/dev/null || true
+    RESULTS+=("✗ Out-of-Context Test Error (proxy failed)")
+  else
+    # Configure provider to use proxy and skip backoff
+    export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
+    export GOOSE_PROVIDER_SKIP_BACKOFF=true
+    export GOOSE_PROVIDER=anthropic
+    export GOOSE_MODEL=claude-haiku-4-5
+
+    echo "Step 1: Creating session (should trigger context-length error and compaction)..."
+    (cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello world" 2>&1) | tee "$OUTPUT"
+
+    SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
+
+    if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+      echo "✗ FAILED: Could not create session"
+      RESULTS+=("✗ Out-of-Context Test Error (no session)")
+    else
+      echo ""
+      echo "Session created: $SESSION_ID"
+      echo "Checking for compaction evidence..."
+
+      # Check for compaction in the output
+      if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
+        echo "✓ SUCCESS: Out-of-context Test error triggered compaction"
+
+        if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
+          RESULTS+=("✓ Out-of-Context Test Error")
+        else
+          RESULTS+=("✗ Out-of-Context Test Error (structure validation failed)")
+        fi
+      else
+        echo "✗ FAILED: No evidence of compaction after context-length error"
+        echo "   Output:"
+        cat "$OUTPUT"
+        RESULTS+=("✗ Out-of-Context Test Error")
+      fi
+    fi
+
+    # Clean up
+    echo ""
+    echo "Stopping error proxy..."
+    # Kill the entire process group to ensure UV and Python processes are terminated
+    kill -- -$PROXY_PID 2>/dev/null || true
+    # Also explicitly kill any remaining UV processes on this port
+    pkill -f "uv run.*--port $PROXY_PORT" 2>/dev/null || true
+    wait $PROXY_PID 2>/dev/null || true
+    unset ANTHROPIC_HOST
+    unset GOOSE_PROVIDER_SKIP_BACKOFF
+    unset GOOSE_PROVIDER
+    unset GOOSE_MODEL
+    unset UV_INDEX_URL
+  fi
+fi
+
+rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
 rm -rf "$TESTDIR"
 
 echo ""

@@ -1,8 +1,8 @@
 ---
 title: "I had Goose Build its Own Secure Recipe Scanner"
 description: Building community trust by having AI analyze AI recipes for safety
-authors: 
-    - ian
+authors:
+  - ian
 ---
 
 ![Goose Recipe Safety](goose-security-scanner.png)
@@ -31,9 +31,9 @@ In the end I crafted a series of recipes that were safe, some that were maybe a 
 
 ## How It Works
 
-The process at a glance seems surprisingly simple but it's pretty complex -- picture the graceful goose swimming on the water but under the water the feet are thrashing around doing lots of work! 
+The process at a glance seems surprisingly simple but it's pretty complex -- picture the graceful goose swimming on the water but under the water the feet are thrashing around doing lots of work!
 
-When someone submits a recipe via our GitHub issue template, it will start an automated scan. Goose spins up in an isolated Docker container, analyzes the recipe using its own security expertise plus some of our guidance, scores it for risk, and posts the results right back to the GitHub issue. 
+When someone submits a recipe via our GitHub issue template, it will start an automated scan. Goose spins up in an isolated Docker container, analyzes the recipe using its own security expertise plus some of our guidance, scores it for risk, and posts the results right back to the GitHub issue.
 
 The whole process takes minutes instead of days, and the submitter gets immediate, transparent feedback about their recipe's safety. If something looks off, our team can review what's going on, and take appropriate action.
 
@@ -50,7 +50,7 @@ docker run --rm \
     -v "$RECIPE_OUT:/output" \
 ```
 
-The first thing we're passing into Docker is the API key for whichever AI model we're using. i'm just using a placeholder of "AIMDOEL_API_KEY" but you would change this to OPENAI_API_KEY or GEMINI_API_KEY etc depending on the LLM you want Goose to use in your container.
+The first thing we're passing into Docker is the API key for whichever AI model we're using. i'm just using a placeholder of "AIMODEL_API_KEY" but you would change this to OPENAI_API_KEY or GEMINI_API_KEY etc depending on the LLM you want Goose to use in your container.
 
 Next, we're passing in the user's recipe that we're getting from GitHub, and then we have our "output" for logs and analysis.
 
@@ -85,7 +85,6 @@ Sometimes the best way to solve a potential AI problem is with more AI. Goose un
 Anyone can submit a recipe knowing it'll get a fair, thorough review. And when you see a recipe get a security approval, remember: it was approved by Goose itself.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/Jtw_FxF3Iug" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-
 
 <head>
   <meta property="og:title" content="I had Goose Build its Own Secure Recipe Scanner" />

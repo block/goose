@@ -55,9 +55,6 @@ struct StreamingChunk {
     model: Option<String>,
 }
 
-/// Convert internal Message format to OpenAI's API message specification
-///   some openai compatible endpoints use the anthropic image spec at the content level
-///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
@@ -66,25 +63,22 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         });
 
         let mut output = Vec::new();
+        let mut content_array = Vec::new();
+        let mut text_array = Vec::new();
 
         for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Check for image paths in the text
                         if let Some(image_path) = detect_image_path(&text.text) {
-                            // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
+                                content_array.push(json!({"type": "text", "text": text.text}));
+                                content_array.push(convert_image(&image, image_format));
                             } else {
-                                // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                text_array.push(text.text.clone());
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            text_array.push(text.text.clone());
                         }
                     }
                 }
@@ -204,12 +198,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {
-                    // Skip tool confirmation requests
-                }
+                MessageContent::ToolConfirmationRequest(_) => {}
+                MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
-                    // Handle direct image content
-                    converted["content"] = json!([convert_image(image, image_format)]);
+                    content_array.push(convert_image(image, image_format));
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -247,16 +239,22 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             }
         }
 
+        if !content_array.is_empty() {
+            converted["content"] = json!(content_array);
+        } else if !text_array.is_empty() {
+            converted["content"] = json!(text_array.join("\n"));
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
+
         messages_spec.extend(output);
     }
 
     messages_spec
 }
 
-/// Convert internal Tool format to OpenAI's API tool specification
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
@@ -270,7 +268,6 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             "type": "function",
             "function": {
                 "name": tool.name,
-                // do not silently truncate description
                 "description": tool.description,
                 "parameters": tool.input_schema,
             }
@@ -1232,6 +1229,23 @@ mod tests {
         assert_eq!(parsed_args["action"], "click");
         assert_eq!(parsed_args["element"], "button");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_multiple_text_blocks() -> anyhow::Result<()> {
+        let message = Message::user()
+            .with_text("--- Resource: file:///test.md ---\n# Test\n\n---\n")
+            .with_text(" What is in the file?");
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+        assert_eq!(
+            spec[0]["content"],
+            "--- Resource: file:///test.md ---\n# Test\n\n---\n\n What is in the file?"
+        );
         Ok(())
     }
 

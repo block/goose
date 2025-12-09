@@ -2,10 +2,18 @@ use crate::developer::analyze::types::{
     AnalysisMode, AnalysisResult, CallChain, EntryType, FocusedAnalysisData,
 };
 use crate::developer::lang;
-use goose::utils::safe_truncate;
 use rmcp::model::{Content, Role};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+fn safe_truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
+        format!("{}...", truncated)
+    }
+}
 
 pub struct Formatter;
 

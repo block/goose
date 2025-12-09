@@ -5,13 +5,13 @@ sidebar_label: CLI Commands
 toc_max_heading_level: 4
 ---
 
-Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
+goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
 
 ## Flag Naming Conventions
 
-Goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
+goose CLI follows consistent patterns for flag naming to make commands intuitive and predictable:
 
-- **`--session-id`**: Used for session identifiers (e.g., `20250305_113223`)
+- **`--session-id`**: Used for session identifiers (e.g., `20251108_1`)
 - **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
 - **`-n, --name`**: Used for human-readable names
 - **`-p, --path`**: Used for file paths (legacy support)
@@ -20,7 +20,7 @@ Goose CLI follows consistent patterns for flag naming to make commands intuitive
 - **`-v, --verbose`**: Used for verbose output
 - **`-l, --limit`**: Used for limiting result counts
 - **`-f, --format`**: Used for specifying output formats
-- **`-w, --working-dir`**: Used for working directory filters
+- **`-w, --working_dir`**: Used for working directory filters
 
 ### Core Commands
 
@@ -35,7 +35,7 @@ goose --help
 ---
 
 #### configure
-Configure Goose settings - providers, extensions, etc.
+Configure goose settings - providers, extensions, etc.
 
 **Usage:**
 ```bash
@@ -45,7 +45,7 @@ goose configure
 ---
 
 #### info [options]
-Shows Goose information, including the version, configuration file location, session storage, and logs.
+Shows goose information, including the version, configuration file location, session storage, and logs.
 
 **Options:**
 - **`-v, --verbose`**: Show detailed configuration settings, including environment variables and enabled extensions
@@ -58,7 +58,7 @@ goose info
 ---
 
 #### version
-Check the current Goose version you have installed.
+Check the current goose version you have installed.
 
 **Usage:**
 ```bash
@@ -68,11 +68,11 @@ goose --version
 ---
 
 #### update [options]
-Update the Goose CLI to a newer version.
+Update the goose CLI to a newer version.
 
 **Options:**
 - **`--canary, -c`**: Update to the canary (development) version instead of the stable version
-- **`--reconfigure, -r`**: Forces Goose to reset configuration settings during the update process
+- **`--reconfigure, -r`**: Forces goose to reset configuration settings during the update process
 
 **Usage:**
 ```bash
@@ -90,15 +90,22 @@ goose update --reconfigure
 
 ### Session Management
 
+:::info Session Storage Migration
+Starting with version 1.10.0, goose uses a SQLite database (`sessions.db`) instead of individual `.jsonl` files.
+Your existing sessions are automatically imported to the database. Legacy `.jsonl` files remain on disk but are no longer managed by goose.
+:::
+
 #### session [options]
 Start or resume interactive chat sessions.
 
 **Basic Options:**
-- **`--session-id <session_id>`**: Specify a session by its ID (e.g., '20250921_143022')
+- **`--session-id <session_id>`**: Specify a session by its ID (e.g., '20251108_1')
 - **`-n, --name <name>`**: Give the session a name
 - **`-p, --path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
+- **`--max-tool-repetitions <NUMBER>`**: Set the maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
 **Extension Options:**
@@ -114,8 +121,9 @@ goose session -n my-project
 
 # Resume a previous session
 goose session --resume -n my-project
-goose session --resume --session-id 20250620_013617
-goose session --resume -p ./session.jsonl
+goose session --resume --session-id 20251108_2
+goose session --resume -p ./session.json    # exported session
+goose session --resume -p ./session.jsonl   # legacy session storage
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -139,23 +147,27 @@ goose session -n my-session --debug --max-turns 25
 List all saved sessions.
 
 **Options:**
-- **`-v, --verbose`**: Include session file paths in the output
 - **`-f, --format <format>`**: Specify output format (`text` or `json`). Default is `text`
 - **`--ascending`**: Sort sessions by date in ascending order (oldest first)
+- **`-w, --working_dir <path>`**: Filter sessions by working directory
+- **`-l, --limit <number>`**: Limit the number of results
 
 **Usage:**
 ```bash
 # List all sessions in text format (default)
 goose session list
 
-# List sessions with file paths
-goose session list --verbose
-
 # List sessions in JSON format
 goose session list --format json
 
 # Sort sessions by date in ascending order
 goose session list --ascending
+
+# Filter sessions by working directory
+goose session list -w ~/projects/myapp
+
+# List only the 10 most recent sessions
+goose session list --limit 10
 ```
 
 ---
@@ -167,15 +179,18 @@ Remove one or more saved sessions.
 - **`--session-id <session_id>`**: Remove a specific session by its session ID
 - **`-n, --name <name>`**: Remove a specific session by its name
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern
+- **`--path <path>`**: Remove a specific session by its file path (legacy)
 
 **Usage:**
 ```bash
-# Remove a specific session by ID
-goose session remove --session-id 20250305_113223
-goose session remove --id 20250305_113223
+# Interactive removal (prompts you to choose sessions)
+goose session remove
 
-# Remove a specific session by its name
-goose session remove -n my-session
+# Remove a specific session by ID
+goose session remove --session-id 20251108_3
+
+# Remove a specific session by name
+goose session remove -n my-project
 
 # Remove all sessions starting with "project-"
 goose session remove -r "project-.*"
@@ -185,7 +200,7 @@ goose session remove -r ".*migration.*"
 ```
 
 :::caution
-Session removal is permanent and cannot be undone. Goose will show which sessions will be removed and ask for confirmation before deleting.
+Session removal is permanent and cannot be undone. goose will show which sessions will be removed and ask for confirmation before deleting.
 :::
 
 ---
@@ -194,9 +209,9 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export sessions in different formats for backup, sharing, migration, or documentation purposes.
 
 **Options:**
-- **`--session-id <session_id>`**: Export a specific session by session ID
+- **`--session-id <session_id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
-- **`-p, --path <path>`**: Export a specific session by file path (legacy)
+- **`--path <path>`**: Export a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
 - **`--format <format>`**: Output format: `markdown`, `json`, `yaml`. Default is `markdown`
 
@@ -217,7 +232,7 @@ goose session export -n my-session --format json -o session-backup.json
 goose session export -n my-session -o session.md
 
 # Export to stdout in different formats
-goose session export --session-id 20250305_113223 --format json
+goose session export --session-id 20251108_4 --format json
 goose session export -n my-session --format yaml
 
 # Export session by path (legacy)
@@ -232,6 +247,7 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 **Options:**
 - **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
+- **`--path <path>`**: Generate diagnostics for a specific session by file path (legacy)
 - **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
 
 **What's included:**
@@ -243,13 +259,13 @@ Generate a comprehensive diagnostics bundle for troubleshooting issues with a sp
 **Usage:**
 ```bash
 # Generate diagnostics for a specific session by ID
-goose session diagnostics --session-id 20250305_113223
+goose session diagnostics --session-id 20251108_5
 
 # Generate diagnostics for a session by name
-goose session diagnostics --name my-project-session
+goose session diagnostics -n my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --session-id 20250305_113223 --output /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.zip
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
@@ -272,14 +288,17 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Input Options:**
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use `-` for stdin
-- **`-t, --text <TEXT>`**: Input text to provide to Goose directly
+- **`-t, --text <TEXT>`**: Input text to provide to goose directly
+- **`--system <TEXT>`**: Provide additional system instructions to customize the agent's behavior
 - **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
+- **`--params <KEY=VALUE>`**: Key-value parameters to pass to the recipe file. Can be specified multiple times
+- **`--sub-recipe <RECIPE>`**: Specify sub-recipes to include alongside the main recipe. Can be specified multiple times
 
 **Session Options:**
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
 - **`-n, --name <name>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
-- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
+- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
 - **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Extension Options:**
@@ -290,8 +309,12 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Control Options:**
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--max-tool-repetitions <NUMBER>`**: Maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops
 - **`--max-turns <NUMBER>`**: Maximum number of turns allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
+- **`--render-recipe`**: Print the rendered recipe instead of running it
+- **`-q, --quiet`**: Quiet mode. Suppress non-response output, printing only the model response to stdout
+- **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
 
@@ -300,7 +323,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 # Run from instruction file
 goose run --instructions plan.md
 
-# Load a recipe with a prompt that Goose executes and then exits  
+# Load a recipe with a prompt that goose executes and then exits  
 goose run --recipe recipe.yaml
 
 # Load a recipe and stay in an interactive session
@@ -311,6 +334,9 @@ goose run --recipe recipe.yaml --debug
 
 # Show recipe details
 goose run --recipe recipe.yaml --explain
+
+# Run a recipe with parameters
+goose run --recipe recipe.yaml --params environment=production --params region=us-west-2
 
 # Run instructions from a file without session storage
 goose run --no-session -i instructions.txt
@@ -383,6 +409,7 @@ Automate recipes by running them on a [schedule](/docs/guides/recipes/session-re
 - `remove`: Delete a scheduled job
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
+- `cron-help`: Show cron expression examples and help
 
 **Options:**
 - `--schedule-id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
@@ -400,7 +427,7 @@ goose schedule add --schedule-id daily-report --cron "0 0 9 * * *" --recipe-sour
 # List all scheduled jobs
 goose schedule list
 
-# List the 10 most recent Goose sessions created by a scheduled job
+# List the 10 most recent goose sessions created by a scheduled job
 goose schedule sessions --schedule-id daily-report -l 10
 
 # Run a recipe immediately
@@ -423,7 +450,7 @@ goose mcp <name>
 ---
 
 #### acp
-Run Goose as an Agent Client Protocol (ACP) agent server over stdio. This enables Goose to work with ACP-compatible clients like Zed.
+Run goose as an Agent Client Protocol (ACP) agent server over stdio. This enables goose to work with ACP-compatible clients like Zed.
 
 ACP is an emerging protocol specification that standardizes communication between AI agents and client applications, making it easier for clients to integrate with various AI agents.
 
@@ -433,7 +460,7 @@ goose acp
 ```
 
 :::info
-This command is automatically invoked by ACP-compatible clients and is not typically run directly by users. The client manages the lifecycle of the `goose acp` process. See [Using Goose in ACP Clients](/docs/guides/acp-clients) for details.
+This command is automatically invoked by ACP-compatible clients and is not typically run directly by users. The client manages the lifecycle of the `goose acp` process. See [Using goose in ACP Clients](/docs/guides/acp-clients) for details.
 :::
 
 ---
@@ -467,11 +494,11 @@ goose projects
 ### Interface
 
 #### web
-Start a new session in Goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
+Start a new session in goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
 
-Goose Web is particularly useful when:
-- You want to access Goose with a graphical interface without installing the desktop app
-- You need to use Goose from different devices, including mobile
+goose Web is particularly useful when:
+- You want to access goose with a graphical interface without installing the desktop app
+- You need to use goose from different devices, including mobile
 - You're working in an environment where installing desktop apps isn't practical
 
 :::warning
@@ -555,7 +582,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 
 ### Themes
 
-The `/t` command controls the syntax highlighting theme for markdown content in Goose CLI responses. This affects the styles used for headers, code blocks, bold/italic text, and other markdown elements in the response output.
+The `/t` command controls the syntax highlighting theme for markdown content in goose CLI responses. This affects the styles used for headers, code blocks, bold/italic text, and other markdown elements in the response output.
 
 **Commands:**
 - `/t` - Cycles through themes: `light` → `dark` → `ansi` → `light`
@@ -571,7 +598,7 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
 
-The Goose CLI theme is independent from the Goose Desktop theme.
+The goose CLI theme is independent from the goose Desktop theme.
 :::
 
 **Examples:**
@@ -605,10 +632,10 @@ goose session --name use-custom-theme
 
 ### Command History Search
 
-The `Ctrl+R` shortcut provides interactive search through your stored CLI [command history](/docs/guides/logs#command-history). This feature makes it easy to find and reuse recent commands without retyping them. When you type a search term, Goose searches backwards through your history for matches.
+The `Ctrl+R` shortcut provides interactive search through your stored CLI [command history](/docs/guides/logs#command-history). This feature makes it easy to find and reuse recent commands without retyping them. When you type a search term, goose searches backwards through your history for matches.
 
 **How it works:**
-1. Press `Ctrl+R` in your Goose CLI session
+1. Press `Ctrl+R` in your goose CLI session
 2. Type a search term
 3. Navigate through the results using:
    - `Ctrl+R` to cycle backwards through earlier matches

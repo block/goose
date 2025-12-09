@@ -48,16 +48,16 @@ impl SecurityManager {
     ) -> Result<Vec<SecurityResult>> {
         if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!(
-                gauge.goose.prompt_injection_scanner_enabled = 0,
-                "🔓 Security scanning disabled"
+                counter.goose.prompt_injection_scanner_disabled = 1,
+                "Security scanning disabled"
             );
             return Ok(vec![]);
         }
 
         let scanner = self.scanner.get_or_init(|| {
             tracing::info!(
-                gauge.goose.prompt_injection_scanner_enabled = 1,
-                "🔓 Security scanner initialized and enabled"
+                counter.goose.prompt_injection_scanner_enabled = 1,
+                "Security scanner initialized and enabled"
             );
             PromptInjectionScanner::new()
         });
@@ -79,6 +79,7 @@ impl SecurityManager {
 
                 // Get threshold from config - only flag things above threshold
                 let config_threshold = scanner.get_threshold_from_config();
+                let sanitized_explanation = analysis_result.explanation.replace('\n', " | ");
 
                 if analysis_result.is_malicious {
                     let above_threshold = analysis_result.confidence > config_threshold;
@@ -86,19 +87,18 @@ impl SecurityManager {
 
                     tracing::warn!(
                         counter.goose.prompt_injection_finding = 1,
-                        gauge.goose.prompt_injection_confidence_score = analysis_result.confidence,
                         above_threshold = above_threshold,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
-                        explanation = %analysis_result.explanation,
+                        explanation = %sanitized_explanation,
                         finding_id = %finding_id,
                         threshold = config_threshold,
                         "{}",
                         if above_threshold {
-                            "🔒 Current tool call flagged as malicious after security analysis (above threshold)"
+                            "Current tool call flagged as malicious after security analysis (above threshold)"
                         } else {
-                            "🔒 Security finding below threshold - logged but not blocking execution"
+                            "Security finding below threshold - logged but not blocking execution"
                         }
                     );
                     if above_threshold {
@@ -116,7 +116,7 @@ impl SecurityManager {
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
-                        explanation = %analysis_result.explanation,
+                        explanation = %sanitized_explanation,
                         "✅ Current tool call passed security analysis"
                     );
                 }
@@ -125,8 +125,8 @@ impl SecurityManager {
 
         tracing::info!(
             counter.goose.prompt_injection_analysis_performed = 1,
-            "🔍 Security analysis complete - found {} security issues in current tool requests",
-            results.len()
+            security_issues_found = results.len(),
+            "Security analysis complete"
         );
         Ok(results)
     }
