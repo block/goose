@@ -5,49 +5,83 @@ import { readConfig, setTelemetryStatus } from '../api';
 import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 
-export default function TelemetryOptOutModal() {
+interface TelemetryOptOutModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  showOnFirstLaunch?: boolean;
+}
+
+export default function TelemetryOptOutModal({
+  isOpen: controlledIsOpen,
+  onClose,
+  showOnFirstLaunch = true,
+}: TelemetryOptOutModalProps) {
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Check if user has made a telemetry choice (only for first launch mode)
+  // Only show for existing users who have a provider but haven't made a telemetry choice
   useEffect(() => {
+    if (!showOnFirstLaunch) return;
+
     const checkTelemetryChoice = async () => {
       try {
-        const response = await readConfig({
+        // First check if user has a provider configured (existing user)
+        const providerResponse = await readConfig({
+          body: { key: 'GOOSE_PROVIDER', is_secret: false },
+        });
+
+        // If no provider, user is new and will see the inline settings on Welcome page
+        if (!providerResponse.data || providerResponse.data === '') {
+          return;
+        }
+
+        // User has a provider, check if they've made a telemetry choice
+        const telemetryResponse = await readConfig({
           body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
         });
 
-        if (response.data === null || response.data === undefined) {
+        // If the config value is null/undefined, user hasn't made a choice yet
+        if (telemetryResponse.data === null || telemetryResponse.data === undefined) {
           setShowModal(true);
         }
       } catch (error) {
         console.error('Failed to check telemetry config:', error);
-        setShowModal(true);
       }
     };
 
     checkTelemetryChoice();
-  }, []);
+  }, [showOnFirstLaunch]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
     try {
       await setTelemetryStatus({ body: { enabled } });
       setShowModal(false);
+      onClose?.();
     } catch (error) {
       console.error('Failed to set telemetry preference:', error);
       setShowModal(false);
+      onClose?.();
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!TELEMETRY_UI_ENABLED || !showModal) {
+  if (!TELEMETRY_UI_ENABLED) {
+    return null;
+  }
+
+  // Use controlled state if provided, otherwise use internal state
+  const isModalOpen = controlledIsOpen !== undefined ? controlledIsOpen : showModal;
+
+  if (!isModalOpen) {
     return null;
   }
 
   return (
     <BaseModal
-      isOpen={showModal}
+      isOpen={isModalOpen}
       actions={
         <div className="flex flex-col gap-2 pb-3 px-3">
           <Button
