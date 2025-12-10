@@ -53,7 +53,8 @@ const ChannelCard: React.FC<{
   onEditChannel: (channel: Channel) => void;
   onToggleFavorite: (channel: Channel) => void;
   onAcceptInvite?: (channel: Channel) => void;
-}> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite, onAcceptInvite }) => {
+  onInviteUsers?: (channel: Channel) => void;
+}> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite, onAcceptInvite, onInviteUsers }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -117,8 +118,24 @@ const ChannelCard: React.FC<{
         <Star className={`w-4 h-4 ${channel.isFavorite ? 'fill-current' : ''}`} />
       </button>
 
-      {/* Edit and Privacy buttons - top right */}
+      {/* Action buttons and Privacy indicator - top right */}
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+        {/* Invite button - shown on hover, only for joined spaces */}
+        {channel.membership === 'join' && onInviteUsers && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onInviteUsers(channel);
+            }}
+            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-colors"
+            title="Invite users to space"
+          >
+            <UserPlus className="w-3 h-3" />
+          </motion.button>
+        )}
+        
         {/* Edit button - shown on hover */}
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
@@ -779,6 +796,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     isReady, 
     currentUser,
     rooms,
+    friends,
     setRoomName,
     setRoomTopic,
     setRoomAvatar,
@@ -786,7 +804,9 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     createRoom,
     getSpaceChildren,
     leaveRoom,
-    joinRoom
+    joinRoom,
+    inviteToRoom,
+    inviteToSpace
   } = useMatrix();
   
   const { openMatrixChat } = useTabContext();
@@ -795,6 +815,8 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [invitingChannel, setInvitingChannel] = useState<Channel | null>(null);
   const [showMatrixAuth, setShowMatrixAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -1271,6 +1293,36 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleInviteUsers = (channel: Channel) => {
+    setInvitingChannel(channel);
+    setShowInviteModal(true);
+  };
+
+  const handleSendInvite = async (userId: string) => {
+    if (!invitingChannel) return;
+
+    try {
+      console.log('📨 Sending invite to user:', { userId, channelId: invitingChannel.roomId, channelName: invitingChannel.name });
+      
+      // Use inviteToSpace for spaces (which will also invite to child rooms automatically)
+      await inviteToSpace(invitingChannel.roomId, userId);
+      
+      toastSuccess({
+        title: 'Invite Sent',
+        msg: `Successfully invited user to space "${invitingChannel.name}".`
+      });
+      
+      console.log('✅ Successfully sent space invite');
+    } catch (error) {
+      console.error('❌ Failed to send invite:', error);
+      toastError({
+        title: 'Failed to Send Invite',
+        msg: 'Could not send invite. Please try again.',
+        traceback: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  };
+
   // Show Matrix authentication modal
   if (showMatrixAuth) {
     return <MatrixAuth onClose={() => setShowMatrixAuth(false)} />;
@@ -1464,6 +1516,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                     onEditChannel={handleEditChannel}
                     onToggleFavorite={handleToggleFavorite}
                     onAcceptInvite={handleAcceptSpaceInvite}
+                    onInviteUsers={handleInviteUsers}
                   />
                 ))}
                 {/* Empty tiles for creating new channels */}
@@ -1504,6 +1557,101 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
             onEdit={handleSaveChannelEdit}
             onDelete={handleDeleteChannel}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Invite Users Modal */}
+      <AnimatePresence>
+        {showInviteModal && invitingChannel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowInviteModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-background-default rounded-2xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-text-default">
+                  Invite Users to {invitingChannel.name}
+                </h2>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="p-2 rounded-lg hover:bg-background-medium transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-text-muted">
+                  Invite users to this space. They will automatically get access to all rooms within the space.
+                </p>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                {friends.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-text-default mb-2">No Friends Available</h3>
+                    <p className="text-text-muted mb-4">
+                      Add friends in the Peers page to invite them to spaces.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowInviteModal(false);
+                        navigate('/peers');
+                      }}
+                      className="px-4 py-2 rounded-lg bg-background-accent text-text-on-accent hover:bg-background-accent/80 transition-colors"
+                    >
+                      Go to Peers
+                    </button>
+                  </div>
+                ) : (
+                  friends.map((friend) => (
+                    <div key={friend.userId} className="flex items-center justify-between p-3 border border-border-default rounded-lg hover:bg-background-medium transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-background-accent rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium text-text-on-accent">
+                            {(friend.displayName || friend.userId).charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-text-default">
+                            {friend.displayName || friend.userId.split(':')[0].substring(1)}
+                          </p>
+                          <p className="text-sm text-text-muted">{friend.userId}</p>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => handleSendInvite(friend.userId)}
+                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Invite
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="px-4 py-2 border border-border-default rounded-lg hover:bg-background-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
