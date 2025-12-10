@@ -2088,5 +2088,119 @@
       "request": 0.0,
       "image": 0.0008415
     }
+  },
+  {
+    "id": "x-ai/grok-3",
+    "name": "xAI: Grok 3",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "x-ai/grok-3-mini",
+    "name": "xAI: Grok 3 Mini",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 5e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "x-ai/grok-4",
+    "name": "xAI: Grok 4",
+    "context_length": 256000,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-6,
+      "completion": 0.000015,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "x-ai/grok-4-fast",
+    "name": "xAI: Grok 4 Fast",
+    "context_length": 2000000,
+    "max_completion_tokens": 30000,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 5e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "x-ai/grok-4.1-fast",
+    "name": "xAI: Grok 4.1 Fast",
+    "context_length": 2000000,
+    "max_completion_tokens": 30000,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 5e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "x-ai/grok-code-fast-1",
+    "name": "xAI: Grok Code Fast 1",
+    "context_length": 256000,
+    "max_completion_tokens": 10000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 1.5e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
   }
 ]

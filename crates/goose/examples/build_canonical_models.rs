@@ -19,7 +19,7 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     // Additional providers (uncomment one at a time to test):
      "meta-llama",     // Llama 3.1, 3.3, 4 series - very popular
      "mistralai",      // Mistral Large, Mixtral - very popular
-    // "x-ai",           // Grok models - high profile
+     "x-ai",           // Grok models - high profile
     // "deepseek",       // DeepSeek v3, R1 - gaining popularity
     // "cohere",         // Command R, Command R+ models
     // "ai21",           // Jamba 1.5 models
@@ -136,6 +136,29 @@ async fn main() -> Result<()> {
             shortest_names.insert(canonical_id.clone(), name.to_string());
             canonical_groups.insert(canonical_id, model);
         }
+    }
+
+    // Filter out beta/preview variants if non-beta version exists
+    let beta_suffixes = ["-beta", "-preview", "-alpha"];
+    let mut to_remove = Vec::new();
+
+    for canonical_id in canonical_groups.keys() {
+        for suffix in &beta_suffixes {
+            if canonical_id.ends_with(suffix) {
+                // Check if non-beta version exists
+                let base_id = canonical_id.strip_suffix(suffix).unwrap();
+                if canonical_groups.contains_key(base_id) {
+                    println!("  Filtering out {} (non-beta version {} exists)", canonical_id, base_id);
+                    to_remove.push(canonical_id.clone());
+                    break;
+                }
+            }
+        }
+    }
+
+    for id in to_remove {
+        canonical_groups.remove(&id);
+        shortest_names.remove(&id);
     }
 
     // Second pass: Build the registry with the selected models
