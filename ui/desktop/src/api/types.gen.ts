@@ -115,6 +115,26 @@ export type CreateScheduleRequest = {
     recipe_source: string;
 };
 
+/**
+ * Content Security Policy configuration for UI resources.
+ *
+ * Servers declare which external origins their UI needs to access.
+ * Hosts use this to enforce appropriate CSP headers.
+ */
+export type CspConfig = {
+    /**
+     * Origins for network requests (fetch/XHR/WebSocket).
+     * Maps to CSP `connect-src` directive.
+     */
+    connectDomains?: Array<string>;
+    /**
+     * Origins for static resources (images, scripts, stylesheets, fonts).
+     * Wildcard subdomains supported: `https:/*.example.com`
+     * Maps to CSP `img-src`, `script-src`, `style-src`, `font-src` directives.
+     */
+    resourceDomains?: Array<string>;
+};
+
 export type DeclarativeProviderConfig = {
     api_key_env: string;
     base_url: string;
@@ -141,6 +161,19 @@ export type DecodeRecipeResponse = {
 export type DeleteRecipeRequest = {
     id: string;
 };
+
+/**
+ * Device capabilities.
+ */
+export type DeviceCapabilities = {
+    hover?: boolean | null;
+    touch?: boolean | null;
+};
+
+/**
+ * How the UI is currently displayed.
+ */
+export type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 
 export type EditMessageRequest = {
     editType?: EditType;
@@ -318,6 +351,93 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+/**
+ * Capabilities that the host supports for MCP Apps.
+ */
+export type HostCapabilities = {
+    /**
+     * Whether the host supports the `ui/message` request.
+     */
+    message?: boolean | null;
+    /**
+     * MIME types the host can render.
+     */
+    mimeTypes?: Array<string>;
+    /**
+     * Whether the host supports the `ui/open-link` request.
+     */
+    openLink?: boolean | null;
+};
+
+/**
+ * Host context provided to UI iframes during initialization.
+ *
+ * All fields are optional. Hosts SHOULD provide relevant context.
+ * Guest UIs SHOULD handle missing fields gracefully.
+ */
+export type HostContext = {
+    /**
+     * Display modes the host supports.
+     */
+    availableDisplayModes?: Array<DisplayMode>;
+    deviceCapabilities?: DeviceCapabilities | null;
+    displayMode?: DisplayMode | null;
+    /**
+     * User's language/region preference (BCP 47, e.g., "en-US").
+     */
+    locale?: string | null;
+    platform?: Platform | null;
+    safeAreaInsets?: SafeAreaInsets | null;
+    theme?: Theme | null;
+    /**
+     * User's timezone (IANA, e.g., "America/New_York").
+     */
+    timeZone?: string | null;
+    /**
+     * Host application identifier.
+     */
+    userAgent?: string | null;
+    viewport?: Viewport | null;
+};
+
+/**
+ * Query parameters for host context request
+ */
+export type HostContextQuery = {
+    /**
+     * Display mode (inline, fullscreen, pip)
+     */
+    display_mode?: string | null;
+    /**
+     * User locale (e.g., "en-US")
+     */
+    locale?: string | null;
+    /**
+     * Theme preference (light or dark)
+     */
+    theme?: string | null;
+    /**
+     * User timezone (e.g., "America/New_York")
+     */
+    time_zone?: string | null;
+    /**
+     * Viewport height
+     */
+    viewport_height?: number | null;
+    /**
+     * Viewport width
+     */
+    viewport_width?: number | null;
+};
+
+/**
+ * Host information provided during initialization.
+ */
+export type HostInfo = {
+    name: string;
+    version: string;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -367,6 +487,41 @@ export type LoadedProvider = {
 };
 
 /**
+ * Query parameters for MCP Apps proxy request
+ */
+export type McpAppsProxyQuery = {
+    /**
+     * Comma-separated list of connect domains for CSP
+     */
+    connect_domains?: string | null;
+    /**
+     * Comma-separated list of resource domains for CSP
+     */
+    resource_domains?: string | null;
+    /**
+     * Secret key for authentication
+     */
+    secret: string;
+};
+
+/**
+ * Initialize request from UI to Host.
+ */
+export type McpUiInitializeParams = {
+    protocolVersion: string;
+};
+
+/**
+ * Initialize response from Host to UI.
+ */
+export type McpUiInitializeResult = {
+    hostCapabilities?: HostCapabilities | null;
+    hostContext?: HostContext | null;
+    hostInfo?: HostInfo | null;
+    protocolVersion: string;
+};
+
+/**
  * A message to or from an LLM
  */
 export type Message = {
@@ -378,29 +533,12 @@ export type Message = {
 };
 
 /**
- * Content passed inside a message, which can be both simple content and tool content
+ * Message content type for ui/message.
  */
-export type MessageContent = (TextContent & {
+export type MessageContent = {
+    text: string;
     type: 'text';
-}) | (ImageContent & {
-    type: 'image';
-}) | (ToolRequest & {
-    type: 'toolRequest';
-}) | (ToolResponse & {
-    type: 'toolResponse';
-}) | (ToolConfirmationRequest & {
-    type: 'toolConfirmationRequest';
-}) | (ActionRequired & {
-    type: 'actionRequired';
-}) | (FrontendToolRequest & {
-    type: 'frontendToolRequest';
-}) | (ThinkingContent & {
-    type: 'thinking';
-}) | (RedactedThinkingContent & {
-    type: 'redactedThinking';
-}) | (SystemNotificationContent & {
-    type: 'systemNotification';
-});
+};
 
 export type MessageEvent = {
     message: Message;
@@ -444,6 +582,11 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+/**
+ * Message role for ui/message.
+ */
+export type MessageRole = 'user' | 'assistant';
+
 export type ModelConfig = {
     context_limit?: number | null;
     fast_model?: string | null;
@@ -484,6 +627,13 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+/**
+ * Request to open an external URL (UI → Host).
+ */
+export type OpenLinkParams = {
+    url: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -496,6 +646,11 @@ export type ParseRecipeResponse = {
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+/**
+ * Platform type for responsive design.
+ */
+export type Platform = 'web' | 'desktop' | 'mobile';
 
 export type PrincipalType = 'Extension' | 'Tool';
 
@@ -689,6 +844,16 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+/**
+ * Safe area boundaries in pixels (for notched displays, etc.).
+ */
+export type SafeAreaInsets = {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+};
+
 export type SaveRecipeRequest = {
     id?: string | null;
     recipe: Recipe;
@@ -857,6 +1022,11 @@ export type TextContent = {
     text: string;
 };
 
+/**
+ * Color theme preference.
+ */
+export type Theme = 'light' | 'dark';
+
 export type ThinkingContent = {
     signature: string;
     thinking: string;
@@ -944,6 +1114,44 @@ export type TunnelInfo = {
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
+/**
+ * UI resource metadata for security and rendering configuration.
+ */
+export type UiResourceMeta = {
+    csp?: CspConfig | null;
+    /**
+     * Dedicated origin for the widget's sandbox.
+     * Useful when widgets need dedicated origins for API key allowlists
+     * or cross-origin isolation.
+     */
+    domain?: string | null;
+    /**
+     * Visual boundary preference.
+     * `true` requests a visible border (host decides styling).
+     */
+    prefersBorder?: boolean | null;
+};
+
+/**
+ * Request to send a message to the chat (UI → Host).
+ */
+export type UiMessageParams = {
+    content: MessageContent;
+    role: MessageRole;
+    /**
+     * The session ID to add the message to
+     */
+    sessionId: string;
+};
+
+/**
+ * Response for ui/message request
+ */
+export type UiMessageResponse = {
+    error?: string | null;
+    success: boolean;
+};
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -1002,6 +1210,16 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * Viewport dimensions available to the UI.
+ */
+export type Viewport = {
+    height: number;
+    maxHeight?: number | null;
+    maxWidth?: number | null;
+    width: number;
 };
 
 export type ConfirmToolActionData = {
@@ -1815,6 +2033,108 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type McpAppsProxyData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Secret key for authentication
+         */
+        secret: string;
+        /**
+         * Comma-separated connect domains for CSP
+         */
+        connect_domains?: string | null;
+        /**
+         * Comma-separated resource domains for CSP
+         */
+        resource_domains?: string | null;
+    };
+    url: '/mcp-apps-proxy';
+};
+
+export type McpAppsProxyErrors = {
+    /**
+     * Unauthorized - invalid or missing secret
+     */
+    401: unknown;
+};
+
+export type McpAppsProxyResponses = {
+    /**
+     * MCP Apps proxy HTML page
+     */
+    200: unknown;
+};
+
+export type GetHostContextData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Theme preference (light or dark)
+         */
+        theme?: string | null;
+        /**
+         * Display mode (inline, fullscreen, pip)
+         */
+        display_mode?: string | null;
+        /**
+         * Viewport width in pixels
+         */
+        viewport_width?: number | null;
+        /**
+         * Viewport height in pixels
+         */
+        viewport_height?: number | null;
+        /**
+         * User locale (BCP 47, e.g., 'en-US')
+         */
+        locale?: string | null;
+        /**
+         * User timezone (IANA, e.g., 'America/New_York')
+         */
+        time_zone?: string | null;
+    };
+    url: '/mcp-apps/context';
+};
+
+export type GetHostContextResponses = {
+    /**
+     * MCP Apps host context
+     */
+    200: McpUiInitializeResult;
+};
+
+export type GetHostContextResponse = GetHostContextResponses[keyof GetHostContextResponses];
+
+export type HandleUiMessageData = {
+    body: UiMessageParams;
+    path?: never;
+    query?: never;
+    url: '/mcp-apps/message';
+};
+
+export type HandleUiMessageErrors = {
+    /**
+     * Invalid message format
+     */
+    400: unknown;
+    /**
+     * Failed to add message
+     */
+    500: unknown;
+};
+
+export type HandleUiMessageResponses = {
+    /**
+     * Message added successfully
+     */
+    200: UiMessageResponse;
+};
+
+export type HandleUiMessageResponse = HandleUiMessageResponses[keyof HandleUiMessageResponses];
 
 export type McpUiProxyData = {
     body?: never;

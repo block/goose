@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="referrer" content="no-referrer"/>
+    <!-- 
+      MCP Apps Proxy (SEP-1865)
+      
+      CSP is dynamically set based on the MCP server's resource metadata.
+      The {{CSP_CONTENT}} placeholder is replaced by the Rust backend with
+      the appropriate CSP directives based on:
+      - _meta.csp.connectDomains -> connect-src
+      - _meta.csp.resourceDomains -> img-src, script-src, style-src, font-src, media-src
+      
+      Default (restrictive) CSP when no metadata provided:
+      - default-src 'none'
+      - script-src 'self' 'unsafe-inline'
+      - style-src 'self' 'unsafe-inline'
+      - connect-src 'self'
+      - img-src 'self' data:
+      - font-src 'self'
+      - media-src 'self'
+      - frame-src 'none'
+      - object-src 'none'
+      - base-uri 'self'
+    -->
+    <meta 
+      http-equiv="Content-Security-Policy" 
+      content="{{CSP_CONTENT}}"/>
+    <title>MCP Apps Proxy</title>
+    <style>
+      body,
+      html {
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      iframe {
+        background-color: transparent;
+        border: 0 none transparent;
+        padding: 0;
+        overflow: hidden;
+        flex-grow: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // SEP-1865 MCP Apps Sandbox Proxy
+      // This file implements the sandbox proxy for MCP Apps per the specification.
+      // 
+      // Architecture: Host (parent) <-> Sandbox Proxy (this) <-> Guest UI (inner iframe)
+      //
+      // Security requirements from spec:
+      // 1. Host and Sandbox MUST have different origins
+      // 2. Sandbox MUST have permissions: allow-scripts, allow-same-origin
+      // 3. Sandbox sends ui/notifications/sandbox-ready when ready
+      // 4. Host sends ui/notifications/sandbox-resource-ready with HTML
+      // 5. Sandbox enforces CSP on inner iframe
+      // 6. Sandbox forwards messages except ui/notifications/sandbox-* methods
+
+      const params = new URLSearchParams(location.search);
+      const contentType = params.get('contentType');
+      const target = params.get('url');
+
+      // Security self-test: verify iframe isolation is working correctly.
+      // This MUST throw a SecurityError -- if window.top is accessible, the sandbox
+      // configuration is dangerously broken and untrusted content could escape.
+      if (window.self !== window.top) {
+        try {
+          // Attempt to access parent - this should throw SecurityError if properly sandboxed
+          window.top.document;
+          // If we get here, sandbox is broken
+          document.body.textContent = 'Security Error: Sandbox isolation failed. The proxy iframe can access the parent window.';
+          throw new Error('The sandbox is not setup securely - can access window.top');
+        } catch (e) {
+          if (e.name !== 'SecurityError') {
+            // Re-throw if it's not the expected SecurityError
+            document.body.textContent = 'Security Error: ' + e.message;
+            throw e;
+          }
+          // Expected: SecurityError confirms proper sandboxing
+          console.log('[MCP Apps Proxy] Security self-test passed: iframe isolation verified');
+        }
+      }
+
+      // Validate that the URL is a valid HTTP or HTTPS URL
+      function isValidHttpUrl(string) {
+        try {
+          const url = new URL(string);
+          return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch (error) {
+          return false;
+        }
+      }
+
+      // SEP-1865 method names
+      const SANDBOX_READY_METHOD = 'ui/notifications/sandbox-ready';
+      const SANDBOX_RESOURCE_READY_METHOD = 'ui/notifications/sandbox-resource-ready';
+
+      if (contentType === 'rawhtml') {
+        // Double-iframe raw HTML mode (HTML sent via postMessage)
+        // Per SEP-1865: Sandbox creates inner iframe for Guest UI
+        console.log('[MCP Apps Proxy] rawhtml mode, creating inner iframe');
+        const inner = document.createElement('iframe');
+        inner.style = 'width:100%; height:100%; border:none;';
+        // Default sandbox for inner iframe per SEP-1865
+        // allow-scripts: for interactivity
+        // allow-same-origin: for storage APIs (localStorage, sessionStorage, IndexedDB)
+        // allow-forms: for form submissions
+        // This can be overridden via the sandbox param in sandbox-resource-ready
+        inner.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+        document.body.appendChild(inner);
+
+        // Function to inject CSP meta tag into HTML content
+        function injectCspIntoHtml(html, csp) {
+          if (!csp) return html;
+          
+          const cspMeta = '<meta http-equiv="Content-Security-Policy" content="' + csp.replace(/"/g, '&quot;') + '">';
+          
+          // Try to inject after <head> tag
+          const headMatch = html.match(/<head[^>]*>/i);
+          if (headMatch) {
+            const insertPos = headMatch.index + headMatch[0].length;
+            return html.slice(0, insertPos) + '\n' + cspMeta + '\n' + html.slice(insertPos);
+          }
+          
+          // Try to inject after <!DOCTYPE> or at the start
+          const doctypeMatch = html.match(/<!doctype[^>]*>/i);
+          if (doctypeMatch) {
+            const insertPos = doctypeMatch.index + doctypeMatch[0].length;
+            return html.slice(0, insertPos) + '\n<head>' + cspMeta + '</head>\n' + html.slice(insertPos);
+          }
+          
+          // Fallback: prepend
+          return '<head>' + cspMeta + '</head>\n' + html;
+        }
+
+        // Message relay: This Sandbox (outer iframe) acts as a bidirectional bridge,
+        // forwarding messages between Host and Guest UI.
+        // 
+        // Per SEP-1865:
+        // - Forward all messages EXCEPT those starting with ui/notifications/sandbox-
+        // - Intercept ui/notifications/sandbox-resource-ready to load Guest UI HTML
+        window.addEventListener('message', (event) => {
+          const method = event.data?.method;
+          console.log('[MCP Apps Proxy] Received message:', method || event.data?.type || 'unknown', 'from:', event.source === window.parent ? 'parent' : 'inner');
+          
+          if (event.source === window.parent) {
+            // Messages from Host
+            if (event.data && method === SANDBOX_RESOURCE_READY_METHOD) {
+              // SEP-1865: ui/notifications/sandbox-resource-ready
+              // Load the Guest UI HTML into the inner iframe
+              const params = event.data.params || {};
+              let html = params.html;
+              const sandbox = params.sandbox;
+              const csp = params.csp;
+              
+              console.log('[MCP Apps Proxy] Received sandbox-resource-ready, html length:', html?.length || 0, 'csp:', csp ? 'yes' : 'no', 'sandbox:', sandbox || 'default');
+              
+              // Allow host to override inner iframe sandbox attribute
+              if (typeof sandbox === 'string') {
+                inner.setAttribute('sandbox', sandbox);
+              }
+              
+              if (typeof html === 'string') {
+                // Inject CSP into the HTML content for the inner iframe
+                if (csp) {
+                  console.log('[MCP Apps Proxy] Injecting CSP into HTML:', csp.substring(0, 100) + '...');
+                  html = injectCspIntoHtml(html, csp);
+                }
+                console.log('[MCP Apps Proxy] Setting srcdoc with HTML');
+                inner.srcdoc = html;
+              } else {
+                console.error('[MCP Apps Proxy] No html in params:', params);
+              }
+            } else if (method && method.startsWith('ui/notifications/sandbox-')) {
+              // Don't forward other sandbox-* messages to inner iframe
+              console.log('[MCP Apps Proxy] Ignoring sandbox message:', method);
+            } else {
+              // Forward all other messages to inner iframe (JSON-RPC notifications, etc.)
+              console.log('[MCP Apps Proxy] Forwarding message to inner iframe');
+              if (inner && inner.contentWindow) {
+                inner.contentWindow.postMessage(event.data, '*');
+              }
+            }
+          } else if (event.source === inner.contentWindow) {
+            // Messages from Guest UI - relay to Host
+            // Per SEP-1865: Sandbox SHOULD NOT create/send any requests (no id synthesis)
+            console.log('[MCP Apps Proxy] Relaying message from inner to parent');
+            window.parent.postMessage(event.data, '*');
+          }
+        });
+
+        // Notify Host that Sandbox is ready to receive Guest UI HTML
+        // Per SEP-1865: ui/notifications/sandbox-ready
+        console.log('[MCP Apps Proxy] Sending sandbox-ready to parent');
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          method: SANDBOX_READY_METHOD,
+          params: {}
+        }, '*');
+
+      } else if (target) {
+        // External URL mode
+        if (!isValidHttpUrl(target)) {
+          document.body.textContent = 'Error: invalid URL. Only HTTP and HTTPS URLs are allowed.';
+        } else {
+          const inner = document.createElement('iframe');
+          inner.src = target;
+          inner.style = 'width:100%; height:100%; border:none;';
+          // External URL sandbox for MCP Apps
+          inner.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms');
+          document.body.appendChild(inner);
+          const urlOrigin = new URL(target).origin;
+
+          window.addEventListener('message', (event) => {
+            if (event.source === window.parent) {
+              // Forward messages from parent to iframe
+              if (inner.contentWindow) {
+                inner.contentWindow.postMessage(event.data, urlOrigin);
+              } else {
+                console.warn('[MCP Apps Proxy] iframe contentWindow is not available');
+              }
+            } else if (event.source === inner.contentWindow) {
+              // Forward messages from iframe to parent
+              window.parent.postMessage(event.data, '*');
+            }
+          });
+        }
+      } else {
+        document.body.textContent = 'Error: missing url or contentType parameter';
+      }
+    </script>
+  </body>
+</html>

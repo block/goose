@@ -82,6 +82,63 @@ pub trait McpClientTrait: Send + Sync {
     }
 }
 
+// Re-export MCP Apps constants from the mcp_apps module
+pub use crate::mcp_apps::{
+    EXTENSION_ID as MCP_APPS_EXTENSION_ID, MIME_TYPE as MCP_APPS_MIME_TYPE, UI_RESOURCE_URI_KEY,
+};
+
+/// Extract the UI resource URI from a tool's metadata, if present.
+///
+/// According to SEP-1865, tools can be associated with UI resources through
+/// the `_meta["ui/resourceUri"]` field. This function extracts that URI
+/// so the host can fetch the UI resource via `resources/read`.
+///
+/// # Example
+/// ```ignore
+/// let tool = /* tool from list_tools */;
+/// if let Some(uri) = get_ui_resource_uri(&tool) {
+///     // This tool has a UI - fetch the resource
+///     let resource = client.read_resource(&uri, cancel_token).await?;
+/// }
+/// ```
+pub fn get_ui_resource_uri(tool: &rmcp::model::Tool) -> Option<String> {
+    tool.meta
+        .as_ref()
+        .and_then(|meta| meta.0.get(UI_RESOURCE_URI_KEY))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Build client capabilities including MCP Apps support.
+///
+/// This advertises to MCP servers that Goose supports:
+/// - Sampling (for LLM completions)
+/// - MCP Apps UI rendering (SEP-1865) via the experimental field
+///
+/// Note: We use the `experimental` field for MCP Apps because the `rmcp` crate
+/// doesn't yet have the `extensions` field from SEP-1724. This is appropriate
+/// since SEP-1865 is still a draft specification.
+fn build_client_capabilities() -> ClientCapabilities {
+    use std::collections::BTreeMap;
+
+    // Create MCP Apps capability settings
+    let mut mcp_apps_settings = JsonObject::new();
+    mcp_apps_settings.insert(
+        "mimeTypes".to_string(),
+        Value::Array(vec![Value::String(MCP_APPS_MIME_TYPE.to_string())]),
+    );
+
+    // Add MCP Apps to experimental capabilities
+    let mut experimental: BTreeMap<String, JsonObject> = BTreeMap::new();
+    experimental.insert(MCP_APPS_EXTENSION_ID.to_string(), mcp_apps_settings);
+
+    // Build capabilities with sampling and MCP Apps support
+    let mut caps = ClientCapabilities::builder().enable_sampling().build();
+    caps.experimental = Some(experimental);
+
+    caps
+}
+
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
@@ -221,7 +278,7 @@ impl ClientHandler for GooseClient {
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().enable_sampling().build(),
+            capabilities: build_client_capabilities(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
@@ -509,6 +566,120 @@ fn inject_session_into_extensions(
 mod tests {
     use super::*;
     use rmcp::model::Meta;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_get_ui_resource_uri_with_ui_tool() {
+        use rmcp::model::Tool;
+
+        // Create a tool with ui/resourceUri in _meta
+        let mut meta = JsonObject::new();
+        meta.insert(
+            UI_RESOURCE_URI_KEY.to_string(),
+            Value::String("ui://weather-server/dashboard".to_string()),
+        );
+
+        let tool = Tool {
+            name: "get_weather".into(),
+            title: None,
+            description: Some("Get weather".into()),
+            input_schema: Arc::new(JsonObject::new()),
+            output_schema: None,
+            annotations: None,
+            icons: None,
+            meta: Some(Meta(meta)),
+        };
+
+        let uri = get_ui_resource_uri(&tool);
+        assert_eq!(uri, Some("ui://weather-server/dashboard".to_string()));
+    }
+
+    #[test]
+    fn test_get_ui_resource_uri_without_meta() {
+        use rmcp::model::Tool;
+
+        let tool = Tool {
+            name: "get_weather".into(),
+            title: None,
+            description: Some("Get weather".into()),
+            input_schema: Arc::new(JsonObject::new()),
+            output_schema: None,
+            annotations: None,
+            icons: None,
+            meta: None,
+        };
+
+        let uri = get_ui_resource_uri(&tool);
+        assert_eq!(uri, None);
+    }
+
+    #[test]
+    fn test_get_ui_resource_uri_with_empty_meta() {
+        use rmcp::model::Tool;
+
+        let tool = Tool {
+            name: "get_weather".into(),
+            title: None,
+            description: Some("Get weather".into()),
+            input_schema: Arc::new(JsonObject::new()),
+            output_schema: None,
+            annotations: None,
+            icons: None,
+            meta: Some(Meta(JsonObject::new())),
+        };
+
+        let uri = get_ui_resource_uri(&tool);
+        assert_eq!(uri, None);
+    }
+
+    #[test]
+    fn test_get_ui_resource_uri_with_other_meta() {
+        use rmcp::model::Tool;
+
+        // Create a tool with other metadata but no ui/resourceUri
+        let mut meta = JsonObject::new();
+        meta.insert(
+            "someOtherKey".to_string(),
+            Value::String("value".to_string()),
+        );
+
+        let tool = Tool {
+            name: "get_weather".into(),
+            title: None,
+            description: Some("Get weather".into()),
+            input_schema: Arc::new(JsonObject::new()),
+            output_schema: None,
+            annotations: None,
+            icons: None,
+            meta: Some(Meta(meta)),
+        };
+
+        let uri = get_ui_resource_uri(&tool);
+        assert_eq!(uri, None);
+    }
+
+    #[test]
+    fn test_build_client_capabilities_includes_mcp_apps() {
+        let caps = build_client_capabilities();
+        let serialized = serde_json::to_value(&caps).unwrap();
+
+        // Verify MCP Apps is in experimental
+        assert!(serialized.get("experimental").is_some());
+        assert!(serialized["experimental"][MCP_APPS_EXTENSION_ID].is_object());
+        assert_eq!(
+            serialized["experimental"][MCP_APPS_EXTENSION_ID]["mimeTypes"],
+            serde_json::json!([MCP_APPS_MIME_TYPE])
+        );
+    }
+
+    #[test]
+    fn test_build_client_capabilities_includes_sampling() {
+        let caps = build_client_capabilities();
+        let serialized = serde_json::to_value(&caps).unwrap();
+
+        // Verify sampling is still present
+        assert!(serialized.get("sampling").is_some());
+    }
 
     #[tokio::test]
     async fn test_session_id_in_mcp_meta() {

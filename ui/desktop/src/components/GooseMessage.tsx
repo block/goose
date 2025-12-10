@@ -200,6 +200,7 @@ export default function GooseMessage({
                       notifications={toolCallNotifications.get(toolRequest.id)}
                       isStreamingMessage={isStreaming}
                       append={append}
+                      sessionId={sessionId}
                     />
                   </div>
                 ))}

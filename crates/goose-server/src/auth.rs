@@ -10,7 +10,9 @@ pub async fn check_token(
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    if request.uri().path() == "/status" || request.uri().path() == "/mcp-ui-proxy" {
+    // These routes handle their own auth via query params (iframes can't send headers)
+    let path = request.uri().path();
+    if path == "/status" || path == "/mcp-ui-proxy" || path == "/mcp-apps-proxy" {
         return Ok(next.run(request).await);
     }
     let secret_key = request

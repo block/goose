@@ -14,6 +14,7 @@ import { LoadingStatus } from './ui/Dot';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
+import { McpAppRenderer, isMcpApp } from './mcp_apps';
 import { isUIResource } from '@mcp-ui/client';
 import { Content, EmbeddedResource } from '../api';
 
@@ -24,6 +25,7 @@ interface ToolCallWithResponseProps {
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
   append?: (value: string) => void; // Function to append messages to the chat
+  sessionId?: string; // Session ID for MCP Apps message context
 }
 
 function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
@@ -44,6 +46,7 @@ export default function ToolCallWithResponse({
   notifications,
   isStreamingMessage,
   append,
+  sessionId,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
@@ -74,15 +77,52 @@ export default function ToolCallWithResponse({
           }}
         />
       </div>
+      {/* MCP Apps (SEP-1865) — Inline */}
+      {toolResponse?.toolResult &&
+        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+          const resourceContent = isEmbeddedResource(content)
+            ? { ...content, type: 'resource' as const }
+            : null;
+
+          if (resourceContent && isMcpApp(resourceContent.resource)) {
+            // Extract tool arguments from the tool call
+            const toolCallArgs = toolCall?.arguments as Record<string, unknown> | undefined;
+
+            // Extract tool result for notification
+            const toolResultData = toolResponse?.toolResult
+              ? {
+                  isError: (toolResponse.toolResult as Record<string, unknown>).status === 'error',
+                  content: getToolResultValue(toolResponse.toolResult) || [],
+                }
+              : undefined;
+
+            return (
+              <div key={`mcp-app-${index}`} className="mt-3">
+                <McpAppRenderer
+                  content={resourceContent}
+                  appendPromptToChat={append}
+                  sessionId={sessionId}
+                  toolCallId={toolRequest.id}
+                  toolArguments={toolCallArgs}
+                  toolResult={toolResultData}
+                  toolCancelled={isCancelledMessage}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
         getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
-          if (resourceContent && isUIResource(resourceContent)) {
+
+          if (resourceContent && isUIResource(resourceContent) && !isMcpApp(resourceContent.resource)) {
             return (
-              <div key={index} className="mt-3">
+              <div key={`mcp-ui-${index}`} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
@@ -92,9 +132,8 @@ export default function ToolCallWithResponse({
                 </div>
               </div>
             );
-          } else {
-            return null;
           }
+          return null;
         })}
     </>
   );

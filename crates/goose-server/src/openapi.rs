@@ -4,6 +4,12 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::mcp_apps::{
+    CspConfig, DeviceCapabilities, DisplayMode, HostCapabilities, HostContext, HostInfo,
+    McpUiInitializeParams, McpUiInitializeResult, MessageContent as McpAppsMessageContent,
+    MessageRole as McpAppsMessageRole, OpenLinkParams, Platform, SafeAreaInsets, Theme,
+    UIResourceMeta, UiMessageParams, Viewport,
+};
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
@@ -394,6 +400,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::start_tunnel,
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
+        super::routes::mcp_apps::get_host_context,
+        super::routes::mcp_apps::handle_ui_message,
+        super::routes::mcp_apps::mcp_apps_proxy,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -520,6 +529,27 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
+        // MCP Apps types
+        super::routes::mcp_apps::HostContextQuery,
+        super::routes::mcp_apps::UiMessageResponse,
+        super::routes::mcp_apps::McpAppsProxyQuery,
+        CspConfig,
+        UIResourceMeta,
+        Theme,
+        DisplayMode,
+        Platform,
+        Viewport,
+        DeviceCapabilities,
+        SafeAreaInsets,
+        HostContext,
+        HostCapabilities,
+        HostInfo,
+        McpUiInitializeParams,
+        McpUiInitializeResult,
+        OpenLinkParams,
+        McpAppsMessageContent,
+        McpAppsMessageRole,
+        UiMessageParams,
     ))
 )]
 pub struct ApiDoc;

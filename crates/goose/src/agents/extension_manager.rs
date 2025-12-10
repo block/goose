@@ -572,6 +572,39 @@ impl ExtensionManager {
         };
 
         let server_info = client.get_info().cloned();
+
+        // Check if the server supports resources - if so, list them during initialization
+        // This is important for MCP Apps (SEP-1865) to discover UI resources early
+        let supports_resources = server_info
+            .as_ref()
+            .and_then(|info| info.capabilities.resources.as_ref())
+            .is_some();
+
+        if supports_resources {
+            // List resources during initialization to discover available resources
+            // This helps with MCP Apps UI resource discovery
+            match client
+                .list_resources(None, CancellationToken::default())
+                .await
+            {
+                Ok(resources) => {
+                    tracing::debug!(
+                        extension = %sanitized_name,
+                        resource_count = resources.resources.len(),
+                        "Listed resources during extension initialization"
+                    );
+                }
+                Err(e) => {
+                    // Log but don't fail - resource listing is optional
+                    tracing::debug!(
+                        extension = %sanitized_name,
+                        error = %e,
+                        "Failed to list resources during initialization (non-fatal)"
+                    );
+                }
+            }
+        }
+
         self.add_client(
             sanitized_name,
             config,
@@ -688,7 +721,7 @@ impl ExtensionManager {
                                 output_schema: tool.output_schema,
                                 icons: None,
                                 title: None,
-                                meta: None,
+                                meta: tool.meta, // Preserve meta for MCP Apps ui/resourceUri
                             });
                         }
                     }
@@ -739,6 +772,13 @@ impl ExtensionManager {
             .iter()
             .find(|(key, _)| prefixed_name.starts_with(*key))
             .map(|(name, extension)| (name.clone(), extension.get_client()))
+    }
+
+    /// Get a specific tool by its prefixed name
+    /// Returns the tool with its metadata if found
+    pub async fn get_tool_by_name(&self, prefixed_name: &str) -> Option<Tool> {
+        let tools = self.get_prefixed_tools(None).await.ok()?;
+        tools.into_iter().find(|t| t.name.as_ref() == prefixed_name)
     }
 
     // Function that gets executed for read_resource tool
@@ -957,6 +997,8 @@ impl ExtensionManager {
         tool_call: CallToolRequestParam,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
+        use crate::agents::mcp_client::get_ui_resource_uri;
+
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) =
             self.get_client_for_tool(&tool_call.name)
@@ -989,22 +1031,65 @@ impl ExtensionManager {
             }
         }
 
+        // Check if this tool has a ui/resourceUri in its metadata (SEP-1865 MCP Apps)
+        let ui_resource_uri = self
+            .get_tool_by_name(&tool_call.name)
+            .await
+            .and_then(|tool| get_ui_resource_uri(&tool));
+
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
+        let cancel_token_for_resource = cancellation_token.clone();
 
         let fut = async move {
             let client_guard = client.lock().await;
-            client_guard
+            let tool_result = client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content)
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
                     _ => {
                         ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
                     }
-                })
+                })?;
+
+            let mut content = tool_result.content;
+
+            // SEP-1865: If the tool has a ui/resourceUri, fetch the UI resource and append it
+            if let Some(uri) = ui_resource_uri {
+                tracing::info!(
+                    uri = %uri,
+                    "Tool has ui/resourceUri, fetching UI resource"
+                );
+
+                match client_guard
+                    .read_resource(&uri, cancel_token_for_resource)
+                    .await
+                {
+                    Ok(read_result) => {
+                        for resource_content in read_result.contents {
+                            // Convert ResourceContents to Content (embedded resource)
+                            let embedded = Content::resource(resource_content);
+                            content.push(embedded);
+                        }
+                        tracing::info!(
+                            uri = %uri,
+                            "Successfully fetched and appended UI resource"
+                        );
+                    }
+                    Err(e) => {
+                        // Log the error but don't fail the tool call
+                        tracing::warn!(
+                            uri = %uri,
+                            error = %e,
+                            "Failed to fetch UI resource for tool, continuing without it"
+                        );
+                    }
+                }
+            }
+
+            Ok(content)
         };
 
         Ok(ToolCallResult {

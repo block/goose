@@ -1062,6 +1062,181 @@
         }
       }
     },
+    "/mcp-apps-proxy": {
+      "get": {
+        "tags": [
+          "mcp-apps"
+        ],
+        "summary": "MCP Apps proxy endpoint with dynamic CSP",
+        "description": "This endpoint serves the MCP Apps proxy HTML with CSP headers\ndynamically generated based on the resource's metadata.\nThe CSP is constructed from the connect_domains and resource_domains\nparameters, which should come from the MCP server's resource _meta.csp.",
+        "operationId": "mcp_apps_proxy",
+        "parameters": [
+          {
+            "name": "secret",
+            "in": "query",
+            "description": "Secret key for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connect_domains",
+            "in": "query",
+            "description": "Comma-separated connect domains for CSP",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "resource_domains",
+            "in": "query",
+            "description": "Comma-separated resource domains for CSP",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP Apps proxy HTML page"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing secret"
+          }
+        }
+      }
+    },
+    "/mcp-apps/context": {
+      "get": {
+        "tags": [
+          "mcp-apps"
+        ],
+        "summary": "Get the MCP Apps host context for UI iframe initialization",
+        "description": "This endpoint returns the host context that UI iframes need during\ntheir initialization phase. The context includes theme, viewport,\nplatform info, and host capabilities.",
+        "operationId": "get_host_context",
+        "parameters": [
+          {
+            "name": "theme",
+            "in": "query",
+            "description": "Theme preference (light or dark)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "display_mode",
+            "in": "query",
+            "description": "Display mode (inline, fullscreen, pip)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "viewport_width",
+            "in": "query",
+            "description": "Viewport width in pixels",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "viewport_height",
+            "in": "query",
+            "description": "Viewport height in pixels",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "User locale (BCP 47, e.g., 'en-US')",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "time_zone",
+            "in": "query",
+            "description": "User timezone (IANA, e.g., 'America/New_York')",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP Apps host context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpUiInitializeResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp-apps/message": {
+      "post": {
+        "tags": [
+          "mcp-apps"
+        ],
+        "summary": "Handle ui/message request from UI iframe",
+        "description": "This endpoint receives messages from UI iframes that want to add\ncontent to the chat conversation. The message is added to the\ncurrent session's conversation.",
+        "operationId": "handle_ui_message",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UiMessageParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid message format"
+          },
+          "500": {
+            "description": "Failed to add message"
+          }
+        }
+      }
+    },
     "/mcp-ui-proxy": {
       "get": {
         "tags": [
@@ -2686,6 +2861,26 @@
           }
         }
       },
+      "CspConfig": {
+        "type": "object",
+        "description": "Content Security Policy configuration for UI resources.\n\nServers declare which external origins their UI needs to access.\nHosts use this to enforce appropriate CSP headers.",
+        "properties": {
+          "connectDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Origins for network requests (fetch/XHR/WebSocket).\nMaps to CSP `connect-src` directive."
+          },
+          "resourceDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Origins for static resources (images, scripts, stylesheets, fonts).\nWildcard subdomains supported: `https://*.example.com`\nMaps to CSP `img-src`, `script-src`, `style-src`, `font-src` directives."
+          }
+        }
+      },
       "DeclarativeProviderConfig": {
         "type": "object",
         "required": [
@@ -2773,6 +2968,29 @@
             "type": "string"
           }
         }
+      },
+      "DeviceCapabilities": {
+        "type": "object",
+        "description": "Device capabilities.",
+        "properties": {
+          "hover": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "touch": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "DisplayMode": {
+        "type": "string",
+        "description": "How the UI is currently displayed.",
+        "enum": [
+          "inline",
+          "fullscreen",
+          "pip"
+        ]
       },
       "EditMessageRequest": {
         "type": "object",
@@ -3313,6 +3531,161 @@
           }
         }
       },
+      "HostCapabilities": {
+        "type": "object",
+        "description": "Capabilities that the host supports for MCP Apps.",
+        "properties": {
+          "message": {
+            "type": "boolean",
+            "description": "Whether the host supports the `ui/message` request.",
+            "nullable": true
+          },
+          "mimeTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MIME types the host can render."
+          },
+          "openLink": {
+            "type": "boolean",
+            "description": "Whether the host supports the `ui/open-link` request.",
+            "nullable": true
+          }
+        }
+      },
+      "HostContext": {
+        "type": "object",
+        "description": "Host context provided to UI iframes during initialization.\n\nAll fields are optional. Hosts SHOULD provide relevant context.\nGuest UIs SHOULD handle missing fields gracefully.",
+        "properties": {
+          "availableDisplayModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisplayMode"
+            },
+            "description": "Display modes the host supports."
+          },
+          "deviceCapabilities": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeviceCapabilities"
+              }
+            ],
+            "nullable": true
+          },
+          "displayMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DisplayMode"
+              }
+            ],
+            "nullable": true
+          },
+          "locale": {
+            "type": "string",
+            "description": "User's language/region preference (BCP 47, e.g., \"en-US\").",
+            "nullable": true
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Platform"
+              }
+            ],
+            "nullable": true
+          },
+          "safeAreaInsets": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeAreaInsets"
+              }
+            ],
+            "nullable": true
+          },
+          "theme": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Theme"
+              }
+            ],
+            "nullable": true
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "User's timezone (IANA, e.g., \"America/New_York\").",
+            "nullable": true
+          },
+          "userAgent": {
+            "type": "string",
+            "description": "Host application identifier.",
+            "nullable": true
+          },
+          "viewport": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Viewport"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "HostContextQuery": {
+        "type": "object",
+        "description": "Query parameters for host context request",
+        "properties": {
+          "display_mode": {
+            "type": "string",
+            "description": "Display mode (inline, fullscreen, pip)",
+            "nullable": true
+          },
+          "locale": {
+            "type": "string",
+            "description": "User locale (e.g., \"en-US\")",
+            "nullable": true
+          },
+          "theme": {
+            "type": "string",
+            "description": "Theme preference (light or dark)",
+            "nullable": true
+          },
+          "time_zone": {
+            "type": "string",
+            "description": "User timezone (e.g., \"America/New_York\")",
+            "nullable": true
+          },
+          "viewport_height": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Viewport height",
+            "nullable": true,
+            "minimum": 0
+          },
+          "viewport_width": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Viewport width",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
+      },
+      "HostInfo": {
+        "type": "object",
+        "description": "Host information provided during initialization.",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -3449,6 +3822,77 @@
           }
         }
       },
+      "McpAppsProxyQuery": {
+        "type": "object",
+        "description": "Query parameters for MCP Apps proxy request",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "connect_domains": {
+            "type": "string",
+            "description": "Comma-separated list of connect domains for CSP",
+            "nullable": true
+          },
+          "resource_domains": {
+            "type": "string",
+            "description": "Comma-separated list of resource domains for CSP",
+            "nullable": true
+          },
+          "secret": {
+            "type": "string",
+            "description": "Secret key for authentication"
+          }
+        }
+      },
+      "McpUiInitializeParams": {
+        "type": "object",
+        "description": "Initialize request from UI to Host.",
+        "required": [
+          "protocolVersion"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "McpUiInitializeResult": {
+        "type": "object",
+        "description": "Initialize response from Host to UI.",
+        "required": [
+          "protocolVersion"
+        ],
+        "properties": {
+          "hostCapabilities": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HostCapabilities"
+              }
+            ],
+            "nullable": true
+          },
+          "hostContext": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HostContext"
+              }
+            ],
+            "nullable": true
+          },
+          "hostInfo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HostInfo"
+              }
+            ],
+            "nullable": true
+          },
+          "protocolVersion": {
+            "type": "string"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "A message to or from an LLM",
@@ -3484,217 +3928,25 @@
       "MessageContent": {
         "oneOf": [
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TextContent"
+            "type": "object",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "text"
-                    ]
-                  }
-                }
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
               }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ImageContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "image"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ToolRequest"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "toolRequest"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ToolResponse"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "toolResponse"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ToolConfirmationRequest"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "toolConfirmationRequest"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActionRequired"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "actionRequired"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/FrontendToolRequest"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "frontendToolRequest"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ThinkingContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "thinking"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RedactedThinkingContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "redactedThinking"
-                    ]
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SystemNotificationContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "systemNotification"
-                    ]
-                  }
-                }
-              }
-            ]
+            }
           }
         ],
-        "description": "Content passed inside a message, which can be both simple content and tool content",
+        "description": "Message content type for ui/message.",
         "discriminator": {
           "propertyName": "type"
         }
@@ -3862,6 +4114,14 @@
           }
         }
       },
+      "MessageRole": {
+        "type": "string",
+        "description": "Message role for ui/message.",
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      },
       "ModelConfig": {
         "type": "object",
         "required": [
@@ -3941,6 +4201,18 @@
           }
         }
       },
+      "OpenLinkParams": {
+        "type": "object",
+        "description": "Request to open an external URL (UI → Host).",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -3970,6 +4242,15 @@
           "always_allow",
           "ask_before",
           "never_allow"
+        ]
+      },
+      "Platform": {
+        "type": "string",
+        "description": "Platform type for responsive design.",
+        "enum": [
+          "web",
+          "desktop",
+          "mobile"
         ]
       },
       "PrincipalType": {
@@ -4507,6 +4788,38 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "SafeAreaInsets": {
+        "type": "object",
+        "description": "Safe area boundaries in pixels (for notched displays, etc.).",
+        "required": [
+          "top",
+          "right",
+          "bottom",
+          "left"
+        ],
+        "properties": {
+          "bottom": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "left": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "right": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "top": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -5068,6 +5381,14 @@
           }
         }
       },
+      "Theme": {
+        "type": "string",
+        "description": "Color theme preference.",
+        "enum": [
+          "light",
+          "dark"
+        ]
+      },
       "ThinkingContent": {
         "type": "object",
         "required": [
@@ -5322,6 +5643,67 @@
           "disabled"
         ]
       },
+      "UIResourceMeta": {
+        "type": "object",
+        "description": "UI resource metadata for security and rendering configuration.",
+        "properties": {
+          "csp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CspConfig"
+              }
+            ],
+            "nullable": true
+          },
+          "domain": {
+            "type": "string",
+            "description": "Dedicated origin for the widget's sandbox.\nUseful when widgets need dedicated origins for API key allowlists\nor cross-origin isolation.",
+            "nullable": true
+          },
+          "prefersBorder": {
+            "type": "boolean",
+            "description": "Visual boundary preference.\n`true` requests a visible border (host decides styling).",
+            "nullable": true
+          }
+        }
+      },
+      "UiMessageParams": {
+        "type": "object",
+        "description": "Request to send a message to the chat (UI → Host).",
+        "required": [
+          "sessionId",
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/MessageContent"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MessageRole"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The session ID to add the message to"
+          }
+        }
+      },
+      "UiMessageResponse": {
+        "type": "object",
+        "description": "Response for ui/message request",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "UpdateCustomProviderRequest": {
         "type": "object",
         "required": [
@@ -5481,6 +5863,38 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "Viewport": {
+        "type": "object",
+        "description": "Viewport dimensions available to the UI.",
+        "required": [
+          "width",
+          "height"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxHeight": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "maxWidth": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       }
