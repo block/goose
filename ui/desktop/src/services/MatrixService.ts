@@ -2804,6 +2804,7 @@ export class MatrixService extends EventEmitter {
   /**
    * Find parent spaces of a room and invite user to them
    * This ensures users can see the full space context when invited to rooms
+   * and are properly tracked at the space level
    */
   private async inviteToParentSpaces(roomId: string, userId: string): Promise<void> {
     if (!this.client) return;
@@ -2851,6 +2852,21 @@ export class MatrixService extends EventEmitter {
               await this.client.invite(space.roomId, userId);
               invitationsSent++;
               console.log(`✅ Successfully invited user to parent space: ${space.name} (${space.roomId})`);
+              
+              // CRITICAL: For proper space-level tracking, we need to ensure the user
+              // understands they should accept the space invite to be properly tracked.
+              // Matrix treats spaces and rooms as separate entities, so both invites are necessary.
+              // The space invite allows the user to:
+              // 1. See the space hierarchy and structure
+              // 2. Be listed as a space member for administrative purposes
+              // 3. Receive space-level notifications and updates
+              // 4. Access space-level settings and information
+              
+              console.log(`🌌 📋 Space membership tracking: User ${userId} will receive separate invites for:`);
+              console.log(`   • Room: ${roomId} (direct access to messages)`);
+              console.log(`   • Space: ${space.roomId} (space-level visibility and tracking)`);
+              console.log(`🌌 💡 Both invites should be accepted for full functionality and proper tracking`);
+              
             } catch (spaceInviteError) {
               console.warn(`⚠️ Failed to invite user to parent space ${space.name}:`, spaceInviteError);
               // Don't throw - we want to continue with other spaces
@@ -2864,6 +2880,7 @@ export class MatrixService extends EventEmitter {
       
       if (parentSpacesFound > 0) {
         console.log(`🌌 ✅ Parent space check complete: found ${parentSpacesFound} parent spaces, sent ${invitationsSent} invitations`);
+        console.log(`🌌 📊 For proper space-level tracking, users should accept both room and space invites`);
       } else {
         console.log('🌌 No parent spaces found for room:', roomId);
       }
