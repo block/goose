@@ -214,7 +214,8 @@ const ChannelCard: React.FC<{
 const SpaceChildCard: React.FC<{
   child: SpaceChild;
   onChildClick: (child: SpaceChild) => void;
-}> = ({ child, onChildClick }) => {
+  onInviteToRoom?: (child: SpaceChild) => void;
+}> = ({ child, onChildClick, onInviteToRoom }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -262,8 +263,25 @@ const SpaceChildCard: React.FC<{
         </div>
       )}
 
-      {/* Type indicator - top right */}
+      {/* Action buttons and Type indicator - top right */}
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+        {/* Invite button - shown on hover, only for rooms (not spaces) */}
+        {!child.isSpace && onInviteToRoom && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onInviteToRoom(child);
+            }}
+            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-colors"
+            title="Invite users to room"
+          >
+            <UserPlus className="w-3 h-3" />
+          </motion.button>
+        )}
+        
+        {/* Type indicator */}
         <div className={`p-1.5 rounded-full backdrop-blur-sm ${
           child.isPublic 
             ? 'bg-green-500/90 text-white' 
@@ -1298,21 +1316,49 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
     setShowInviteModal(true);
   };
 
+  const handleInviteToRoom = (child: SpaceChild) => {
+    // Create a temporary channel object for the room
+    const roomChannel: Channel = {
+      roomId: child.roomId,
+      name: child.name || 'Unnamed Room',
+      topic: child.topic,
+      isPublic: child.isPublic || false,
+      memberCount: child.memberCount || 0,
+      avatarUrl: convertMxcToHttp(child.avatarUrl),
+      coverPhotoUrl: convertMxcToHttp(child.avatarUrl),
+      isFavorite: false,
+    };
+    
+    setInvitingChannel(roomChannel);
+    setShowInviteModal(true);
+  };
+
   const handleSendInvite = async (userId: string) => {
     if (!invitingChannel) return;
 
     try {
       console.log('📨 Sending invite to user:', { userId, channelId: invitingChannel.roomId, channelName: invitingChannel.name });
       
-      // Use inviteToSpace for spaces (which will also invite to child rooms automatically)
-      await inviteToSpace(invitingChannel.roomId, userId);
+      // Check if we're inviting to a space or a room
+      const isSpace = channels.some(channel => channel.roomId === invitingChannel.roomId);
       
-      toastSuccess({
-        title: 'Invite Sent',
-        msg: `Successfully invited user to space "${invitingChannel.name}".`
-      });
+      if (isSpace) {
+        // Use inviteToSpace for spaces
+        await inviteToSpace(invitingChannel.roomId, userId);
+        toastSuccess({
+          title: 'Invite Sent',
+          msg: `Successfully invited user to space "${invitingChannel.name}".`
+        });
+      } else {
+        // Use inviteToRoom for individual rooms (which will automatically invite to parent spaces)
+        await inviteToRoom(invitingChannel.roomId, userId);
+        toastSuccess({
+          title: 'Invite Sent',
+          msg: `Successfully invited user to room "${invitingChannel.name}". They will also be invited to the parent space.`
+        });
+      }
       
-      console.log('✅ Successfully sent space invite');
+      console.log('✅ Successfully sent invite');
     } catch (error) {
       console.error('❌ Failed to send invite:', error);
       toastError({
@@ -1493,6 +1539,7 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
                       key={child.roomId}
                       child={child}
                       onChildClick={handleSpaceChildClick}
+                      onInviteToRoom={handleInviteToRoom}
                     />
                   ))}
                   {/* Empty tiles for creating new rooms in this space */}
@@ -1591,7 +1638,10 @@ const ChannelsView: React.FC<ChannelsViewProps> = ({ onClose }) => {
 
               <div className="mb-4">
                 <p className="text-sm text-text-muted">
-                  Invite users to this space. They will automatically get access to all rooms within the space.
+                  {channels.some(channel => channel.roomId === invitingChannel.roomId)
+                    ? "Invite users to this space. They will automatically get access to all rooms within the space."
+                    : "Invite users to this room. They will also be automatically invited to the parent space."
+                  }
                 </p>
               </div>
 
