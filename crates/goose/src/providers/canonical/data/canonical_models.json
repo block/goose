@@ -844,6 +844,398 @@
     }
   },
   {
+    "id": "mistralai/codestral",
+    "name": "Mistral: Codestral 2508",
+    "context_length": 256000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 9e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/devstral-medium",
+    "name": "Mistral: Devstral Medium",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 4e-7,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/devstral-small",
+    "name": "Mistral: Devstral Small 1.1",
+    "context_length": 128000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 7e-8,
+      "completion": 2.8e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/ministral-14b",
+    "name": "Mistral: Ministral 3 14B 2512",
+    "context_length": 262144,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 2e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/ministral-3b",
+    "name": "Mistral: Ministral 3B",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 4e-8,
+      "completion": 4e-8,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/ministral-8b",
+    "name": "Mistral: Ministral 8B",
+    "context_length": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 1e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-7b-instruct",
+    "name": "Mistral: Mistral 7B Instruct",
+    "context_length": 32768,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2.8e-8,
+      "completion": 5.4e-8,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-large",
+    "name": "Mistral Large",
+    "context_length": 128000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-medium-3",
+    "name": "Mistral: Mistral Medium 3",
+    "context_length": 131072,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 4e-7,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-medium-3.1",
+    "name": "Mistral: Mistral Medium 3.1",
+    "context_length": 131072,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 4e-7,
+      "completion": 2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-nemo",
+    "name": "Mistral: Mistral Nemo",
+    "context_length": 131072,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-8,
+      "completion": 4e-8,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-saba",
+    "name": "Mistral: Saba",
+    "context_length": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 6e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-small-24b-instruct",
+    "name": "Mistral: Mistral Small 3",
+    "context_length": 32768,
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-8,
+      "completion": 1.1e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-small-3.1-24b-instruct",
+    "name": "Mistral: Mistral Small 3.1 24B",
+    "context_length": 131072,
+    "max_completion_tokens": 131072,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-8,
+      "completion": 1.1e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-small-3.2-24b-instruct",
+    "name": "Mistral: Mistral Small 3.2 24B",
+    "context_length": 131072,
+    "max_completion_tokens": 131072,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 6e-8,
+      "completion": 1.8e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-tiny",
+    "name": "Mistral Tiny",
+    "context_length": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2.5e-7,
+      "completion": 2.5e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mixtral-8x22b-instruct",
+    "name": "Mistral: Mixtral 8x22B Instruct",
+    "context_length": 65536,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mixtral-8x7b-instruct",
+    "name": "Mistral: Mixtral 8x7B Instruct",
+    "context_length": 32768,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 5.4e-7,
+      "completion": 5.4e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/pixtral-12b",
+    "name": "Mistral: Pixtral 12B",
+    "context_length": 32768,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 1e-7,
+      "request": 0.0,
+      "image": 0.0001445
+    }
+  },
+  {
+    "id": "mistralai/pixtral-large",
+    "name": "Mistral: Pixtral Large 2411",
+    "context_length": 131072,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6,
+      "request": 0.0,
+      "image": 0.002888
+    }
+  },
+  {
+    "id": "mistralai/voxtral-small-24b",
+    "name": "Mistral: Voxtral Small 24B 2507",
+    "context_length": 32000,
+    "input_modalities": [
+      "text",
+      "audio"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 3e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
     "id": "openai/chatgpt-4o",
     "name": "OpenAI: ChatGPT-4o",
     "context_length": 128000,
