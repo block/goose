@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.15.0"
+    "version": "1.16.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -2427,6 +2427,50 @@
               "toolName": {
                 "type": "string"
               }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "requested_schema",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitation"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requested_schema": {}
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "user_data",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitationResponse"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "user_data": {}
             }
           }
         ],

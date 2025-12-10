@@ -56,10 +56,9 @@ goose also supports special "pass-through" providers that work with existing CLI
 CLI providers are cost-effective alternatives that use your existing subscriptions. They work differently from API providers as they execute CLI commands and integrate with the tools' native capabilities. See the [CLI Providers guide](/docs/guides/cli-providers) for detailed setup instructions.
 :::
 
-   
-## Configure Provider
+## Configure Provider and Model
 
-To configure your chosen provider or see available options, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
+To configure your chosen provider, see available options, or select a model, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -128,72 +127,101 @@ To configure your chosen provider or see available options, visit the `Models` t
   <TabItem value="cli" label="goose CLI">
     1. In your terminal, run the following command: 
 
-    ```sh
-    goose configure
-    ```
+       ```sh
+       goose configure
+       ```
 
-    2. Select `Configure Providers` from the menu and press Enter.
+    2. Select `Configure Providers` from the menu and press `Enter`.
 
-    ```
-   ┌   goose-configure 
-   │
-   ◆  What would you like to configure?
-   │  ● Configure Providers (Change provider or update credentials)
-   │  ○ Add Extension 
-   │  ○ Toggle Extensions 
-   │  ○ Remove Extension 
-   │  ○ goose Settings 
-   └  
-   ```
-   3. Choose a model provider and press Enter.
+       ```
+       ┌   goose-configure 
+       │
+       ◆  What would you like to configure?
+       // highlight-start
+       │  ● Configure Providers (Change provider or update credentials)
+       // highlight-end
+       │  ○ Custom Providers 
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       │  ○ goose Settings 
+       └  
+       ```
+    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◆  Which model provider should we use?
-   │  ● Anthropic (Claude and other models from Anthropic)
-   │  ○ Azure OpenAI 
-   │  ○ Amazon Bedrock 
-   │  ○ Claude Code 
-   │  ○ Databricks 
-   │  ○ ...
-   └  
-   ```
-   4. Enter your API key (and any other configuration details) when prompted.
+       ```
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Configure Providers 
+       │
+       ◆  Which model provider should we use?
+       │  ○ Amazon Bedrock 
+       │  ○ Amazon SageMaker TGI 
+       // highlight-start
+       │  ● Anthropic (Claude and other models from Anthropic)
+       // highlight-end
+       │  ○ Azure OpenAI 
+       │  ○ Claude Code CLI
+       │  ○ ...
+       └  
+       ```
+    4. Enter your API key (and any other configuration details) when prompted.
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◇  Which model provider should we use?
-   │  Anthropic 
-   │
-   ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
-   │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-   └  
-    ```
-    5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key. 
+       ```
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Configure Providers 
+       │
+       ◇  Which model provider should we use?
+       │  Anthropic 
+       │
+       ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
+       // highlight-start
+       │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+       // highlight-end
+       └  
+       ```
+       
+       If you're just changing models, skip any prompts to update the provider configuration.
 
-    ```
-    ◇  Enter new value for ANTHROPIC_HOST
-    │  https://api.anthropic.com (default)
-    ```
-    6. Enter the model you want to use or you can use the default one by hitting the `Enter` key. 
-    ```
-    │
-    ◇  Model fetch complete
-    │
-    ◇  Enter a model from that provider:
-    │  claude-sonnet-4-0 (default)
-    │
-    ◓  Checking your configuration...
-    └  Configuration saved successfully
+    5. Enter your desired `ANTHROPIC_HOST` or press `Enter` to use the default. 
+
+       ```
+       ◆  Provider Anthropic requires ANTHROPIC_HOST, please enter a value
+       // highlight-start
+       │  https://api.anthropic.com (default)
+       // highlight-end
+       ```
+    6. Choose the model you want to use. Depending on the provider, you can:
+       - Select the model from a list
+       - Search for the model by name
+       - Enter the model name directly
+       
+       ```
+       │
+       ◇  Model fetch complete
+       │
+       ◇  Select a model:
+       // highlight-start
+       │  claude-sonnet-4-5 (default)
+       // highlight-end
+       │
+       ◒  Checking your configuration...
+       └  Configuration saved successfully
+       ```
+  
+       This change takes effect the next time you start a session.
+
+  :::tip
+  Set the model for an individual session using the [`run` command](/docs/guides/goose-cli-commands#run-options):
+
+  ```bash
+  goose run --model claude-sonnet-4-0 -t "initial prompt"
   ```
+  :::
+
   </TabItem>
 </Tabs>
 
