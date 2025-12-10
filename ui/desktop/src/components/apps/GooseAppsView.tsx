@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Play, Plus, Trash, Pencil } from 'lucide-react';
-import { deleteApp, GooseApp, listApps } from '../../api';
+import { createApp, deleteApp, GooseApp, listApps, resumeAgent } from '../../api';
 import GooseAppEditor from './GooseAppEditor';
+import { createSession } from '../../sessions';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -40,15 +41,51 @@ export default function GooseAppsView() {
   const [error, setError] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<GooseApp | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [appsSessionId, setAppsSessionId] = useState<string|null>(null);
+
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const session = await createSession({});
+        await resumeAgent({
+          body: {
+            session_id: session.id,
+            load_model_and_extensions: true,
+          },
+          throwOnError: true,
+        });
+        setAppsSessionId(session.id);
+      } catch (err) {
+        console.error('Failed to create apps session:', err);
+        setError('Failed to initialize apps session');
+      }
+    };
+
+    if (!appsSessionId) {
+      initSession();
+    }
+  }, [appsSessionId]);
 
   const loadApps = useCallback(async () => {
     try {
-      const response = await listApps({ throwOnError: true });
-      setApps(response.data?.apps || []);
+      const response = await listApps({ throwOnError: true, query: { session_id: appsSessionId } });
+      const apps = response.data?.apps || [];
+      if (apps.length === 0) {
+        await createApp({
+          throwOnError: true,
+          body: {
+            app: {
+              name: '',
+            },
+          },
+        });
+        return await loadApps();
+      }
+      setApps(apps);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load apps');
     }
-  }, []);
+  }, [appsSessionId]);
 
   useEffect(() => {
     loadApps();
@@ -110,7 +147,7 @@ export default function GooseAppsView() {
               <h1 className="text-4xl font-light">Apps</h1>
             </div>
             <p className="text-sm text-text-muted mb-6">
-              Self-contained JavaScript applications that run within Goose.
+              Self-contained Html applications that run within Goose.
             </p>
           </div>
         </div>

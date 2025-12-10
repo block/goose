@@ -355,8 +355,9 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 }
             }
             MessageContent::ToolResponse(res) => {
-                if let Ok(contents) = &res.tool_result {
-                    let text_items: Vec<String> = contents
+                if let Ok(result) = &res.tool_result {
+                    let text_items: Vec<String> = result
+                        .content
                         .iter()
                         .filter_map(|content| {
                             content.as_text().map(|text_str| text_str.text.clone())
@@ -514,7 +515,12 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "tool_0",
-                Ok(vec![RawContent::text("hello, world").no_annotation()]),
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![RawContent::text("hello, world").no_annotation()],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             ),
         ];
 
@@ -547,9 +553,12 @@ mod tests {
             ));
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
-                Ok(vec![
-                    RawContent::text(format!("response{}", i)).no_annotation(),
-                ]),
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![RawContent::text(format!("response{}", i)).no_annotation()],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             ));
         }
 

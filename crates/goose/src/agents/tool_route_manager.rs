@@ -56,7 +56,12 @@ impl ToolRouteManager {
         let selector = self.router_tool_selector.lock().await.clone();
         match selector.as_ref() {
             Some(selector) => match selector.select_tools(arguments).await {
-                Ok(tools) => Ok(ToolCallResult::from(Ok(tools))),
+                Ok(content) => Ok(ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+                    content,
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }))),
                 Err(e) => Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     format!("Failed to select tools: {}", e),

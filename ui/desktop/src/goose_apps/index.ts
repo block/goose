@@ -1,49 +1,63 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
-import { GooseApp } from '../api';
-import fs from 'fs';
+import { GooseApp, resumeAgent, startAgent } from '../api';
+import { handleMCPRequest } from './mcpRequests';
+import { injectMCPClient } from './injectMcpClient';
+import { Client } from '../api/client';
 
-export function getContainerHtml(gapp: GooseApp): string {
-  const jsImplementation = gapp.jsImplementation!;
-  const appName = gapp.name;
-
-  const assetsPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'src/goose_apps/assets')
-    : path.join(__dirname, '../../src/goose_apps/assets');
-
-  console.log('__dirname', __dirname);
-
-  let containerHtml = fs.readFileSync(path.join(assetsPath, 'container.html'), 'utf-8');
-  const gooseWidgetJs = fs.readFileSync(path.join(assetsPath, 'goose-widget.js'), 'utf-8');
-  const containerJs = fs.readFileSync(path.join(assetsPath, 'container.js'), 'utf-8');
-
-  const asScript = (src: string) => `<script>\n${src}\n</script>`;
-
-  const classMatch = jsImplementation.match(/class\s+(\w+)\s+extends\s+GooseWidget/);
-  if (!classMatch) {
-    throw new Error('No class extending GooseWidget found in implementation');
-  }
-  const widgetClassName = classMatch[1];
-
-  const vars: [string, string][] = [
-    ['TITLE', appName],
-    ['GOOSE_WIDGET_JS', asScript(gooseWidgetJs)],
-    ['CONTAINER_JS', asScript(containerJs)],
-    [
-      'WIDGET_JS',
-      asScript(jsImplementation + '\nwindow.' + widgetClassName + ' = ' + widgetClassName + ';'),
-    ],
-    ['WIDGET_CLASS_NAME', widgetClassName],
-  ];
-
-  for (const [key, val] of vars) {
-    containerHtml = containerHtml.replace(`{{ ${key} }}`, val);
-  }
-
-  return containerHtml;
+export interface InlineAppContext {
+  sessionId: string;
+  extensionName: string;
 }
 
-export async function launchGooseApp(gapp: GooseApp): Promise<void> {
+const appContexts = new Map<number, { gapp: GooseApp; html: string, sessionId: string }>();
+
+let handlersRegistered = false;
+export function registerMCPAppHandlers(goosedClients :Map<number, Client>) {
+  if (handlersRegistered) return;
+
+  ipcMain.handle('get-app-html', async (event) => {
+    const windowId = event.sender.id;
+    const context = appContexts.get(windowId);
+    if (!context) {
+      throw new Error('App context not found');
+    }
+    return context.html;
+  });
+
+  ipcMain.handle('mcp-request', async (event, msg, inlineContext?: InlineAppContext) => {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      throw new Error('Window not found');
+    }
+
+    const client = goosedClients.get(windowId);
+    if (!client) {
+      throw new Error('Client not found for window');
+    }
+
+    if (inlineContext) {
+      const gapp: GooseApp = {
+        name: inlineContext.extensionName,
+        html: '',
+        width: null,
+        height: null,
+        resizable: true,
+        prd: '',
+        description: null,
+      };
+      return handleMCPRequest(msg, gapp, inlineContext.sessionId, client);
+    } else {
+      const context = appContexts.get(windowId);
+      if (!context) {
+        throw Error('Context not found for windowId');
+      }
+      return handleMCPRequest(msg, context.gapp, context.sessionId, client);
+    }
+  });
+}
+
+export async function launchGooseApp(gapp: GooseApp, client:Client): Promise<BrowserWindow> {
   const desiredContentWidth = gapp.width || 800;
   const desiredContentHeight = gapp.height || 600;
 
@@ -56,19 +70,52 @@ export async function launchGooseApp(gapp: GooseApp): Promise<void> {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
-  const [currentContentWidth, currentContentHeight] = appWindow.getContentSize();
-  const [currentWindowWidth, currentWindowHeight] = appWindow.getSize();
+  const appHtmlWithMCP = injectMCPClient(gapp);
 
-  const frameWidth = currentWindowWidth - currentContentWidth;
-  const frameHeight = currentWindowHeight - currentContentHeight;
+  const startResponse = await startAgent({
+    client,
+    body: {
+      working_dir: app.getPath('home'),
+    },
+    throwOnError: true,
+  });
 
-  appWindow.setSize(desiredContentWidth + frameWidth, desiredContentHeight + frameHeight);
+  const sessionId = startResponse.data.id;
 
-  const html = getContainerHtml(gapp);
-  await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  await resumeAgent({
+    client,
+    body: {
+      session_id: sessionId,
+      load_model_and_extensions: true,
+    },
+    throwOnError: true,
+  });
+
+  appContexts.set(appWindow.webContents.id, {
+    gapp,
+    html: appHtmlWithMCP,
+    sessionId,
+  });
+
+  appContexts.set(appWindow.webContents.id, { gapp, html: appHtmlWithMCP, sessionId });
+
+  appWindow.on('close', () => {
+    appContexts.delete(appWindow.webContents.id);
+  });
+
+  const containerPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'goose_apps/container.html')
+    : path.join(__dirname, '../../src/goose_apps/container.html');
+
+  await appWindow.loadFile(containerPath);
+  appWindow.setTitle(gapp.name);
+  appWindow.setContentSize(gapp.width || 800, gapp.height || 600);
 
   appWindow.show();
+
+  return appWindow;
 }

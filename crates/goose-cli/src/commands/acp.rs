@@ -11,7 +11,7 @@ use goose::mcp_utils::ToolResult;
 use goose::providers::create;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use rmcp::model::{Content, RawContent, ResourceContents, Role};
+use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::Arc;
@@ -74,8 +74,8 @@ fn extract_tool_locations(
                 .and_then(|c| c.as_str());
 
             // Extract line numbers from the response content
-            if let Ok(content_items) = &tool_response.tool_result {
-                for content in content_items {
+            if let Ok(result) = &tool_response.tool_result {
+                for content in &result.content {
                     if let RawContent::Text(text_content) = &content.raw {
                         let text = &text_content.text;
 
@@ -491,9 +491,10 @@ impl GooseAcpAgent {
 }
 
 /// Build tool call content from tool result
-fn build_tool_call_content(tool_result: &ToolResult<Vec<Content>>) -> Vec<ToolCallContent> {
+fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<ToolCallContent> {
     match tool_result {
-        Ok(content_items) => content_items
+        Ok(result) => result
+            .content
             .iter()
             .filter_map(|content| match &content.raw {
                 RawContent::Text(val) => Some(ToolCallContent::Content {

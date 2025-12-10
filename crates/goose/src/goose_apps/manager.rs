@@ -9,11 +9,11 @@ pub struct GooseAppsManager {
 }
 
 impl GooseAppsManager {
+    const APP_EXTENSION: &'static str = "html";
+
     pub fn new() -> Result<Self> {
         let config_dir = Paths::config_dir();
-
         let apps_dir = config_dir.join("apps");
-
         Ok(Self { apps_dir })
     }
 
@@ -28,7 +28,7 @@ impl GooseAppsManager {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().and_then(|s| s.to_str()) == Some("gapp") {
+            if path.extension().and_then(|s| s.to_str()) == Some(Self::APP_EXTENSION) {
                 match GooseApp::from_file(&path) {
                     Ok(app) => apps.push(app),
                     Err(e) => eprintln!("Failed to load app from {:?}: {}", path, e),
@@ -40,7 +40,7 @@ impl GooseAppsManager {
     }
 
     pub fn get_app(&self, name: &str) -> Result<Option<GooseApp>> {
-        let app_path = self.apps_dir.join(format!("{}.gapp", name));
+        let app_path = self.app_path(name);
 
         if !app_path.exists() {
             return Ok(None);
@@ -49,24 +49,21 @@ impl GooseAppsManager {
         Ok(Some(GooseApp::from_file(app_path)?))
     }
 
+    pub fn get_clock(&self) -> Result<GooseApp> {
+        let html = include_str!("clock.html");
+        GooseApp::from_html(html)
+    }
+
     pub fn update_app(&self, app: &GooseApp) -> Result<()> {
-        if !app.js_implementation.contains("extends GooseWidget") {
-            return Err(anyhow::anyhow!(
-                "Implementation must contain a class extending GooseWidget"
-            ));
-        }
-
         fs::create_dir_all(&self.apps_dir)?;
-        let app_path = self.apps_dir.join(format!("{}.gapp", app.name));
-
+        let app_path = self.app_path(&app.name);
         let file_content = app.to_file_content()?;
         fs::write(app_path, file_content)?;
-
         Ok(())
     }
 
     pub fn delete_app(&self, name: &str) -> Result<()> {
-        let app_path = self.apps_dir.join(format!("{}.gapp", name));
+        let app_path = self.app_path(name);
 
         if !app_path.exists() {
             return Err(anyhow::anyhow!("App '{}' not found", name));
@@ -77,6 +74,11 @@ impl GooseAppsManager {
     }
 
     pub fn app_exists(&self, name: &str) -> bool {
-        self.apps_dir.join(format!("{}.gapp", name)).exists()
+        self.app_path(name).exists()
+    }
+
+    fn app_path(&self, name: &str) -> PathBuf {
+        self.apps_dir
+            .join(format!("{}.{}", name, Self::APP_EXTENSION))
     }
 }

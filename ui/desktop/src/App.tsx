@@ -433,7 +433,6 @@ export function AppInner() {
   }, [navigate]);
 
   useEffect(() => {
-    console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
@@ -673,7 +672,7 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="apps" element={<GooseAppsView />} />
+            <Route path="apps" element={<GooseAppsView sessionId={chat.sessionId}/>} />
             <Route
               path="shared-session"
               element={

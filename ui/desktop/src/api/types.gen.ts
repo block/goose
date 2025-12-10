@@ -45,6 +45,18 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+export type CallToolRequest = {
+    arguments: unknown;
+    name: string;
+    session_id: string;
+};
+
+export type CallToolResponse = {
+    content: Array<Content>;
+    is_error: boolean;
+    structured_content?: unknown;
+};
+
 export type ChatRequest = {
     messages: Array<Message>;
     recipe_name?: string | null;
@@ -333,7 +345,8 @@ export type GetToolsQuery = {
 export type GooseApp = {
     description?: string | null;
     height?: number | null;
-    jsImplementation?: string;
+    html?: string;
+    mcpServer?: string | null;
     name: string;
     prd?: string;
     resizable?: boolean | null;
@@ -369,14 +382,14 @@ export type InspectJobResponse = {
 
 export type IterateAppRequest = {
     errors: string;
-    jsImplementation: string;
+    html: string;
     prd: string;
     screenshotBase64: string;
 };
 
 export type IterateAppResponse = {
     done: boolean;
-    jsImplementation?: string | null;
+    html?: string | null;
     message: string;
 };
 
@@ -386,6 +399,10 @@ export type JsonObject = {
 
 export type KillJobResponse = {
     message: string;
+};
+
+export type ListAppsRequest = {
+    session_id?: string | null;
 };
 
 export type ListRecipeResponse = {
@@ -618,6 +635,16 @@ export type RawTextContent = {
         [key: string]: unknown;
     };
     text: string;
+};
+
+export type ReadResourceRequest = {
+    extension_name: string;
+    session_id: string;
+    uri: string;
+};
+
+export type ReadResourceResponse = {
+    html: string;
 };
 
 export type Recipe = {
@@ -1103,6 +1130,76 @@ export type AgentAddExtensionResponses = {
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
 
+export type CallToolData = {
+    body: CallToolRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/call_tool';
+};
+
+export type CallToolErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CallToolResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: CallToolResponse;
+};
+
+export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ReadResourceData = {
+    body: ReadResourceRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/read_resource';
+};
+
+export type ReadResourceErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReadResourceResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: ReadResourceResponse;
+};
+
+export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
+
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
     path?: never;
@@ -1518,7 +1615,9 @@ export type IterateAppResponse2 = IterateAppResponses[keyof IterateAppResponses]
 export type ListAppsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        session_id?: string | null;
+    };
     url: '/apps/list_apps';
 };
 

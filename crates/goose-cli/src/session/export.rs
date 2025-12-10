@@ -221,12 +221,12 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
     md.push_str("#### Tool Response:\n");
 
     match &resp.tool_result {
-        Ok(contents) => {
-            if contents.is_empty() {
+        Ok(result) => {
+            if result.content.is_empty() {
                 md.push_str("*No textual output from tool.*\n");
             }
 
-            for content in contents {
+            for content in &result.content {
                 if !export_all_content {
                     if let Some(audience) = content.audience() {
                         if !audience.contains(&Role::Assistant) {
@@ -567,7 +567,12 @@ mod tests {
         };
         let tool_response = ToolResponse {
             id: "test-id".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -587,7 +592,12 @@ mod tests {
         };
         let tool_response = ToolResponse {
             id: "test-id".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -693,7 +703,12 @@ if __name__ == "__main__":
         };
         let tool_response = ToolResponse {
             id: "shell-cat".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -734,7 +749,12 @@ if __name__ == "__main__":
         };
         let tool_response = ToolResponse {
             id: "git-status".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -783,7 +803,12 @@ warning: unused variable `x`
         };
         let tool_response = ToolResponse {
             id: "cargo-build".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -830,7 +855,12 @@ warning: unused variable `x`
         };
         let tool_response = ToolResponse {
             id: "curl-api".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -866,7 +896,12 @@ warning: unused variable `x`
         };
         let tool_response = ToolResponse {
             id: "editor-write".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -923,7 +958,12 @@ def process_data(data: List[Dict]) -> List[Dict]:
         };
         let tool_response = ToolResponse {
             id: "editor-view".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -960,7 +1000,12 @@ Command failed with exit code 2"#;
         };
         let tool_response = ToolResponse {
             id: "shell-error".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -1000,7 +1045,12 @@ Command failed with exit code 2"#;
         };
         let tool_response = ToolResponse {
             id: "script-exec".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -1047,7 +1097,12 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         };
         let tool_response = ToolResponse {
             id: "multi-cmd".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&_tool_request, true);
@@ -1090,7 +1145,12 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         };
         let tool_response = ToolResponse {
             id: "grep-search".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -1130,7 +1190,12 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         };
         let tool_response = ToolResponse {
             id: "json-test".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -1171,7 +1236,12 @@ found 0 vulnerabilities"#;
         };
         let tool_response = ToolResponse {
             id: "npm-install".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);

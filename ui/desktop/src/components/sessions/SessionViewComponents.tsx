@@ -73,6 +73,7 @@ export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, ch
  * Props for the SessionMessages component
  */
 interface SessionMessagesProps {
+  sessionId?: string,
   messages: Message[];
   isLoading: boolean;
   error: string | null;
@@ -83,6 +84,7 @@ interface SessionMessagesProps {
  * Common component for displaying session messages
  */
 export const SessionMessages: React.FC<SessionMessagesProps> = ({
+  sessionId,
   messages,
   isLoading,
   error,
@@ -180,12 +182,13 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                         )}
 
                         {/* Tool requests and responses */}
-                        {toolRequests.length > 0 && (
+                        {sessionId && toolRequests.length > 0 && (
                           <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                             {toolRequests.map((toolRequest) => (
                               <ToolCallWithResponse
                                 // In the session history page, if no tool response found for given request, it means the tool call
                                 // is broken or cancelled.
+                                sessionId={sessionId}
                                 isCancelledMessage={
                                   toolResponsesMap.get(toolRequest.id) == undefined
                                 }

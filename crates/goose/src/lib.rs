@@ -2,8 +2,6 @@ pub mod agents;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
-#[cfg(test)]
-mod cron_test;
 pub mod execution;
 pub mod goose_apps;
 pub mod hints;

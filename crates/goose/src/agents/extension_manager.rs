@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
@@ -39,10 +39,7 @@ use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
-use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
-    ServerInfo, Tool,
-};
+use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent, Resource, ResourceContents, ServerInfo, Tool};
 use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
 use serde_json::Value;
@@ -744,6 +741,7 @@ impl ExtensionManager {
                     uri,
                     extension_name.unwrap(),
                     cancellation_token.clone(),
+                    true,
                 )
                 .await?;
             return Ok(result);
@@ -759,7 +757,12 @@ impl ExtensionManager {
 
         for extension_name in extension_names {
             let result = self
-                .read_resource_from_extension(uri, &extension_name, cancellation_token.clone())
+                .read_resource_from_extension(
+                    uri,
+                    &extension_name,
+                    cancellation_token.clone(),
+                    true,
+                )
                 .await;
             match result {
                 Ok(result) => return Ok(result),
@@ -793,6 +796,7 @@ impl ExtensionManager {
         uri: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
+        format_with_uri: bool,
     ) -> Result<Vec<Content>, ErrorData> {
         let available_extensions = self
             .extensions
@@ -826,14 +830,79 @@ impl ExtensionManager {
 
         let mut result = Vec::new();
         for content in read_result.contents {
-            // Only reading the text resource content; skipping the blob content cause it's too long
             if let ResourceContents::TextResourceContents { text, .. } = content {
-                let content_str = format!("{}\n\n{}", uri, text);
+                let content_str = if format_with_uri {
+                    format!("{}\n\n{}", uri, text) // Old behavior
+                } else {
+                    text // Raw text for UI resources
+                };
                 result.push(Content::text(content_str));
             }
         }
 
         Ok(result)
+    }
+
+    pub async fn get_ui_resources(
+        &self,
+    ) -> Result<Vec<(String, Resource)>, ErrorData> {
+        let mut ui_resources = Vec::new();
+
+        let extensions_to_check: Vec<(String, McpClientBox)> = {
+            let extensions = self.extensions.lock().await;
+            extensions
+                .iter()
+                .map(|(name, ext)| (name.clone(), ext.get_client()))
+                .collect()
+        };
+
+        info!("Checking {} extensions", extensions_to_check.len());
+
+        for (extension_name, client) in extensions_to_check {
+            info!("Checking extension: {}", extension_name);
+            let client_guard = client.lock().await;
+
+            match client_guard.list_resources(None, CancellationToken::default()).await {
+                Ok(list_response) => {
+                    info!("List resources for {}: {} resources found", extension_name, list_response.resources.len());
+                    for resource in list_response.resources {
+                        if resource.uri.starts_with("ui://") {
+                            ui_resources.push((extension_name.clone(), resource));
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to list resources for {}: {:?}", extension_name, e);
+                }
+            }
+        }
+
+        Ok(ui_resources)
+    }
+
+    pub async fn read_ui_resource(
+        &self,
+        uri: &str,
+        extension_name: &str,
+        cancellation_token: CancellationToken,
+    ) -> Result<String, ErrorData> {
+        let contents = self
+            .read_resource_from_extension(uri, extension_name, cancellation_token, false)
+            .await?;
+
+        contents
+            .into_iter()
+            .find_map(|c| match c.raw {
+                RawContent::Text(text_content) => Some(text_content.text),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("No text content in resource '{}'", uri),
+                    None,
+                )
+            })
     }
 
     async fn list_resources_from_extension(
@@ -984,7 +1053,6 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content)
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
                     _ => {

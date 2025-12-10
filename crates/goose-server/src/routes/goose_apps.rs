@@ -9,13 +9,18 @@ use axum::{
 use goose::conversation::message::{Message, MessageContent};
 use goose::goose_apps::{GooseApp, GooseAppsManager};
 use goose::providers::create_with_named_model;
-use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use axum::extract::Query;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, warn};
 use utoipa::ToSchema;
+use goose::agents::ExtensionManager;
 
-static GOOSE_APP_ASSETS: Dir =
-    include_dir!("$CARGO_MANIFEST_DIR/../../ui/desktop/src/goose_apps/assets");
+#[derive(Deserialize, utoipa::IntoParams, ToSchema)]
+pub struct ListAppsRequest {
+    session_id: Option<String>,
+}
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -45,15 +50,15 @@ pub struct UpdateAppRequest {
 #[serde(rename_all = "camelCase")]
 pub struct IterateAppRequest {
     pub prd: String,
-    pub js_implementation: String,
-    pub screenshot_base64: String,
+    pub html: String,
+    pub screenshot_base64: Option<String>,
     pub errors: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IterateAppResponse {
-    pub js_implementation: Option<String>,
+    pub html: Option<String>,
     pub message: String,
     pub done: bool,
 }
@@ -64,9 +69,65 @@ pub struct SuccessResponse {
     pub message: String,
 }
 
+fn format_resource_name(name: String) -> String {
+    name.replace('_', " ")
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().chain(chars).collect(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+async fn list_mcp_apps(
+    extension_manager: &ExtensionManager,
+) -> Result<Vec<GooseApp>, ErrorResponse> {
+    let mut apps = Vec::new();
+
+    let ui_resources = extension_manager
+        .get_ui_resources()
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to create session: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    for (extension_name, resource) in ui_resources {
+        match extension_manager
+            .read_ui_resource(&resource.uri, &extension_name, CancellationToken::default())
+            .await
+        {
+            Ok(html) => {
+                apps.push(GooseApp {
+                    name: format_resource_name(resource.name.clone()),
+                    description: resource.description.clone(),
+                    html,
+                    width: None,
+                    height: None,
+                    resizable: Some(true),
+                    prd: String::new(),
+                    mcp_server: Some(extension_name),
+                });
+            }
+            Err(e) => {
+                warn!("Failed to read resource {} from {}: {}", resource.uri, extension_name, e);
+            }
+        }
+    }
+
+    Ok(apps)
+}
+
 #[utoipa::path(
     get,
     path = "/apps/list_apps",
+    params(
+        ListAppsRequest
+    ),
     responses(
         (status = 200, description = "List of installed apps retrieved successfully", body = AppListResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
@@ -77,11 +138,18 @@ pub struct SuccessResponse {
     ),
     tag = "App Management"
 )]
-async fn list_apps() -> Result<Json<AppListResponse>, ErrorResponse> {
+async fn list_apps(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListAppsRequest>,
+) -> Result<Json<AppListResponse>, ErrorResponse> {
     let manager = GooseAppsManager::new()?;
-
-    let apps = manager.list_apps()?;
-
+    let mut apps = manager.list_apps()?;
+    if let Some(session_id) = params.session_id {
+        if let Ok(agent) = state.get_agent_for_route(session_id).await {
+            let mcp_apps = list_mcp_apps(&agent.extension_manager).await?;
+            apps.extend(mcp_apps);
+        }
+    }
     Ok(Json(AppListResponse { apps }))
 }
 
@@ -107,7 +175,6 @@ async fn get_app(
     Path(name): Path<String>,
 ) -> Result<Json<AppResponse>, ErrorResponse> {
     let manager = GooseAppsManager::new()?;
-
     let app = manager.get_app(&name)?;
 
     match app {
@@ -139,11 +206,13 @@ async fn create_app(
     let manager = GooseAppsManager::new()?;
 
     let app = if request.app.name.is_empty() {
-        let clock_gapp = GOOSE_APP_ASSETS
-            .get_file("Clock.gapp")
-            .and_then(|f| f.contents_utf8())
-            .ok_or_else(|| ErrorResponse::internal("invalid or missing Clock.gapp"))?;
-        GooseApp::from_file_content(&clock_gapp)?
+        manager.get_clock().map_err(|err| {
+            error!("Failed to create session: {}", err);
+            ErrorResponse {
+                message: format!("Failed to create session: {}", err),
+                status: StatusCode::BAD_REQUEST,
+            }
+        })?
     } else {
         request.app
     };
@@ -190,7 +259,6 @@ async fn store_app(
     Json(request): Json<UpdateAppRequest>,
 ) -> Result<Json<SuccessResponse>, ErrorResponse> {
     let manager = GooseAppsManager::new()?;
-
     manager.update_app(&request.app)?;
 
     Ok(Json(SuccessResponse {
@@ -198,61 +266,97 @@ async fn store_app(
     }))
 }
 
-const ITERATE_APP_PROMPT: &str = r#"You're building a javascript widget according to spec.
-The api you're building against looks like this:
+const ITERATE_APP_PROMPT: &str = r#"You're building an HTML/CSS/JavaScript app that uses the Model Context Protocol (MCP).
 
-```javascript
-{goose_widget}
-```
-
-The current implementation of the widget looks like this:
+The app communicates with the host using MCP JSON-RPC over postMessage. A client is injected as `window.mcp` with these methods:
 ````javascript
-{js_implementation}
+// Call tools on the MCP server
+const result = await window.mcp.callTool(toolName, arguments);
+// result.content - array of content blocks for the model
+// result.structuredContent - structured data for UI rendering
+
+// Read MCP resources
+const resource = await window.mcp.readResource(uri);
+
+// Send a message to the chat (triggers agent inference)
+await window.mcp.sendMessage(text);
+
+// Open external links
+await window.mcp.openLink(url);
+
+// Listen for notifications from the host
+window.mcp.onNotification('ui/notifications/tool-input', (params) => {
+    // params.arguments - the tool arguments that spawned this app
+});
+
+window.mcp.onNotification('ui/notifications/tool-result', (params) => {
+    // params.content - text content
+    // params.structuredContent - structured data
+});
+
+window.mcp.onNotification('ui/notifications/host-context-change', (params) => {
+    // params.theme - 'light' or 'dark'
+    // params.viewport - { width, height }
+});
 ````
 
-Here is the specification of what the user wants the widget to do:
+The current implementation looks like this:
+````html
+{html}
+````
+
+Here is the specification of what the user wants the app to do:
 {prd}
 
 {errors}
 
 You are also provided a screenshot. Compare the current implementation and the screenshot
-with the specication/PRD. If you think it everything is good, i.e. the specification matches
-the code and screenshot, you can just reply with:
+with the specification/PRD. If everything looks good and matches the spec, reply with:
 
 DONE
 MSG: <anything you want to tell the user>
 
-If you think you we to adjust the javascript or think we need to start from scratch,
-just return the code you want the widget to be going forward:
-
-````javascript
-// your code here
-```
+If you need to adjust the HTML/CSS/JavaScript, return the complete HTML:
+````html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>My App</title>
+    <style>
+        /* Your styles */
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        // Your JavaScript here
+        // Use window.mcp.* for MCP calls
+    </script>
+</body>
+</html>
+````
 MSG: <the modifications you made>
 
+Note: if you change the HTML, you will be called back with the next render, so you
+don't have to get it right in one iteration. For complicated things, use multiple turns.
 
-Note: if you change the javascript, you will be called back with the next render, so you
-don't have to get it right in one iteration. For complicated things it might be better
-to do multiple turns.
-
-in the message return exactly what you see on the screenshot or if there is no screenshot,
-say that. and then also tell the user the changes you need to make or made to adjust.
-
+In the message, describe exactly what you see on the screenshot (or say there's no screenshot),
+then explain the changes you made or need to make.
 "#;
 
-fn iterate_app_prompt(iterate_on: &IterateAppRequest, goose_widget: &str) -> String {
+fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
     let errors = if iterate_on.errors.is_empty() {
         String::new()
     } else {
         format!(
-            "\nthe current implementation throws js errors: {} - fix those too",
+            "\n\nThe current implementation throws errors: {}\nFix these errors.",
             iterate_on.errors
         )
     };
     ITERATE_APP_PROMPT
         .replace("{prd}", &iterate_on.prd)
-        .replace("{js_implementation}", &iterate_on.js_implementation)
-        .replace("{goose_widget}", goose_widget)
+        .replace("{html}", &iterate_on.html)
         .replace("{errors}", &errors)
 }
 
@@ -304,16 +408,9 @@ async fn iterate_app(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<IterateAppRequest>,
 ) -> Result<Json<IterateAppResponse>, ErrorResponse> {
-    let goose_widget = GOOSE_APP_ASSETS
-        .get_file("goose-widget.js")
-        .ok_or_else(|| ErrorResponse::internal("goose-widget.js not found"))?
-        .contents_utf8()
-        .ok_or_else(|| ErrorResponse::internal("goose-widget.js is not valid UTF-8"))?;
-
-    let prompt = iterate_app_prompt(&request, goose_widget);
+    let prompt = iterate_app_prompt(&request);
 
     let config = goose::config::Config::global();
-
     let provider_name: String = config.get_goose_provider()?;
     let model_name: String = config.get_goose_model()?;
     let provider = create_with_named_model(&provider_name, &model_name).await?;
@@ -347,7 +444,7 @@ async fn iterate_app(
 
     Ok(Json(IterateAppResponse {
         done: code.is_none(),
-        js_implementation: code,
+        html: code,
         message,
     }))
 }
@@ -374,7 +471,6 @@ async fn delete_app(
     Path(name): Path<String>,
 ) -> Result<Json<SuccessResponse>, ErrorResponse> {
     let manager = GooseAppsManager::new()?;
-
     manager.delete_app(&name)?;
 
     Ok(Json(SuccessResponse {

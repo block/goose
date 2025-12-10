@@ -4,21 +4,15 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { GooseApp, iterateApp, storeApp } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
+import { injectMCPClient } from '../../goose_apps/injectMcpClient';
+
 
 interface GooseAppEditorProps {
   app?: GooseApp;
   onReturn: () => void;
 }
 
-const DEFAULT_JS = `class HelloWidget extends GooseWidget {
-    render() {
-        return \`
-            <div class="hello-container">
-                Hello World
-            </div>
-        \`;
-    }
-}`;
+const DEFAULT_HTML = `<html lang="en"><head><title>Demo</title></head><body><h1>Hello World</h1></body></html>`;
 
 export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   const [name, setName] = useState(app?.name || '');
@@ -30,18 +24,19 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   const iframeRef = useRef<React.ComponentRef<'iframe'>>(null);
   const [iframeErrors, setIframeErrors] = useState<string[]>([]);
   const [iframeReady, setIframeReady] = useState(false);
-  const [jsImplementation, setJsImplementation] = useState(app?.jsImplementation || DEFAULT_JS);
+  const [html, setHtml] = useState(app?.html || DEFAULT_HTML);
   const [isIterating, setIsIterating] = useState(false);
   const [iterationMessage, setIterationMessage] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
   const [containerHtml, setContainerHtml] = useState('<p style="color: #0f6636">Loading ...</p>');
   const [detailsOpen, setDetailsOpen] = useState(!name || !width || !height);
+  const [includeScreenshot, setIncludeScreenshot] = useState(false);
 
   useEffect(() => {
     const handleMessage = (event: globalThis.MessageEvent) => {
       if (event.data.type === 'error') {
         setIframeErrors((prev) => [...prev, event.data.message]);
-      } else if (event.data.type === 'ready') {
+      } else if (event.data.method === 'ui/initialize') {
         setIframeReady(true);
       }
     };
@@ -49,16 +44,27 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  function assembleCurrentApp() {
+    return {
+      name,
+      description: description || null,
+      width: width ? parseInt(width) : null,
+      height: height ? parseInt(height) : null,
+      resizable,
+      prd,
+      html,
+    };
+  }
+
   useEffect(() => {
     const loadHtml = async () => {
-      const gooseApp: GooseApp = { jsImplementation, name, prd: '' };
-      const html = await window.electron.previewGooseApp(gooseApp);
-      console.log(html);
-      setContainerHtml(html);
+      const withApi = injectMCPClient(assembleCurrentApp())
+      setContainerHtml(withApi);
       setIframeKey((prev) => prev + 1);
     };
     loadHtml();
-  }, [jsImplementation, name]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [html]);
 
   const captureScreenshot = async (): Promise<Blob> => {
     if (!iframeRef.current) throw new Error('Iframe not ready');
@@ -81,19 +87,23 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
       setIsIterating(true);
       setIterationMessage('Starting iteration...');
 
-      let currentJs = jsImplementation;
+      let currentHtml = html;
       let done = false;
 
       while (!done) {
-        const screenshot = await captureScreenshot();
-        const arrayBuffer = await screenshot.arrayBuffer();
-        const base64 = globalThis.btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        let screenshotBase64 = null;
+
+        if (includeScreenshot) {
+          const screenshot = await captureScreenshot();
+          const arrayBuffer = await screenshot.arrayBuffer();
+          screenshotBase64 = globalThis.btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        }
 
         const response = await iterateApp({
           body: {
-            jsImplementation: currentJs,
+            html: currentHtml,
             prd,
-            screenshotBase64: base64,
+            screenshotBase64,
             errors: iframeErrors.join('\n'),
           },
           throwOnError: true,
@@ -105,8 +115,8 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
           done = true;
           setIterationMessage('Done! ' + response.data.message);
         } else {
-          currentJs = response.data.jsImplementation!;
-          setJsImplementation(currentJs);
+          currentHtml = response.data?.html || '';
+          setHtml(currentHtml);
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -117,20 +127,13 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
     }
   };
 
+
   const handleSave = async () => {
     try {
       await storeApp({
         path: { name },
         body: {
-          app: {
-            name,
-            description: description || null,
-            width: width ? parseInt(width) : null,
-            height: height ? parseInt(height) : null,
-            resizable,
-            prd,
-            jsImplementation,
-          },
+          app: assembleCurrentApp(),
         },
       });
       onReturn();
@@ -228,6 +231,18 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
               onChange={(e) => setPrd(e.target.value)}
               className="w-full min-h-[150px] p-3 rounded border border-border-muted bg-background-panel text-text-default"
             />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="includeScreenshot"
+              checked={includeScreenshot}
+              onChange={(e) => setIncludeScreenshot(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <label htmlFor="includeScreenshot" className="text-sm text-text-muted">
+              Include screenshot (slower but more accurate)
+            </label>
           </div>
 
           {iterationMessage && (

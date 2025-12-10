@@ -63,7 +63,12 @@ impl SubRecipeManager {
             .call_sub_recipe_tool(tool_name, params, tasks_manager, parent_working_dir)
             .await;
         match result {
-            Ok(call_result) => ToolCallResult::from(Ok(call_result)),
+            Ok(content) => ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+                content,
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            })),
             Err(e) => ToolCallResult::from(Err(ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,
                 message: Cow::from(e.to_string()),

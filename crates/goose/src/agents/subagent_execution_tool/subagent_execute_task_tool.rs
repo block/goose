@@ -82,7 +82,12 @@ pub async fn run_tasks(
         {
             Ok(result) => {
                 let output = serde_json::to_string(&result).unwrap();
-                Ok(vec![Content::text(output)])
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![Content::text(output)],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                })
             }
             Err(e) => Err(ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,

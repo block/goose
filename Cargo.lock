@@ -2668,6 +2668,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "lazy_static",
+ "log",
  "lru",
  "minijinja",
  "mockall",

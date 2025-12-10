@@ -279,8 +279,8 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
-        Ok(contents) => {
-            for content in contents {
+        Ok(result) => {
+            for content in &result.content {
                 if let Some(audience) = content.audience() {
                     if !audience.contains(&rmcp::model::Role::User) {
                         continue;

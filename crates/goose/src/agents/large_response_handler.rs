@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rmcp::model::{Content, ErrorData};
+use rmcp::model::{CallToolResult, Content, ErrorData};
 use std::fs::File;
 use std::io::Write;
 
@@ -7,13 +7,13 @@ const LARGE_TEXT_THRESHOLD: usize = 200_000;
 
 /// Process tool response and handle large text content
 pub fn process_tool_response(
-    response: Result<Vec<Content>, ErrorData>,
-) -> Result<Vec<Content>, ErrorData> {
+    response: Result<CallToolResult, ErrorData>,
+) -> Result<CallToolResult, ErrorData> {
     match response {
-        Ok(contents) => {
+        Ok(mut result) => {
             let mut processed_contents = Vec::new();
 
-            for content in contents {
+            for content in result.content {
                 match content.as_text() {
                     Some(text_content) => {
                         // Check if text exceeds threshold
@@ -51,7 +51,8 @@ pub fn process_tool_response(
                 }
             }
 
-            Ok(processed_contents)
+            result.content = processed_contents;
+            Ok(result)
         }
         Err(e) => Err(e),
     }
@@ -89,14 +90,19 @@ mod tests {
         let small_text = "This is a small text response";
         let content = Content::text(small_text.to_string());
 
-        let response = Ok(vec![content]);
+        let response = Ok(CallToolResult {
+            content: vec![content],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        });
 
         // Process the response
         let processed = process_tool_response(response).unwrap();
 
         // Verify the response is unchanged
-        assert_eq!(processed.len(), 1);
-        if let Some(text_content) = processed[0].as_text() {
+        assert_eq!(processed.content.len(), 1);
+        if let Some(text_content) = processed.content[0].as_text() {
             assert_eq!(text_content.text, small_text);
         } else {
             panic!("Expected text content");
@@ -109,14 +115,19 @@ mod tests {
         let large_text = "a".repeat(LARGE_TEXT_THRESHOLD + 1000);
         let content = Content::text(large_text.clone());
 
-        let response = Ok(vec![content]);
+        let response = Ok(CallToolResult {
+            content: vec![content],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        });
 
         // Process the response
         let processed = process_tool_response(response).unwrap();
 
         // Verify the response contains a message about the file
-        assert_eq!(processed.len(), 1);
-        if let Some(text_content) = processed[0].as_text() {
+        assert_eq!(processed.content.len(), 1);
+        if let Some(text_content) = processed.content[0].as_text() {
             assert!(text_content
                 .text
                 .contains("The response returned from the tool call was larger"));
@@ -146,14 +157,19 @@ mod tests {
         // Create an image content
         let image_content = Content::image("base64data".to_string(), "image/png".to_string());
 
-        let response = Ok(vec![image_content]);
+        let response = Ok(CallToolResult {
+            content: vec![image_content],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        });
 
         // Process the response
         let processed = process_tool_response(response).unwrap();
 
         // Verify the response is unchanged
-        assert_eq!(processed.len(), 1);
-        if let Some(img) = processed[0].as_image() {
+        assert_eq!(processed.content.len(), 1);
+        if let Some(img) = processed.content[0].as_image() {
             assert_eq!(img.data, "base64data");
             assert_eq!(img.mime_type, "image/png");
         } else {
@@ -168,23 +184,28 @@ mod tests {
         let large_text = Content::text("a".repeat(LARGE_TEXT_THRESHOLD + 1000));
         let image = Content::image("image_data".to_string(), "image/jpeg".to_string());
 
-        let response = Ok(vec![small_text, large_text, image]);
+        let response = Ok(CallToolResult {
+            content: vec![small_text, large_text, image],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        });
 
         // Process the response
         let processed = process_tool_response(response).unwrap();
 
         // Verify each item is handled correctly
-        assert_eq!(processed.len(), 3);
+        assert_eq!(processed.content.len(), 3);
 
         // First item should be unchanged small text
-        if let Some(text_content) = processed[0].as_text() {
+        if let Some(text_content) = processed.content[0].as_text() {
             assert_eq!(text_content.text, "Small text");
         } else {
             panic!("Expected text content");
         }
 
         // Second item should be a message about the file
-        if let Some(text_content) = processed[1].as_text() {
+        if let Some(text_content) = processed.content[1].as_text() {
             assert!(text_content
                 .text
                 .contains("The response returned from the tool call was larger"));
@@ -201,7 +222,7 @@ mod tests {
         }
 
         // Third item should be unchanged image
-        if let Some(img) = processed[2].as_image() {
+        if let Some(img) = processed.content[2].as_image() {
             assert_eq!(img.data, "image_data");
             assert_eq!(img.mime_type, "image/jpeg");
         } else {
@@ -217,7 +238,7 @@ mod tests {
             message: Cow::from("Test error"),
             data: None,
         };
-        let response: Result<Vec<Content>, ErrorData> = Err(error);
+        let response: Result<CallToolResult, ErrorData> = Err(error);
 
         // Process the response
         let processed = process_tool_response(response);

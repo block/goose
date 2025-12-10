@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -12,11 +12,11 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
-import { createApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import { ViewOptions, View } from '../../utils/navigationUtils';
 import EnvironmentBadge from './EnvironmentBadge';
+import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -105,9 +105,10 @@ const menuItems: NavigationEntry[] = [
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
-  const [hasApps, setHasApps] = useState(false);
+  const { config } = useConfig();
+  const appsEnabled = config.apps_enabled === true;
 
-  const filteredMenuItems = hasApps
+  const filteredMenuItems = appsEnabled
     ? menuItems
     : menuItems.filter((item) => !(item.type === 'item' && item.path === '/apps'));
 
@@ -143,22 +144,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
-  useEffect(() => {
-    listApps()
-      .then((response) => setHasApps(!!response.data && response.data.apps.length > 0))
-      .catch(() => {});
-  }, []);
-
-  const triggerExperimental = async () => {
-    console.log('Experimental');
-    await createApp({
-      body: {
-        app: {
-          name: '',
-        },
-      },
-    });
-  };
 
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {
@@ -175,13 +160,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               <SidebarMenuButton
                 data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
                 onClick={() => navigate(entry.path)}
-                onDoubleClick={async (e) => {
-                  if (entry.path === '/settings') {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    await triggerExperimental();
-                  }
-                }}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}
                 className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"

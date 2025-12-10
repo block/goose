@@ -86,8 +86,9 @@ impl CursorAgentProvider {
                         }
                     }
                     MessageContent::ToolResponse(tool_response) => {
-                        if let Ok(tool_contents) = &tool_response.tool_result {
-                            let content_text = tool_contents
+                        if let Ok(result) = &tool_response.tool_result {
+                            let content_text = result
+                                .content
                                 .iter()
                                 .filter_map(|content| match &content.raw {
                                     rmcp::model::RawContent::Text(text_content) => {

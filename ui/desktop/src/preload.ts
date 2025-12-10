@@ -1,6 +1,7 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
+import { InlineAppContext } from './goose_apps';
 
 interface NotificationData {
   title: string;
@@ -57,7 +58,6 @@ type ElectronAPI = {
     recipeId?: string
   ) => void;
   launchGooseApp: (app: GooseApp) => Promise<{ success: boolean; error?: string }>;
-  previewGooseApp: (app: GooseApp) => Promise<string>;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
@@ -164,7 +164,6 @@ const electronAPI: ElectronAPI = {
       recipeId
     ),
   launchGooseApp: (app: GooseApp) => ipcRenderer.invoke('launch-goose-app', app),
-  previewGooseApp: (app: GooseApp) => ipcRenderer.invoke('preview-goose-app', app),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
@@ -278,6 +277,11 @@ const appConfigAPI: AppConfigAPI = {
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);
+contextBridge.exposeInMainWorld('__gooseMCP', {
+  getAppHtml: () => ipcRenderer.invoke('get-app-html'),
+  handleRequest: (msg: unknown, inlineContext?: InlineAppContext) =>
+    ipcRenderer.invoke('mcp-request', msg, inlineContext),
+});
 
 // Type declaration for TypeScript
 declare global {
