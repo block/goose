@@ -23,6 +23,7 @@ use super::{
     tetrate::TetrateProvider,
     venice::VeniceProvider,
     xai::XaiProvider,
+    sap_ai_core::SAPAICoreProvider,
 };
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
@@ -78,6 +79,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<TetrateProvider, _>(|m| Box::pin(TetrateProvider::from_env(m)), true);
         registry.register::<VeniceProvider, _>(|m| Box::pin(VeniceProvider::from_env(m)), false);
         registry.register::<XaiProvider, _>(|m| Box::pin(XaiProvider::from_env(m)), false);
+        registry.register::<SAPAICoreProvider, _>(|m| Box::pin(SAPAICoreProvider::from_env(m)), true);
     });
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);

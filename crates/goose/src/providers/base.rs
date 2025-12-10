@@ -3,6 +3,7 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
+use super::pricing::PricingInfo;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
 use crate::conversation::message::Message;
@@ -16,6 +17,7 @@ use once_cell::sync::Lazy;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -529,6 +531,12 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    /// Get model pricings
+    ///
+    async fn get_pricing(&self) -> Option<HashMap<String, HashMap<String, PricingInfo>>> {
+        None
     }
 }
 

@@ -417,3 +417,27 @@ build-test-tools:
 record-mcp-tests: build-test-tools
   GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
   git add crates/goose/tests/mcp_replays/
+
+install-locally:
+  #!/bin/zsh
+  set -euxo pipefail
+
+  ui_src="./ui/desktop/out/Goose-darwin-arm64/goose.app"
+  ui_dst="/Applications/goose.app"
+  cli_src="./target/release/goose"
+  cli_dst="$HOME/.local/bin/goose"
+
+  echo "Install Desktop app..."
+  if [ -d "$ui_src" ]; then
+    echo "Source app found: $ui_src" >&2
+    osascript -e 'tell application "goose" to if it is running then quit' || true
+    rm -rf "$ui_dst" 2>/dev/null || true
+    ditto "$ui_src" "$ui_dst"
+  fi
+
+  echo "Install CLI app..."
+  if [ -f "$cli_src" ]; then
+    echo "Source cli found: $cli_src" >&2
+    rm -f "$cli_dst" 2>/dev/null || true
+    ditto "$cli_src" "$cli_dst"
+  fi
