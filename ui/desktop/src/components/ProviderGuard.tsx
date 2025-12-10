@@ -10,6 +10,7 @@ import { OllamaSetup } from './OllamaSetup';
 import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
 import { createNavigationHandler } from '../utils/navigationUtils';
+import TelemetrySettings from './settings/app/TelemetrySettings';
 
 import { Goose, OpenRouter, Tetrate } from './icons';
 
@@ -305,6 +306,9 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 >
                   Go to Provider Settings →
                 </button>
+              </div>
+              <div className="mt-6">
+                <TelemetrySettings isWelcome />
               </div>
             </div>
           </div>
