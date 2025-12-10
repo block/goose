@@ -336,6 +336,7 @@ async fn main() -> Result<()> {
         ("databricks", "databricks-meta-llama-3-1-70b-instruct"),
         ("google", "gemini-1.5-pro-002"),
         ("tetrate", "claude-3-5-sonnet-computer-use"),
+        ("xai", "grok-code-fast-1"),
     ];
 
     let mut report = MappingReport::new();

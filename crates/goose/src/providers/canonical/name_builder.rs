@@ -113,10 +113,11 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         return Some("anthropic");
     }
 
-    // GPT, O1, O3, ChatGPT models → OpenAI
+    // GPT, O1, O3, O4, ChatGPT models → OpenAI
     if model_lower.starts_with("gpt-")
         || model_lower.starts_with("o1")
         || model_lower.starts_with("o3")
+        || model_lower.starts_with("o4")
         || model_lower.starts_with("chatgpt-") {
         return Some("openai");
     }
@@ -132,8 +133,39 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
     }
 
     // Mistral models → mistralai
-    if model_lower.starts_with("mistral-") || model_lower.contains("mixtral") {
+    if model_lower.starts_with("mistral")
+        || model_lower.starts_with("mixtral")
+        || model_lower.starts_with("codestral")
+        || model_lower.starts_with("ministral")
+        || model_lower.starts_with("pixtral")
+        || model_lower.starts_with("devstral")
+        || model_lower.starts_with("voxtral") {
         return Some("mistralai");
+    }
+
+    // DeepSeek models → deepseek
+    if model_lower.starts_with("deepseek") || model_lower.contains("deepseek") {
+        return Some("deepseek");
+    }
+
+    // Qwen models → qwen
+    if model_lower.starts_with("qwen") || model_lower.contains("qwen") {
+        return Some("qwen");
+    }
+
+    // Grok models → x-ai
+    if model_lower.starts_with("grok") || model_lower.contains("grok") {
+        return Some("x-ai");
+    }
+
+    // Jamba models → ai21
+    if model_lower.starts_with("jamba") || model_lower.contains("jamba") {
+        return Some("ai21");
+    }
+
+    // Command models → cohere
+    if model_lower.starts_with("command") || model_lower.contains("command") {
+        return Some("cohere");
     }
 
     None
@@ -157,6 +189,15 @@ fn strip_common_prefixes(model: &str) -> String {
         "mistral-",
         "mixtral-",
         "chatgpt-",
+        "deepseek-",       // DeepSeek models
+        "qwen-",           // Qwen models
+        "grok-",           // Grok/xAI models
+        "jamba-",          // AI21 Jamba models
+        "command-",        // Cohere Command models
+        "codestral",       // Mistral Codestral (no hyphen - can be standalone)
+        "ministral-",      // Mistral Ministral
+        "pixtral-",        // Mistral Pixtral
+        "devstral-",       // Mistral Devstral
     ];
 
     // Find the first occurrence of any known model pattern
@@ -191,6 +232,12 @@ fn extract_provider_prefix(model: &str) -> Option<(&'static str, &str)> {
         "cohere",
         "ai21",
         "amazon",
+        "deepseek",
+        "qwen",
+        "x-ai",
+        "nvidia",
+        "microsoft",
+        "perplexity",
     ];
 
     for provider in &known_providers {
@@ -472,6 +519,39 @@ mod tests {
 
         let candidates = fuzzy_canonical_name("databricks", "headless-goose-o3-mini");
         assert!(candidates.contains(&"openai/o3-mini".to_string()));
+
+        // Test new providers: DeepSeek
+        let candidates = fuzzy_canonical_name("databricks", "databricks-deepseek-chat");
+        assert!(candidates.contains(&"deepseek/deepseek-chat".to_string()));
+
+        let candidates = fuzzy_canonical_name("databricks", "deepseek-r1");
+        assert!(candidates.contains(&"deepseek/deepseek-r1".to_string()));
+
+        // Test Qwen models
+        let candidates = fuzzy_canonical_name("databricks", "qwen-2-5-72b-instruct");
+        assert!(candidates.contains(&"qwen/qwen-2.5-72b-instruct".to_string()));
+
+        // Test Grok models
+        let candidates = fuzzy_canonical_name("databricks", "grok-3");
+        assert!(candidates.contains(&"x-ai/grok-3".to_string()));
+
+        let candidates = fuzzy_canonical_name("databricks", "databricks-grok-4-fast");
+        assert!(candidates.contains(&"x-ai/grok-4-fast".to_string()));
+
+        // Test Jamba models
+        let candidates = fuzzy_canonical_name("databricks", "jamba-large-1-7");
+        assert!(candidates.contains(&"ai21/jamba-large-1.7".to_string()));
+
+        // Test Cohere Command models
+        let candidates = fuzzy_canonical_name("databricks", "command-r-plus-08");
+        assert!(candidates.contains(&"cohere/command-r-plus-08".to_string()));
+
+        // Test Mistral variants
+        let candidates = fuzzy_canonical_name("databricks", "codestral");
+        assert!(candidates.contains(&"mistralai/codestral".to_string()));
+
+        let candidates = fuzzy_canonical_name("databricks", "ministral-8b");
+        assert!(candidates.contains(&"mistralai/ministral-8b".to_string()));
     }
 
     #[test]
@@ -489,6 +569,16 @@ mod tests {
         assert_eq!(infer_provider_from_model("llama-3-1-70b"), Some("meta-llama"));
         assert_eq!(infer_provider_from_model("mistral-large"), Some("mistralai"));
         assert_eq!(infer_provider_from_model("mixtral-8x7b"), Some("mistralai"));
+        assert_eq!(infer_provider_from_model("codestral"), Some("mistralai"));
+        assert_eq!(infer_provider_from_model("ministral-8b"), Some("mistralai"));
+        assert_eq!(infer_provider_from_model("pixtral-large"), Some("mistralai"));
+        assert_eq!(infer_provider_from_model("deepseek-chat"), Some("deepseek"));
+        assert_eq!(infer_provider_from_model("deepseek-r1"), Some("deepseek"));
+        assert_eq!(infer_provider_from_model("qwen-2-5-72b-instruct"), Some("qwen"));
+        assert_eq!(infer_provider_from_model("grok-3"), Some("x-ai"));
+        assert_eq!(infer_provider_from_model("grok-4-fast"), Some("x-ai"));
+        assert_eq!(infer_provider_from_model("jamba-large-1-7"), Some("ai21"));
+        assert_eq!(infer_provider_from_model("command-r-plus-08"), Some("cohere"));
         assert_eq!(infer_provider_from_model("unknown-model"), None);
     }
 
@@ -505,6 +595,15 @@ mod tests {
         assert_eq!(strip_common_prefixes("headless-goose-o3-mini"), "o3-mini");
         assert_eq!(strip_common_prefixes("kgoose-cashapp-claude-4-sonnet"), "claude-4-sonnet");
         assert_eq!(strip_common_prefixes("claude-3-5-sonnet"), "claude-3-5-sonnet"); // no prefix
+
+        // Test new provider patterns
+        assert_eq!(strip_common_prefixes("databricks-deepseek-chat"), "deepseek-chat");
+        assert_eq!(strip_common_prefixes("goose-qwen-2-5-72b"), "qwen-2-5-72b");
+        assert_eq!(strip_common_prefixes("kgoose-grok-4-fast"), "grok-4-fast");
+        assert_eq!(strip_common_prefixes("databricks-jamba-large"), "jamba-large");
+        assert_eq!(strip_common_prefixes("goose-command-r-plus"), "command-r-plus");
+        assert_eq!(strip_common_prefixes("databricks-codestral"), "codestral");
+        assert_eq!(strip_common_prefixes("goose-ministral-8b"), "ministral-8b");
     }
 
     #[test]
@@ -514,6 +613,9 @@ mod tests {
         assert_eq!(extract_provider_prefix("google-gemini-2-5-flash"), Some(("google", "gemini-2-5-flash")));
         assert_eq!(extract_provider_prefix("meta-llama-3-1-70b"), Some(("meta-llama", "3-1-70b")));
         assert_eq!(extract_provider_prefix("mistralai-mistral-large"), Some(("mistralai", "mistral-large")));
+        assert_eq!(extract_provider_prefix("deepseek-deepseek-chat"), Some(("deepseek", "deepseek-chat")));
+        assert_eq!(extract_provider_prefix("qwen-qwen-2-5-72b-instruct"), Some(("qwen", "qwen-2-5-72b-instruct")));
+        assert_eq!(extract_provider_prefix("x-ai-grok-3"), Some(("x-ai", "grok-3")));
         assert_eq!(extract_provider_prefix("claude-3-5-sonnet"), None); // no provider prefix
         assert_eq!(extract_provider_prefix("unknown-provider-model"), None); // unknown provider
     }
