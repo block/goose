@@ -8,7 +8,7 @@ mod test_working_dir_update {
         // Create a temporary directory for testing
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let initial_dir = temp_dir.path().to_path_buf();
-        
+
         // Create another temp directory to change to
         let new_temp_dir = TempDir::new().expect("Failed to create second temp dir");
         let new_dir = new_temp_dir.path().to_path_buf();
@@ -44,7 +44,7 @@ mod test_working_dir_update {
 
         // Verify the directory was updated
         assert_eq!(updated_session.working_dir, new_dir);
-        
+
         // Clean up
         SessionManager::delete_session(&session.id)
             .await

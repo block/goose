@@ -199,15 +199,21 @@ async fn child_process_client(
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
     }
-    
+
     // Check if GOOSE_WORKING_DIR is set and use it as the working directory
     if let Ok(working_dir) = std::env::var("GOOSE_WORKING_DIR") {
         let working_path = std::path::Path::new(&working_dir);
         if working_path.exists() && working_path.is_dir() {
-            tracing::info!("Setting MCP process working directory from GOOSE_WORKING_DIR: {:?}", working_path);
+            tracing::info!(
+                "Setting MCP process working directory from GOOSE_WORKING_DIR: {:?}",
+                working_path
+            );
             command.current_dir(working_path);
         } else {
-            tracing::warn!("GOOSE_WORKING_DIR is set but path doesn't exist or isn't a directory: {:?}", working_dir);
+            tracing::warn!(
+                "GOOSE_WORKING_DIR is set but path doesn't exist or isn't a directory: {:?}",
+                working_dir
+            );
         }
     } else {
         tracing::info!("GOOSE_WORKING_DIR not set, using default working directory");
