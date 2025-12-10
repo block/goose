@@ -309,27 +309,42 @@ fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message])
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         for content in &message.content {
             if let MessageContent::ToolResponse(response) = content {
-                if let Ok(contents) = &response.tool_result {
-                    let text_content: Vec<String> = contents
-                        .iter()
-                        .filter_map(|c| {
-                            if let RawContent::Text(t) = c.deref() {
-                                Some(t.text.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
+                match &response.tool_result {
+                    Ok(contents) => {
+                        let text_content: Vec<String> = contents
+                            .iter()
+                            .filter_map(|c| {
+                                if let RawContent::Text(t) = c.deref() {
+                                    Some(t.text.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
 
-                    if !text_content.is_empty() {
+                        if !text_content.is_empty() {
+                            tracing::debug!(
+                                "Sending function_call_output with call_id: {}",
+                                response.id
+                            );
+                            input_items.push(json!({
+                                "type": "function_call_output",
+                                "call_id": response.id,
+                                "output": text_content.join("\n")
+                            }));
+                        }
+                    }
+                    Err(error_data) => {
+                        // Handle error responses - must send them back to the API
+                        // to avoid "No tool output found" errors
                         tracing::debug!(
-                            "Sending function_call_output with call_id: {}",
+                            "Sending function_call_output error with call_id: {}",
                             response.id
                         );
                         input_items.push(json!({
                             "type": "function_call_output",
                             "call_id": response.id,
-                            "output": text_content.join("\n")
+                            "output": format!("Error: {}", error_data.message)
                         }));
                     }
                 }

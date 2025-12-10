@@ -1,0 +1,33 @@
+{
+  "models": [
+    {
+      "provider": "databricks",
+      "name": "goose",
+      "parallel_safe": true,
+      "tool_shim": {
+        "use_tool_shim": false,
+        "tool_shim_model": null
+      }
+    },
+    {
+      "provider": "databricks",
+      "name": "goose-claude-4-sonnet",
+      "parallel_safe": true,
+      "tool_shim": null
+    }
+  ],
+  "evals": [
+    {
+      "selector": "core",
+      "post_process_cmd": null,
+      "parallel_safe": true
+    }
+  ],
+  "include_dirs": [],
+  "repeat": 2,
+  "run_id": null,
+  "output_dir": "/Users/dkatz/git/goose3/goose",
+  "eval_result_filename": "eval-results.json",
+  "run_summary_filename": "run-results-summary.json",
+  "env_file": null
+}
