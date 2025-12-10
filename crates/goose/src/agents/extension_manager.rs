@@ -659,13 +659,21 @@ impl ExtensionManager {
         extension_name: Option<String>,
         exclude: Option<&str>,
     ) -> ExtensionResult<Vec<Tool>> {
+        let extensions = self.extensions.lock().await;
+
+        // When code_execution is enabled and we're getting tools for the LLM (not for JS context),
+        // only expose code_execution tools. Other extensions remain loaded for JS to call.
+        let code_execution_mode =
+            exclude.is_none() && extensions.contains_key(super::code_execution_extension::EXTENSION_NAME);
+
         // Filter clients based on the provided extension_name or include all if None
-        let filtered_clients: Vec<_> = self
-            .extensions
-            .lock()
-            .await
+        let filtered_clients: Vec<_> = extensions
             .iter()
             .filter(|(name, _ext)| {
+                if code_execution_mode {
+                    return name.as_str() == super::code_execution_extension::EXTENSION_NAME;
+                }
+
                 if let Some(excluded) = exclude {
                     if name.as_str() == excluded {
                         return false;
@@ -680,6 +688,8 @@ impl ExtensionManager {
             })
             .map(|(name, ext)| (name.clone(), ext.config.clone(), ext.get_client()))
             .collect();
+
+        drop(extensions);
 
         let cancel_token = CancellationToken::default();
         let client_futures = filtered_clients.into_iter().map(|(name, config, client)| {
