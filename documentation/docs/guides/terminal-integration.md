@@ -1,122 +1,176 @@
----
-unlisted: true
----
 # Terminal Integration
 
-The `goose term` commands let you talk to goose directly from your shell prompt. Instead of switching to a separate REPL session, you stay in your terminal and call goose when you need it.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-```bash
-@goose "what does this error mean?"
-```
-
-Goose responds, you read the answer, and you're back at your prompt. The conversation lives alongside your work, not in a separate window you have to manage.
-
-## Command History Awareness
-
-The real power comes from shell integration. Once set up, goose tracks the commands you run, so when you ask a question, it already knows what you've been doing.
-
-No more copy-pasting error messages or explaining "I ran these commands...". Just work normally, then ask goose for help.
+Talk to goose directly from your shell prompt. Instead of switching to a separate REPL session, stay in your terminal and call goose when you need it.
 
 ## Setup
 
-Add one line to your shell config:
+<Tabs groupId="shells">
+<TabItem value="zsh" label="zsh" default>
 
-**zsh** (`~/.zshrc`)
+Add to `~/.zshrc`:
 ```bash
 eval "$(goose term init zsh)"
 ```
 
-**bash** (`~/.bashrc`)
+</TabItem>
+<TabItem value="bash" label="bash">
+
+Add to `~/.bashrc`:
 ```bash
 eval "$(goose term init bash)"
 ```
 
-**fish** (`~/.config/fish/config.fish`)
+</TabItem>
+<TabItem value="fish" label="fish">
+
+Add to `~/.config/fish/config.fish`:
 ```fish
 goose term init fish | source
 ```
 
-**PowerShell** (`$PROFILE`)
+</TabItem>
+<TabItem value="powershell" label="PowerShell">
+
+Add to `$PROFILE`:
 ```powershell
 Invoke-Expression (goose term init powershell)
 ```
 
-Then restart your terminal or source the config.
+</TabItem>
+</Tabs>
 
-### Default Mode
-
-For **bash** and **zsh**, you can make goose the default handler for anything that isn't a valid command:
-
-```bash
-# zsh
-eval "$(goose term init zsh --default)"
-
-# bash
-eval "$(goose term init bash --default)"
-```
-
-With this enabled, anything you type that isn't a command will be sent to goose:
-
-```bash
-$ what files are in this directory?
-🪿 Command 'what' not found. Asking goose...
-```
-
-Goose will interpret what you typed and help you accomplish the task.
+Restart your terminal or source the config, and that's it!
 
 ## Usage
 
-Once set up, your terminal session is linked to a goose session. All commands you run are logged to that session.
-
-To talk to goose about what you've been doing:
+Just type `@goose` (or `@g` for short) followed by your question:
 
 ```bash
-@goose "why did that fail?"
+npm install express
+    npm ERR! code EACCES
+    npm ERR! permission denied
+
+@goose "how do I fix this error?"
 ```
 
-You can also use `@g` as a shorter alias:
+goose automatically sees the commands you've run since your last question, so you don't need to explain what you've been doing. Use quotes around your prompt if it contains special characters like `?`, `*`, or `'`:
 
 ```bash
-@g "explain this error"
+@goose "what's in this directory?"
+@g "analyze the error: 'permission denied'"
 ```
 
-Both `@goose` and `@g` are aliases for `goose term run`. They open goose with your command history already loaded.
+## Named Sessions
+By default, each terminal gets its own goose session that lasts until you close it. Named sessions let you continue conversations across terminal restarts and share context between windows.
 
-## What Gets Logged
-
-Every command you type gets stored. Goose sees commands you ran since your last message to it.
-
-Commands starting with `goose term`, `@goose`, or `@g` are not logged (to avoid noise).
-
-## Performance
-
-- **Shell startup**: adds ~10ms
-- **Per command**: ~10ms, runs in background (non-blocking)
-
-You won't notice any delay. The logging happens asynchronously after your command starts executing.
-
-## How It Works
-
-`goose term init` outputs shell code that:
-1. Sets a `GOOSE_SESSION_ID` environment variable linking your terminal to a goose session
-2. Creates `@goose` and `@g` aliases for quick access
-3. Installs a preexec hook that calls `goose term log` for each command
-4. Optionally installs a command-not-found handler (with `--default`)
-
-The hook runs `goose term log <command> &` in the background, which appends to the goose session.
-When you run `@goose`, goose reads from the goose session any commands that happened since it 
-was last called and incorporates them in the next call.
-
-## Session Management
-
-By default a new goose session is created each time you run init and
-that session lasts as long as you keep that terminal open.
-
-You can create a named session by passing --name:
+<Tabs groupId="shells">
+<TabItem value="zsh" label="zsh" default>
 
 ```bash
-eval "$(goose term init zsh --name my_project)"
+eval "$(goose term init zsh --name my-project)"
 ```
 
-which will create a session with the name `my_project` if it doesn't exist yet or continues
-that session if it does.
+</TabItem>
+<TabItem value="bash" label="bash">
+
+```bash
+eval "$(goose term init bash --name my-project)"
+```
+
+</TabItem>
+<TabItem value="fish" label="fish">
+
+```fish
+goose term init fish --name my-project | source
+```
+
+</TabItem>
+<TabItem value="powershell" label="PowerShell">
+
+```powershell
+Invoke-Expression (goose term init powershell --name my-project)
+```
+
+</TabItem>
+</Tabs>
+
+Named sessions persist in goose's database, so they're available anytime, even after restarting your computer. Reopen later and run the same command to continue:
+
+```bash
+# Start debugging
+eval "$(goose term init zsh --name auth-bug)"
+@goose help me debug this login timeout
+
+# Close terminal, come back later
+eval "$(goose term init zsh --name auth-bug)"
+@goose "what was the solution we discussed?"
+# Continues the same conversation with context
+```
+
+## Show Context Status in Your Prompt
+
+Add `goose term info` to your prompt to see how much context you've used and which model is active during a terminal goose session. 
+
+<Tabs groupId="shells">
+<TabItem value="zsh" label="zsh" default>
+
+```bash
+PROMPT='$(goose term info) %~ $ '
+```
+
+</TabItem>
+<TabItem value="bash" label="bash">
+
+```bash
+PS1='$(goose term info) \w $ '
+```
+
+</TabItem>
+<TabItem value="fish" label="fish">
+
+```fish
+function fish_prompt
+    goose term info
+    echo -n ' '(prompt_pwd)' $ '
+end
+```
+
+</TabItem>
+<TabItem value="powershell" label="PowerShell">
+
+```powershell
+function prompt {
+    $gooseInfo = & goose term info
+    "$gooseInfo $(Get-Location) PS> "
+}
+```
+
+</TabItem>
+</Tabs>
+
+Your terminal prompt now shows the context usage and model name (shortened for readability) for the active goose session. For example:
+
+```bash
+●●○○○ sonnet ~/projects $
+```
+## Troubleshooting
+
+**goose doesn't see recent commands:**
+If you run commands but goose says it doesn't see any recent activity, check if terminal integration is properly [set up in your shell config](#setup).
+You can also check the id of the goose session in your current terminal:
+```bash
+# Check if session ID exists
+echo $GOOSE_SESSION_ID
+# Should show something like: 20251209_151730
+```
+To share context across terminal windows, use a [named session](#named-sessions) instead.
+
+**Session getting too full** (prompt shows `●●●●●`):
+If goose's responses are getting slow or hitting context limits, start a fresh goose session in the terminal. The new goose session sees your command history, but not the conversation history from the previous session. 
+```bash
+# Start a new goose session in the same shell
+eval "$(goose term init zsh)"
+```
