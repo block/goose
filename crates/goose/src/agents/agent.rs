@@ -1175,7 +1175,8 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1209,11 +1210,12 @@ impl Agent {
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Error: {}", e);
+                        Err(ref provider_err) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
-                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
                             );
                             break;
