@@ -6,6 +6,7 @@ import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
 import { listSavedRecipes } from '../../recipe/recipe_management';
+import { useNavigationCustomization } from '../settings/app/NavigationCustomizationSettings';
 
 interface NavItem {
   id: string;
@@ -116,6 +117,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
+  const { preferences } = useNavigationCustomization();
+  const [forceUpdate, setForceUpdate] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
   const [todayChatsCount, setTodayChatsCount] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
@@ -396,18 +399,44 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     },
   ];
 
-  // Initialize tile order on first render
-  useEffect(() => {
-    if (tileOrder.length === 0) {
-      setTileOrder(navItemsBase.map(item => item.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Filter and order navigation items based on user preferences
+  const navItems = React.useMemo(() => {
+    console.log('TopNavigation: Recomputing navItems with preferences:', preferences);
+    
+    // Filter enabled items
+    const enabledItems = navItemsBase.filter(item => 
+      preferences.enabledItems.includes(item.id)
+    );
 
-  // Get ordered nav items
-  const navItems = tileOrder.length > 0
-    ? tileOrder.map(id => navItemsBase.find(item => item.id === id)!).filter(Boolean)
-    : navItemsBase;
+    // Order items according to user preferences
+    const orderedItems = preferences.itemOrder
+      .map(id => enabledItems.find(item => item.id === id))
+      .filter(Boolean) as NavItem[];
+
+    // Add any new items that aren't in the order yet (for backwards compatibility)
+    const itemsNotInOrder = enabledItems.filter(item => 
+      !preferences.itemOrder.includes(item.id)
+    );
+
+    const result = [...orderedItems, ...itemsNotInOrder];
+    console.log('TopNavigation: Computed navItems:', result.map(item => item.id));
+    return result;
+  }, [navItemsBase, preferences.enabledItems, preferences.itemOrder, forceUpdate, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
+
+  // Listen for navigation preferences updates
+  useEffect(() => {
+    const handlePreferencesUpdate = (event: CustomEvent) => {
+      console.log('TopNavigation: Navigation preferences updated:', event.detail);
+      // Force re-render when preferences change by updating multiple states
+      setForceUpdate(prev => prev + 1);
+      setTileOrder(prev => [...prev]);
+    };
+
+    window.addEventListener('navigation-preferences-updated', handlePreferencesUpdate as EventListener);
+    return () => {
+      window.removeEventListener('navigation-preferences-updated', handlePreferencesUpdate as EventListener);
+    };
+  }, []);
 
   // Track value changes for pulse animation
   useEffect(() => {

@@ -6,6 +6,7 @@ import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
 import { listSavedRecipes } from '../../recipe/recipe_management';
+import { useNavigationCustomization } from '../settings/app/NavigationCustomizationSettings';
 
 interface NavItem {
   id: string;
@@ -36,6 +37,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
+  const { preferences } = useNavigationCustomization();
+  const [forceUpdate, setForceUpdate] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
   const [todayChatsCount, setTodayChatsCount] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
@@ -384,18 +387,49 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     },
   ];
 
-  // Initialize item order on first render
-  useEffect(() => {
-    if (itemOrder.length === 0) {
-      setItemOrder(navItemsBase.map(item => item.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Filter and order navigation items based on user preferences
+  const navItems = React.useMemo(() => {
+    console.log('CondensedNavigation: Recomputing navItems with preferences:', preferences);
+    
+    // Filter enabled items
+    const enabledItems = navItemsBase.filter(item => 
+      preferences.enabledItems.includes(item.id)
+    );
 
-  // Get ordered nav items (include widgets only for overlay mode)
-  const navItems = itemOrder.length > 0
-    ? itemOrder.map(id => navItemsBase.find(item => item.id === id)!).filter(item => item && (isOverlayMode || !item.isWidget))
-    : navItemsBase.filter(item => isOverlayMode || !item.isWidget);
+    // Filter widgets based on overlay mode
+    const filteredItems = enabledItems.filter(item => 
+      isOverlayMode || !item.isWidget
+    );
+
+    // Order items according to user preferences
+    const orderedItems = preferences.itemOrder
+      .map(id => filteredItems.find(item => item.id === id))
+      .filter(Boolean) as NavItem[];
+
+    // Add any new items that aren't in the order yet (for backwards compatibility)
+    const itemsNotInOrder = filteredItems.filter(item => 
+      !preferences.itemOrder.includes(item.id)
+    );
+
+    const result = [...orderedItems, ...itemsNotInOrder];
+    console.log('CondensedNavigation: Computed navItems:', result.map(item => item.id));
+    return result;
+  }, [navItemsBase, preferences.enabledItems, preferences.itemOrder, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
+
+  // Listen for navigation preferences updates
+  useEffect(() => {
+    const handlePreferencesUpdate = (event: CustomEvent) => {
+      console.log('CondensedNavigation: Navigation preferences updated:', event.detail);
+      // Force re-render when preferences change by updating multiple states
+      setForceUpdate(prev => prev + 1);
+      setItemOrder(prev => [...prev]);
+    };
+
+    window.addEventListener('navigation-preferences-updated', handlePreferencesUpdate as EventListener);
+    return () => {
+      window.removeEventListener('navigation-preferences-updated', handlePreferencesUpdate as EventListener);
+    };
+  }, []);
 
   // Track value changes for pulse animation
   useEffect(() => {
