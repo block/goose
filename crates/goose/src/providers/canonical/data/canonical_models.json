@@ -567,7 +567,7 @@
     }
   },
   {
-    "id": "openai/chatgpt-4o-latest",
+    "id": "openai/chatgpt-4o",
     "name": "OpenAI: ChatGPT-4o",
     "context_length": 128000,
     "max_completion_tokens": 16384,

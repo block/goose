@@ -2,7 +2,7 @@ use anyhow::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use super::canonical::{canonical_name, CanonicalModelRegistry};
+use super::canonical::CanonicalModelRegistry;
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -420,13 +420,19 @@ pub trait Provider: Send + Sync {
         &self,
         provider_model: &str,
     ) -> Result<Option<String>, ProviderError> {
-        let canonical = canonical_name(self.get_name(), provider_model);
+        use super::canonical::fuzzy_canonical_name;
 
-        if CanonicalModelRegistry::bundled_contains(&canonical)? {
-            Ok(Some(canonical))
-        } else {
-            Ok(None)
+        // Try fuzzy matching - this generates multiple candidates
+        let candidates = fuzzy_canonical_name(self.get_name(), provider_model);
+
+        // Return the first candidate that exists in the registry
+        for candidate in candidates {
+            if CanonicalModelRegistry::bundled_contains(&candidate)? {
+                return Ok(Some(candidate));
+            }
         }
+
+        Ok(None)
     }
 
     fn supports_embeddings(&self) -> bool {
