@@ -23,10 +23,7 @@ instructions: |
   STEP 1 - FETCH DOCUMENTATION (ALWAYS DO THIS FIRST!)
   ===============================================================
 
-  1. Read composer.json to identify dependencies:
-     ```bash
-     cat composer.json
-     ```
+  1. Read composer.json to identify dependencies.
 
   2. Use Context7 MCP to get fresh documentation:
      - For Laravel: resolve-library-id "laravel", then get-library-docs
@@ -51,9 +48,8 @@ instructions: |
   STEP 2 - ANALYZE CHANGES
   ===============================================================
 
-  Run: git diff origin/main...HEAD
-
-  Or if reviewing specific files, read each changed file.
+  Analyze the changed files from PR metadata.
+  Do not run git commands; only read files.
 
   ===============================================================
   STEP 3 - REVIEW CODE
@@ -376,7 +372,7 @@ council_instructions: |
 prompt: |
   Review the code in this PHP repository.
 
-  IMPORTANT: Use shell commands (via developer extension) to read files. Do NOT use filesystem extension.
+  IMPORTANT: Read files in a strictly read-only manner. If shell is used, restrict to read-only commands (e.g., cat, ls). Do NOT run git or any mutating/network commands.
 
   ===============================================================
   REVIEW MODE SELECTION
@@ -405,10 +401,7 @@ prompt: |
      - Call resolve-library-id with query for the framework
      - Call get-library-docs for the library
 
-  3. GET DIFF (run shell command):
-     ```bash
-     git diff origin/main...HEAD
-     ```
+  3. Examine changed files using PR metadata or provided file list. Do not run git commands.
 
   4. REVIEW each changed file against:
      - Modern PHP 8+ best practices

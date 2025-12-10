@@ -52,9 +52,8 @@ instructions: |
   STEP 2 - ANALYZE CHANGES
   ═══════════════════════════════════════════════════════════════
 
-  Run: git diff origin/main...HEAD
-
-  Or if reviewing specific files, read each changed file.
+  Analyze the changed files from PR metadata.
+  Do not run git commands; only read files.
 
   ═══════════════════════════════════════════════════════════════
   STEP 3 - REVIEW CODE (based on Flutter AI rules + Context7 docs)
@@ -324,7 +323,7 @@ council_instructions: |
 prompt: |
   Review the code in this Flutter repository.
 
-  IMPORTANT: Use shell commands (via developer extension) to read files. Do NOT use filesystem extension.
+  IMPORTANT: Read files in a strictly read-only manner. If shell is used, restrict to read-only commands (e.g., cat, ls). Do NOT run git or any mutating/network commands.
 
   ═══════════════════════════════════════════════════════════════
   REVIEW MODE SELECTION
@@ -355,10 +354,7 @@ prompt: |
      ```
      For each major dependency (bloc, riverpod, dio, etc.), fetch Context7 docs.
 
-  3. GET DIFF (run shell command):
-     ```bash
-     git diff origin/main...HEAD
-     ```
+  3. Examine changed files using PR metadata or provided file list. Do not run git commands.
 
   4. REVIEW each changed file against:
      - Official Flutter AI rules

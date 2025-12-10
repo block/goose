@@ -24,10 +24,7 @@ instructions: |
   STEP 1 - FETCH DOCUMENTATION (ALWAYS DO THIS FIRST!)
   ===============================================================
 
-  1. Read package.json to identify dependencies:
-     ```bash
-     cat package.json
-     ```
+  1. Read package.json to identify dependencies.
 
   2. Check tessl.io registry for package information:
      For major dependencies, query: https://tessl.io/api/v1/tiles?filter[fullName][like]=PACKAGE_NAME
@@ -60,9 +57,8 @@ instructions: |
   STEP 2 - ANALYZE CHANGES
   ===============================================================
 
-  Run: git diff origin/main...HEAD
-
-  Or if reviewing specific files, read each changed file.
+  Analyze the changed files from PR metadata.
+  Do not run git commands; only read files.
 
   ===============================================================
   STEP 3 - REVIEW CODE
@@ -345,7 +341,7 @@ council_instructions: |
 prompt: |
   Review the code in this JavaScript/TypeScript repository.
 
-  IMPORTANT: Use shell commands (via developer extension) to read files. Do NOT use filesystem extension.
+  IMPORTANT: Read files in a strictly read-only manner. If shell is used, restrict to read-only commands (e.g., cat, ls). Do NOT run git or any mutating/network commands.
 
   ===============================================================
   REVIEW MODE SELECTION
@@ -363,10 +359,8 @@ prompt: |
   STANDARD REVIEW STEPS
   ===============================================================
 
-  1. DETECT FRAMEWORK (run shell command):
-     ```bash
-     cat package.json
-     ```
+  1. DETECT FRAMEWORK:
+     Read package.json and look for: react, next, vue, @angular/core, svelte in dependencies
      Look for: react, next, vue, @angular/core, svelte in dependencies
 
   2. FETCH CONTEXT7 DOCS:
@@ -377,10 +371,7 @@ prompt: |
   3. CHECK TESSL.IO REGISTRY:
      For major dependencies, check package status at tessl.io
 
-  4. GET DIFF (run shell command):
-     ```bash
-     git diff origin/main...HEAD
-     ```
+  4. Examine changed files using PR metadata or provided file list. Do not run git commands.
 
   5. REVIEW each changed file against:
      - Framework-specific best practices
