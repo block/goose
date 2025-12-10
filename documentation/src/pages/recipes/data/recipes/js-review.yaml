@@ -57,14 +57,12 @@ instructions: |
   - tailwindcss → /tailwindlabs/tailwindcss
 
   ===============================================================
-  STEP 2 - ANALYZE UNCOMMITTED CHANGES
+  STEP 2 - ANALYZE CHANGES
   ===============================================================
 
-  Run: git diff HEAD
+  Run: git diff origin/main...HEAD
 
-  This shows all uncommitted changes (both staged and unstaged).
-  For staged changes only: git diff --cached
-  For unstaged changes only: git diff
+  Or if reviewing specific files, read each changed file.
 
   ===============================================================
   STEP 3 - REVIEW CODE
@@ -379,11 +377,10 @@ prompt: |
   3. CHECK TESSL.IO REGISTRY:
      For major dependencies, check package status at tessl.io
 
-  4. GET UNCOMMITTED CHANGES (run shell command):
+  4. GET DIFF (run shell command):
      ```bash
-     git diff HEAD
+     git diff origin/main...HEAD
      ```
-     This shows all uncommitted changes (staged + unstaged).
 
   5. REVIEW each changed file against:
      - Framework-specific best practices
@@ -513,8 +510,16 @@ extensions:
   - type: builtin
     name: developer
     timeout: 300
-  - type: builtin
+  - type: stdio
     name: context7
+    cmd: npx
+    args:
+      - "-y"
+      - "@upstash/context7-mcp"
+    timeout: 300
+    description: "Context7 MCP for up-to-date JavaScript/TypeScript and library documentation"
+    env_keys:
+      - CONTEXT7_API_KEY
 
 activities:
   - "Detect JavaScript framework from package.json"

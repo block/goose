@@ -22,17 +22,14 @@ instructions: |
   ═══════════════════════════════════════════════════════════════
   STEP 1 - FETCH DOCUMENTATION (ALWAYS DO THIS FIRST!)
   ═══════════════════════════════════════════════════════════════
-  
-  1. Download and read official Flutter AI rules:
-     curl -sL "https://raw.githubusercontent.com/flutter/flutter/refs/heads/main/docs/rules/rules.md"
-  
-  2. Use Context7 MCP to get fresh documentation:
+
+  1. Use Context7 MCP to get official Flutter AI rules and documentation:
      - First call: resolve-library-id for "flutter"
      - Then call: get-library-docs for /flutter/flutter
      - First call: resolve-library-id for "dart"
      - Then call: get-library-docs for /dart-lang/sdk
-  
-  3. Analyze pubspec.yaml to find all dependencies:
+
+  2. Analyze pubspec.yaml to find all dependencies:
      - Read pubspec.yaml
      - For each major dependency, use Context7 to fetch docs
   
@@ -52,14 +49,12 @@ instructions: |
   - json_serializable → /google/json_serializable
 
   ═══════════════════════════════════════════════════════════════
-  STEP 2 - ANALYZE UNCOMMITTED CHANGES
+  STEP 2 - ANALYZE CHANGES
   ═══════════════════════════════════════════════════════════════
 
-  Run: git diff HEAD
+  Run: git diff origin/main...HEAD
 
-  This shows all uncommitted changes (both staged and unstaged).
-  For staged changes only: git diff --cached
-  For unstaged changes only: git diff
+  Or if reviewing specific files, read each changed file.
 
   ═══════════════════════════════════════════════════════════════
   STEP 3 - REVIEW CODE (based on Flutter AI rules + Context7 docs)
@@ -347,31 +342,25 @@ prompt: |
   STANDARD REVIEW STEPS
   ═══════════════════════════════════════════════════════════════
 
-  1. FETCH FLUTTER RULES (run shell command):
-     ```bash
-     curl -sL "https://raw.githubusercontent.com/flutter/flutter/refs/heads/main/docs/rules/rules.md"
-     ```
-
-  2. FETCH CONTEXT7 DOCS:
+  1. FETCH CONTEXT7 DOCS:
      Use Context7 MCP tools to get documentation for Flutter and Dart:
      - Call resolve-library-id with query "flutter"
      - Call get-library-docs for the Flutter library
      - Call resolve-library-id with query "dart"
      - Call get-library-docs for Dart
 
-  3. ANALYZE DEPENDENCIES (run shell commands):
+  2. ANALYZE DEPENDENCIES (run shell commands):
      ```bash
      cat pubspec.yaml
      ```
      For each major dependency (bloc, riverpod, dio, etc.), fetch Context7 docs.
 
-  4. GET UNCOMMITTED CHANGES (run shell command):
+  3. GET DIFF (run shell command):
      ```bash
-     git diff HEAD
+     git diff origin/main...HEAD
      ```
-     This shows all uncommitted changes (staged + unstaged).
 
-  5. REVIEW each changed file against:
+  4. REVIEW each changed file against:
      - Official Flutter AI rules
      - Context7 documentation for each library used
 
@@ -498,8 +487,16 @@ extensions:
   - type: builtin
     name: developer
     timeout: 300
-  - type: builtin
+  - type: stdio
     name: context7
+    cmd: npx
+    args:
+      - "-y"
+      - "@upstash/context7-mcp"
+    timeout: 300
+    description: "Context7 MCP for up-to-date Flutter/Dart and library documentation"
+    env_keys:
+      - CONTEXT7_API_KEY
 
 activities:
   - "Fetch Flutter AI rules and Context7 docs"

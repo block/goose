@@ -48,14 +48,12 @@ instructions: |
   - inertiajs/inertia-laravel → /inertiajs/inertia-laravel
 
   ===============================================================
-  STEP 2 - ANALYZE UNCOMMITTED CHANGES
+  STEP 2 - ANALYZE CHANGES
   ===============================================================
 
-  Run: git diff HEAD
+  Run: git diff origin/main...HEAD
 
-  This shows all uncommitted changes (both staged and unstaged).
-  For staged changes only: git diff --cached
-  For unstaged changes only: git diff
+  Or if reviewing specific files, read each changed file.
 
   ===============================================================
   STEP 3 - REVIEW CODE
@@ -407,11 +405,10 @@ prompt: |
      - Call resolve-library-id with query for the framework
      - Call get-library-docs for the library
 
-  3. GET UNCOMMITTED CHANGES (run shell command):
+  3. GET DIFF (run shell command):
      ```bash
-     git diff HEAD
+     git diff origin/main...HEAD
      ```
-     This shows all uncommitted changes (staged + unstaged).
 
   4. REVIEW each changed file against:
      - Modern PHP 8+ best practices
@@ -543,8 +540,16 @@ extensions:
   - type: builtin
     name: developer
     timeout: 300
-  - type: builtin
+  - type: stdio
     name: context7
+    cmd: npx
+    args:
+      - "-y"
+      - "@upstash/context7-mcp"
+    timeout: 300
+    description: "Context7 MCP for up-to-date PHP and library documentation"
+    env_keys:
+      - CONTEXT7_API_KEY
 
 activities:
   - "Detect PHP framework from composer.json"
