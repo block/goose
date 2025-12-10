@@ -44,9 +44,6 @@ pub struct CanonicalModel {
     #[serde(default)]
     pub output_modalities: Vec<String>,
 
-    /// Tokenizer type (e.g., "GPT", "Claude", "Gemini")
-    pub tokenizer: String,
-
     /// Whether the model supports tool calling
     #[serde(default)]
     pub supports_tools: bool,

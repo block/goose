@@ -12,7 +12,20 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
-const ALLOWED_PROVIDERS: &[&str] = &["anthropic", "google", "openai"];
+const ALLOWED_PROVIDERS: &[&str] = &[
+    "anthropic",
+    "google",
+    "openai",
+    // Additional providers (uncomment one at a time to test):
+     "meta-llama",     // Llama 3.1, 3.3, 4 series - very popular
+    // "mistralai",      // Mistral Large, Mixtral - very popular
+    // "x-ai",           // Grok models - high profile
+    // "deepseek",       // DeepSeek v3, R1 - gaining popularity
+    // "cohere",         // Command R, Command R+ models
+    // "ai21",           // Jamba 1.5 models
+    // "qwen",           // Qwen 2.5 series (Alibaba)
+    // "01-ai",          // Yi models
+];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -163,17 +176,6 @@ async fn main() -> Result<()> {
             })
             .unwrap_or_else(|| vec!["text".to_string()]);
 
-        let tokenizer = if canonical_id.starts_with("anthropic/") {
-            "Claude"
-        } else if canonical_id.starts_with("openai/") {
-            "GPT"
-        } else if canonical_id.starts_with("google/") {
-            "Gemini"
-        } else {
-            "Unknown"
-        }
-        .to_string();
-
         let supports_tools = model
             .get("supported_parameters")
             .and_then(|v| v.as_array())
@@ -207,7 +209,6 @@ async fn main() -> Result<()> {
             max_completion_tokens,
             input_modalities,
             output_modalities,
-            tokenizer,
             supports_tools,
             pricing,
         };
