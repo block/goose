@@ -17,10 +17,10 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "google",
     "openai",
     // Additional providers (uncomment one at a time to test):
-     "meta-llama",     // Llama 3.1, 3.3, 4 series - very popular
-     "mistralai",      // Mistral Large, Mixtral - very popular
-     "x-ai",           // Grok models - high profile
-    // "deepseek",       // DeepSeek v3, R1 - gaining popularity
+    "meta-llama",     // Llama 3.1, 3.3, 4 series - very popular
+    "mistralai",      // Mistral Large, Mixtral - very popular
+    "x-ai",           // Grok models - high profile
+    "deepseek",       // DeepSeek v3, R1 - gaining popularity
     // "cohere",         // Command R, Command R+ models
     // "ai21",           // Jamba 1.5 models
     // "qwen",           // Qwen 2.5 series (Alibaba)

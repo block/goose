@@ -248,6 +248,193 @@
     }
   },
   {
+    "id": "deepseek/deepseek",
+    "name": "DeepSeek: DeepSeek V3.2",
+    "context_length": 163840,
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2.6e-7,
+      "completion": 3.9e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-chat",
+    "name": "DeepSeek: DeepSeek V3",
+    "context_length": 163840,
+    "max_completion_tokens": 163840,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-prover",
+    "name": "DeepSeek: DeepSeek Prover V2",
+    "context_length": 163840,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 2.18e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1",
+    "name": "DeepSeek: R1",
+    "context_length": 163840,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "name": "DeepSeek: DeepSeek R1 0528 Qwen3 8B",
+    "context_length": 32768,
+    "max_completion_tokens": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2e-8,
+      "completion": 1e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1-distill-llama-70b",
+    "name": "DeepSeek: R1 Distill Llama 70B",
+    "context_length": 131072,
+    "max_completion_tokens": 131072,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 3e-8,
+      "completion": 1.3e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1-distill-qwen-14b",
+    "name": "DeepSeek: R1 Distill Qwen 14B",
+    "context_length": 32768,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 1.2e-7,
+      "completion": 1.2e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1-distill-qwen-32b",
+    "name": "DeepSeek: R1 Distill Qwen 32B",
+    "context_length": 64000,
+    "max_completion_tokens": 32000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2.4e-7,
+      "completion": 2.4e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v3.1-terminus",
+    "name": "DeepSeek: DeepSeek V3.1 Terminus",
+    "context_length": 163840,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2.1e-7,
+      "completion": 7.9e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v3.2-speciale",
+    "name": "DeepSeek: DeepSeek V3.2 Speciale",
+    "context_length": 163840,
+    "max_completion_tokens": 65536,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2.7e-7,
+      "completion": 4.1e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
     "id": "google/gemini-2.0-flash",
     "name": "Google: Gemini 2.0 Flash",
     "context_length": 1048576,
