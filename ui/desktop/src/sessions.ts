@@ -1,5 +1,6 @@
 import { Session, startAgent } from './api';
 import type { setViewType } from './hooks/useNavigation';
+import { getWorkingDir } from './store/newChatState';
 
 export function resumeSession(session: Session, setView: setViewType) {
   setView('pair', {
@@ -17,8 +18,11 @@ export async function createSession(options?: {
     recipe_id?: string;
     recipe_deeplink?: string;
   } = {
-    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+    working_dir: getWorkingDir(),
   };
+
+  // Note: We intentionally don't clear newChatState here
+  // so that new sessions in the same window continue to use the last selected directory
 
   if (options?.recipeId) {
     body.recipe_id = options.recipeId;

@@ -271,6 +271,13 @@ pub async fn reply(
             }
         };
 
+        tracing::info!(
+            "Setting GOOSE_WORKING_DIR for session {}: {:?}",
+            session_id,
+            session.working_dir
+        );
+        std::env::set_var("GOOSE_WORKING_DIR", &session.working_dir);
+
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: session.schedule_id.clone(),
