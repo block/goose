@@ -1,6 +1,6 @@
-// Store for pending new chat configuration
-// Holds state that will be applied when creating a new session
-// This allows changing settings from Hub before any session exists
+// Store for new chat configuration
+// Acts as a cache that can be updated from UI or synced from session
+// Resets on page refresh - defaults to window.appConfig.get('GOOSE_WORKING_DIR')
 
 interface NewChatState {
   workingDir: string | null;

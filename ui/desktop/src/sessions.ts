@@ -1,4 +1,4 @@
-import { Session, startAgent } from './api';
+import { Session, startAgent, restartAgent } from './api';
 import type { setViewType } from './hooks/useNavigation';
 import { getWorkingDir } from './store/newChatState';
 
@@ -34,7 +34,15 @@ export async function createSession(options?: {
     body,
     throwOnError: true,
   });
-  return newAgent.data;
+
+  const session = newAgent.data;
+
+  // Restart agent to ensure it picks up the session's working dir
+  await restartAgent({
+    body: { session_id: session.id },
+  });
+
+  return session;
 }
 
 export async function startNewSession(

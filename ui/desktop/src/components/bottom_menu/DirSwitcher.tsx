@@ -14,21 +14,20 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
 
-  const [currentDir, setCurrentDir] = useState(getWorkingDir());
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
 
   // Fetch the working directory from the session when sessionId changes
   useEffect(() => {
-    const fetchSessionWorkingDir = async () => {
-      if (!sessionId) {
-        // No session - use the pending/default working dir
-        setCurrentDir(getWorkingDir());
-        return;
-      }
+    if (!sessionId) {
+      setSessionWorkingDir(null);
+      return;
+    }
 
+    const fetchSessionWorkingDir = async () => {
       try {
         const response = await getSession({ path: { session_id: sessionId } });
         if (response.data?.working_dir) {
-          setCurrentDir(response.data.working_dir);
+          setSessionWorkingDir(response.data.working_dir);
         }
       } catch (error) {
         console.error('[DirSwitcher] Failed to fetch session working dir:', error);
@@ -37,6 +36,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
 
     fetchSessionWorkingDir();
   }, [sessionId]);
+
+  const currentDir = sessionWorkingDir ?? getWorkingDir();
 
   const handleDirectoryChange = async () => {
     if (isDirectoryChooserOpen) return;
@@ -54,13 +55,9 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
     }
 
     const newDir = result.filePaths[0];
-
-    // Always update the new chat state so new sessions use it
     setWorkingDir(newDir);
-    setCurrentDir(newDir);
 
     if (sessionId) {
-      // Update existing session
       try {
         await updateSessionWorkingDir({
           path: { session_id: sessionId },
@@ -73,6 +70,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
           console.error('[DirSwitcher] Failed to restart agent:', restartError);
           toast.error('Failed to update working directory');
         }
+
+        setSessionWorkingDir(newDir);
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error('Failed to update working directory');
