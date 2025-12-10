@@ -1,5 +1,43 @@
 [
   {
+    "id": "ai21/jamba-large-1.7",
+    "name": "AI21: Jamba Large 1.7",
+    "context_length": 256000,
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 8e-6,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "ai21/jamba-mini-1.7",
+    "name": "AI21: Jamba Mini 1.7",
+    "context_length": 256000,
+    "max_completion_tokens": 4096,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 4e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
     "id": "anthropic/claude-3-haiku",
     "name": "Anthropic: Claude 3 Haiku",
     "context_length": 200000,

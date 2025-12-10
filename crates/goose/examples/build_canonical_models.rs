@@ -22,7 +22,7 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "x-ai",           // Grok models - high profile
     "deepseek",       // DeepSeek v3, R1 - gaining popularity
     "cohere",         // Command R, Command R+ models
-    // "ai21",           // Jamba 1.5 models
+    "ai21",           // Jamba 1.5 models
     // "qwen",           // Qwen 2.5 series (Alibaba)
     // "01-ai",          // Yi models
 ];
