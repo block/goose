@@ -24,7 +24,6 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "cohere",         // Command R, Command R+ models
     "ai21",           // Jamba 1.5 models
     "qwen",           // Qwen 2.5 series (Alibaba)
-    // "01-ai",          // Yi models
 ];
 
 #[tokio::main]
