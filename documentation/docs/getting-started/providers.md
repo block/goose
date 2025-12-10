@@ -231,11 +231,15 @@ To configure your chosen provider, see available options, or select a model, vis
 
 ### Using Custom OpenAI Endpoints
 
-When configuring the OpenAI provider, goose supports custom OpenAI-compatible endpoints, which are particularly useful for:
+The built-in OpenAI provider can connect to OpenAI's official API (`api.openai.com`) or any OpenAI-compatible endpoint, such as:
 - Self-hosted LLMs (e.g., LLaMA, Mistral) using vLLM or KServe
 - Private OpenAI-compatible API servers
 - Enterprise deployments requiring data governance and security compliance
 - OpenAI API proxies or gateways
+
+:::tip Custom Provider Option
+Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, along with custom naming and shareable configurations.
+:::
 
 #### Configuration Parameters
 
@@ -319,9 +323,16 @@ For enterprise deployments, you can pre-configure these values using environment
 
 ## Configure Custom Provider
 
-Configure goose to connect to corporate API gateways, third-party services, and other providers that aren't in the [available providers](#available-providers) list. The provider's API endpoints must use OpenAI, Anthropic, or Ollama compatible formats to work with goose. OpenAI compatible providers can be configured with custom headers for services that require additional authentication headers, API keys and tokens, or tenant identifiers.
+Custom providers let you connect to services that aren't in the [available providers](#available-providers) list. They appear in goose's provider list and can be selected like any other provider.
 
-Custom providers appear in the goose providers list and can be selected like any other provider. Each custom provider maps to a JSON configuration file.
+**Benefits:**
+- **Multiple endpoints**: Switch between different services (e.g., vLLM, corporate proxy, OpenAI)
+- **Pre-configured models**: Store a list of preferred models
+- **Shareable configuration**: JSON files can be shared across teams or checked into repos
+- **Custom naming**: Show "Corporate API" instead of "OpenAI" in the UI
+- **Separate credentials**: Assign each provider its own API key
+
+Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. OpenAI-compatible providers can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
 
 **To add a custom provider:**
 <Tabs groupId="interface">
