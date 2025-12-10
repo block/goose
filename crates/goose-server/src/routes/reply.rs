@@ -278,9 +278,12 @@ pub async fn reply(
             retry_config: None,
         };
 
-        let user_message = match messages.last() {
-            Some(msg) => msg,
-            _ => {
+        // If multiple messages are provided, replace the session conversation
+        // with all messages except the last one, then use the last message as
+        // the new user input. This supports external integrations (like Slack bots)
+        // that need to provide full conversation context.
+        let user_message = match messages.len() {
+            0 => {
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "Reply started with empty messages".to_string(),
@@ -290,6 +293,34 @@ pub async fn reply(
                 )
                 .await;
                 return;
+            }
+            1 => {
+                // Single message - use it directly (original behavior)
+                messages.messages()[0].clone()
+            }
+            _ => {
+                // Multiple messages - replace session conversation with history,
+                // then use the last message as the new user input
+                let all_msgs = messages.messages();
+                let history_msgs = &all_msgs[..all_msgs.len() - 1];
+                let history_conversation = Conversation::new_unvalidated(history_msgs.to_vec());
+
+                if let Err(e) =
+                    SessionManager::replace_conversation(&session_id, &history_conversation).await
+                {
+                    tracing::warn!(
+                        "Failed to replace session conversation for {}: {}. Falling back to last message only.",
+                        session_id, e
+                    );
+                } else {
+                    tracing::info!(
+                        "Replaced session {} conversation with {} history messages",
+                        session_id,
+                        history_msgs.len()
+                    );
+                }
+
+                all_msgs.last().unwrap().clone()
             }
         };
 
