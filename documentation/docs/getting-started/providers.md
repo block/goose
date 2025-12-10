@@ -440,8 +440,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
         }
       ],
       "headers": {
-        "x-origin-client-id": "your-client-id",
-        "x-origin-secret": "your-secret"
+        "x-origin-client-id": "YOUR_CLIENT_ID",
+        "x-origin-secret": "YOUR_SECRET_VALUE"
       },
       "supports_streaming": true
     }
