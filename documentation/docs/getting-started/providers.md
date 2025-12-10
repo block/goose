@@ -238,7 +238,7 @@ The built-in OpenAI provider can connect to OpenAI's official API (`api.openai.c
 - OpenAI API proxies or gateways
 
 :::tip Custom Provider Option
-Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, along with custom naming and shareable configurations.
+Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, as well as custom naming and shareable configurations.
 :::
 
 #### Configuration Parameters
