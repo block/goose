@@ -2724,6 +2724,7 @@ export class MatrixService extends EventEmitter {
 
   /**
    * Invite a user to an existing room
+   * If the room is part of a space, also invite the user to the parent space
    */
   async inviteToRoom(roomId: string, userId: string): Promise<void> {
     if (!this.client) {
@@ -2740,7 +2741,137 @@ export class MatrixService extends EventEmitter {
       needsFormatting: !userId.startsWith('@')
     });
 
-    await this.client.invite(roomId, formattedUserId);
+    try {
+      // First, invite the user to the room
+      await this.client.invite(roomId, formattedUserId);
+      console.log('✅ Successfully invited user to room:', roomId);
+
+      // Check if this room is part of any spaces and invite to parent spaces
+      await this.inviteToParentSpaces(roomId, formattedUserId);
+
+    } catch (error) {
+      console.error('❌ Failed to invite user to room:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Invite a user directly to a Matrix Space
+   */
+  async inviteToSpace(spaceId: string, userId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+
+    // Ensure userId starts with '@' as required by Matrix
+    const formattedUserId = userId.startsWith('@') ? userId : `@${userId}`;
+    
+    console.log('🌌 Inviting user to space:', {
+      spaceId,
+      originalUserId: userId,
+      formattedUserId,
+      needsFormatting: !userId.startsWith('@')
+    });
+
+    try {
+      // Get space information for logging
+      const space = this.client.getRoom(spaceId);
+      const spaceName = space?.name || 'Unknown Space';
+      
+      // Check if user is already in this space
+      const userMembership = space?.getMember(formattedUserId)?.membership;
+      
+      if (userMembership === 'join') {
+        console.log(`✅ User ${formattedUserId} is already a member of space ${spaceName}`);
+        return;
+      }
+      
+      if (userMembership === 'invite') {
+        console.log(`📬 User ${formattedUserId} is already invited to space ${spaceName}`);
+        return;
+      }
+      
+      // Invite user to the space
+      await this.client.invite(spaceId, formattedUserId);
+      console.log(`✅ Successfully invited user to space: ${spaceName} (${spaceId})`);
+
+    } catch (error) {
+      console.error('❌ Failed to invite user to space:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find parent spaces of a room and invite user to them
+   * This ensures users can see the full space context when invited to rooms
+   */
+  private async inviteToParentSpaces(roomId: string, userId: string): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      console.log('🌌 Checking for parent spaces of room:', roomId);
+      
+      // Get all spaces the current user is in
+      const userSpaces = this.getRooms().filter(room => room.isSpace);
+      
+      console.log(`🌌 Found ${userSpaces.length} spaces to check for parent relationships`);
+      
+      let parentSpacesFound = 0;
+      let invitationsSent = 0;
+      
+      // Check each space to see if it contains this room as a child
+      for (const space of userSpaces) {
+        try {
+          const spaceRoom = this.client.getRoom(space.roomId);
+          if (!spaceRoom) continue;
+
+          // Check if this room is a child of this space
+          const childEvents = spaceRoom.currentState.getStateEvents('m.space.child');
+          const isChildOfSpace = childEvents.some(event => event.getStateKey() === roomId);
+          
+          if (isChildOfSpace) {
+            parentSpacesFound++;
+            console.log(`🌌 Found parent space: ${space.name} (${space.roomId})`);
+            
+            // Check if user is already in this space
+            const userMembership = spaceRoom.getMember(userId)?.membership;
+            
+            if (userMembership === 'join') {
+              console.log(`✅ User ${userId} is already a member of space ${space.name}`);
+              continue;
+            }
+            
+            if (userMembership === 'invite') {
+              console.log(`📬 User ${userId} is already invited to space ${space.name}`);
+              continue;
+            }
+            
+            // Invite user to the parent space
+            try {
+              await this.client.invite(space.roomId, userId);
+              invitationsSent++;
+              console.log(`✅ Successfully invited user to parent space: ${space.name} (${space.roomId})`);
+            } catch (spaceInviteError) {
+              console.warn(`⚠️ Failed to invite user to parent space ${space.name}:`, spaceInviteError);
+              // Don't throw - we want to continue with other spaces
+            }
+          }
+        } catch (spaceError) {
+          console.warn(`⚠️ Error checking space ${space.roomId}:`, spaceError);
+          // Continue with other spaces
+        }
+      }
+      
+      if (parentSpacesFound > 0) {
+        console.log(`🌌 ✅ Parent space check complete: found ${parentSpacesFound} parent spaces, sent ${invitationsSent} invitations`);
+      } else {
+        console.log('🌌 No parent spaces found for room:', roomId);
+      }
+      
+    } catch (error) {
+      console.error('🌌 ❌ Error checking for parent spaces:', error);
+      // Don't throw - this is a supplementary feature
+    }
   }
 
   /**
