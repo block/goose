@@ -105,6 +105,8 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", false);
+
     let StartAgentRequest {
         working_dir,
         recipe,
@@ -197,6 +199,8 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", true);
+
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
