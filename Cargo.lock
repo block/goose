@@ -2668,7 +2668,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2752,7 +2752,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2775,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2894,7 +2894,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2913,6 +2913,7 @@ dependencies = [
  "rand 0.9.2",
  "reqwest 0.12.12",
  "rmcp 0.9.1",
+ "rustls 0.23.31",
  "schemars",
  "serde",
  "serde_json",
@@ -2938,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.16.0"
+version = "1.16.1"
 dependencies = [
  "clap",
  "serde_json",
@@ -4232,23 +4233,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
 dependencies = [
  "rand 0.8.5",
-]
-
-[[package]]
-name = "native-tls"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87de3442987e9dbec73158d5c715e7ad9072fda936bb03d19d7fa10e00520f0e"
-dependencies = [
- "libc",
- "log",
- "openssl",
- "openssl-probe",
- "openssl-sys",
- "schannel",
- "security-framework 2.11.1",
- "security-framework-sys",
- "tempfile",
 ]
 
 [[package]]
@@ -5863,6 +5847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ebcbd2f03de0fc1122ad9bb24b127a5a6cd51d72604a3f3c50ac459762b6cc"
 dependencies = [
  "aws-lc-rs",
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -7152,16 +7137,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-native-tls"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
-dependencies = [
- "native-tls",
- "tokio",
-]
-
-[[package]]
 name = "tokio-rustls"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7212,9 +7187,11 @@ checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
- "native-tls",
+ "rustls 0.23.31",
+ "rustls-native-certs 0.8.1",
+ "rustls-pki-types",
  "tokio",
- "tokio-native-tls",
+ "tokio-rustls 0.26.2",
  "tungstenite 0.28.0",
 ]
 
@@ -7591,8 +7568,9 @@ dependencies = [
  "http 1.2.0",
  "httparse",
  "log",
- "native-tls",
  "rand 0.9.2",
+ "rustls 0.23.31",
+ "rustls-pki-types",
  "sha1",
  "thiserror 2.0.12",
  "utf-8",
