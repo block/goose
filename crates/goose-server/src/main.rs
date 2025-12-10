@@ -8,7 +8,6 @@ mod state;
 mod tunnel;
 
 use clap::{Parser, Subcommand};
-
 use goose::config::paths::Paths;
 use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
