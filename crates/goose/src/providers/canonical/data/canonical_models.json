@@ -248,6 +248,82 @@
     }
   },
   {
+    "id": "cohere/command-a",
+    "name": "Cohere: Command A",
+    "context_length": 256000,
+    "max_completion_tokens": 8192,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "cohere/command-r-08",
+    "name": "Cohere: Command R (08-2024)",
+    "context_length": 128000,
+    "max_completion_tokens": 4000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.5e-7,
+      "completion": 6e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "cohere/command-r-plus-08",
+    "name": "Cohere: Command R+ (08-2024)",
+    "context_length": 128000,
+    "max_completion_tokens": 4000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 0.00001,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "cohere/command-r7b-12",
+    "name": "Cohere: Command R7B (12-2024)",
+    "context_length": 128000,
+    "max_completion_tokens": 4000,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 3.75e-8,
+      "completion": 1.5e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
     "id": "deepseek/deepseek",
     "name": "DeepSeek: DeepSeek V3.2",
     "context_length": 163840,
