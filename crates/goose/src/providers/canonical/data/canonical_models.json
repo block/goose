@@ -5,7 +5,8 @@
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -25,7 +26,8 @@
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -45,7 +47,8 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -65,7 +68,9 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -85,7 +90,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -105,7 +112,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -125,6 +134,7 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -145,7 +155,9 @@
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -165,7 +177,9 @@
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -185,6 +199,8 @@
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
+      "file",
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -205,7 +221,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -225,7 +243,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -245,7 +265,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -265,7 +289,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -285,7 +313,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text"
+      "file",
+      "image",
+      "text",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -305,9 +337,11 @@
     "context_length": 32768,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "image",
       "text"
     ],
     "output_modalities": [
+      "image",
       "text"
     ],
     "tokenizer": "Gemini",
@@ -325,7 +359,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -345,7 +383,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -365,7 +407,11 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
     ],
     "output_modalities": [
       "text"
@@ -385,9 +431,11 @@
     "context_length": 65536,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "image",
       "text"
     ],
     "output_modalities": [
+      "image",
       "text"
     ],
     "tokenizer": "Gemini",
@@ -443,7 +491,8 @@
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -463,7 +512,8 @@
     "context_length": 96000,
     "max_completion_tokens": 96000,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -482,7 +532,8 @@
     "name": "Google: Gemma 3 4B",
     "context_length": 96000,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -521,7 +572,8 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -541,6 +593,7 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -641,7 +694,8 @@
     "context_length": 128000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -661,7 +715,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -681,7 +737,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -701,7 +759,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -721,7 +781,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -741,6 +803,7 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
+      "audio",
       "text"
     ],
     "output_modalities": [
@@ -761,7 +824,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -821,7 +886,9 @@
     "context_length": 128000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -841,7 +908,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -861,6 +930,8 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
+      "file",
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -881,7 +952,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -901,9 +973,12 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
+      "image",
       "text"
     ],
     "tokenizer": "GPT",
@@ -921,9 +996,12 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
+      "image",
       "text"
     ],
     "output_modalities": [
+      "image",
       "text"
     ],
     "tokenizer": "GPT",
@@ -941,7 +1019,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -961,7 +1041,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -981,7 +1063,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1001,7 +1085,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1021,6 +1107,8 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
+      "file",
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -1041,7 +1129,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -1061,7 +1150,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text"
+      "text",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -1081,6 +1171,7 @@
     "context_length": 400000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -1159,7 +1250,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1179,7 +1272,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "text",
+      "image",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1199,7 +1294,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1219,7 +1316,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1239,7 +1338,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1259,7 +1359,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1279,7 +1380,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "text",
+      "file",
+      "image"
     ],
     "output_modalities": [
       "text"
@@ -1299,7 +1402,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"
@@ -1319,6 +1424,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
+      "image",
       "text"
     ],
     "output_modalities": [
@@ -1339,7 +1446,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text"
+      "image",
+      "text",
+      "file"
     ],
     "output_modalities": [
       "text"

@@ -140,45 +140,28 @@ async fn main() -> Result<()> {
             .map(|v| v as usize);
 
         let input_modalities: Vec<String> = model
-            .get("supported_parameters")
+            .get("architecture")
+            .and_then(|arch| arch.get("input_modalities"))
             .and_then(|v| v.as_array())
             .map(|arr| {
-                let mut mods = vec!["text".to_string()];
-                for param in arr {
-                    if let Some(s) = param.as_str() {
-                        match s {
-                            "image" | "image_url" => {
-                                if !mods.contains(&"image".to_string()) {
-                                    mods.push("image".to_string());
-                                }
-                            }
-                            "audio" => {
-                                if !mods.contains(&"audio".to_string()) {
-                                    mods.push("audio".to_string());
-                                }
-                            }
-                            "video" => {
-                                if !mods.contains(&"video".to_string()) {
-                                    mods.push("video".to_string());
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                if model
-                    .get("architecture")
-                    .and_then(|a| a.get("multimodality"))
-                    .is_some()
-                    && !mods.contains(&"file".to_string())
-                {
-                    mods.push("file".to_string());
-                }
-                mods
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
             })
             .unwrap_or_else(|| vec!["text".to_string()]);
 
-        let output_modalities = vec!["text".to_string()];
+        let output_modalities: Vec<String> = model
+            .get("architecture")
+            .and_then(|arch| arch.get("output_modalities"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["text".to_string()]);
 
         let tokenizer = if canonical_id.starts_with("anthropic/") {
             "Claude"
