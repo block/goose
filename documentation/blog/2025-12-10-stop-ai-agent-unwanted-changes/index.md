@@ -13,7 +13,7 @@ Sure, you can scour `git diff` to find and revert issues. But in a multi-step pr
 
 <!-- truncate -->
 
-This problem has a classic engineering solution. We commit early and often to create checkpoints, enabling easy rollbacks and clean collaboration. So, why don't we enforce the same discipline on our AI agents? Here’s the workflow I use with goose to ensure we're creating snapshots of the codebase: 
+This problem has a classic engineering solution. We commit early and often to create checkpoints, enabling easy rollbacks and clean collaboration. So, why don't we enforce the same discipline on our AI agents? Here’s the workflow I use with [goose](/) to ensure we're creating snapshots of the codebase: 
  
 
 ### 1. Set Up Version Control
