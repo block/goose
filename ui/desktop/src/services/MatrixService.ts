@@ -2810,12 +2810,17 @@ export class MatrixService extends EventEmitter {
     if (!this.client) return;
 
     try {
-      console.log('🌌 Checking for parent spaces of room:', roomId);
+      console.log('🌌 ===== DEBUG: INVITING TO PARENT SPACES =====');
+      console.log('🌌 Room ID:', roomId);
+      console.log('🌌 User ID:', userId);
       
       // Get all spaces the current user is in
       const userSpaces = this.getRooms().filter(room => room.isSpace);
       
-      console.log(`🌌 Found ${userSpaces.length} spaces to check for parent relationships`);
+      console.log(`🌌 Found ${userSpaces.length} spaces to check for parent relationships:`);
+      userSpaces.forEach(space => {
+        console.log(`   - ${space.name} (${space.roomId.substring(0, 20)}...)`);
+      });
       
       let parentSpacesFound = 0;
       let invitationsSent = 0;
@@ -2823,19 +2828,32 @@ export class MatrixService extends EventEmitter {
       // Check each space to see if it contains this room as a child
       for (const space of userSpaces) {
         try {
+          console.log(`🌌 Checking space: ${space.name} (${space.roomId.substring(0, 20)}...)`);
+          
           const spaceRoom = this.client.getRoom(space.roomId);
-          if (!spaceRoom) continue;
+          if (!spaceRoom) {
+            console.log(`🌌 ❌ Could not get space room object for ${space.roomId}`);
+            continue;
+          }
 
           // Check if this room is a child of this space
           const childEvents = spaceRoom.currentState.getStateEvents('m.space.child');
+          console.log(`🌌 Found ${childEvents.length} child events in space ${space.name}`);
+          
+          // Debug: Log all child room IDs
+          const childRoomIds = childEvents.map(event => event.getStateKey()).filter(Boolean);
+          console.log(`🌌 Child room IDs in space ${space.name}:`, childRoomIds.map(id => id?.substring(0, 20) + '...'));
+          
           const isChildOfSpace = childEvents.some(event => event.getStateKey() === roomId);
+          console.log(`🌌 Is room ${roomId.substring(0, 20)}... a child of space ${space.name}? ${isChildOfSpace}`);
           
           if (isChildOfSpace) {
             parentSpacesFound++;
-            console.log(`🌌 Found parent space: ${space.name} (${space.roomId})`);
+            console.log(`🌌 ✅ FOUND PARENT SPACE: ${space.name} (${space.roomId})`);
             
             // Check if user is already in this space
             const userMembership = spaceRoom.getMember(userId)?.membership;
+            console.log(`🌌 User ${userId} membership in space ${space.name}: ${userMembership || 'none'}`);
             
             if (userMembership === 'join') {
               console.log(`✅ User ${userId} is already a member of space ${space.name}`);
@@ -2849,6 +2867,7 @@ export class MatrixService extends EventEmitter {
             
             // Invite user to the parent space
             try {
+              console.log(`🌌 🚀 SENDING SPACE INVITE: ${space.name} → ${userId}`);
               await this.client.invite(space.roomId, userId);
               invitationsSent++;
               console.log(`✅ Successfully invited user to parent space: ${space.name} (${space.roomId})`);
@@ -2868,21 +2887,34 @@ export class MatrixService extends EventEmitter {
               console.log(`🌌 💡 Both invites should be accepted for full functionality and proper tracking`);
               
             } catch (spaceInviteError) {
-              console.warn(`⚠️ Failed to invite user to parent space ${space.name}:`, spaceInviteError);
+              console.error(`❌ Failed to invite user to parent space ${space.name}:`, spaceInviteError);
+              console.error(`❌ Space ID: ${space.roomId}`);
+              console.error(`❌ User ID: ${userId}`);
+              console.error(`❌ Error details:`, spaceInviteError);
               // Don't throw - we want to continue with other spaces
             }
+          } else {
+            console.log(`🌌 Room ${roomId.substring(0, 20)}... is NOT a child of space ${space.name}`);
           }
         } catch (spaceError) {
-          console.warn(`⚠️ Error checking space ${space.roomId}:`, spaceError);
+          console.error(`❌ Error checking space ${space.roomId}:`, spaceError);
           // Continue with other spaces
         }
       }
+      
+      console.log(`🌌 ===== PARENT SPACE INVITATION SUMMARY =====`);
+      console.log(`🌌 Parent spaces found: ${parentSpacesFound}`);
+      console.log(`🌌 Invitations sent: ${invitationsSent}`);
       
       if (parentSpacesFound > 0) {
         console.log(`🌌 ✅ Parent space check complete: found ${parentSpacesFound} parent spaces, sent ${invitationsSent} invitations`);
         console.log(`🌌 📊 For proper space-level tracking, users should accept both room and space invites`);
       } else {
-        console.log('🌌 No parent spaces found for room:', roomId);
+        console.log('🌌 ❌ No parent spaces found for room:', roomId);
+        console.log('🌌 💡 This could mean:');
+        console.log('   • The room is not part of any space');
+        console.log('   • The space relationship was not properly established');
+        console.log('   • There is an issue with space child detection');
       }
       
     } catch (error) {
