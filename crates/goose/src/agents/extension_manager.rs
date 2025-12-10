@@ -39,7 +39,10 @@ use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
-use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent, Resource, ResourceContents, ServerInfo, Tool};
+use rmcp::model::{
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent,
+    Resource, ResourceContents, ServerInfo, Tool,
+};
 use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
 use serde_json::Value;
@@ -843,9 +846,7 @@ impl ExtensionManager {
         Ok(result)
     }
 
-    pub async fn get_ui_resources(
-        &self,
-    ) -> Result<Vec<(String, Resource)>, ErrorData> {
+    pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
         let mut ui_resources = Vec::new();
 
         let extensions_to_check: Vec<(String, McpClientBox)> = {
@@ -862,9 +863,16 @@ impl ExtensionManager {
             info!("Checking extension: {}", extension_name);
             let client_guard = client.lock().await;
 
-            match client_guard.list_resources(None, CancellationToken::default()).await {
+            match client_guard
+                .list_resources(None, CancellationToken::default())
+                .await
+            {
                 Ok(list_response) => {
-                    info!("List resources for {}: {} resources found", extension_name, list_response.resources.len());
+                    info!(
+                        "List resources for {}: {} resources found",
+                        extension_name,
+                        list_response.resources.len()
+                    );
                     for resource in list_response.resources {
                         if resource.uri.starts_with("ui://") {
                             ui_resources.push((extension_name.clone(), resource));

@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Play, Plus, Trash, Pencil } from 'lucide-react';
-import { createApp, deleteApp, GooseApp, listApps, resumeAgent } from '../../api';
+import { Play, Plus, Trash, Pencil, Download, Upload } from 'lucide-react';
+import {
+  deleteApp,
+  exportApp,
+  GooseApp,
+  importApp,
+  listApps,
+  resumeAgent,
+} from '../../api';
 import GooseAppEditor from './GooseAppEditor';
 import { createSession } from '../../sessions';
 
@@ -70,17 +77,17 @@ export default function GooseAppsView() {
     try {
       const response = await listApps({ throwOnError: true, query: { session_id: appsSessionId } });
       const apps = response.data?.apps || [];
-      if (apps.length === 0) {
-        await createApp({
-          throwOnError: true,
-          body: {
-            app: {
-              name: '',
-            },
-          },
-        });
-        return await loadApps();
-      }
+      // if (apps.length === 0) {
+      //   await createApp({
+      //     throwOnError: true,
+      //     body: {
+      //       app: {
+      //         name: '',
+      //       },
+      //     },
+      //   });
+      //   return await loadApps();
+      // }
       setApps(apps);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load apps');
@@ -90,6 +97,53 @@ export default function GooseAppsView() {
   useEffect(() => {
     loadApps();
   }, [loadApps]);
+
+  const handleDownloadApp = async (app: GooseApp) => {
+    try {
+      const response = await exportApp({
+        throwOnError: true,
+        path: { name: app.name }
+      });
+
+      if (response.data) {
+        const blob = new Blob([response.data as string], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${app.name}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export app');
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadApp = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      await importApp({
+        throwOnError: true,
+        body: text,
+      });
+      await loadApps();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import app');
+    }
+
+    event.target.value = '';
+  };
 
   const handleLaunchApp = async (app: GooseApp) => {
     await window.electron.launchGooseApp(app);
@@ -140,14 +194,27 @@ export default function GooseAppsView() {
 
   return (
     <MainPanelLayout>
-      <div className="flex flex-col min-w-0 flex-1 overflow-y-auto relative">
-        <div className="bg-background-default px-8 pb-4 pt-16">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="bg-background-default px-8 pb-8 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
               <h1 className="text-4xl font-light">Apps</h1>
+              <label>
+                <Button onClick={handleImportClick} variant="outline" size="sm" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Import App
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".html"
+                  onChange={handleUploadApp}
+                  style={{ display: 'none' }}
+                />
+              </label>
             </div>
-            <p className="text-sm text-text-muted mb-6">
-              Self-contained Html applications that run within Goose.
+            <p className="text-sm text-text-muted mb-4">
+              Self-contained HTML applications that run within Goose.
             </p>
           </div>
         </div>
@@ -187,6 +254,14 @@ export default function GooseAppsView() {
                       className="flex items-center gap-2"
                     >
                       <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadApp(app)}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"

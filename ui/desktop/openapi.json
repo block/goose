@@ -746,6 +746,90 @@
         ]
       }
     },
+    "/apps/export/{name}": {
+      "get": {
+        "tags": [
+          "App Management"
+        ],
+        "operationId": "export_app",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the app to export",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App HTML exported successfully"
+          },
+          "404": {
+            "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/apps/import": {
+      "post": {
+        "tags": [
+          "App Management"
+        ],
+        "operationId": "import_app",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "App imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid HTML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/apps/iterate": {
       "post": {
         "tags": [
@@ -4005,12 +4089,18 @@
         "required": [
           "prd",
           "html",
-          "screenshotBase64",
-          "errors"
+          "errors",
+          "width",
+          "height"
         ],
         "properties": {
           "errors": {
             "type": "string"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "html": {
             "type": "string"
@@ -4019,7 +4109,13 @@
             "type": "string"
           },
           "screenshotBase64": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

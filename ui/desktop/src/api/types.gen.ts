@@ -382,9 +382,11 @@ export type InspectJobResponse = {
 
 export type IterateAppRequest = {
     errors: string;
+    height: number;
     html: string;
     prd: string;
-    screenshotBase64: string;
+    screenshotBase64?: string | null;
+    width: number;
 };
 
 export type IterateAppResponse = {
@@ -1578,6 +1580,59 @@ export type StoreAppResponses = {
 };
 
 export type StoreAppResponse = StoreAppResponses[keyof StoreAppResponses];
+
+export type ExportAppData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the app to export
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/apps/export/{name}';
+};
+
+export type ExportAppErrors = {
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+};
+
+export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
+
+export type ExportAppResponses = {
+    /**
+     * App HTML exported successfully
+     */
+    200: unknown;
+};
+
+export type ImportAppData = {
+    body: string;
+    path?: never;
+    query?: never;
+    url: '/apps/import';
+};
+
+export type ImportAppErrors = {
+    /**
+     * Bad request - Invalid HTML
+     */
+    400: ErrorResponse;
+};
+
+export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
+
+export type ImportAppResponses = {
+    /**
+     * App imported successfully
+     */
+    201: SuccessResponse;
+};
+
+export type ImportAppResponse = ImportAppResponses[keyof ImportAppResponses];
 
 export type IterateAppData = {
     body: IterateAppRequest;

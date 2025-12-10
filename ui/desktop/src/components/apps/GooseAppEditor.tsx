@@ -105,13 +105,14 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
             prd,
             screenshotBase64,
             errors: iframeErrors.join('\n'),
+            width: parseInt(width) || 240, height: parseInt(height) || 320
           },
           throwOnError: true,
         });
 
         setIterationMessage(response.data.message);
 
-        if (response.data.done) {
+        if (response.data.done || !screenshotBase64) {
           done = true;
           setIterationMessage('Done! ' + response.data.message);
         } else {

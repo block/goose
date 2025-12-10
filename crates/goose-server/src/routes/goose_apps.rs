@@ -1,21 +1,21 @@
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
+use axum::extract::Query;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
 };
+use goose::agents::ExtensionManager;
 use goose::conversation::message::{Message, MessageContent};
 use goose::goose_apps::{GooseApp, GooseAppsManager};
 use goose::providers::create_with_named_model;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use axum::extract::Query;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 use utoipa::ToSchema;
-use goose::agents::ExtensionManager;
 
 #[derive(Deserialize, utoipa::IntoParams, ToSchema)]
 pub struct ListAppsRequest {
@@ -53,6 +53,8 @@ pub struct IterateAppRequest {
     pub html: String,
     pub screenshot_base64: Option<String>,
     pub errors: String,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -114,7 +116,10 @@ async fn list_mcp_apps(
                 });
             }
             Err(e) => {
-                warn!("Failed to read resource {} from {}: {}", resource.uri, extension_name, e);
+                warn!(
+                    "Failed to read resource {} from {}: {}",
+                    resource.uri, extension_name, e
+                );
             }
         }
     }
@@ -309,9 +314,11 @@ Here is the specification of what the user wants the app to do:
 {prd}
 
 {errors}
+{screenshot_instruction}
 
-You are also provided a screenshot. Compare the current implementation and the screenshot
-with the specification/PRD. If everything looks good and matches the spec, reply with:
+Make sure the app matches the desired size the user specified of {width} width and {height} height
+
+If everything looks good and matches the spec, reply with:
 
 DONE
 MSG: <anything you want to tell the user>
@@ -338,11 +345,7 @@ If you need to adjust the HTML/CSS/JavaScript, return the complete HTML:
 ````
 MSG: <the modifications you made>
 
-Note: if you change the HTML, you will be called back with the next render, so you
-don't have to get it right in one iteration. For complicated things, use multiple turns.
-
-In the message, describe exactly what you see on the screenshot (or say there's no screenshot),
-then explain the changes you made or need to make.
+{screenshot_note}
 "#;
 
 fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
@@ -354,10 +357,25 @@ fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
             iterate_on.errors
         )
     };
+
+    let (screenshot_instruction, screenshot_note) = if iterate_on.screenshot_base64.is_some() {
+        (
+
+            "You are also provided a screenshot. Compare the current implementation and the screenshot with the specification/PRD.",
+            "Note: if you change the HTML, you will be called back with the next render, so you don't have to get it right in one iteration. For complicated things, use multiple turns.\n\nIn the message, describe exactly what you see on the screenshot, then explain the changes you made or need to make."
+        )
+    } else {
+        ("", "")
+    };
+
     ITERATE_APP_PROMPT
         .replace("{prd}", &iterate_on.prd)
         .replace("{html}", &iterate_on.html)
         .replace("{errors}", &errors)
+        .replace("{screenshot_instruction}", screenshot_instruction)
+        .replace("{screenshot_note}", screenshot_note)
+        .replace("{width}", &iterate_on.width.to_string())
+        .replace("{height}", &iterate_on.height.to_string())
 }
 
 fn extract_code_and_message(text: &str) -> (Option<String>, String) {
@@ -415,16 +433,16 @@ async fn iterate_app(
     let model_name: String = config.get_goose_model()?;
     let provider = create_with_named_model(&provider_name, &model_name).await?;
 
-    let message_with_image = Message::user()
-        .with_text(prompt)
-        .with_image(&request.screenshot_base64, "image/png".to_string());
+    let message = if let Some(ref screenshot) = request.screenshot_base64 {
+        Message::user()
+            .with_text(prompt)
+            .with_image(screenshot, "image/png".to_string())
+    } else {
+        Message::user().with_text(prompt)
+    };
 
     let (response, _) = provider
-        .complete(
-            "You are a helpful coding assistant.",
-            &[message_with_image],
-            &[],
-        )
+        .complete("You are a helpful coding assistant.", &[message], &[])
         .await
         .map_err(|e| ErrorResponse::internal(format!("Provider error: {}", e)))?;
 
@@ -478,6 +496,75 @@ async fn delete_app(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/apps/export/{name}",
+    responses(
+        (status = 200, description = "App HTML exported successfully"),
+        (status = 404, description = "App not found", body = ErrorResponse),
+    ),
+    params(
+        ("name" = String, Path, description = "Name of the app to export")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn export_app(
+    State(_state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> Result<String, ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
+    let app = manager.get_app(&name)?;
+
+    match app {
+        Some(app) => app
+            .to_file_content()
+            .map_err(|e| ErrorResponse::internal(format!("Failed to generate HTML: {}", e))),
+        None => Err(ErrorResponse::internal("App not found")),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/apps/import",
+    request_body = String,
+    responses(
+        (status = 201, description = "App imported successfully", body = SuccessResponse),
+        (status = 400, description = "Bad request - Invalid HTML", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn import_app(
+    State(_state): State<Arc<AppState>>,
+    body: String,
+) -> Result<(StatusCode, Json<SuccessResponse>), ErrorResponse> {
+    let manager = GooseAppsManager::new()?;
+
+    let mut app = GooseApp::from_html(&body)
+        .map_err(|e| ErrorResponse::internal(format!("Invalid Goose App HTML: {}", e)))?;
+
+    let original_name = app.name.clone();
+    let mut counter = 1;
+    while manager.app_exists(&app.name) {
+        app.name = format!("{}_{}", original_name, counter);
+        counter += 1;
+    }
+
+    manager.update_app(&app)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(SuccessResponse {
+            message: format!("App '{}' imported successfully", app.name),
+        }),
+    ))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/apps", post(create_app))
@@ -486,5 +573,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/apps/app/{name}", put(store_app))
         .route("/apps/app/{name}", delete(delete_app))
         .route("/apps/app/{name}", get(get_app))
+        .route("/apps/import", post(import_app))
+        .route("/apps/export/{name}", get(export_app))
         .with_state(state)
 }

@@ -391,6 +391,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::goose_apps::iterate_app,
         super::routes::goose_apps::store_app,
         super::routes::goose_apps::delete_app,
+        super::routes::goose_apps::import_app,
+        super::routes::goose_apps::export_app,
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,

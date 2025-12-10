@@ -39,8 +39,8 @@ import GooseAppsView from './components/apps/GooseAppsView';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
-import Hub from './components/hub';
-import Pair, { PairRouteState } from './components/pair';
+import Hub from './components/Hub';
+import Pair, { PairRouteState } from './components/Pair';
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -672,7 +672,7 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="apps" element={<GooseAppsView sessionId={chat.sessionId}/>} />
+            <Route path="apps" element={<GooseAppsView/>} />
             <Route
               path="shared-session"
               element={
