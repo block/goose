@@ -55,22 +55,17 @@ const ChannelCard: React.FC<{
   onAcceptInvite?: (channel: Channel) => void;
   onInviteUsers?: (channel: Channel) => void;
 }> = ({ channel, onOpenChannel, onEditChannel, onToggleFavorite, onAcceptInvite, onInviteUsers }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       onClick={() => onOpenChannel(channel)}
       className="
         relative cursor-pointer group
         bg-background-default
-        transition-colors duration-200
-        hover:bg-background-medium
+        transition-all duration-300 ease-out
+        hover:bg-background-medium hover:scale-[1.02]
         aspect-square
         flex flex-col
         rounded-2xl
@@ -122,36 +117,32 @@ const ChannelCard: React.FC<{
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
         {/* Invite button - shown on hover, only for joined spaces */}
         {channel.membership === 'join' && onInviteUsers && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+          <button
             onClick={(e) => {
               e.stopPropagation();
               onInviteUsers(channel);
             }}
-            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-colors"
+            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-all duration-200 opacity-0 group-hover:opacity-100"
             title="Invite users to space"
           >
             <UserPlus className="w-3 h-3" />
-          </motion.button>
+          </button>
         )}
         
         {/* Edit button - shown on hover */}
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+        <button
           onClick={(e) => {
             e.stopPropagation();
             onEditChannel(channel);
           }}
-          className="p-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors"
+          className="p-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
           title="Edit channel"
         >
           <Edit2 className="w-3 h-3" />
-        </motion.button>
+        </button>
         
         {/* Privacy indicator */}
-        <div className={`p-1.5 rounded-full backdrop-blur-sm ${
+        <div className={`p-1.5 rounded-full backdrop-blur-sm transition-all duration-200 ${
           channel.isPublic 
             ? 'bg-green-500/90 text-white' 
             : 'bg-orange-500/90 text-white'
@@ -216,22 +207,17 @@ const SpaceChildCard: React.FC<{
   onChildClick: (child: SpaceChild) => void;
   onInviteToRoom?: (child: SpaceChild) => void;
 }> = ({ child, onChildClick, onInviteToRoom }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       onClick={() => onChildClick(child)}
       className="
         relative cursor-pointer group
         bg-background-default
-        transition-colors duration-200
-        hover:bg-background-medium
+        transition-all duration-300 ease-out
+        hover:bg-background-medium hover:scale-[1.02]
         aspect-square
         flex flex-col
         rounded-2xl
@@ -267,22 +253,20 @@ const SpaceChildCard: React.FC<{
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
         {/* Invite button - shown on hover, only for rooms (not spaces) */}
         {!child.isSpace && onInviteToRoom && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+          <button
             onClick={(e) => {
               e.stopPropagation();
               onInviteToRoom(child);
             }}
-            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-colors"
+            className="p-1.5 rounded-full bg-blue-500/90 backdrop-blur-sm text-white hover:bg-blue-600/90 transition-all duration-200 opacity-0 group-hover:opacity-100"
             title="Invite users to room"
           >
             <UserPlus className="w-3 h-3" />
-          </motion.button>
+          </button>
         )}
         
         {/* Type indicator */}
-        <div className={`p-1.5 rounded-full backdrop-blur-sm ${
+        <div className={`p-1.5 rounded-full backdrop-blur-sm transition-all duration-200 ${
           child.isPublic 
             ? 'bg-green-500/90 text-white' 
             : 'bg-orange-500/90 text-white'
