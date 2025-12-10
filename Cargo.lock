@@ -2668,7 +2668,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2752,7 +2752,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2775,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2894,7 +2894,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.16.1"
+version = "1.16.2"
 dependencies = [
  "clap",
  "serde_json",
