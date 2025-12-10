@@ -42,7 +42,7 @@ Invoke-Expression (goose term init powershell)
 </TabItem>
 </Tabs>
 
-Restart your terminal, and that's it!
+Restart your terminal or source the config, and that's it!
 
 ## Usage
 
