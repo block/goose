@@ -229,6 +229,20 @@ async fn send_error_event(installation: &InstallationData, error_type: &str) -> 
     event.insert_prop("error_type", error_type).ok();
     event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
     event.insert_prop("interface", get_session_interface()).ok();
+    event.insert_prop("os", std::env::consts::OS).ok();
+    event.insert_prop("arch", std::env::consts::ARCH).ok();
+
+    if let Some(platform_version) = get_platform_version() {
+        event.insert_prop("platform_version", platform_version).ok();
+    }
+
+    let config = Config::global();
+    if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
+        event.insert_prop("provider", provider).ok();
+    }
+    if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
+        event.insert_prop("model", model).ok();
+    }
 
     client.capture(event).await.map_err(|e| format!("{:?}", e))
 }
