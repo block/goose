@@ -38,9 +38,9 @@ impl ToolRouteManager {
 
     pub async fn record_tool_requests(&self, requests: &[ToolRequest]) {
         let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            for request in requests {
-                if let Ok(tool_call) = &request.tool_call {
+        for request in requests {
+            if let Ok(tool_call) = &request.tool_call {
+                if let Some(ref selector) = selector {
                     if let Err(e) = selector.record_tool_call(&tool_call.name).await {
                         error!("Failed to record tool call: {}", e);
                     }

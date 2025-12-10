@@ -92,6 +92,7 @@ export const SwitchModelModal = ({
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [userClearedModel, setUserClearedModel] = useState(false);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -265,7 +266,8 @@ export const SwitchModelModal = ({
     : [];
 
   useEffect(() => {
-    if (!provider || loadingModels || model || isCustomModel) return;
+    // Don't auto-select if user explicitly cleared the model
+    if (!provider || loadingModels || model || isCustomModel || userClearedModel) return;
 
     const providerModels = modelOptions
       .filter((group) => group.options[0]?.provider === provider)
@@ -277,7 +279,7 @@ export const SwitchModelModal = ({
         setModel(preferredModel);
       }
     }
-  }, [provider, modelOptions, loadingModels, model, isCustomModel]);
+  }, [provider, modelOptions, loadingModels, model, isCustomModel, userClearedModel]);
 
   // Handle model selection change
   const handleModelChange = (newValue: unknown) => {
@@ -285,9 +287,16 @@ export const SwitchModelModal = ({
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
+      setUserClearedModel(false);
+    } else if (selectedOption === null) {
+      // User cleared the selection
+      setIsCustomModel(false);
+      setModel('');
+      setUserClearedModel(true);
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
+      setUserClearedModel(false);
     }
   };
 
@@ -428,6 +437,7 @@ export const SwitchModelModal = ({
                       setProvider(option?.value || null);
                       setModel('');
                       setIsCustomModel(false);
+                      setUserClearedModel(false);
                     }
                   }}
                   placeholder="Provider, type to search"
@@ -445,26 +455,19 @@ export const SwitchModelModal = ({
                       <Select
                         options={
                           loadingModels
-                            ? [
-                                {
-                                  options: [
-                                    {
-                                      value: '__loading__',
-                                      label: 'Loading models…',
-                                      provider: provider || '',
-                                      isDisabled: true,
-                                    },
-                                  ],
-                                },
-                              ]
+                            ? []
                             : filteredModelOptions.length > 0
                               ? filteredModelOptions
                               : []
                         }
                         onChange={handleModelChange}
-                        onInputChange={handleInputChange} // Added for input handling
+                        onInputChange={handleInputChange}
                         value={model ? { value: model, label: model } : null}
-                        placeholder="Select a model, type to search"
+                        placeholder={
+                          loadingModels ? 'Loading models…' : 'Select a model, type to search'
+                        }
+                        isClearable
+                        isDisabled={loadingModels}
                       />
 
                       {attemptedSubmit && validationErrors.model && (
