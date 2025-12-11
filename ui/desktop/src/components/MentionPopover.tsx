@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
+import { getWorkingDir } from '../store/newChatState';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
 
@@ -41,6 +42,7 @@ interface MentionPopoverProps {
   isSlashCommand: boolean;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
+  workingDir?: string;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -121,6 +123,7 @@ const MentionPopover = forwardRef<
       isSlashCommand,
       selectedIndex,
       onSelectedIndexChange,
+      workingDir,
     },
     ref
   ) => {
@@ -128,8 +131,7 @@ const MentionPopover = forwardRef<
     const [isLoading, setIsLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-
-    const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+    const currentWorkingDir = workingDir ?? getWorkingDir();
 
     const scanDirectoryFromRoot = useCallback(
       async (dirPath: string, relativePath = '', depth = 0): Promise<DisplayItem[]> => {
