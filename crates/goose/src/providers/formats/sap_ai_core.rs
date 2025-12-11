@@ -1,3 +1,4 @@
+use super::sap_ai_core_payload::*;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
@@ -6,16 +7,18 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Result};
-use futures::Stream;
-use rmcp::model::{Role, Tool, ErrorData, ErrorCode, CallToolRequestParam, object,};
-use serde_json::{json, Value};
 use async_stream::try_stream;
+use futures::Stream;
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role, Tool};
+use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use super::sap_ai_core_payload::*;
 
 /// Helper function to convert messages to ChatMessage format
-fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageFormat) -> Result<Vec<ChatMessage>> {
+fn convert_messages_to_chat_messages(
+    messages: &[Message],
+    image_format: &ImageFormat,
+) -> Result<Vec<ChatMessage>> {
     let mut chat_messages = Vec::new();
 
     for message in messages {
@@ -33,47 +36,56 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                     if !text.text.is_empty() {
                         // Check for image paths in the text
                         if let Some(image_path) = detect_image_path(&text.text) {
-                        // Try to load and convert the image
-                        match load_image_file(image_path) {
-                            Ok(image) => {
-                                tracing::info!("Successfully loaded image from path: {}", image_path);
-                                // Add accumulated text content first if any
-                                if !text_content.is_empty() {
+                            // Try to load and convert the image
+                            match load_image_file(image_path) {
+                                Ok(image) => {
+                                    tracing::info!(
+                                        "Successfully loaded image from path: {}",
+                                        image_path
+                                    );
+                                    // Add accumulated text content first if any
+                                    if !text_content.is_empty() {
+                                        user_content_items.push(UserChatMessageContentItem::Text {
+                                            text: text_content.clone(),
+                                        });
+                                        text_content.clear();
+                                    }
+
+                                    // Add the text with image path
                                     user_content_items.push(UserChatMessageContentItem::Text {
-                                        text: text_content.clone()
+                                        text: text.text.clone(),
                                     });
-                                    text_content.clear();
+
+                                    // Add the converted image
+                                    let converted_image = convert_image(&image, image_format);
+                                    if let Some(image_url) = converted_image
+                                        .get("image_url")
+                                        .and_then(|v| v.get("url"))
+                                        .and_then(|v| v.as_str())
+                                    {
+                                        user_content_items.push(
+                                            UserChatMessageContentItem::ImageUrl {
+                                                image_url: ImageContentUrl {
+                                                    url: image_url.to_string(),
+                                                    detail: "auto".to_string(),
+                                                },
+                                            },
+                                        );
+                                        has_image = true;
+                                        tracing::info!("Successfully converted and added image to message content");
+                                    } else {
+                                        tracing::error!("Failed to extract image URL from converted image for path: {}", image_path);
+                                    }
                                 }
-
-                                // Add the text with image path
-                                user_content_items.push(UserChatMessageContentItem::Text {
-                                    text: text.text.clone()
-                                });
-
-                                // Add the converted image
-                                let converted_image = convert_image(&image, image_format);
-                                if let Some(image_url) = converted_image.get("image_url").and_then(|v| v.get("url")).and_then(|v| v.as_str()) {
-                                    user_content_items.push(UserChatMessageContentItem::ImageUrl {
-                                        image_url: ImageContentUrl {
-                                            url: image_url.to_string(),
-                                            detail: "auto".to_string(),
-                                        }
-                                    });
-                                    has_image = true;
-                                    tracing::info!("Successfully converted and added image to message content");
-                                } else {
-                                    tracing::error!("Failed to extract image URL from converted image for path: {}", image_path);
+                                Err(e) => {
+                                    tracing::error!("Failed to load image from path '{}': {}. Using text content only.", image_path, e);
+                                    // If image loading fails, just use the text
+                                    if !text_content.is_empty() && !text_content.ends_with('\n') {
+                                        text_content.push('\n');
+                                    }
+                                    text_content.push_str(&text.text);
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("Failed to load image from path '{}': {}. Using text content only.", image_path, e);
-                                // If image loading fails, just use the text
-                                if !text_content.is_empty() && !text_content.ends_with('\n') {
-                                    text_content.push('\n');
-                                }
-                                text_content.push_str(&text.text);
-                            }
-                        }
                         } else {
                             // No image path detected, add to text content
                             if !text_content.is_empty() && !text_content.ends_with('\n') {
@@ -88,7 +100,7 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                     // Add accumulated text content first if any
                     if !text_content.is_empty() {
                         user_content_items.push(UserChatMessageContentItem::Text {
-                            text: text_content.clone()
+                            text: text_content.clone(),
                         });
                         text_content.clear();
                     }
@@ -98,7 +110,7 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                         image_url: ImageContentUrl {
                             url: data_url,
                             detail: "auto".to_string(),
-                        }
+                        },
                     });
                 }
                 MessageContent::ToolRequest(tool_request) => {
@@ -119,7 +131,10 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                                 }
                             }
                             None => {
-                                tracing::info!("No arguments provided for tool call '{}'", tool_call.name);
+                                tracing::info!(
+                                    "No arguments provided for tool call '{}'",
+                                    tool_call.name
+                                );
                                 "{}".to_string()
                             }
                         };
@@ -134,7 +149,7 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                         });
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result{
+                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     // Convert tool responses to separate tool messages (regardless of original role)
                     Ok(result) => {
                         let result_text = result
@@ -155,14 +170,14 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                             content: ChatMessageContent::Text(error.to_string()),
                         });
                     }
-                }
+                },
                 // Skip all Claude-specific or unsupported content types
-                MessageContent::Thinking(_) |
-                MessageContent::RedactedThinking(_) |
-                MessageContent::ToolConfirmationRequest(_) |
-                MessageContent::FrontendToolRequest(_) |
-                MessageContent::ActionRequired(_) |
-                MessageContent::SystemNotification(_) => {
+                MessageContent::Thinking(_)
+                | MessageContent::RedactedThinking(_)
+                | MessageContent::ToolConfirmationRequest(_)
+                | MessageContent::FrontendToolRequest(_)
+                | MessageContent::ActionRequired(_)
+                | MessageContent::SystemNotification(_) => {
                     continue;
                 }
             }
@@ -174,7 +189,7 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                 // Add any remaining text content for images
                 if has_image && !text_content.is_empty() {
                     user_content_items.push(UserChatMessageContentItem::Text {
-                        text: text_content.clone()
+                        text: text_content.clone(),
                     });
                 }
 
@@ -203,12 +218,15 @@ fn convert_messages_to_chat_messages(messages: &[Message], image_format: &ImageF
                     chat_messages.push(ChatMessage::Assistant {
                         content,
                         refusal: None,
-                        tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+                        tool_calls: if tool_calls.is_empty() {
+                            None
+                        } else {
+                            Some(tool_calls)
+                        },
                     });
                 }
-            }
-            // Tool messages are handled via ToolResponse content, not role
-            // System messages are handled via system_prompt parameter, not role
+            } // Tool messages are handled via ToolResponse content, not role
+              // System messages are handled via system_prompt parameter, not role
         }
     }
 
@@ -225,12 +243,18 @@ fn convert_tools_to_sap_format(tools: &[Tool]) -> Result<Vec<ChatCompletionTool>
 
         // SAP AI Core requires "type": "object" at minimum
         if !schema.contains_key("type") {
-            schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
+            schema.insert(
+                "type".to_string(),
+                serde_json::Value::String("object".to_string()),
+            );
         }
 
         // If no properties defined, add empty properties object
         if !schema.contains_key("properties") {
-            schema.insert("properties".to_string(), serde_json::Value::Object(serde_json::Map::new()));
+            schema.insert(
+                "properties".to_string(),
+                serde_json::Value::Object(serde_json::Map::new()),
+            );
         }
 
         sap_tools.push(ChatCompletionTool {
@@ -281,7 +305,11 @@ pub fn create_request(
                         template: template_messages,
                         defaults: None,
                         response_format: None,
-                        tools: if _tools.is_empty() { None } else { Some(convert_tools_to_sap_format(_tools)?) },
+                        tools: if _tools.is_empty() {
+                            None
+                        } else {
+                            Some(convert_tools_to_sap_format(_tools)?)
+                        },
                     }),
                     model: LlmModelDetails {
                         name: _model_config.model_name.to_string(),
@@ -317,13 +345,18 @@ pub fn create_request(
 
 /// Parse SAP AI Core response and convert to internal Message format
 pub fn response_to_message(response_body: &str) -> Result<Message> {
-    let response: CompletionPostRes = serde_json::from_str(response_body)
-        .map_err(|e| {
-            tracing::error!("Failed to parse SAP AI Core response JSON: {}. Response body (first 500 chars): {}",
-                e,
-                if response_body.len() > 500 { &response_body[..500] } else { response_body });
-            anyhow!("Failed to parse SAP AI Core response: {}", e)
-        })?;
+    let response: CompletionPostRes = serde_json::from_str(response_body).map_err(|e| {
+        tracing::error!(
+            "Failed to parse SAP AI Core response JSON: {}. Response body (first 500 chars): {}",
+            e,
+            if response_body.len() > 500 {
+                &response_body[..500]
+            } else {
+                response_body
+            }
+        );
+        anyhow!("Failed to parse SAP AI Core response: {}", e)
+    })?;
 
     // Use final_result for the response
     if response.final_result.choices.is_empty() {
@@ -346,8 +379,18 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
     // Handle tool calls
     if let Some(tool_calls) = &message.tool_calls {
         for tool_call in tool_calls {
-            let function_name = tool_call.function.name.as_ref().cloned().unwrap_or_default();
-            let arguments_str = tool_call.function.arguments.as_ref().cloned().unwrap_or_default();
+            let function_name = tool_call
+                .function
+                .name
+                .as_ref()
+                .cloned()
+                .unwrap_or_default();
+            let arguments_str = tool_call
+                .function
+                .arguments
+                .as_ref()
+                .cloned()
+                .unwrap_or_default();
 
             // Validate function name
             if !is_valid_function_name(&function_name) {
@@ -359,7 +402,10 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
                     )),
                     data: None,
                 };
-                contents.push(MessageContent::tool_request(tool_call.id.clone(), Err(error)));
+                contents.push(MessageContent::tool_request(
+                    tool_call.id.clone(),
+                    Err(error),
+                ));
                 continue;
             }
 
@@ -376,10 +422,8 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
                         name: function_name.into(),
                         arguments: Some(object(params)),
                     };
-                    let tool_request = MessageContent::tool_request(
-                        tool_call.id.clone(),
-                        Ok(tool_call_param),
-                    );
+                    let tool_request =
+                        MessageContent::tool_request(tool_call.id.clone(), Ok(tool_call_param));
                     contents.push(tool_request);
                 }
                 Err(e) => {
@@ -391,7 +435,10 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
                         )),
                         data: None,
                     };
-                    contents.push(MessageContent::tool_request(tool_call.id.clone(), Err(error)));
+                    contents.push(MessageContent::tool_request(
+                        tool_call.id.clone(),
+                        Err(error),
+                    ));
                 }
             }
         }
@@ -408,7 +455,9 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
     if contents.is_empty() {
         tracing::error!("SAP AI Core response validation failed: no content, tool calls, or refusal found. Message ID: {}, Model: {}",
             response.final_result.id, response.final_result.model);
-        return Err(anyhow!("No message content, tool calls, or refusal in SAP AI Core final result"));
+        return Err(anyhow!(
+            "No message content, tool calls, or refusal in SAP AI Core final result"
+        ));
     }
 
     // Create the assistant message
@@ -419,7 +468,6 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
 
     Ok(msg)
 }
-
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
@@ -717,8 +765,15 @@ pub fn convert_nested_json(mut params: serde_json::Value) -> Result<serde_json::
                     return convert_nested_json(parsed);
                 }
                 Err(e) => {
-                    tracing::info!("String '{}' is not valid JSON ({}), keeping as string",
-                        if string.len() > 100 { &string[..100] } else { string }, e);
+                    tracing::info!(
+                        "String '{}' is not valid JSON ({}), keeping as string",
+                        if string.len() > 100 {
+                            &string[..100]
+                        } else {
+                            string
+                        },
+                        e
+                    );
                     // If parsing fails, keep the original string
                 }
             }
@@ -752,11 +807,13 @@ pub fn get_response_usage(response: &CompletionPostRes) -> Result<ProviderUsage>
             input_tokens: Some(usage.prompt_tokens as i32),
             output_tokens: Some(usage.completion_tokens as i32),
             total_tokens: Some(usage.total_tokens as i32),
-        }
+        },
     ))
 }
 
-pub fn get_streaming_response_usage(response: &CompletionPostStreamingRes) -> Result<ProviderUsage> {
+pub fn get_streaming_response_usage(
+    response: &CompletionPostStreamingRes,
+) -> Result<ProviderUsage> {
     if let Some(final_result) = &response.final_result {
         if let Some(usage) = &final_result.usage {
             Ok(ProviderUsage::new(
@@ -765,7 +822,7 @@ pub fn get_streaming_response_usage(response: &CompletionPostStreamingRes) -> Re
                     input_tokens: Some(usage.prompt_tokens as i32),
                     output_tokens: Some(usage.completion_tokens as i32),
                     total_tokens: Some(usage.total_tokens as i32),
-                }
+                },
             ))
         } else {
             Ok(ProviderUsage::new(
@@ -774,7 +831,7 @@ pub fn get_streaming_response_usage(response: &CompletionPostStreamingRes) -> Re
                     input_tokens: Some(0),
                     output_tokens: Some(0),
                     total_tokens: Some(0),
-                }
+                },
             ))
         }
     } else {
@@ -797,7 +854,13 @@ mod tests {
         let model_config = ModelConfig::new_or_fail("anthropic--claude-4-sonnet");
 
         let tools = vec![];
-        let result = create_request(&messages, &tools, &model_config, "You are a helpful assistant", false);
+        let result = create_request(
+            &messages,
+            &tools,
+            &model_config,
+            "You are a helpful assistant",
+            false,
+        );
 
         assert!(result.is_ok());
         let request_value = result.unwrap();
@@ -888,14 +951,22 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call_123",
-                Ok(vec![Content::text("The weather in New York is sunny, 75°F")]),
+                Ok(vec![Content::text(
+                    "The weather in New York is sunny, 75°F",
+                )]),
             ),
             Message::assistant().with_text("The weather in New York is sunny and 75°F today!"),
         ];
 
         let model_config = ModelConfig::new_or_fail("gpt-4");
         let tools = vec![];
-        let result = create_request(&messages, &tools, &model_config, "You are a helpful assistant", false);
+        let result = create_request(
+            &messages,
+            &tools,
+            &model_config,
+            "You are a helpful assistant",
+            false,
+        );
 
         assert!(result.is_ok());
         let request_value = result.unwrap();
@@ -918,23 +989,54 @@ mod tests {
 
         // Check the assistant message with tool call
         let assistant_msg = &template[2];
-        assert_eq!(assistant_msg.get("role").unwrap().as_str().unwrap(), "assistant");
+        assert_eq!(
+            assistant_msg.get("role").unwrap().as_str().unwrap(),
+            "assistant"
+        );
         assert!(assistant_msg.get("tool_calls").is_some());
         let tool_calls = assistant_msg.get("tool_calls").unwrap().as_array().unwrap();
         assert_eq!(tool_calls.len(), 1);
-        assert_eq!(tool_calls[0].get("id").unwrap().as_str().unwrap(), "call_123");
-        assert_eq!(tool_calls[0].get("function").unwrap().get("name").unwrap().as_str().unwrap(), "get_weather");
+        assert_eq!(
+            tool_calls[0].get("id").unwrap().as_str().unwrap(),
+            "call_123"
+        );
+        assert_eq!(
+            tool_calls[0]
+                .get("function")
+                .unwrap()
+                .get("name")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "get_weather"
+        );
 
         // Check the tool response message
         let tool_msg = &template[3];
         assert_eq!(tool_msg.get("role").unwrap().as_str().unwrap(), "tool");
-        assert_eq!(tool_msg.get("tool_call_id").unwrap().as_str().unwrap(), "call_123");
-        assert!(tool_msg.get("content").unwrap().as_str().unwrap().contains("sunny"));
+        assert_eq!(
+            tool_msg.get("tool_call_id").unwrap().as_str().unwrap(),
+            "call_123"
+        );
+        assert!(tool_msg
+            .get("content")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("sunny"));
 
         // Check the final assistant message
         let final_msg = &template[4];
-        assert_eq!(final_msg.get("role").unwrap().as_str().unwrap(), "assistant");
-        assert!(final_msg.get("content").unwrap().as_str().unwrap().contains("75°F"));
+        assert_eq!(
+            final_msg.get("role").unwrap().as_str().unwrap(),
+            "assistant"
+        );
+        assert!(final_msg
+            .get("content")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("75°F"));
     }
 
     #[test]
@@ -999,7 +1101,17 @@ mod tests {
             assert_eq!(tool_request.id, "call_123");
             if let Ok(tool_call) = &tool_request.tool_call {
                 assert_eq!(tool_call.name, "get_weather");
-                assert_eq!(tool_call.arguments.as_ref().unwrap().get("location").unwrap().as_str().unwrap(), "New York");
+                assert_eq!(
+                    tool_call
+                        .arguments
+                        .as_ref()
+                        .unwrap()
+                        .get("location")
+                        .unwrap()
+                        .as_str()
+                        .unwrap(),
+                    "New York"
+                );
             } else {
                 panic!("Expected valid tool call");
             }
@@ -1122,7 +1234,10 @@ mod tests {
                 // Arguments should be parsed as JSON - it contains partial JSON so may not parse fully
                 // Just verify the tool call succeeded
             } else {
-                panic!("Expected valid tool call, got: {:?}", tool_request.tool_call);
+                panic!(
+                    "Expected valid tool call, got: {:?}",
+                    tool_request.tool_call
+                );
             }
         } else {
             panic!("Expected tool request");
@@ -1134,13 +1249,17 @@ mod tests {
 
     #[test]
     fn test_payload_structure() {
-        let messages = vec![
-            Message::user().with_text("Hello, how are you?"),
-        ];
+        let messages = vec![Message::user().with_text("Hello, how are you?")];
 
         let model_config = ModelConfig::new_or_fail("test-model");
         let tools = vec![];
-        let result = create_request(&messages, &tools, &model_config, "You are a helpful assistant", false);
+        let result = create_request(
+            &messages,
+            &tools,
+            &model_config,
+            "You are a helpful assistant",
+            false,
+        );
 
         assert!(result.is_ok());
         let request_value = result.unwrap();
@@ -1240,7 +1359,10 @@ mod tests {
         assert_eq!(result["config"]["database"]["port"], 5432);
         assert!(result["config"]["database"]["credentials"].is_object());
         assert_eq!(result["config"]["database"]["credentials"]["user"], "admin");
-        assert_eq!(result["config"]["database"]["credentials"]["pass"], "secret");
+        assert_eq!(
+            result["config"]["database"]["credentials"]["pass"],
+            "secret"
+        );
 
         // Check features array
         assert!(result["config"]["features"].is_array());
@@ -1451,7 +1573,10 @@ mod tests {
         // Check first tool
         assert_eq!(sap_tools[0].tool_type, "function");
         assert_eq!(sap_tools[0].function.name.as_ref().unwrap(), "get_weather");
-        assert_eq!(sap_tools[0].function.description.as_ref().unwrap(), "Get weather for a location");
+        assert_eq!(
+            sap_tools[0].function.description.as_ref().unwrap(),
+            "Get weather for a location"
+        );
         assert!(sap_tools[0].function.parameters.is_some());
         let params = sap_tools[0].function.parameters.as_ref().unwrap();
         assert_eq!(params["type"], "object");
@@ -1471,13 +1596,7 @@ mod tests {
 
     #[test]
     fn test_convert_tools_to_sap_format_minimal_schema() {
-        let tools = vec![
-            Tool::new(
-                "simple_tool",
-                "A simple tool",
-                object(json!({})),
-            ),
-        ];
+        let tools = vec![Tool::new("simple_tool", "A simple tool", object(json!({})))];
 
         let result = convert_tools_to_sap_format(&tools);
         assert!(result.is_ok());
@@ -1554,39 +1673,38 @@ mod tests {
 
         assert!(result.is_ok());
         let request_value = result.unwrap();
-        let template = request_value["config"]["modules"]["prompt_templating"]["prompt"]["template"].as_array().unwrap();
+        let template = request_value["config"]["modules"]["prompt_templating"]["prompt"]
+            ["template"]
+            .as_array()
+            .unwrap();
         // Should have no messages
         assert_eq!(template.len(), 0);
     }
 
     #[test]
     fn test_create_request_with_tools() {
-        let messages = vec![
-            Message::user().with_text("Use tools"),
-        ];
+        let messages = vec![Message::user().with_text("Use tools")];
 
-        let tools = vec![
-            Tool::new(
-                "test_tool",
-                "Test tool",
-                object(json!({
-                    "type": "object",
-                    "properties": {
-                        "param": {"type": "string"}
-                    }
-                })),
-            ),
-        ];
+        let tools = vec![Tool::new(
+            "test_tool",
+            "Test tool",
+            object(json!({
+                "type": "object",
+                "properties": {
+                    "param": {"type": "string"}
+                }
+            })),
+        )];
 
         let model_config = ModelConfig::new_or_fail("test-model");
         let result = create_request(&messages, &tools, &model_config, "System", true);
 
         assert!(result.is_ok());
         let request_value = result.unwrap();
-        
+
         // Check streaming is enabled
         assert_eq!(request_value["config"]["stream"]["enabled"], true);
-        
+
         // Check tools are included
         let prompt = &request_value["config"]["modules"]["prompt_templating"]["prompt"];
         assert!(prompt["tools"].is_array());
@@ -1616,7 +1734,11 @@ mod tests {
         let result = response_to_message(&response_json.to_string());
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("choices") || error_msg.contains("SAP AI Core"), "Error message was: {}", error_msg);
+        assert!(
+            error_msg.contains("choices") || error_msg.contains("SAP AI Core"),
+            "Error message was: {}",
+            error_msg
+        );
     }
 
     #[test]
@@ -1649,7 +1771,11 @@ mod tests {
         let result = response_to_message(&response_json.to_string());
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("content") || error_msg.contains("SAP AI Core"), "Error message was: {}", error_msg);
+        assert!(
+            error_msg.contains("content") || error_msg.contains("SAP AI Core"),
+            "Error message was: {}",
+            error_msg
+        );
     }
 
     #[test]
@@ -1690,7 +1816,7 @@ mod tests {
         });
 
         let result = response_to_message(&response_json.to_string());
-        
+
         // The function may fail due to invalid tool name at parsing level
         // or succeed and include an error in the tool request
         match result {
@@ -1749,7 +1875,7 @@ mod tests {
         });
 
         let result = response_to_message(&response_json.to_string());
-        
+
         // The function may fail due to invalid JSON or succeed with error in tool request
         match result {
             Ok(message) => {
@@ -1816,20 +1942,31 @@ mod tests {
         });
 
         let result = response_to_message(&response_json.to_string());
-        
+
         match result {
             Ok(message) => {
                 // Should have text content + 2 tool requests
-                assert!(message.content.len() >= 2, "Expected at least 2 content items");
+                assert!(
+                    message.content.len() >= 2,
+                    "Expected at least 2 content items"
+                );
 
-                let tool_requests: Vec<_> = message.content.iter()
-                    .filter_map(|c| if let MessageContent::ToolRequest(tr) = c { Some(tr) } else { None })
+                let tool_requests: Vec<_> = message
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let MessageContent::ToolRequest(tr) = c {
+                            Some(tr)
+                        } else {
+                            None
+                        }
+                    })
                     .collect();
-                
+
                 assert_eq!(tool_requests.len(), 2, "Expected 2 tool requests");
                 assert_eq!(tool_requests[0].id, "call_1");
                 assert_eq!(tool_requests[1].id, "call_2");
-                
+
                 if let Ok(tool_call) = &tool_requests[0].tool_call {
                     assert_eq!(tool_call.name, "tool_one");
                 }
@@ -1873,7 +2010,7 @@ mod tests {
 
         let result = get_streaming_response_usage(&chunk);
         assert!(result.is_ok());
-        
+
         let usage = result.unwrap();
         assert_eq!(usage.usage.input_tokens, Some(0));
         assert_eq!(usage.usage.output_tokens, Some(0));
@@ -1906,9 +2043,7 @@ mod tests {
         use futures::stream;
         use futures::StreamExt;
 
-        let streaming_chunks = vec![
-            Ok("data: {invalid json}".to_string()),
-        ];
+        let streaming_chunks = vec![Ok("data: {invalid json}".to_string())];
 
         let mock_stream = stream::iter(streaming_chunks);
         let mut result_stream = Box::pin(response_to_streaming_message(mock_stream));

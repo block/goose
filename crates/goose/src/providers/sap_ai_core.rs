@@ -1,17 +1,17 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::sap_ai_core::{create_request, get_usage, response_to_message};
-use super::token_manager::TokenManager;
 use super::pricing::PricingInfo;
-use super::embedding::EmbeddingCapable;
+use super::token_manager::TokenManager;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -22,9 +22,7 @@ const DEFAULT_TIMEOUT_SECS: u64 = 600;
 pub const SAP_AI_CORE_NAME: &str = "sap_ai_core";
 pub const SAP_AI_CORE_DEFAULT_MODEL: &str = "anthropic--claude-4-sonnet";
 pub const SAP_AI_CORE_DEFAULT_FAST_MODEL: &str = "gpt-5-mini";
-pub const SAP_AI_CORE_KNOWN_MODELS: &[&str] = &[
-    "anthropic--claude-4-sonnet",
-];
+pub const SAP_AI_CORE_KNOWN_MODELS: &[&str] = &["anthropic--claude-4-sonnet"];
 
 pub const SAP_AI_CORE_DOC_URL: &str = "https://help.sap.com/docs/ai-core";
 
@@ -33,11 +31,11 @@ pub const SAP_AI_CORE_DOC_URL: &str = "https://help.sap.com/docs/ai-core";
 pub enum CostItem {
     Input {
         #[serde(rename = "inputCost")]
-        input_cost: String
+        input_cost: String,
     },
     Output {
         #[serde(rename = "outputCost")]
-        output_cost: String
+        output_cost: String,
     },
 }
 
@@ -108,7 +106,7 @@ impl AuthProvider for SAPAICoreAuthProvider {
 impl SAPAICoreAuthProvider {
     async fn get_access_token(&self) -> Result<String> {
         if !self.token_manager.is_expired() {
-            return Ok(self.token_manager.get_token().unwrap())
+            return Ok(self.token_manager.get_token().unwrap());
         }
 
         let client = reqwest::Client::new();
@@ -123,7 +121,10 @@ impl SAPAICoreAuthProvider {
         let token_url = if self.auth.oauth_token_url.ends_with("/oauth/token") {
             self.auth.oauth_token_url.clone()
         } else {
-            format!("{}/oauth/token", self.auth.oauth_token_url.trim_end_matches('/'))
+            format!(
+                "{}/oauth/token",
+                self.auth.oauth_token_url.trim_end_matches('/')
+            )
         };
 
         let response = client
@@ -144,7 +145,8 @@ impl SAPAICoreAuthProvider {
         }
 
         let token_response: ClientCredentialsTokenResponse = response.json().await?;
-        self.token_manager.set_token(token_response.access_token, token_response.expires_in);
+        self.token_manager
+            .set_token(token_response.access_token, token_response.expires_in);
         Ok(self.token_manager.get_token().unwrap())
     }
 }
@@ -230,15 +232,17 @@ impl SAPAICoreProvider {
 
         // Handle response similar to other providers
         if response.status().is_success() {
-            let body = response.text().await.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            let body = response
+                .text()
+                .await
+                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
             serde_json::from_str(&body).map_err(|e| ProviderError::RequestFailed(e.to_string()))
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             Err(ProviderError::RequestFailed(format!(
                 "SAP AI Core request failed: {} - {}",
-                status,
-                error_text
+                status, error_text
             )))
         }
     }
@@ -259,7 +263,10 @@ impl SAPAICoreProvider {
         };
 
         if !response.status().is_success() {
-            tracing::error!("Failed to fetch models from SAP API: {}", response.text().await?);
+            tracing::error!(
+                "Failed to fetch models from SAP API: {}",
+                response.text().await?
+            );
             return Ok(HashMap::new());
         }
 
@@ -284,10 +291,15 @@ impl SAPAICoreProvider {
             return Ok(HashMap::new());
         }
 
-        let _models: HashMap<String, ModelResource> = model_response.resources
+        let _models: HashMap<String, ModelResource> = model_response
+            .resources
             .into_iter()
             .filter(|res| res.versions.iter().any(|v| v.is_latest))
-            .filter(|res| res.allowed_scenarios.iter().any(|sc| sc.scenario_id == "orchestration"))
+            .filter(|res| {
+                res.allowed_scenarios
+                    .iter()
+                    .any(|sc| sc.scenario_id == "orchestration")
+            })
             .map(|mut res| {
                 res.versions = res.versions.into_iter().filter(|v| v.is_latest).collect();
                 (res.model.clone(), res)
@@ -320,7 +332,7 @@ impl Provider for SAPAICoreProvider {
     }
 
     fn get_name(&self) -> &str {
-      &self.name
+        &self.name
     }
 
     async fn complete_with_model(
@@ -337,13 +349,8 @@ impl Provider for SAPAICoreProvider {
         all_messages.extend_from_slice(messages);
 
         // Create SAP AI Core request using our format
-        let request = create_request(
-            &all_messages,
-            tools,
-            model_config,
-            system,
-            false,
-        ).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let request = create_request(&all_messages, tools, model_config, system, false)
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         // Send request to SAP AI Core
         let response = self.post(&request).await?;
@@ -355,8 +362,8 @@ impl Provider for SAPAICoreProvider {
         let message = response_to_message(&response_str)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        let usage = get_usage(&response_str)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let usage =
+            get_usage(&response_str).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         Ok((message, usage))
     }
@@ -381,13 +388,8 @@ impl Provider for SAPAICoreProvider {
         let mut all_messages = vec![];
         all_messages.extend_from_slice(messages);
 
-        let request = create_request(
-            &all_messages,
-            tools,
-            &model_config,
-            system,
-            true
-        ).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let request = create_request(&all_messages, tools, &model_config, system, true)
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         let path = format!("{}/v2/completion", self.orchestration_url);
 
@@ -405,8 +407,7 @@ impl Provider for SAPAICoreProvider {
             let error_text = response.text().await.unwrap_or_default();
             return Err(ProviderError::RequestFailed(format!(
                 "SAP AI Core streaming request failed: {} - {}",
-                status,
-                error_text
+                status, error_text
             )));
         }
 
@@ -460,7 +461,8 @@ impl Provider for SAPAICoreProvider {
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         if !self.models.lock().unwrap().is_empty() {
-            let mut _model_names: Vec<String> = self.models.lock().unwrap().keys().cloned().collect();
+            let mut _model_names: Vec<String> =
+                self.models.lock().unwrap().keys().cloned().collect();
             _model_names.sort_by(|a, b| b.cmp(a));
             return Ok(Some(_model_names));
         }
@@ -477,68 +479,75 @@ impl Provider for SAPAICoreProvider {
     }
 
     async fn get_pricing(&self) -> Option<HashMap<String, HashMap<String, PricingInfo>>> {
-      if self.models.lock().unwrap().is_empty() {
-          self.fetch_supported_models()
-            .await
-            .map_err(|e| {
-              tracing::error!("Cannot fetch models for pricing");
-              e
+        if self.models.lock().unwrap().is_empty() {
+            self.fetch_supported_models()
+                .await
+                .map_err(|e| {
+                    tracing::error!("Cannot fetch models for pricing");
+                    e
+                })
+                .ok()?;
+        }
+
+        if self.models.lock().unwrap().is_empty() {
+            return None;
+        }
+
+        // - Try to get pricing from model cache
+        let sap_pricing: HashMap<String, PricingInfo> = self
+            .models
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .filter(|model| model.versions.iter().any(|v| v.cost.is_some()))
+            .map(|model| {
+                let name = model.model.to_string();
+                let first = model.versions.first().unwrap();
+                let first_input_cost = first
+                    .cost
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|&cost| matches!(cost, CostItem::Input { .. }))
+                    .map(|cost_ref| match cost_ref {
+                        CostItem::Input { input_cost } => input_cost.clone(),
+                        _ => String::new(),
+                    })
+                    .and_then(|cost_str| cost_str.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+                let first_output_cost = first
+                    .cost
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|&cost| matches!(cost, CostItem::Output { .. }))
+                    .map(|cost_ref| match cost_ref {
+                        CostItem::Output { output_cost } => output_cost.clone(),
+                        _ => String::new(),
+                    })
+                    .and_then(|cost_str| cost_str.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+
+                (
+                    name,
+                    PricingInfo {
+                        input_cost: first_input_cost / 1000.0,
+                        output_cost: first_output_cost / 1000.0,
+                        context_length: first.context_length.map(|l| l as u32),
+                    },
+                )
             })
-            .ok()?;
-      }
+            .collect();
 
-      if self.models.lock().unwrap().is_empty() {
-        return None;
-      }
+        if sap_pricing.is_empty() {
+            return None;
+        }
 
-      // - Try to get pricing from model cache
-      let sap_pricing: HashMap<String, PricingInfo> = self.models
-        .lock()
-        .unwrap()
-        .values()
-        .cloned()
-        .filter(|model| model.versions.iter().any(|v| v.cost.is_some()))
-        .map(|model| {
-          let name = model.model.to_string();
-          let first = model.versions.first().unwrap();
-          let first_input_cost = first.cost.as_ref().unwrap().iter()
-            .find(|&cost| matches!(cost, CostItem::Input { .. }))
-            .map(|cost_ref| {
-              match cost_ref {
-                CostItem::Input { input_cost } => input_cost.clone(),
-                _ => String::new(),
-              }
-            })
-            .and_then(|cost_str| cost_str.parse::<f64>().ok())
-            .unwrap_or(0.0);
-          let first_output_cost = first.cost.as_ref().unwrap().iter()
-            .find(|&cost| matches!(cost, CostItem::Output { .. }))
-            .map(|cost_ref| {
-              match cost_ref {
-                CostItem::Output { output_cost } => output_cost.clone(),
-                _ => String::new(),
-              }
-            })
-            .and_then(|cost_str| cost_str.parse::<f64>().ok())
-            .unwrap_or(0.0);
+        let mut result: HashMap<String, HashMap<String, PricingInfo>> = HashMap::new();
+        result.insert(SAP_AI_CORE_NAME.to_string(), sap_pricing);
 
-          (name, PricingInfo {
-            input_cost: first_input_cost/1000.0,
-            output_cost: first_output_cost/1000.0,
-            context_length: first.context_length.map(|l| l as u32)
-          })
-
-        })
-        .collect();
-
-      if sap_pricing.is_empty() {
-        return None;
-      }
-
-      let mut result: HashMap<String, HashMap<String, PricingInfo>> = HashMap::new();
-      result.insert(SAP_AI_CORE_NAME.to_string(), sap_pricing);
-
-      Some(result)
+        Some(result)
     }
 }
 
@@ -625,8 +634,12 @@ mod tests {
             capabilities: Some(vec!["chat".to_string(), "embedding".to_string()]),
             context_length: Some(128000),
             cost: Some(vec![
-                CostItem::Input { input_cost: "0.015".to_string() },
-                CostItem::Output { output_cost: "0.075".to_string() },
+                CostItem::Input {
+                    input_cost: "0.015".to_string(),
+                },
+                CostItem::Output {
+                    output_cost: "0.075".to_string(),
+                },
             ]),
             input_types: Some(vec!["text".to_string()]),
             is_latest: true,
@@ -780,7 +793,9 @@ mod tests {
         let version = ModelVersion {
             capabilities: Some(vec!["chat".to_string()]),
             context_length: Some(4096),
-            cost: Some(vec![CostItem::Input { input_cost: "0.01".to_string() }]),
+            cost: Some(vec![CostItem::Input {
+                input_cost: "0.01".to_string(),
+            }]),
             input_types: Some(vec!["text".to_string()]),
             is_latest: true,
             streaming_supported: true,
@@ -811,7 +826,9 @@ mod tests {
 
     #[test]
     fn test_cost_item_clone() {
-        let input_cost = CostItem::Input { input_cost: "0.015".to_string() };
+        let input_cost = CostItem::Input {
+            input_cost: "0.015".to_string(),
+        };
         let cloned = input_cost.clone();
         match (input_cost, cloned) {
             (CostItem::Input { input_cost: a }, CostItem::Input { input_cost: b }) => {
@@ -824,19 +841,35 @@ mod tests {
     #[test]
     fn test_model_version_with_all_fields() {
         let version = ModelVersion {
-            capabilities: Some(vec!["chat".to_string(), "embedding".to_string(), "tool_use".to_string()]),
+            capabilities: Some(vec![
+                "chat".to_string(),
+                "embedding".to_string(),
+                "tool_use".to_string(),
+            ]),
             context_length: Some(200000),
             cost: Some(vec![
-                CostItem::Input { input_cost: "0.003".to_string() },
-                CostItem::Output { output_cost: "0.015".to_string() },
+                CostItem::Input {
+                    input_cost: "0.003".to_string(),
+                },
+                CostItem::Output {
+                    output_cost: "0.015".to_string(),
+                },
             ]),
             input_types: Some(vec!["text".to_string(), "image".to_string()]),
             is_latest: true,
             streaming_supported: true,
         };
 
-        assert!(version.capabilities.as_ref().unwrap().contains(&"chat".to_string()));
-        assert!(version.capabilities.as_ref().unwrap().contains(&"embedding".to_string()));
+        assert!(version
+            .capabilities
+            .as_ref()
+            .unwrap()
+            .contains(&"chat".to_string()));
+        assert!(version
+            .capabilities
+            .as_ref()
+            .unwrap()
+            .contains(&"embedding".to_string()));
         assert_eq!(version.context_length, Some(200000));
         assert_eq!(version.cost.as_ref().unwrap().len(), 2);
         assert!(version.is_latest);
@@ -913,7 +946,9 @@ mod tests {
 
     #[test]
     fn test_cost_item_debug() {
-        let input = CostItem::Input { input_cost: "0.01".to_string() };
+        let input = CostItem::Input {
+            input_cost: "0.01".to_string(),
+        };
         let debug_str = format!("{:?}", input);
         assert!(debug_str.contains("Input"));
         assert!(debug_str.contains("0.01"));

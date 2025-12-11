@@ -127,7 +127,9 @@ pub struct TemplateRef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TemplateReference {
-    ById { id: String },
+    ById {
+        id: String,
+    },
     ByScenarioNameVersion {
         scenario: String,
         name: String,
@@ -143,9 +145,7 @@ pub enum ResponseFormat {
     #[serde(rename = "json_object")]
     JsonObject,
     #[serde(rename = "json_schema")]
-    JsonSchema {
-        json_schema: JsonSchemaSpec,
-    },
+    JsonSchema { json_schema: JsonSchemaSpec },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,13 +231,9 @@ fn default_version() -> String {
 #[serde(tag = "role")]
 pub enum ChatMessage {
     #[serde(rename = "system")]
-    System {
-        content: ChatMessageContent,
-    },
+    System { content: ChatMessageContent },
     #[serde(rename = "user")]
-    User {
-        content: UserChatMessageContent,
-    },
+    User { content: UserChatMessageContent },
     #[serde(rename = "assistant")]
     Assistant {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,9 +249,7 @@ pub enum ChatMessage {
         content: ChatMessageContent,
     },
     #[serde(rename = "developer")]
-    Developer {
-        content: ChatMessageContent,
-    },
+    Developer { content: ChatMessageContent },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -559,26 +553,18 @@ pub struct FilteringStreamOptions {
 #[serde(tag = "type")]
 pub enum InputFilterConfig {
     #[serde(rename = "azure_content_safety")]
-    AzureContentSafety {
-        config: AzureContentSafetyInput,
-    },
+    AzureContentSafety { config: AzureContentSafetyInput },
     #[serde(rename = "llama_guard_3_8b")]
-    LlamaGuard38b {
-        config: LlamaGuard38b,
-    },
+    LlamaGuard38b { config: LlamaGuard38b },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum OutputFilterConfig {
     #[serde(rename = "azure_content_safety")]
-    AzureContentSafety {
-        config: AzureContentSafetyOutput,
-    },
+    AzureContentSafety { config: AzureContentSafetyOutput },
     #[serde(rename = "llama_guard_3_8b")]
-    LlamaGuard38b {
-        config: LlamaGuard38b,
-    },
+    LlamaGuard38b { config: LlamaGuard38b },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

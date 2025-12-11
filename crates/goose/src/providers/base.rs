@@ -14,10 +14,10 @@ use rmcp::model::Tool;
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
+use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Mutex;
-use std::collections::HashMap;
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));

@@ -1,3 +1,5 @@
+use super::factory::create;
+use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -6,8 +8,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use crate::model::ModelConfig;
-use super::factory::create;
 
 /// Disk cache configuration
 const CACHE_FILE_NAME: &str = "pricing_cache.json";
@@ -163,7 +163,7 @@ impl PricingCache {
         }
 
         if sap_pricing.is_some() {
-          structured_pricing.extend(sap_pricing.unwrap());
+            structured_pricing.extend(sap_pricing.unwrap());
         }
 
         let cached_data = CachedPricingData {
@@ -272,12 +272,13 @@ async fn fetch_openrouter_pricing_internal() -> Result<HashMap<String, OpenRoute
     Ok(pricing_map)
 }
 
-async fn fetch_sap_ai_core_pricing_internal() -> Option<HashMap<String, HashMap<String, PricingInfo>>> {
-  let temp_model = ModelConfig::new("temp").ok()?;
-  match create("sap_ai_core", temp_model).await {
-    Ok(provider) => provider.get_pricing().await,
-    Err(_) => None
-  }
+async fn fetch_sap_ai_core_pricing_internal(
+) -> Option<HashMap<String, HashMap<String, PricingInfo>>> {
+    let temp_model = ModelConfig::new("temp").ok()?;
+    match create("sap_ai_core", temp_model).await {
+        Ok(provider) => provider.get_pricing().await,
+        Err(_) => None,
+    }
 }
 
 /// Initialize pricing cache on startup

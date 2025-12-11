@@ -162,7 +162,7 @@ mod tests {
         let manager = TokenManager::new();
         manager.set_token("token1".to_string(), 3600);
         assert_eq!(manager.get_token(), Some("token1".to_string()));
-        
+
         manager.set_token("token2".to_string(), 3600);
         assert_eq!(manager.get_token(), Some("token2".to_string()));
     }
@@ -171,10 +171,10 @@ mod tests {
     fn test_token_manager_clone_shares_state() {
         let manager1 = TokenManager::new();
         manager1.set_token("shared_token".to_string(), 3600);
-        
+
         let manager2 = manager1.clone();
         assert_eq!(manager2.get_token(), Some("shared_token".to_string()));
-        
+
         manager2.set_token("new_token".to_string(), 3600);
         assert_eq!(manager1.get_token(), Some("new_token".to_string()));
     }
@@ -183,12 +183,12 @@ mod tests {
     fn test_token_manager_thread_safety() {
         let manager = TokenManager::new();
         manager.set_token("initial_token".to_string(), 3600);
-        
+
         let manager_clone = manager.clone();
         let handle = thread::spawn(move || {
             manager_clone.set_token("thread_token".to_string(), 3600);
         });
-        
+
         handle.join().unwrap();
         assert_eq!(manager.get_token(), Some("thread_token".to_string()));
     }
