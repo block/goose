@@ -445,23 +445,40 @@ pub trait Provider: Send + Sync {
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e)))?;
 
         // Filter models that are usable (map to canonical + have text input)
-        let recommended_models: Vec<String> = all_models
-            .into_iter()
-            .filter(|model| {
-                use super::canonical::fuzzy_canonical_name;
+        // Process in chunks using tokio tasks for parallelism
+        use futures::future::join_all;
+        let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let chunk_size = (all_models.len() / num_threads).max(1);
+        let provider_name = self.get_name().to_string();
 
-                // Try to map to canonical
-                let candidates = fuzzy_canonical_name(self.get_name(), model);
+        let tasks: Vec<_> = all_models
+            .chunks(chunk_size)
+            .map(|chunk| {
+                let chunk = chunk.to_vec();
+                let provider_name = provider_name.clone();
+                let registry = registry.clone();
 
-                // Check if any candidate maps to a canonical model with text input
-                candidates.iter().any(|canonical_id| {
-                    if let Some(canonical_model) = registry.get(canonical_id) {
-                        canonical_model.input_modalities.contains(&"text".to_string())
-                    } else {
-                        false
-                    }
+                tokio::task::spawn_blocking(move || {
+                    chunk.into_iter().filter(|model| {
+                        use super::canonical::fuzzy_canonical_name;
+                        let candidates = fuzzy_canonical_name(&provider_name, model);
+                        candidates.iter().any(|canonical_id| {
+                            if let Some(canonical_model) = registry.get(canonical_id) {
+                                canonical_model.input_modalities.contains(&"text".to_string())
+                            } else {
+                                false
+                            }
+                        })
+                    }).collect::<Vec<_>>()
                 })
             })
+            .collect();
+
+        let results = join_all(tasks).await;
+        let recommended_models: Vec<String> = results
+            .into_iter()
+            .filter_map(Result::ok)
+            .flatten()
             .collect();
 
         if recommended_models.is_empty() {
