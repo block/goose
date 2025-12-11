@@ -435,6 +435,7 @@ export const SwitchModelModal = ({
                 <button
                   type="button"
                   role="switch"
+                  aria-label="Toggle show only recommended models"
                   aria-checked={showOnlyRecommended}
                   onClick={() => setShowOnlyRecommended(!showOnlyRecommended)}
                   className={`${

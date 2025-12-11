@@ -333,7 +333,6 @@ async fn main() -> Result<()> {
         ("anthropic", "claude-3-5-sonnet-20241022"),
         ("openai", "gpt-4"),
         ("openrouter", "anthropic/claude-3.5-sonnet"),
-        ("databricks", "databricks-meta-llama-3-1-70b-instruct"),
         ("google", "gemini-1.5-pro-002"),
         ("tetrate", "claude-3-5-sonnet-computer-use"),
         ("xai", "grok-code-fast-1"),

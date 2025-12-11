@@ -16,14 +16,13 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "anthropic",
     "google",
     "openai",
-    // Additional providers (uncomment one at a time to test):
-    "meta-llama", // Llama 3.1, 3.3, 4 series - very popular
-    "mistralai",  // Mistral Large, Mixtral - very popular
-    "x-ai",       // Grok models - high profile
-    "deepseek",   // DeepSeek v3, R1 - gaining popularity
-    "cohere",     // Command R, Command R+ models
-    "ai21",       // Jamba 1.5 models
-    "qwen",       // Qwen 2.5 series (Alibaba)
+    "meta-llama",
+    "mistralai",
+    "x-ai",
+    "deepseek",
+    "cohere",
+    "ai21",
+    "qwen",
 ];
 
 #[tokio::main]
@@ -56,7 +55,7 @@ async fn main() -> Result<()> {
 
     for model in &models {
         let id = model["id"].as_str().unwrap();
-        let name = model["name"].as_str().unwrap_or(id);
+        let name = model["name"].as_str().context("Model missing id field")?;
 
         // Skip OpenRouter-specific pricing variants (:free, :nitro)
         // Keep :extended since it has different context length
@@ -204,7 +203,9 @@ async fn main() -> Result<()> {
             .map(|params| params.iter().any(|param| param.as_str() == Some("tools")))
             .unwrap_or(false);
 
-        let pricing_obj = model.get("pricing").unwrap();
+        let pricing_obj = model
+            .get("pricing")
+            .context("Model missing pricing field")?;
         let pricing = Pricing {
             prompt: pricing_obj
                 .get("prompt")

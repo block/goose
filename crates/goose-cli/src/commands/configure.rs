@@ -570,9 +570,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     }
 
-    // Attempt to fetch recommended models for this provider (respects FORCE_SHOW_ALL_MODELS env var)
+    // Attempt to fetch supported models for this provider
     let spin = spinner();
-    spin.start("Attempting to fetch recommended models...");
+    spin.start("Attempting to fetch supported models...");
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;

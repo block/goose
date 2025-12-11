@@ -417,12 +417,7 @@ pub trait Provider: Send + Sync {
     }
 
     /// Fetch models filtered by canonical registry and usability
-    /// Respects FORCE_SHOW_ALL_MODELS env var - if true, returns all models
-    /// Otherwise, only returns models that:
-    /// 1. Map to a canonical model
-    /// 2. Have "text" in input_modalities
     async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Check if we should show all models
         let force_show_all = std::env::var("FORCE_SHOW_ALL_MODELS")
             .map(|v| {
                 let lower = v.to_lowercase();
@@ -434,23 +429,20 @@ pub trait Provider: Send + Sync {
             return self.fetch_supported_models().await;
         }
 
-        // Get all models
         let all_models = match self.fetch_supported_models().await? {
             Some(models) => models,
             None => return Ok(None),
         };
 
-        // Load canonical registry (static reference, no cloning needed)
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
-        // Filter models that are usable (map to canonical + have text input)
         use super::canonical::fuzzy_canonical_name;
         let provider_name = self.get_name();
 
         let recommended_models: Vec<String> = all_models
-            .into_iter()
+            .iter()
             .filter(|model| {
                 let candidates = fuzzy_canonical_name(provider_name, model);
                 candidates.iter().any(|canonical_id| {
@@ -460,11 +452,11 @@ pub trait Provider: Send + Sync {
                         .unwrap_or(false)
                 })
             })
+            .cloned()
             .collect();
 
         if recommended_models.is_empty() {
-            // If no models match, return None instead of empty list
-            Ok(None)
+            Ok(Some(all_models))
         } else {
             Ok(Some(recommended_models))
         }

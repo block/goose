@@ -400,8 +400,6 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Use fetch_recommended_models by default (respects FORCE_SHOW_ALL_MODELS env var)
-    // Unless explicitly requested to show all via query parameter
     let models_result = if filter.show_all {
         provider.fetch_supported_models().await
     } else {
