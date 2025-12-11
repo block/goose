@@ -191,6 +191,7 @@ async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
     provider: SharedProvider,
+    working_dir: Option<&PathBuf>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -200,23 +201,25 @@ async fn child_process_client(
         command.env("PATH", path);
     }
 
-    // Check if GOOSE_WORKING_DIR is set and use it as the working directory
-    if let Ok(working_dir) = std::env::var("GOOSE_WORKING_DIR") {
-        let working_path = std::path::Path::new(&working_dir);
-        if working_path.exists() && working_path.is_dir() {
-            tracing::info!(
-                "Setting MCP process working directory from GOOSE_WORKING_DIR: {:?}",
-                working_path
-            );
-            command.current_dir(working_path);
+    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
+    let effective_working_dir = working_dir
+        .map(|p| p.to_path_buf())
+        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
+
+    if let Some(ref dir) = effective_working_dir {
+        if dir.exists() && dir.is_dir() {
+            tracing::info!("Setting MCP process working directory: {:?}", dir);
+            command.current_dir(dir);
+            // Also set GOOSE_WORKING_DIR env var for the child process
+            command.env("GOOSE_WORKING_DIR", dir);
         } else {
             tracing::warn!(
-                "GOOSE_WORKING_DIR is set but path doesn't exist or isn't a directory: {:?}",
-                working_dir
+                "Working directory doesn't exist or isn't a directory: {:?}",
+                dir
             );
         }
     } else {
-        tracing::info!("GOOSE_WORKING_DIR not set, using default working directory");
+        tracing::info!("No working directory specified, using default");
     }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
@@ -307,7 +310,11 @@ impl ExtensionManager {
             .any(|ext| ext.supports_resources())
     }
 
-    pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(
+        &self,
+        config: ExtensionConfig,
+        working_dir: Option<PathBuf>,
+    ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
         let mut temp_dir = None;
@@ -514,7 +521,13 @@ impl ExtensionManager {
                     command.args(args).envs(all_envs);
                 });
 
-                let client = child_process_client(command, timeout, self.provider.clone()).await?;
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    working_dir.as_ref(),
+                )
+                .await?;
                 Box::new(client)
             }
             ExtensionConfig::Builtin {
@@ -543,7 +556,13 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
-                let client = child_process_client(command, timeout, self.provider.clone()).await?;
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    working_dir.as_ref(),
+                )
+                .await?;
                 Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
@@ -579,7 +598,13 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                let client = child_process_client(command, timeout, self.provider.clone()).await?;
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    working_dir.as_ref(),
+                )
+                .await?;
 
                 Box::new(client)
             }
@@ -1198,9 +1223,13 @@ impl ExtensionManager {
             .map(|ext| ext.get_client())
     }
 
-    pub async fn collect_moim(&self) -> Option<String> {
+    pub async fn collect_moim(&self, working_dir: &std::path::Path) -> Option<String> {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+        let mut content = format!(
+            "<info-msg>\nDatetime: {}\nWorking directory: {}\n",
+            timestamp,
+            working_dir.display()
+        );
 
         let extensions = self.extensions.lock().await;
         for (name, extension) in extensions.iter() {

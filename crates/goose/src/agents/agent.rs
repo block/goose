@@ -655,7 +655,11 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+    ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -684,7 +688,7 @@ impl Agent {
             }
             _ => {
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension(extension.clone(), working_dir)
                     .await?;
             }
         }
@@ -995,6 +999,7 @@ impl Agent {
                 let conversation_with_moim = super::moim::inject_moim(
                     conversation.clone(),
                     &self.extension_manager,
+                    &working_dir,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
