@@ -22,6 +22,7 @@ pub struct ChatComponent {
     list_state: ListState,
     cached_items: Vec<ListItem<'static>>,
     cached_mapping: Vec<usize>,
+    display_mapping: Vec<usize>,
     sealed_count: usize,
     last_tool_context: HashMap<String, (String, String)>,
     stick_to_bottom: bool,
@@ -44,6 +45,7 @@ impl ChatComponent {
             list_state: ListState::default(),
             cached_items: Vec::new(),
             cached_mapping: Vec::new(),
+            display_mapping: Vec::new(),
             sealed_count: 0,
             last_tool_context: HashMap::new(),
             stick_to_bottom: true,
@@ -604,7 +606,7 @@ impl Component for ChatComponent {
                 }
                 MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
                     if let Some(idx) = self.list_state.selected() {
-                        if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                        if let Some(&msg_idx) = self.display_mapping.get(idx) {
                             return Ok(Some(Action::OpenMessageInfo(msg_idx)));
                         }
                     }
@@ -633,7 +635,7 @@ impl Component for ChatComponent {
                         }
                         KeyCode::Enter => {
                             if let Some(idx) = self.list_state.selected() {
-                                if let Some(&msg_idx) = self.cached_mapping.get(idx) {
+                                if let Some(&msg_idx) = self.display_mapping.get(idx) {
                                     return Ok(Some(Action::OpenMessageInfo(msg_idx)));
                                 }
                             }
@@ -714,7 +716,7 @@ impl Component for ChatComponent {
         }
 
         let mut display_items = self.cached_items.clone();
-        let mut display_map = self.cached_mapping.clone();
+        self.display_mapping = self.cached_mapping.clone();
 
         if state.is_working && !state.messages.is_empty() {
             let last_idx = state.messages.len() - 1;
@@ -731,11 +733,10 @@ impl Component for ChatComponent {
                     state.pending_confirmation.as_ref(),
                 );
                 display_items.extend(items);
-                display_map.extend(map);
+                self.display_mapping.extend(map);
             }
         }
 
-        // Auto-scroll logic
         if self.stick_to_bottom && !display_items.is_empty() {
             self.list_state.select(Some(display_items.len() - 1));
         }
