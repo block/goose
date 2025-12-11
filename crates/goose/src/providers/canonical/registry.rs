@@ -31,10 +31,9 @@ impl CanonicalModelRegistry {
         }
     }
 
-    pub fn bundled() -> Result<Self> {
+    pub fn bundled() -> Result<&'static Self> {
         BUNDLED_REGISTRY
             .as_ref()
-            .map(|r| r.clone())
             .map_err(|e| anyhow::anyhow!("{}", e))
     }
 

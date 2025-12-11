@@ -1,3 +1,41 @@
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+// Static regex patterns compiled once at module initialization
+static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"-(\d)-(\d)(-|$)").expect("Failed to compile NORMALIZE_VERSION regex")
+});
+
+static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
+    vec![
+        Regex::new(r"-latest$").expect("Failed to compile -latest regex"),
+        Regex::new(r"-preview(-\d+)*$").expect("Failed to compile -preview regex"),
+        Regex::new(r"-exp(-\d+)*$").expect("Failed to compile -exp regex"),
+        Regex::new(r":exacto$").expect("Failed to compile :exacto regex"),
+        Regex::new(r"-\d{8}$").expect("Failed to compile date regex"),
+        Regex::new(r"-\d{4}-\d{2}-\d{2}$").expect("Failed to compile full-date regex"),
+        Regex::new(r"-v\d+(\.\d+)*$").expect("Failed to compile version regex"),
+        Regex::new(r"-\d{3,}$").expect("Failed to compile patch regex"),
+        Regex::new(r"-bedrock$").expect("Failed to compile -bedrock regex"),
+    ]
+});
+
+// Regex patterns for Claude model word-order swapping
+static CLAUDE_PATTERNS: Lazy<Vec<(Regex, Regex, &'static str)>> = Lazy::new(|| {
+    ["sonnet", "opus", "haiku"]
+        .iter()
+        .map(|&size| {
+            (
+                Regex::new(&format!("claude-([0-9.-]+)-{}", size))
+                    .expect("Failed to compile Claude forward regex"),
+                Regex::new(&format!("claude-{}-([0-9.-]+)", size))
+                    .expect("Failed to compile Claude reverse regex"),
+                size,
+            )
+        })
+        .collect()
+});
+
 /// Build canonical model name from provider and model identifiers
 pub fn canonical_name(provider: &str, model: &str) -> String {
     let model_base = strip_version_suffix(model);
@@ -69,28 +107,18 @@ fn swap_claude_word_order(model: &str) -> Option<String> {
         return None;
     }
 
-    // Pattern: claude-{version}-{size} → claude-{size}-{version}
-    // Examples: claude-3-5-sonnet → claude-sonnet-3-5, claude-4-opus → claude-opus-4
-    // Handle both dots and dashes in version numbers: 3.5 or 3-5
-    let size_patterns = ["sonnet", "opus", "haiku"];
-
-    for size in &size_patterns {
+    // Use pre-compiled regex patterns for Claude models
+    for (forward_re, reverse_re, size) in CLAUDE_PATTERNS.iter() {
         // Match: claude-{digits/dots/dashes}-{size}
         // Accepts: claude-3.5-sonnet, claude-3-5-sonnet
-        let pattern = format!("claude-([0-9.-]+)-{}", size);
-        let re = regex::Regex::new(&pattern).unwrap();
-
-        if let Some(captures) = re.captures(model) {
+        if let Some(captures) = forward_re.captures(model) {
             let version = &captures[1];
             return Some(format!("claude-{}-{}", size, version));
         }
 
         // Also try reverse: claude-{size}-{digits/dots/dashes}
         // Accepts: claude-sonnet-3.5, claude-haiku-3-5
-        let reverse_pattern = format!("claude-{}-([0-9.-]+)", size);
-        let re_reverse = regex::Regex::new(&reverse_pattern).unwrap();
-
-        if let Some(captures) = re_reverse.captures(model) {
+        if let Some(captures) = reverse_re.captures(model) {
             let version = &captures[1];
             return Some(format!("claude-{}-{}", version, size));
         }
@@ -258,27 +286,13 @@ fn extract_provider_prefix(model: &str) -> Option<(&'static str, &str)> {
 pub fn strip_version_suffix(model: &str) -> String {
     // First, normalize version numbers: convert -X-Y- to -X.Y- (e.g., -3-5- to -3.5-)
     // This handles cases where Anthropic uses dashes (claude-3-5-haiku) but OpenRouter uses dots (claude-3.5-haiku)
-    let normalize_version = regex::Regex::new(r"-(\d)-(\d)(-|$)").unwrap();
-    let mut result = normalize_version.replace_all(model, "-$1.$2$3").to_string();
-
-    // Strip datetime, version, and preview/exp suffixes
-    let patterns = [
-        regex::Regex::new(r"-latest$").unwrap(),            // -latest
-        regex::Regex::new(r"-preview(-\d+)*$").unwrap(),    // -preview, -preview-09, -preview-05-20
-        regex::Regex::new(r"-exp(-\d+)*$").unwrap(),        // -exp, -exp-1219, -exp-01-21
-        regex::Regex::new(r":exacto$").unwrap(),            // :exacto (OpenRouter provider suffix)
-        regex::Regex::new(r"-\d{8}$").unwrap(),             // -20241022
-        regex::Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // -2024-04-09
-        regex::Regex::new(r"-v\d+(\.\d+)*$").unwrap(), // -v1.5 (semantic versions with "v" prefix)
-        regex::Regex::new(r"-\d{3,}$").unwrap(), // -002, -001 (patch versions: 3+ digits only)
-        regex::Regex::new(r"-bedrock$").unwrap(), // -bedrock (platform suffixes)
-    ];
+    let mut result = NORMALIZE_VERSION_RE.replace_all(model, "-$1.$2$3").to_string();
 
     // Apply patterns multiple times to handle cases like "-preview-09-2025"
     let mut changed = true;
     while changed {
         let before = result.clone();
-        for pattern in &patterns {
+        for pattern in STRIP_PATTERNS.iter() {
             result = pattern.replace(&result, "").to_string();
         }
         changed = result != before;

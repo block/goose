@@ -121,10 +121,7 @@ async fn main() -> Result<()> {
                     id,
                     has_paid_pricing
                 );
-                if name.len() >= existing_name.len() {
-                } else {
-                    shortest_names.insert(canonical_id.clone(), name.to_string());
-                }
+                shortest_names.insert(canonical_id.clone(), name.to_string());
                 canonical_groups.insert(canonical_id, model);
             }
         } else {

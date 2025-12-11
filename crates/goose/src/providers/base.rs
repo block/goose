@@ -440,7 +440,7 @@ pub trait Provider: Send + Sync {
             None => return Ok(None),
         };
 
-        // Load canonical registry
+        // Load canonical registry (static reference, no cloning needed)
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
@@ -459,7 +459,7 @@ pub trait Provider: Send + Sync {
             .map(|chunk| {
                 let chunk = chunk.to_vec();
                 let provider_name = provider_name.clone();
-                let registry = registry.clone();
+                // Registry is &'static so we can just copy the reference
 
                 tokio::task::spawn_blocking(move || {
                     chunk
