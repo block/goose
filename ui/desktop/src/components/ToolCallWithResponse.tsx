@@ -15,66 +15,15 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource, ToolResponse } from '../api';
-import MCPAppsRenderer from './MCPAppsRenderer';
+import { Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
-  sessionId: string,
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
-  append?: (value: string) => void;
-}
-
-type ToolResultWithMeta = {
-  status?: string;
-  value?: {
-    content?: Array<{ type: string; text?: string; [key: string]: unknown }>;
-    structuredContent?: Record<string, unknown>;
-    _meta?: {
-      'ui/resourceUri'?: string;
-    };
-    isError?: boolean;
-  };
-};
-
-type ToolCallData = {
-  name: string;
-  arguments: Record<string, unknown>;
-};
-
-function maybeRenderMCPApp(
-  toolCall: ToolCallData,
-  toolResponse: ToolResponse | undefined,
-  sessionId: string,
-  append?: (value: string) => void
-) {
-  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
-
-  if (resultWithMeta?.status !== 'success' || !resultWithMeta.value) {
-    return null;
-  }
-
-  const value = resultWithMeta.value;
-  const resourceUri = value._meta?.['ui/resourceUri'];
-
-  if (!resourceUri) return null;
-
-  const extensionName = toolCall.name.split('__')[0];
-  const structuredContent = value.structuredContent;
-
-  return (
-      <MCPAppsRenderer
-        resourceUri={resourceUri}
-        structuredContent={structuredContent}
-        toolInput={toolCall.arguments}
-        extensionName={extensionName}
-        sessionId={sessionId}
-        appendPromptToChat={append}
-      />
-  );
+  append?: (value: string) => void; // Function to append messages to the chat
 }
 
 function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
@@ -89,7 +38,6 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
 }
 
 export default function ToolCallWithResponse({
-  sessionId,
   isCancelledMessage,
   toolRequest,
   toolResponse,
@@ -100,10 +48,10 @@ export default function ToolCallWithResponse({
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
   const toolCallData = toolRequest.toolCall as Record<string, unknown>;
-  const toolCall: ToolCallData =
+  const toolCall =
     toolCallData?.status === 'success'
-      ? (toolCallData.value as ToolCallData)
-      : (toolCallData as ToolCallData);
+      ? (toolCallData.value as { name: string; arguments: Record<string, unknown> })
+      : (toolCallData as { name: string; arguments: Record<string, unknown> });
 
   if (!toolCall || !toolCall.name) {
     return null;
@@ -126,7 +74,7 @@ export default function ToolCallWithResponse({
           }}
         />
       </div>
-
+      {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
         getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
@@ -148,7 +96,6 @@ export default function ToolCallWithResponse({
             return null;
           }
         })}
-      {maybeRenderMCPApp(toolCall, toolResponse, sessionId, append)}
     </>
   );
 }

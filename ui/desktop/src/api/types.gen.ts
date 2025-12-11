@@ -36,14 +36,6 @@ export type Annotations = {
     priority?: number;
 };
 
-export type AppListResponse = {
-    apps: Array<GooseApp>;
-};
-
-export type AppResponse = {
-    app: GooseApp;
-};
-
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -52,18 +44,6 @@ export type Author = {
 export type AuthorRequest = {
     contact?: string | null;
     metadata?: string | null;
-};
-
-export type CallToolRequest = {
-    arguments: unknown;
-    name: string;
-    session_id: string;
-};
-
-export type CallToolResponse = {
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
 };
 
 export type ChatRequest = {
@@ -127,10 +107,6 @@ export type ConfirmToolActionRequest = {
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
-
-export type CreateAppRequest = {
-    app: GooseApp;
-};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -360,17 +336,6 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
-export type GooseApp = {
-    description?: string | null;
-    height?: number | null;
-    html?: string;
-    mcpServer?: string | null;
-    name: string;
-    prd?: string;
-    resizable?: boolean | null;
-    width?: number | null;
-};
-
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -398,31 +363,12 @@ export type InspectJobResponse = {
     sessionId?: string | null;
 };
 
-export type IterateAppRequest = {
-    errors: string;
-    height: number;
-    html: string;
-    prd: string;
-    screenshotBase64?: string | null;
-    width: number;
-};
-
-export type IterateAppResponse = {
-    done: boolean;
-    html?: string | null;
-    message: string;
-};
-
 export type JsonObject = {
     [key: string]: unknown;
 };
 
 export type KillJobResponse = {
     message: string;
-};
-
-export type ListAppsRequest = {
-    session_id?: string | null;
 };
 
 export type ListRecipeResponse = {
@@ -655,16 +601,6 @@ export type RawTextContent = {
         [key: string]: unknown;
     };
     text: string;
-};
-
-export type ReadResourceRequest = {
-    extension_name: string;
-    session_id: string;
-    uri: string;
-};
-
-export type ReadResourceResponse = {
-    html: string;
 };
 
 export type Recipe = {
@@ -922,10 +858,6 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
-export type SuccessResponse = {
-    message: string;
-};
-
 export type SystemNotificationContent = {
     msg: string;
     notificationType: SystemNotificationType;
@@ -1029,10 +961,6 @@ export type TunnelInfo = {
 };
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
-
-export type UpdateAppRequest = {
-    app: GooseApp;
-};
 
 export type UpdateCustomProviderRequest = {
     api_key: string;
@@ -1149,76 +1077,6 @@ export type AgentAddExtensionResponses = {
 };
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
-
-export type CallToolData = {
-    body: CallToolRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/call_tool';
-};
-
-export type CallToolErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CallToolResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: CallToolResponse;
-};
-
-export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
-
-export type ReadResourceData = {
-    body: ReadResourceRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/read_resource';
-};
-
-export type ReadResourceErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ReadResourceResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: ReadResourceResponse;
-};
-
-export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
 
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
@@ -1443,278 +1301,6 @@ export type UpdateRouterToolSelectorResponses = {
 };
 
 export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
-
-export type CreateAppData = {
-    body: CreateAppRequest;
-    path?: never;
-    query?: never;
-    url: '/apps';
-};
-
-export type CreateAppErrors = {
-    /**
-     * Bad request - Invalid app data
-     */
-    400: ErrorResponse;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * Conflict - App already exists
-     */
-    409: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type CreateAppError = CreateAppErrors[keyof CreateAppErrors];
-
-export type CreateAppResponses = {
-    /**
-     * App created successfully
-     */
-    201: SuccessResponse;
-};
-
-export type CreateAppResponse = CreateAppResponses[keyof CreateAppResponses];
-
-export type DeleteAppData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the app to delete
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/apps/app/{name}';
-};
-
-export type DeleteAppErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * App not found
-     */
-    404: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type DeleteAppError = DeleteAppErrors[keyof DeleteAppErrors];
-
-export type DeleteAppResponses = {
-    /**
-     * App deleted successfully
-     */
-    200: SuccessResponse;
-};
-
-export type DeleteAppResponse = DeleteAppResponses[keyof DeleteAppResponses];
-
-export type GetAppData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the app
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/apps/app/{name}';
-};
-
-export type GetAppErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * App not found
-     */
-    404: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type GetAppError = GetAppErrors[keyof GetAppErrors];
-
-export type GetAppResponses = {
-    /**
-     * App retrieved successfully
-     */
-    200: AppResponse;
-};
-
-export type GetAppResponse = GetAppResponses[keyof GetAppResponses];
-
-export type StoreAppData = {
-    body: UpdateAppRequest;
-    path: {
-        /**
-         * Name of the app to update
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/apps/app/{name}';
-};
-
-export type StoreAppErrors = {
-    /**
-     * Bad request - Invalid app data
-     */
-    400: ErrorResponse;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * App not found
-     */
-    404: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StoreAppError = StoreAppErrors[keyof StoreAppErrors];
-
-export type StoreAppResponses = {
-    /**
-     * App updated successfully
-     */
-    200: SuccessResponse;
-};
-
-export type StoreAppResponse = StoreAppResponses[keyof StoreAppResponses];
-
-export type ExportAppData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the app to export
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/apps/export/{name}';
-};
-
-export type ExportAppErrors = {
-    /**
-     * App not found
-     */
-    404: ErrorResponse;
-};
-
-export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
-
-export type ExportAppResponses = {
-    /**
-     * App HTML exported successfully
-     */
-    200: unknown;
-};
-
-export type ImportAppData = {
-    body: string;
-    path?: never;
-    query?: never;
-    url: '/apps/import';
-};
-
-export type ImportAppErrors = {
-    /**
-     * Bad request - Invalid HTML
-     */
-    400: ErrorResponse;
-};
-
-export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
-
-export type ImportAppResponses = {
-    /**
-     * App imported successfully
-     */
-    201: SuccessResponse;
-};
-
-export type ImportAppResponse = ImportAppResponses[keyof ImportAppResponses];
-
-export type IterateAppData = {
-    body: IterateAppRequest;
-    path?: never;
-    query?: never;
-    url: '/apps/iterate';
-};
-
-export type IterateAppErrors = {
-    /**
-     * Bad request - Invalid app data
-     */
-    400: ErrorResponse;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type IterateAppError = IterateAppErrors[keyof IterateAppErrors];
-
-export type IterateAppResponses = {
-    /**
-     * App iterated successfully
-     */
-    200: IterateAppResponse;
-};
-
-export type IterateAppResponse2 = IterateAppResponses[keyof IterateAppResponses];
-
-export type ListAppsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        session_id?: string | null;
-    };
-    url: '/apps/list_apps';
-};
-
-export type ListAppsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
-
-export type ListAppsResponses = {
-    /**
-     * List of installed apps retrieved successfully
-     */
-    200: AppListResponse;
-};
-
-export type ListAppsResponse = ListAppsResponses[keyof ListAppsResponses];
 
 export type ReadAllConfigData = {
     body?: never;

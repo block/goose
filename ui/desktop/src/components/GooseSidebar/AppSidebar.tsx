@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
+import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -12,11 +12,10 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
+import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
-import { ViewOptions, View } from '../../utils/navigationUtils';
 import EnvironmentBadge from './EnvironmentBadge';
-import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -85,13 +84,6 @@ const menuItems: NavigationEntry[] = [
     icon: Puzzle,
     tooltip: 'Manage your extensions',
   },
-  {
-    type: 'item',
-    path: '/apps',
-    label: 'Goose Apps',
-    icon: AppWindow,
-    tooltip: 'Run Goose Apps',
-  },
   { type: 'separator' },
   {
     type: 'item',
@@ -105,12 +97,6 @@ const menuItems: NavigationEntry[] = [
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
-  const { config } = useConfig();
-  const appsEnabled = config.apps_enabled === true;
-
-  const filteredMenuItems = appsEnabled
-    ? menuItems
-    : menuItems.filter((item) => !(item.type === 'item' && item.path === '/apps'));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -144,7 +130,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
-
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {
       return <SidebarSeparator key={index} />;
@@ -177,9 +162,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   return (
     <>
       <SidebarContent className="pt-16">
-        <SidebarMenu>
-          {filteredMenuItems.map((entry, index) => renderMenuItem(entry, index))}
-        </SidebarMenu>
+        <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter className="pb-2 flex items-start">

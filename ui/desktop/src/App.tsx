@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
-  Route,
   Routes,
-  useLocation,
+  Route,
   useNavigate,
+  useLocation,
   useSearchParams,
 } from 'react-router-dom';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
@@ -19,6 +19,8 @@ import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
+import Hub from './components/Hub';
+import Pair, { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
@@ -36,12 +38,9 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import { View, ViewOptions } from './utils/navigationUtils';
-import GooseAppsView from './components/apps/GooseAppsView';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
-import Hub from './components/Hub';
-import Pair, { PairRouteState } from './components/Pair';
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -439,6 +438,7 @@ export function AppInner() {
   }, [navigate]);
 
   useEffect(() => {
+    console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
@@ -678,7 +678,6 @@ export function AppInner() {
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
-            <Route path="apps" element={<GooseAppsView/>} />
             <Route
               path="shared-session"
               element={

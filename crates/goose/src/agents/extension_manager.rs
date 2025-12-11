@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
@@ -849,9 +849,9 @@ impl ExtensionManager {
         for content in read_result.contents {
             if let ResourceContents::TextResourceContents { text, .. } = content {
                 let content_str = if format_with_uri {
-                    format!("{}\n\n{}", uri, text) // Old behavior
+                    format!("{}\n\n{}", uri, text)
                 } else {
-                    text // Raw text for UI resources
+                    text
                 };
                 result.push(Content::text(content_str));
             }
@@ -871,10 +871,7 @@ impl ExtensionManager {
                 .collect()
         };
 
-        info!("Checking {} extensions", extensions_to_check.len());
-
         for (extension_name, client) in extensions_to_check {
-            info!("Checking extension: {}", extension_name);
             let client_guard = client.lock().await;
 
             match client_guard
@@ -882,11 +879,6 @@ impl ExtensionManager {
                 .await
             {
                 Ok(list_response) => {
-                    info!(
-                        "List resources for {}: {} resources found",
-                        extension_name,
-                        list_response.resources.len()
-                    );
                     for resource in list_response.resources {
                         if resource.uri.starts_with("ui://") {
                             ui_resources.push((extension_name.clone(), resource));
@@ -1013,7 +1005,6 @@ impl ExtensionManager {
                     }
                 }
 
-                // Log any errors that occurred
                 if !errors.is_empty() {
                     tracing::error!(
                         errors = ?errors
@@ -1153,7 +1144,6 @@ impl ExtensionManager {
             }
         }
 
-        // Log any errors that occurred
         if !errors.is_empty() {
             tracing::debug!(
                 errors = ?errors

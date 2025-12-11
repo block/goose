@@ -1,7 +1,5 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
-import { GooseApp } from './api';
-import { InlineAppContext } from './goose_apps';
 
 interface NotificationData {
   title: string;
@@ -57,7 +55,6 @@ type ElectronAPI = {
     viewType?: string,
     recipeId?: string
   ) => void;
-  launchGooseApp: (app: GooseApp) => Promise<{ success: boolean; error?: string }>;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
@@ -66,12 +63,6 @@ type ElectronAPI = {
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
-  captureScreenShot: (bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => Promise<Uint8Array>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
@@ -163,18 +154,11 @@ const electronAPI: ElectronAPI = {
       viewType,
       recipeId
     ),
-  launchGooseApp: (app: GooseApp) => ipcRenderer.invoke('launch-goose-app', app),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
-  captureScreenShot: (bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }): Promise<Uint8Array> => ipcRenderer.invoke('capture-screenshot', bounds),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
   selectFileOrDirectory: (defaultPath?: string) =>
@@ -277,20 +261,11 @@ const appConfigAPI: AppConfigAPI = {
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);
-contextBridge.exposeInMainWorld('__gooseMCP', {
-  getAppHtml: () => ipcRenderer.invoke('get-app-html'),
-  handleRequest: (msg: unknown, inlineContext?: InlineAppContext) =>
-    ipcRenderer.invoke('mcp-request', msg, inlineContext),
-});
 
 // Type declaration for TypeScript
 declare global {
   interface Window {
     electron: ElectronAPI;
     appConfig: AppConfigAPI;
-    __gooseMCP: {
-      getAppHtml: () => Promise<string>;
-      handleRequest: (msg: unknown, inlineContext?: InlineAppContext) => Promise<unknown>;
-    };
   }
 }

@@ -36,6 +36,7 @@ import {
   updateEnvironmentVariables,
 } from './utils/settings';
 import * as crypto from 'crypto';
+// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -47,8 +48,6 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { launchGooseApp, registerMCPAppHandlers } from './goose_apps';
-import { GooseApp } from './api';
 import { Client, createClient, createConfig } from './api/client';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
@@ -553,7 +552,7 @@ const createChat = async (
           scheduledJobId: scheduledJobId,
         }),
       ],
-      partition: 'persist:goose',
+      partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
 
@@ -1141,6 +1140,7 @@ ipcMain.on('react-ready', (event) => {
   log.info('React ready - window is prepared for deep links');
 });
 
+// Handle external URL opening
 ipcMain.handle('open-external', async (_event, url: string) => {
   try {
     await shell.openExternal(url);
@@ -1150,7 +1150,6 @@ ipcMain.handle('open-external', async (_event, url: string) => {
     throw error;
   }
 });
-
 
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event) => {
@@ -1728,8 +1727,6 @@ ipcMain.handle('get-allowed-extensions', async () => {
   return await getAllowList();
 });
 
-registerMCPAppHandlers(goosedClients);
-
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
@@ -2076,6 +2073,7 @@ async function appMain() {
           })
         );
       }
+
       helpMenu.submenu.append(aboutGooseMenuItem);
     }
   }
@@ -2111,26 +2109,6 @@ async function appMain() {
       );
     }
   );
-
-  ipcMain.handle('launch-goose-app', async (event, gapp: GooseApp) => {
-    const launchingWindowId = BrowserWindow.fromWebContents(event.sender)?.id;
-    if (!launchingWindowId) {
-      throw new Error('Could not find launching window');
-    }
-
-    const launchingClient = goosedClients.get(launchingWindowId);
-    if (!launchingClient) {
-      throw new Error('No client found for launching window');
-    }
-
-    const appWindow = await launchGooseApp(gapp, launchingClient);
-
-    goosedClients.set(appWindow.id, launchingClient);
-
-    appWindow.on('close', () => {
-      goosedClients.delete(appWindow.id);
-    });
-  });
 
   ipcMain.on('close-window', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -2230,23 +2208,6 @@ async function appMain() {
       window.reload();
     }
   });
-
-  ipcMain.handle(
-    'capture-screenshot',
-    async (
-      event,
-      bounds: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      }
-    ) => {
-      const webContents = event.sender;
-      const image = await webContents.capturePage(bounds);
-      return image.toPNG();
-    }
-  );
 
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {

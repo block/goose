@@ -4,7 +4,6 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
-use goose::goose_apps::GooseApp;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
@@ -386,14 +385,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
-        super::routes::goose_apps::list_apps,
-        super::routes::goose_apps::get_app,
-        super::routes::goose_apps::create_app,
-        super::routes::goose_apps::iterate_app,
-        super::routes::goose_apps::store_app,
-        super::routes::goose_apps::delete_app,
-        super::routes::goose_apps::import_app,
-        super::routes::goose_apps::export_app,
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
@@ -432,7 +423,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
-        GooseApp,
         super::routes::session::EditType,
         super::routes::session::EditMessageRequest,
         super::routes::session::EditMessageResponse,
@@ -533,14 +523,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
-        super::routes::goose_apps::SuccessResponse,
-        super::routes::goose_apps::ListAppsRequest,
-        super::routes::goose_apps::AppListResponse,
-        super::routes::goose_apps::CreateAppRequest,
-        super::routes::goose_apps::AppResponse,
-        super::routes::goose_apps::UpdateAppRequest,
-        super::routes::goose_apps::IterateAppRequest,
-        super::routes::goose_apps::IterateAppResponse,
         super::routes::agent::UpdateFromSessionRequest,
         super::routes::agent::AddExtensionRequest,
         super::routes::agent::RemoveExtensionRequest,

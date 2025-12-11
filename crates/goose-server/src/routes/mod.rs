@@ -3,7 +3,6 @@ pub mod agent;
 pub mod audio;
 pub mod config_management;
 pub mod errors;
-pub mod goose_apps;
 pub mod mcp_ui_proxy;
 pub mod recipe;
 pub mod recipe_utils;
@@ -27,7 +26,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(action_required::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(audio::routes(state.clone()))
-        .merge(goose_apps::routes(state.clone()))
         .merge(config_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
