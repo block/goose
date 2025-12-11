@@ -91,7 +91,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (!github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@goose') &&
+       startsWith(github.event.comment.body, '/goose') &&
        contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association))
 
     runs-on: ubuntu-latest
@@ -115,7 +115,11 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y jq ripgrep build-essential gettext
+          apt-get install -y jq ripgrep build-essential gettext curl
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          apt-get update
+          apt-get install -y gh
 
       - name: Get issue details
         id: issue
@@ -144,6 +148,7 @@ jobs:
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
           echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/recipe.yaml
 
