@@ -74,7 +74,8 @@ env:
       The Phase 6 "Reread" steps MUST appear in your updated TODO. Skipping them is failure.
 
       Only write /tmp/issue_summary.txt if the fix is complete and verified.
-      Do not commit. Leave changes in the working directory for the workflow to handle.
+      Run `git add` for any new files required for the fix.
+      Do NOT commit. Leave changes in the working directory for the workflow to handle.
 
 permissions:
   contents: write
