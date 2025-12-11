@@ -69,12 +69,12 @@ env:
       - [ ] Reread /tmp/issue.json
       - [ ] Reread /tmp/requirements.md
       - [ ] Confirm all requirements met, nothing extra added
-      - [ ] git diff > /tmp/issue_changes.patch
-      - [ ] Write summary to /tmp/issue_summary.txt
+      - [ ] Write a summary of changes to /tmp/issue_summary.txt
 
       The Phase 6 "Reread" steps MUST appear in your updated TODO. Skipping them is failure.
 
-      No patch if verification fails or issue is unclear.
+      Only write /tmp/issue_summary.txt if the fix is complete and verified.
+      Do not commit. Leave changes in the working directory for the workflow to handle.
 
 permissions:
   contents: write
@@ -148,17 +148,13 @@ jobs:
 
           goose run --recipe /tmp/recipe.yaml
 
-          if [ -f /tmp/issue_changes.patch ] && [ -s /tmp/issue_changes.patch ]; then
+          if [ -n "$(git status --porcelain)" ] && [ -f /tmp/issue_summary.txt ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            git apply /tmp/issue_changes.patch
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [ -f /tmp/issue_summary.txt ]; then
             echo "summary<<SUMMARY_EOF" >> $GITHUB_OUTPUT
             cat /tmp/issue_summary.txt >> $GITHUB_OUTPUT
             echo "SUMMARY_EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Verify no workflow changes
