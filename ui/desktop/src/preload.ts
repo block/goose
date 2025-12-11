@@ -46,7 +46,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
+  directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -117,6 +117,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  addRecentDir: (dir: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -251,6 +252,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 
 const appConfigAPI: AppConfigAPI = {

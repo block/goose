@@ -17,6 +17,7 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
+import { getWorkingDir } from './store/newChatState';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -444,9 +445,8 @@ export function AppInner() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          const workingDir = window.appConfig?.get('GOOSE_WORKING_DIR');
-          console.log(`Creating new chat window with working dir: ${workingDir}`);
-          window.electron.createChatWindow(undefined, workingDir as string);
+          const workingDir = getWorkingDir();
+          window.electron.createChatWindow(undefined, workingDir);
         } catch (error) {
           console.error('Error creating new window:', error);
         }

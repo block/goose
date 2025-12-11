@@ -27,9 +27,10 @@ import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
-import { Message } from '../api';
+import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import { getWorkingDir } from '../store/newChatState';
 
 interface QueuedMessage {
   id: string;
@@ -143,6 +144,27 @@ export default function ChatInput({
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionWorkingDir(null);
+      return;
+    }
+
+    const fetchSessionWorkingDir = async () => {
+      try {
+        const response = await getSession({ path: { session_id: sessionId } });
+        if (response.data?.working_dir) {
+          setSessionWorkingDir(response.data.working_dir);
+        }
+      } catch (error) {
+        console.error('[ChatInput] Failed to fetch session working dir:', error);
+      }
+    };
+
+    fetchSessionWorkingDir();
+  }, [sessionId]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1489,7 +1511,7 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher className="mr-0" sessionId={sessionId ?? undefined} />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1603,6 +1625,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
+          workingDir={sessionWorkingDir ?? getWorkingDir()}
         />
 
         {sessionId && showCreateRecipeModal && (

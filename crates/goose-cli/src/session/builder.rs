@@ -163,7 +163,7 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config, None).await {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -462,7 +462,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         set.spawn(async move {
             (
                 extension.name(),
-                agent_ptr.add_extension(extension.clone()).await,
+                agent_ptr.add_extension(extension.clone(), None).await,
             )
         });
     }
