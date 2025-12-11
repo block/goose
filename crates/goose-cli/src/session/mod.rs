@@ -507,6 +507,10 @@ impl CliSession {
                 history.save(editor);
                 self.handle_toggle_theme();
             }
+            InputResult::ToggleFullToolOutput => {
+                history.save(editor);
+                self.handle_toggle_full_tool_output();
+            }
             InputResult::SelectTheme(theme_name) => {
                 history.save(editor);
                 self.handle_select_theme(&theme_name);
@@ -633,6 +637,27 @@ impl CliSession {
             _ => output::Theme::Dark,
         };
         output::set_theme(new_theme);
+    }
+
+    fn handle_toggle_full_tool_output(&self) {
+        let enabled = output::toggle_full_tool_output();
+        if enabled {
+            println!(
+                "{}",
+                console::style(
+                    "✓ Full tool output enabled - tool parameters will no longer be truncated"
+                )
+                .green()
+            );
+        } else {
+            println!(
+                "{}",
+                console::style(
+                    "✓ Full tool output disabled - tool parameters will be truncated to fit terminal width"
+                )
+                .dim()
+            );
+        }
     }
 
     fn handle_goose_mode(&self, mode: &str) -> Result<()> {
