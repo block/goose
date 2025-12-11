@@ -416,6 +416,40 @@ impl MessageContent {
             _ => None,
         }
     }
+
+    /// Create text content with markdown-formatted links
+    ///
+    /// The text can contain markdown-style links like `[label](url)`.
+    /// The UI will automatically render these as clickable links.
+    ///
+    /// # Example
+    /// ```
+    /// use goose::conversation::message::MessageContent;
+    ///
+    /// let content = MessageContent::text_with_link(
+    ///     "Check out [Duck Duck Go](https://duckduckgo.com) for search"
+    /// );
+    /// ```
+    pub fn text_with_link<S: Into<String>>(text: S) -> Self {
+        // Since the UI already supports markdown via ReactMarkdown,
+        // we can simply use the regular text constructor.
+        // The markdown links will be automatically rendered.
+        Self::text(text)
+    }
+
+    /// Create a markdown link string
+    ///
+    /// Helper function to create a markdown-formatted link.
+    ///
+    /// # Example
+    /// ```
+    /// use goose::conversation::message::MessageContent;
+    /// let link = MessageContent::markdown_link("Duck Duck Go", "https://duckduckgo.com");
+    /// assert_eq!(link, "[Duck Duck Go](https://duckduckgo.com)");
+    /// ```
+    pub fn markdown_link(label: &str, url: &str) -> String {
+        format!("[{}]({})", label, url)
+    }
 }
 
 impl From<Content> for MessageContent {
@@ -682,6 +716,22 @@ impl Message {
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
         self.with_content(MessageContent::redacted_thinking(data))
+    }
+
+    /// Add text content with markdown-formatted links
+    ///
+    /// The text can contain markdown-style links like `[label](url)`.
+    /// The UI will automatically render these as clickable links.
+    ///
+    /// # Example
+    /// ```
+    /// use goose::conversation::message::Message;
+    ///
+    /// let message = Message::assistant()
+    ///     .with_text_link("Visit [Duck Duck Go](https://duckduckgo.com)");
+    /// ```
+    pub fn with_text_link<S: Into<String>>(self, text: S) -> Self {
+        self.with_content(MessageContent::text_with_link(text))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
@@ -1301,5 +1351,74 @@ mod tests {
             .with_agent_visible();
         assert!(metadata.user_visible);
         assert!(metadata.agent_visible);
+    }
+
+    #[test]
+    fn test_message_content_text_with_link() {
+        let content = MessageContent::text_with_link(
+            "Check out [Duck Duck Go](https://duckduckgo.com) for search",
+        );
+
+        // Should create a Text variant
+        assert!(matches!(content, MessageContent::Text(_)));
+
+        // Should contain the markdown link
+        if let MessageContent::Text(text) = content {
+            assert!(text.text.contains("[Duck Duck Go](https://duckduckgo.com)"));
+        }
+    }
+
+    #[test]
+    fn test_message_content_markdown_link() {
+        let link = MessageContent::markdown_link("Duck Duck Go", "https://duckduckgo.com");
+        assert_eq!(link, "[Duck Duck Go](https://duckduckgo.com)");
+
+        // Test with special characters
+        let link_with_spaces =
+            MessageContent::markdown_link("My Site", "https://example.com/path with spaces");
+        assert_eq!(
+            link_with_spaces,
+            "[My Site](https://example.com/path with spaces)"
+        );
+    }
+
+    #[test]
+    fn test_message_with_text_link() {
+        let message =
+            Message::assistant().with_text_link("Visit [Duck Duck Go](https://duckduckgo.com)");
+
+        assert_eq!(message.role, Role::Assistant);
+        assert_eq!(message.content.len(), 1);
+
+        let text = message.as_concat_text();
+        assert!(text.contains("[Duck Duck Go](https://duckduckgo.com)"));
+    }
+
+    #[test]
+    fn test_message_with_multiple_links() {
+        let link1 = MessageContent::markdown_link("Google", "https://google.com");
+        let link2 = MessageContent::markdown_link("DuckDuckGo", "https://duckduckgo.com");
+        let text = format!("Try {} or {} for search", link1, link2);
+
+        let message = Message::user().with_text_link(text);
+
+        let content_text = message.as_concat_text();
+        assert!(content_text.contains("[Google](https://google.com)"));
+        assert!(content_text.contains("[DuckDuckGo](https://duckduckgo.com)"));
+    }
+
+    #[test]
+    fn test_message_link_serialization() {
+        let message = Message::assistant().with_text_link("Check [this link](https://example.com)");
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&message).unwrap();
+
+        // Should contain the markdown link in the text field
+        assert!(json.contains("[this link](https://example.com)"));
+
+        // Deserialize back
+        let deserialized: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.as_concat_text(), message.as_concat_text());
     }
 }
