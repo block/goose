@@ -8,6 +8,10 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::final_output_tool::FinalOutputTool;
+use super::platform_tools;
+use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -25,6 +29,7 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
@@ -32,6 +37,9 @@ use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
+use crate::conversation::message::{
+    ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -41,7 +49,10 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -54,15 +65,6 @@ use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
-
-use super::final_output_tool::FinalOutputTool;
-use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
-use crate::scheduler_trait::SchedulerTrait;
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
@@ -241,6 +243,17 @@ impl Agent {
             | RetryResult::MaxAttemptsReached
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
+    }
+    async fn drain_elicitation_messages(session_id: &str) -> Vec<Message> {
+        let mut messages = Vec::new();
+        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
+        while let Ok(elicitation_message) = elicitation_rx.try_recv() {
+            if let Err(e) = SessionManager::add_message(session_id, &elicitation_message).await {
+                warn!("Failed to save elicitation message to session: {}", e);
+            }
+            messages.push(elicitation_message);
+        }
+        messages
     }
 
     async fn prepare_reply_context(
@@ -796,6 +809,29 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        for content in &user_message.content {
+            if let MessageContent::ActionRequired(action_required) = content {
+                if let ActionRequiredData::ElicitationResponse { id, user_data } =
+                    &action_required.data
+                {
+                    if let Err(e) = ActionRequiredManager::global()
+                        .submit_response(id.clone(), user_data.clone())
+                        .await
+                    {
+                        let error_text = format!("Failed to submit elicitation response: {}", e);
+                        error!(error_text);
+                        return Ok(Box::pin(stream::once(async {
+                            Ok(AgentEvent::Message(
+                                Message::assistant().with_text(error_text),
+                            ))
+                        })));
+                    }
+                    SessionManager::add_message(&session_config.id, &user_message).await?;
+                    return Ok(Box::pin(futures::stream::empty()));
+                }
+            }
+        }
+
         let message_text = user_message.as_concat_text();
         let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
 
@@ -1150,6 +1186,11 @@ impl Agent {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
+
+                                        for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                            yield AgentEvent::Message(msg);
+                                        }
+
                                         match item {
                                             ToolStreamItem::Result(output) => {
                                                 if enable_extension_request_ids.contains(&request_id)
@@ -1166,6 +1207,11 @@ impl Agent {
                                                 yield AgentEvent::McpNotification((request_id, msg));
                                             }
                                         }
+                                    }
+
+                                    // check for remaining elicitation messages after all tools complete
+                                    for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                        yield AgentEvent::Message(msg);
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
@@ -1192,7 +1238,8 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1226,11 +1273,12 @@ impl Agent {
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Error: {}", e);
+                        Err(ref provider_err) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
-                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
                             );
                             break;

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
-import { useConfig } from '../../ConfigContext';
+import TelemetrySettings from './TelemetrySettings';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -30,13 +30,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
-
-  const { config, upsert } = useConfig();
-  const appsEnabled = config.apps_enabled === true;
-
-  const handleAppsToggle = async (checked: boolean) => {
-    await upsert('apps_enabled', checked, false);
-  };
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
@@ -296,7 +289,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Prevent Sleep</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Keep your computer awake while Goose is running a task (screen can still lock)
+                Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
             <div className="flex items-center">
@@ -405,6 +398,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       <TunnelSection />
 
+      <TelemetrySettings isWelcome={false} />
+
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="mb-1">Help & feedback</CardTitle>
@@ -438,30 +433,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             >
               Request a Feature
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Apps</CardTitle>
-          <CardDescription>Enable experimental apps functionality</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 space-y-4 px-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-text-default text-xs">Enable Apps</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Show goose apps
-              </p>
-            </div>
-            <div className="flex items-center">
-              <Switch
-                checked={appsEnabled}
-                onCheckedChange={handleAppsToggle}
-                variant="mono"
-              />
-            </div>
           </div>
         </CardContent>
       </Card>
