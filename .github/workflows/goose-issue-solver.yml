@@ -1,0 +1,167 @@
+name: Goose Issue Solver
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to solve'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: goose-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  solve-issue:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@goose') &&
+       contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association))
+    
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    container:
+      image: ghcr.io/block/goose:latest
+      options: --user root
+      env:
+        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5.1' }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        HOME: /tmp/goose-home
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y jq ripgrep build-essential
+
+      - name: Get issue details
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
+        run: |
+          gh api /repos/${{ github.repository }}/issues/$ISSUE_NUMBER > /tmp/issue.json
+          
+          echo "number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          
+          echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
+          jq -r '.title' /tmp/issue.json >> $GITHUB_OUTPUT
+          echo "TITLE_EOF" >> $GITHUB_OUTPUT
+          
+          echo "body<<BODY_EOF" >> $GITHUB_OUTPUT
+          jq -r '.body // ""' /tmp/issue.json >> $GITHUB_OUTPUT
+          echo "BODY_EOF" >> $GITHUB_OUTPUT
+
+      - name: Run goose
+        id: goose
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+        run: |
+          mkdir -p $HOME/.local/share/goose/sessions
+          mkdir -p $HOME/.config/goose
+
+          cat > /tmp/goose_instructions.txt << RECIPE_EOF
+          Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+
+          Issue description:
+          ${ISSUE_BODY}
+
+          Requirements:
+          1. Changes MUST be minimal and focused on this issue only
+          2. Do NOT modify more than 10 files
+          3. Do NOT modify .github/, lock files, or secrets
+
+          Process:
+          0. Write these requirements to your TODO and check against them as you work
+          1. Analyze the issue to understand what needs to change
+          2. Explore the codebase to find relevant files
+          3. Implement the fix with minimal changes
+          4. Run: cargo check
+          5. Run: cargo test (for affected crates)
+          6. If check or tests fail, fix and retry up to 3 times
+          7. Run: cargo fmt
+          8. Run: ./scripts/clippy-lint.sh
+          9. Save changes: git diff > /tmp/issue_changes.patch
+          10. Write a one-line summary to /tmp/issue_summary.txt
+          11. Only create the patch if all checks pass
+
+          If the issue is unclear or cannot be solved:
+          - Write explanation to /tmp/issue_summary.txt
+          - Do NOT create /tmp/issue_changes.patch
+          RECIPE_EOF
+
+          goose run -i /tmp/goose_instructions.txt --with-builtin developer
+
+          if [ -f /tmp/issue_changes.patch ] && [ -s /tmp/issue_changes.patch ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            git apply /tmp/issue_changes.patch
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -f /tmp/issue_summary.txt ]; then
+            echo "summary<<SUMMARY_EOF" >> $GITHUB_OUTPUT
+            cat /tmp/issue_summary.txt >> $GITHUB_OUTPUT
+            echo "SUMMARY_EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify no workflow changes
+        if: steps.goose.outputs.has_changes == 'true'
+        run: |
+          if git diff --name-only | grep -q "^\.github/"; then
+            echo "::error::Changes to .github/ are not allowed"
+            git checkout -- .github/
+          fi
+
+      - name: Extract token metrics
+        id: metrics
+        run: |
+          SESSION_FILE=$(ls -t $HOME/.local/share/goose/sessions/*.jsonl 2>/dev/null | head -1)
+          if [ -f "$SESSION_FILE" ]; then
+            echo "total_tokens=$(head -1 "$SESSION_FILE" | jq -r '.accumulated_total_tokens // 0')" >> $GITHUB_OUTPUT
+            echo "input_tokens=$(head -1 "$SESSION_FILE" | jq -r '.accumulated_input_tokens // 0')" >> $GITHUB_OUTPUT
+            echo "output_tokens=$(head -1 "$SESSION_FILE" | jq -r '.accumulated_output_tokens // 0')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.goose.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # pin@v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "fix: ${{ steps.issue.outputs.title }}"
+          title: "fix: ${{ steps.issue.outputs.title }}"
+          branch: goose/issue-${{ steps.issue.outputs.number }}
+          delete-branch: true
+          draft: true
+          labels: goose-generated
+          body: |
+            Closes #${{ steps.issue.outputs.number }}
+
+            ## Summary
+            ${{ steps.goose.outputs.summary || 'See commits for details.' }}
+
+            ## Token Usage
+            - **Total**: ${{ steps.metrics.outputs.total_tokens }} tokens
+            - **Input**: ${{ steps.metrics.outputs.input_tokens }} tokens
+            - **Output**: ${{ steps.metrics.outputs.output_tokens }} tokens
+
+            ---
+            *Generated by Goose Issue Solver*
