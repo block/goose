@@ -469,7 +469,11 @@ pub trait Provider: Send + Sync {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
-        Ok(map_to_canonical_model(self.get_name(), provider_model, registry))
+        Ok(map_to_canonical_model(
+            self.get_name(),
+            provider_model,
+            registry,
+        ))
     }
 
     fn supports_embeddings(&self) -> bool {

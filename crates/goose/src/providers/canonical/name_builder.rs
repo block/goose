@@ -276,7 +276,9 @@ fn extract_provider_prefix(model: &str) -> Option<(&'static str, &str)> {
 
 /// Strip version suffixes from model names and normalize version numbers
 pub fn strip_version_suffix(model: &str) -> String {
-    let mut result = NORMALIZE_VERSION_RE.replace_all(model, "-$1.$2$3").to_string();
+    let mut result = NORMALIZE_VERSION_RE
+        .replace_all(model, "-$1.$2$3")
+        .to_string();
 
     let mut changed = true;
     while changed {
