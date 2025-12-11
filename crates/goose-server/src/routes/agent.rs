@@ -696,17 +696,9 @@ async fn restart_agent(
 ) -> Result<StatusCode, ErrorResponse> {
     let session_id = payload.session_id.clone();
 
-    tracing::info!("=== RESTART AGENT START ===");
-    tracing::info!("Session ID: {}", session_id);
+    // Remove existing agent (ignore error if not found)
+    let _ = state.agent_manager.remove_session(&session_id).await;
 
-    tracing::info!("Attempting to remove existing agent...");
-    if let Err(e) = state.agent_manager.remove_session(&session_id).await {
-        tracing::warn!("Agent not found for removal during restart: {}", e);
-    } else {
-        tracing::info!("Successfully removed existing agent");
-    }
-
-    tracing::info!("Fetching session to get configuration...");
     let session = SessionManager::get_session(&session_id, false)
         .await
         .map_err(|err| {
@@ -717,14 +709,6 @@ async fn restart_agent(
             }
         })?;
 
-    tracing::info!("Session retrieved successfully");
-    tracing::info!("Session working_dir: {:?}", session.working_dir);
-    tracing::info!(
-        "Session working_dir as string: {}",
-        session.working_dir.display()
-    );
-
-    tracing::info!("Creating new agent...");
     let agent = state
         .get_agent_for_route(session_id.clone())
         .await
@@ -732,7 +716,6 @@ async fn restart_agent(
             message: "Failed to create new agent during restart".into(),
             status: code,
         })?;
-    tracing::info!("New agent created successfully");
 
     let provider_result = restore_agent_provider(&agent, &session, &session_id);
     let extensions_result = restore_agent_extensions(agent.clone(), &session);
@@ -770,13 +753,6 @@ async fn restart_agent(
         }
     }
     agent.extend_system_prompt(update_prompt).await;
-
-    tracing::info!("=== RESTART AGENT COMPLETE ===");
-    tracing::info!("Final session_id: {}", session_id);
-    tracing::info!(
-        "Agent should now be using working_dir: {}",
-        session.working_dir.display()
-    );
 
     Ok(StatusCode::OK)
 }

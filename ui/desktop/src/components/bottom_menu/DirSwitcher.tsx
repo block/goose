@@ -57,6 +57,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
     const newDir = result.filePaths[0];
     setWorkingDir(newDir);
 
+    await window.electron.addRecentDir(newDir);
+
     if (sessionId) {
       try {
         await updateSessionWorkingDir({

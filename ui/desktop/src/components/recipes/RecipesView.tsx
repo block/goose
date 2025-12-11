@@ -34,6 +34,7 @@ import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { SearchView } from '../conversation/SearchView';
 import cronstrue from 'cronstrue';
+import { getWorkingDir } from '../../store/newChatState';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -118,7 +119,7 @@ export default function RecipesView() {
     try {
       const newAgent = await startAgent({
         body: {
-          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          working_dir: getWorkingDir(),
           recipe,
         },
         throwOnError: true,
@@ -137,7 +138,7 @@ export default function RecipesView() {
   const handleStartRecipeChatInNewWindow = (recipeId: string) => {
     window.electron.createChatWindow(
       undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string,
+      getWorkingDir(),
       undefined,
       undefined,
       'pair',

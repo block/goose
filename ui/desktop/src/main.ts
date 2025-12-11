@@ -1151,13 +1151,25 @@ ipcMain.handle('open-external', async (_event, url: string) => {
   }
 });
 
-// Handle directory chooser
 ipcMain.handle('directory-chooser', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory', 'createDirectory'],
     defaultPath: os.homedir(),
   });
   return result;
+});
+
+ipcMain.handle('add-recent-dir', async (_event, dir: string) => {
+  try {
+    if (!dir) {
+      return false;
+    }
+    addRecentDir(dir);
+    return true;
+  } catch (error) {
+    console.error('Error adding recent dir:', error);
+    return false;
+  }
 });
 
 // Handle scheduling engine settings
