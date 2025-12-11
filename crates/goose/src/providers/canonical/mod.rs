@@ -3,7 +3,7 @@ mod name_builder;
 mod registry;
 
 pub use model::{CanonicalModel, Pricing};
-pub use name_builder::{canonical_name, fuzzy_canonical_name, strip_version_suffix};
+pub use name_builder::{canonical_name, map_to_canonical_model, strip_version_suffix};
 pub use registry::CanonicalModelRegistry;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -438,19 +438,16 @@ pub trait Provider: Send + Sync {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
-        use super::canonical::fuzzy_canonical_name;
+        use super::canonical::map_to_canonical_model;
         let provider_name = self.get_name();
 
         let recommended_models: Vec<String> = all_models
             .iter()
             .filter(|model| {
-                let candidates = fuzzy_canonical_name(provider_name, model);
-                candidates.iter().any(|canonical_id| {
-                    registry
-                        .get(canonical_id)
-                        .map(|m| m.input_modalities.contains(&"text".to_string()))
-                        .unwrap_or(false)
-                })
+                map_to_canonical_model(provider_name, model, registry)
+                    .and_then(|canonical_id| registry.get(&canonical_id))
+                    .map(|m| m.input_modalities.contains(&"text".to_string()))
+                    .unwrap_or(false)
             })
             .cloned()
             .collect();
@@ -466,19 +463,13 @@ pub trait Provider: Send + Sync {
         &self,
         provider_model: &str,
     ) -> Result<Option<String>, ProviderError> {
-        use super::canonical::fuzzy_canonical_name;
+        use super::canonical::map_to_canonical_model;
 
-        // Try fuzzy matching - this generates multiple candidates
-        let candidates = fuzzy_canonical_name(self.get_name(), provider_model);
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
 
-        // Return the first candidate that exists in the registry
-        for candidate in candidates {
-            if CanonicalModelRegistry::bundled_contains(&candidate)? {
-                return Ok(Some(candidate));
-            }
-        }
-
-        Ok(None)
+        Ok(map_to_canonical_model(self.get_name(), provider_model, registry))
     }
 
     fn supports_embeddings(&self) -> bool {

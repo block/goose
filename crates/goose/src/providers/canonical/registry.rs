@@ -37,13 +37,6 @@ impl CanonicalModelRegistry {
             .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
-    pub fn bundled_contains(name: &str) -> Result<bool> {
-        BUNDLED_REGISTRY
-            .as_ref()
-            .map(|r| r.contains(name))
-            .map_err(|e| anyhow::anyhow!("{}", e))
-    }
-
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())
             .context("Failed to read canonical models file")?;

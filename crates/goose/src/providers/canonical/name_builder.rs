@@ -46,28 +46,40 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
     }
 }
 
-/// Try to map a provider/model pair to a canonical model with fuzzy matching
-/// This handles:
-/// - Prefixed models (goose-claude-4-5-opus → anthropic/claude-4.5-opus)
-/// - Provider-prefixed models (databricks-meta-llama → meta-llama/llama)
-/// - Word order variations (claude-4-opus ↔ claude-opus-4)
-pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
-    let mut candidates = Vec::new();
+/// Try to map a provider/model pair to a canonical model
+pub fn map_to_canonical_model(
+    provider: &str,
+    model: &str,
+    registry: &super::CanonicalModelRegistry,
+) -> Option<String> {
+    // Try direct mapping first
+    let candidate = canonical_name(provider, model);
+    if registry.get(&candidate).is_some() {
+        return Some(candidate);
+    }
 
-    candidates.push(canonical_name(provider, model));
-
+    // Try with common prefixes stripped
     let model_stripped = strip_common_prefixes(model);
     if model_stripped != model {
-        candidates.push(canonical_name(provider, &model_stripped));
+        let candidate = canonical_name(provider, &model_stripped);
+        if registry.get(&candidate).is_some() {
+            return Some(candidate);
+        }
     }
 
     // Try word-order swapping for Claude models (claude-4-opus ↔ claude-opus-4)
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {
-        candidates.push(canonical_name(provider, &swapped));
+        let candidate = canonical_name(provider, &swapped);
+        if registry.get(&candidate).is_some() {
+            return Some(candidate);
+        }
 
         if is_hosting_provider(provider) {
             if let Some(inferred) = infer_provider_from_model(&swapped) {
-                candidates.push(canonical_name(inferred, &swapped));
+                let candidate = canonical_name(inferred, &swapped);
+                if registry.get(&candidate).is_some() {
+                    return Some(candidate);
+                }
             }
         }
     }
@@ -75,21 +87,29 @@ pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
     // For hosting providers, try to infer the real provider from model name patterns
     if is_hosting_provider(provider) {
         if let Some(inferred_provider) = infer_provider_from_model(&model_stripped) {
-            candidates.push(canonical_name(inferred_provider, &model_stripped));
+            let candidate = canonical_name(inferred_provider, &model_stripped);
+            if registry.get(&candidate).is_some() {
+                return Some(candidate);
+            }
         }
 
         if let Some(inferred) = infer_provider_from_model(model) {
-            candidates.push(canonical_name(inferred, model));
+            let candidate = canonical_name(inferred, model);
+            if registry.get(&candidate).is_some() {
+                return Some(candidate);
+            }
         }
     }
 
     // For provider-prefixed models like "databricks-meta-llama-3-1-70b"
-    // Extract the real provider and model
     if let Some((extracted_provider, extracted_model)) = extract_provider_prefix(&model_stripped) {
-        candidates.push(canonical_name(extracted_provider, extracted_model));
+        let candidate = canonical_name(extracted_provider, extracted_model);
+        if registry.get(&candidate).is_some() {
+            return Some(candidate);
+        }
     }
 
-    candidates
+    None
 }
 
 /// Swap word order for Claude models to handle both naming conventions
@@ -411,129 +431,201 @@ mod tests {
 
     #[test]
     fn test_fuzzy_canonical_name() {
+        let registry = super::super::CanonicalModelRegistry::bundled().unwrap();
+
         // Test hosting provider with direct model names (Databricks pattern)
-        let candidates = fuzzy_canonical_name("databricks", "claude-3-5-sonnet");
-        assert!(candidates.contains(&"anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-3-5-sonnet", registry),
+            Some("anthropic/claude-3.5-sonnet".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "gpt-4o");
-        assert!(candidates.contains(&"openai/gpt-4o".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "gpt-4o", registry),
+            Some("openai/gpt-4o".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "gemini-2-5-flash");
-        assert!(candidates.contains(&"google/gemini-2.5-flash".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "gemini-2-5-flash", registry),
+            Some("google/gemini-2.5-flash".to_string())
+        );
 
         // Test word-order swapping (Claude 3 series: version-size ↔ size-version)
-        let candidates = fuzzy_canonical_name("databricks", "claude-haiku-3-5");
-        assert!(candidates.contains(&"anthropic/claude-3.5-haiku".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-haiku-3-5", registry),
+            Some("anthropic/claude-3.5-haiku".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "claude-sonnet-3-7");
-        assert!(candidates.contains(&"anthropic/claude-3.7-sonnet".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-sonnet-3-7", registry),
+            Some("anthropic/claude-3.7-sonnet".to_string())
+        );
 
         // Test word-order swapping (Claude 4 series: version-size ↔ size-version)
-        let candidates = fuzzy_canonical_name("databricks", "claude-4-opus");
-        assert!(candidates.contains(&"anthropic/claude-opus-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-4-opus", registry),
+            Some("anthropic/claude-opus-4".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "claude-4-sonnet");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-4-sonnet", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
         // Test prefixed models with word-order swapping
-        let candidates = fuzzy_canonical_name("databricks", "goose-claude-4-opus");
-        assert!(candidates.contains(&"anthropic/claude-opus-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "goose-claude-4-opus", registry),
+            Some("anthropic/claude-opus-4".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "kgoose-claude-4-sonnet");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "kgoose-claude-4-sonnet", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "headless-goose-claude-4-sonnet");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "headless-goose-claude-4-sonnet", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "kgoose-cashapp-claude-4-sonnet");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "kgoose-cashapp-claude-4-sonnet", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
         // Test ng-tools prefix with word swapping
-        let candidates = fuzzy_canonical_name("databricks", "ng-tools-claude-haiku-3-5");
-        assert!(candidates.contains(&"anthropic/claude-3.5-haiku".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "ng-tools-claude-haiku-3-5", registry),
+            Some("anthropic/claude-3.5-haiku".to_string())
+        );
 
         // Test raml prefix
-        let candidates = fuzzy_canonical_name("databricks", "raml-claude-opus-4-5");
-        assert!(candidates.contains(&"anthropic/claude-opus-4.5".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "raml-claude-opus-4-5", registry),
+            Some("anthropic/claude-opus-4.5".to_string())
+        );
 
         // Test databricks prefix
-        let candidates = fuzzy_canonical_name("databricks", "databricks-claude-sonnet-4-5");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4.5".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-claude-sonnet-4-5", registry),
+            Some("anthropic/claude-sonnet-4.5".to_string())
+        );
 
         // Test multiple prefixes (should strip all)
-        let candidates = fuzzy_canonical_name("databricks", "kgoose-gpt-4o");
-        assert!(candidates.contains(&"openai/gpt-4o".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "kgoose-gpt-4o", registry),
+            Some("openai/gpt-4o".to_string())
+        );
 
         // Test platform suffixes
-        let candidates = fuzzy_canonical_name("databricks", "claude-4-sonnet-bedrock");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-4-sonnet-bedrock", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "goose-claude-4-sonnet-bedrock");
-        assert!(candidates.contains(&"anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "goose-claude-4-sonnet-bedrock", registry),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
 
         // Test provider-prefixed models with dates
-        let candidates = fuzzy_canonical_name("databricks", "claude-3-5-sonnet-20241022");
-        assert!(candidates.contains(&"anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-3-5-sonnet-20241022", registry),
+            Some("anthropic/claude-3.5-sonnet".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "gpt-4o-2024-11-20");
-        assert!(candidates.contains(&"openai/gpt-4o".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "gpt-4o-2024-11-20", registry),
+            Some("openai/gpt-4o".to_string())
+        );
 
         // Test -latest suffix
-        let candidates = fuzzy_canonical_name("databricks", "claude-3-5-sonnet-latest");
-        assert!(candidates.contains(&"anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "claude-3-5-sonnet-latest", registry),
+            Some("anthropic/claude-3.5-sonnet".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "gpt-4o-latest");
-        assert!(candidates.contains(&"openai/gpt-4o".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "gpt-4o-latest", registry),
+            Some("openai/gpt-4o".to_string())
+        );
 
         // Test direct provider (non-hosting)
-        let candidates = fuzzy_canonical_name("anthropic", "claude-3-5-sonnet-20241022");
-        assert!(candidates.contains(&"anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(
+            map_to_canonical_model("anthropic", "claude-3-5-sonnet-20241022", registry),
+            Some("anthropic/claude-3.5-sonnet".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("openai", "gpt-4o-latest");
-        assert!(candidates.contains(&"openai/gpt-4o".to_string()));
+        assert_eq!(
+            map_to_canonical_model("openai", "gpt-4o-latest", registry),
+            Some("openai/gpt-4o".to_string())
+        );
 
         // Test O-series models
-        let candidates = fuzzy_canonical_name("databricks", "goose-o1");
-        assert!(candidates.contains(&"openai/o1".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "goose-o1", registry),
+            Some("openai/o1".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "kgoose-o3");
-        assert!(candidates.contains(&"openai/o3".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "kgoose-o3", registry),
+            Some("openai/o3".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "headless-goose-o3-mini");
-        assert!(candidates.contains(&"openai/o3-mini".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "headless-goose-o3-mini", registry),
+            Some("openai/o3-mini".to_string())
+        );
 
         // Test new providers: DeepSeek
-        let candidates = fuzzy_canonical_name("databricks", "databricks-deepseek-chat");
-        assert!(candidates.contains(&"deepseek/deepseek-chat".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-deepseek-chat", registry),
+            Some("deepseek/deepseek-chat".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "deepseek-r1");
-        assert!(candidates.contains(&"deepseek/deepseek-r1".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "deepseek-r1", registry),
+            Some("deepseek/deepseek-r1".to_string())
+        );
 
         // Test Qwen models
-        let candidates = fuzzy_canonical_name("databricks", "qwen-2-5-72b-instruct");
-        assert!(candidates.contains(&"qwen/qwen-2.5-72b-instruct".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "qwen-2-5-72b-instruct", registry),
+            Some("qwen/qwen-2.5-72b-instruct".to_string())
+        );
 
         // Test Grok models
-        let candidates = fuzzy_canonical_name("databricks", "grok-3");
-        assert!(candidates.contains(&"x-ai/grok-3".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "grok-3", registry),
+            Some("x-ai/grok-3".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "databricks-grok-4-fast");
-        assert!(candidates.contains(&"x-ai/grok-4-fast".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-grok-4-fast", registry),
+            Some("x-ai/grok-4-fast".to_string())
+        );
 
         // Test Jamba models
-        let candidates = fuzzy_canonical_name("databricks", "jamba-large-1-7");
-        assert!(candidates.contains(&"ai21/jamba-large-1.7".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "jamba-large-1-7", registry),
+            Some("ai21/jamba-large-1.7".to_string())
+        );
 
         // Test Cohere Command models
-        let candidates = fuzzy_canonical_name("databricks", "command-r-plus-08");
-        assert!(candidates.contains(&"cohere/command-r-plus-08".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "command-r-plus-08", registry),
+            Some("cohere/command-r-plus-08".to_string())
+        );
 
         // Test Mistral variants
-        let candidates = fuzzy_canonical_name("databricks", "codestral");
-        assert!(candidates.contains(&"mistralai/codestral".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "codestral", registry),
+            Some("mistralai/codestral".to_string())
+        );
 
-        let candidates = fuzzy_canonical_name("databricks", "ministral-8b");
-        assert!(candidates.contains(&"mistralai/ministral-8b".to_string()));
+        assert_eq!(
+            map_to_canonical_model("databricks", "ministral-8b", registry),
+            Some("mistralai/ministral-8b".to_string())
+        );
     }
 
     #[test]
