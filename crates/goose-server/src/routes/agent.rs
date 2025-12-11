@@ -19,8 +19,9 @@ use goose::prompt_template::render_global_file;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -65,6 +66,8 @@ pub struct StartAgentRequest {
     recipe_id: Option<String>,
     #[serde(default)]
     recipe_deeplink: Option<String>,
+    #[serde(default)]
+    extension_overrides: Option<Vec<ExtensionConfig>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -117,6 +120,7 @@ async fn start_agent(
         recipe,
         recipe_id,
         recipe_deeplink,
+        extension_overrides,
     } = payload;
 
     let original_recipe = if let Some(deeplink) = recipe_deeplink {
@@ -162,6 +166,27 @@ async fn start_agent(
                 }
             })?;
 
+    // Initialize session with extensions (either overrides from hub or global defaults)
+    let extensions_to_use =
+        extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+    let mut extension_data = session.extension_data.clone();
+    let extensions_state = EnabledExtensionsState::new(extensions_to_use);
+    if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+        warn!("Failed to initialize session with extensions: {}", e);
+    } else {
+        SessionManager::update_session(&session.id)
+            .extension_data(extension_data.clone())
+            .apply()
+            .await
+            .map_err(|err| {
+                error!("Failed to save initial extension state: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to save initial extension state: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
+
     if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)
             .recipe(Some(recipe))
@@ -174,17 +199,18 @@ async fn start_agent(
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 }
             })?;
-
-        session = SessionManager::get_session(&session.id, false)
-            .await
-            .map_err(|err| {
-                error!("Failed to get updated session: {}", err);
-                ErrorResponse {
-                    message: format!("Failed to get updated session: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                }
-            })?;
     }
+
+    // Refetch session to get all updates
+    session = SessionManager::get_session(&session.id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get updated session: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get updated session: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
 
     Ok(Json(session))
 }
@@ -269,7 +295,12 @@ async fn resume_agent(
         };
 
         let extensions_result = async {
-            let enabled_configs = goose::config::get_enabled_extensions();
+            // Try to load session-specific extensions first, fall back to global config
+            let enabled_configs =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .map(|state| state.extensions)
+                    .unwrap_or_else(goose::config::get_enabled_extensions);
+
             let agent_clone = agent.clone();
 
             let extension_futures = enabled_configs
@@ -288,7 +319,7 @@ async fn resume_agent(
                 .collect::<Vec<_>>();
 
             futures::future::join_all(extension_futures).await;
-            Ok::<(), ErrorResponse>(()) // Fixed type annotation
+            Ok::<(), ErrorResponse>(())
         };
 
         let (provider_result, _) = tokio::join!(provider_result, extensions_result);
@@ -616,15 +647,19 @@ async fn restore_agent_provider(
 
 async fn restore_agent_extensions(
     agent: Arc<Agent>,
-    working_dir: &std::path::Path,
+    session: &Session,
 ) -> Result<(), ErrorResponse> {
     tracing::info!(
         "Setting GOOSE_WORKING_DIR environment variable to: {:?}",
-        working_dir
+        session.working_dir
     );
-    std::env::set_var("GOOSE_WORKING_DIR", working_dir);
+    std::env::set_var("GOOSE_WORKING_DIR", &session.working_dir);
 
-    let enabled_configs = goose::config::get_enabled_extensions();
+    // Try to load session-specific extensions first, fall back to global config
+    let enabled_configs = EnabledExtensionsState::from_extension_data(&session.extension_data)
+        .map(|state| state.extensions)
+        .unwrap_or_else(goose::config::get_enabled_extensions);
+
     let extension_futures = enabled_configs
         .into_iter()
         .map(|config| {
@@ -700,7 +735,7 @@ async fn restart_agent(
     tracing::info!("New agent created successfully");
 
     let provider_result = restore_agent_provider(&agent, &session, &session_id);
-    let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
+    let extensions_result = restore_agent_extensions(agent.clone(), &session);
 
     let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
     provider_result?;

@@ -19,7 +19,8 @@ import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
-import { startNewSession } from '../sessions';
+import { createSession } from '../sessions';
+import { useConfig } from './ConfigContext';
 
 export default function Hub({
   setView,
@@ -28,12 +29,21 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   isExtensionsLoading: boolean;
 }) {
+  const { extensionsList } = useConfig();
+
   const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      await startNewSession(combinedTextFromInput, setView);
+      const session = await createSession({ allExtensions: extensionsList });
+
+      setView('pair', {
+        disableAnimation: true,
+        initialMessage: combinedTextFromInput,
+        resumeSessionId: session.id,
+      });
+
       e.preventDefault();
     }
   };
