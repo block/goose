@@ -212,75 +212,26 @@ async fn update_session_working_dir(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionWorkingDirRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    tracing::info!("=== UPDATE SESSION WORKING DIR START ===");
-    tracing::info!("Session ID: {}", session_id);
-    tracing::info!("Requested working_dir: {}", request.working_dir);
-
     let working_dir = request.working_dir.trim();
     if working_dir.is_empty() {
-        tracing::error!("Working directory is empty");
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Verify the directory exists
     let path = PathBuf::from(working_dir);
-    tracing::info!("Checking if path exists: {:?}", path);
-    if !path.exists() {
-        tracing::error!("Directory does not exist: {:?}", path);
+    if !path.exists() || !path.is_dir() {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    tracing::info!("Checking if path is directory: {:?}", path);
-    if !path.is_dir() {
-        tracing::error!("Path is not a directory: {:?}", path);
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    tracing::info!("Directory validation passed, updating session");
-    tracing::info!(
-        "About to update session {} with path: {:?}",
-        session_id,
-        path
-    );
-
-    let result = SessionManager::update_session(&session_id)
-        .working_dir(path.clone())
+    SessionManager::update_session(&session_id)
+        .working_dir(path)
         .apply()
-        .await;
-
-    match result {
-        Ok(_) => {
-            tracing::info!("SessionManager::update_session succeeded");
-            tracing::info!("Successfully updated working directory to: {:?}", path);
-
-            // Let's also verify the update by reading back the session
-            tracing::info!("Verifying update by reading session back...");
-            match SessionManager::get_session(&session_id, false).await {
-                Ok(session) => {
-                    tracing::info!(
-                        "Verification SUCCESS: Session {} working_dir is now: {:?}",
-                        session_id,
-                        session.working_dir
-                    );
-                    tracing::info!(
-                        "Verification: working_dir as string: {}",
-                        session.working_dir.display()
-                    );
-                }
-                Err(e) => {
-                    tracing::error!("Failed to verify session update: {}", e);
-                }
-            }
-
-            tracing::info!("=== UPDATE SESSION WORKING DIR COMPLETE ===");
-            Ok(StatusCode::OK)
-        }
-        Err(e) => {
+        .await
+        .map_err(|e| {
             tracing::error!("Failed to update session working directory: {}", e);
-            tracing::error!("=== UPDATE SESSION WORKING DIR FAILED ===");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(StatusCode::OK)
 }
 
 #[utoipa::path(
