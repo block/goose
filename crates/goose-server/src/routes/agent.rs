@@ -268,31 +268,11 @@ async fn resume_agent(
                 })
         };
 
-        let extensions_result = async {
-            let enabled_configs = goose::config::get_enabled_extensions();
-            let agent_clone = agent.clone();
+        let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
 
-            let extension_futures = enabled_configs
-                .into_iter()
-                .map(|config| {
-                    let config_clone = config.clone();
-                    let agent_ref = agent_clone.clone();
-
-                    async move {
-                        if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
-                            warn!("Failed to load extension {}: {}", config_clone.name(), e);
-                        }
-                        Ok::<_, ErrorResponse>(())
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            futures::future::join_all(extension_futures).await;
-            Ok::<(), ErrorResponse>(()) // Fixed type annotation
-        };
-
-        let (provider_result, _) = tokio::join!(provider_result, extensions_result);
+        let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
         provider_result?;
+        extensions_result?;
     }
 
     Ok(Json(session))
@@ -513,9 +493,19 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
+    let session = SessionManager::get_session(&request.session_id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get session for add_extension: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+
     let agent = state.get_agent(request.session_id).await?;
     agent
-        .add_extension(request.config)
+        .add_extension(request.config, Some(session.working_dir))
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
     Ok(StatusCode::OK)
@@ -618,17 +608,20 @@ async fn restore_agent_extensions(
     agent: Arc<Agent>,
     working_dir: &std::path::Path,
 ) -> Result<(), ErrorResponse> {
-    std::env::set_var("GOOSE_WORKING_DIR", working_dir);
-
+    let working_dir_buf = working_dir.to_path_buf();
     let enabled_configs = goose::config::get_enabled_extensions();
     let extension_futures = enabled_configs
         .into_iter()
         .map(|config| {
             let config_clone = config.clone();
             let agent_ref = agent.clone();
+            let wd = working_dir_buf.clone();
 
             async move {
-                if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
+                if let Err(e) = agent_ref
+                    .add_extension(config_clone.clone(), Some(wd))
+                    .await
+                {
                     warn!("Failed to load extension {}: {}", config_clone.name(), e);
                 }
                 Ok::<_, ErrorResponse>(())

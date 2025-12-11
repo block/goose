@@ -237,7 +237,7 @@ impl CliSession {
         };
 
         self.agent
-            .add_extension(config)
+            .add_extension(config, None)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
@@ -267,7 +267,7 @@ impl CliSession {
         };
 
         self.agent
-            .add_extension(config)
+            .add_extension(config, None)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
@@ -298,7 +298,7 @@ impl CliSession {
         };
 
         self.agent
-            .add_extension(config)
+            .add_extension(config, None)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
@@ -334,7 +334,7 @@ impl CliSession {
                 }
             };
             self.agent
-                .add_extension(config)
+                .add_extension(config, None)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
         }
