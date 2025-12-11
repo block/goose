@@ -1,7 +1,6 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-// Static regex patterns compiled once at module initialization
 static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"-(\d)-(\d)(-|$)").expect("Failed to compile NORMALIZE_VERSION regex")
 });
@@ -20,7 +19,6 @@ static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     ]
 });
 
-// Regex patterns for Claude model word-order swapping
 static CLAUDE_PATTERNS: Lazy<Vec<(Regex, Regex, &'static str)>> = Lazy::new(|| {
     ["sonnet", "opus", "haiku"]
         .iter()
@@ -51,16 +49,13 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 /// Try to map a provider/model pair to a canonical model with fuzzy matching
 /// This handles:
 /// - Prefixed models (goose-claude-4-5-opus → anthropic/claude-4.5-opus)
-/// - Hosting providers (databricks returning claude-3-5-sonnet → anthropic/claude-3.5-sonnet)
 /// - Provider-prefixed models (databricks-meta-llama → meta-llama/llama)
 /// - Word order variations (claude-4-opus ↔ claude-opus-4)
 pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
     let mut candidates = Vec::new();
 
-    // Always try the standard canonical name first
     candidates.push(canonical_name(provider, model));
 
-    // Strip common prefixes and try again
     let model_stripped = strip_common_prefixes(model);
     if model_stripped != model {
         candidates.push(canonical_name(provider, &model_stripped));
@@ -70,7 +65,6 @@ pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {
         candidates.push(canonical_name(provider, &swapped));
 
-        // For hosting providers, also try with inferred provider
         if is_hosting_provider(provider) {
             if let Some(inferred) = infer_provider_from_model(&swapped) {
                 candidates.push(canonical_name(inferred, &swapped));
@@ -84,7 +78,6 @@ pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
             candidates.push(canonical_name(inferred_provider, &model_stripped));
         }
 
-        // Also try without any provider context
         if let Some(inferred) = infer_provider_from_model(model) {
             candidates.push(canonical_name(inferred, model));
         }
@@ -100,24 +93,17 @@ pub fn fuzzy_canonical_name(provider: &str, model: &str) -> Vec<String> {
 }
 
 /// Swap word order for Claude models to handle both naming conventions
-/// Claude 3: claude-3.5-sonnet ↔ claude-sonnet-3.5
-/// Claude 4: claude-4-opus ↔ claude-opus-4
 fn swap_claude_word_order(model: &str) -> Option<String> {
     if !model.starts_with("claude-") {
         return None;
     }
 
-    // Use pre-compiled regex patterns for Claude models
     for (forward_re, reverse_re, size) in CLAUDE_PATTERNS.iter() {
-        // Match: claude-{digits/dots/dashes}-{size}
-        // Accepts: claude-3.5-sonnet, claude-3-5-sonnet
         if let Some(captures) = forward_re.captures(model) {
             let version = &captures[1];
             return Some(format!("claude-{}-{}", size, version));
         }
 
-        // Also try reverse: claude-{size}-{digits/dots/dashes}
-        // Accepts: claude-sonnet-3.5, claude-haiku-3-5
         if let Some(captures) = reverse_re.captures(model) {
             let version = &captures[1];
             return Some(format!("claude-{}-{}", version, size));
@@ -127,7 +113,6 @@ fn swap_claude_word_order(model: &str) -> Option<String> {
     None
 }
 
-/// Check if provider is a hosting provider that can serve models from other providers
 fn is_hosting_provider(provider: &str) -> bool {
     matches!(provider, "databricks" | "openrouter" | "azure" | "bedrock")
 }
@@ -136,12 +121,10 @@ fn is_hosting_provider(provider: &str) -> bool {
 fn infer_provider_from_model(model: &str) -> Option<&'static str> {
     let model_lower = model.to_lowercase();
 
-    // Claude models → Anthropic
     if model_lower.starts_with("claude-") || model_lower.contains("claude") {
         return Some("anthropic");
     }
 
-    // GPT, O1, O3, O4, ChatGPT models → OpenAI
     if model_lower.starts_with("gpt-")
         || model_lower.starts_with("o1")
         || model_lower.starts_with("o3")
@@ -151,17 +134,14 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         return Some("openai");
     }
 
-    // Gemini, Gemma models → Google
     if model_lower.starts_with("gemini-") || model_lower.starts_with("gemma-") {
         return Some("google");
     }
 
-    // Llama models → meta-llama
     if model_lower.contains("llama") {
         return Some("meta-llama");
     }
 
-    // Mistral models → mistralai
     if model_lower.starts_with("mistral")
         || model_lower.starts_with("mixtral")
         || model_lower.starts_with("codestral")
@@ -173,27 +153,22 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         return Some("mistralai");
     }
 
-    // DeepSeek models → deepseek
     if model_lower.starts_with("deepseek") || model_lower.contains("deepseek") {
         return Some("deepseek");
     }
 
-    // Qwen models → qwen
     if model_lower.starts_with("qwen") || model_lower.contains("qwen") {
         return Some("qwen");
     }
 
-    // Grok models → x-ai
     if model_lower.starts_with("grok") || model_lower.contains("grok") {
         return Some("x-ai");
     }
 
-    // Jamba models → ai21
     if model_lower.starts_with("jamba") || model_lower.contains("jamba") {
         return Some("ai21");
     }
 
-    // Command models → cohere
     if model_lower.starts_with("command") || model_lower.contains("command") {
         return Some("cohere");
     }
@@ -204,33 +179,31 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
 /// Strip common prefixes from model names using pattern matching
 /// Looks for known model family patterns and strips everything before them
 fn strip_common_prefixes(model: &str) -> String {
-    // Known model family patterns (in order of specificity)
     let model_patterns = [
-        "meta-llama-", // Keep meta-llama prefix
         "claude-",
         "gpt-",
         "gemini-",
         "gemma-",
         "o1-",
-        "o1", // Just "o1" without hyphen
+        "o1",
         "o3-",
         "o3",
         "o4-",
+        "meta-llama-",
         "mistral-",
         "mixtral-",
         "chatgpt-",
-        "deepseek-",  // DeepSeek models
-        "qwen-",      // Qwen models
-        "grok-",      // Grok/xAI models
-        "jamba-",     // AI21 Jamba models
-        "command-",   // Cohere Command models
-        "codestral",  // Mistral Codestral (no hyphen - can be standalone)
-        "ministral-", // Mistral Ministral
-        "pixtral-",   // Mistral Pixtral
-        "devstral-",  // Mistral Devstral
+        "deepseek-",
+        "qwen-",
+        "grok-",
+        "jamba-",
+        "command-",
+        "codestral",
+        "ministral-",
+        "pixtral-",
+        "devstral-",
     ];
 
-    // Find the first occurrence of any known model pattern
     let mut earliest_pos = None;
 
     for pattern in &model_patterns {
@@ -243,7 +216,6 @@ fn strip_common_prefixes(model: &str) -> String {
 
     // If we found a pattern, strip everything before it
     if let Some(pos) = earliest_pos {
-        // Extract from the position of the matched pattern
         return model[pos..].to_string();
     }
 
@@ -284,11 +256,8 @@ fn extract_provider_prefix(model: &str) -> Option<(&'static str, &str)> {
 
 /// Strip version suffixes from model names and normalize version numbers
 pub fn strip_version_suffix(model: &str) -> String {
-    // First, normalize version numbers: convert -X-Y- to -X.Y- (e.g., -3-5- to -3.5-)
-    // This handles cases where Anthropic uses dashes (claude-3-5-haiku) but OpenRouter uses dots (claude-3.5-haiku)
     let mut result = NORMALIZE_VERSION_RE.replace_all(model, "-$1.$2$3").to_string();
 
-    // Apply patterns multiple times to handle cases like "-preview-09-2025"
     let mut changed = true;
     while changed {
         let before = result.clone();

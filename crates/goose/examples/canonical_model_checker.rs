@@ -308,7 +308,7 @@ async fn check_provider(
     for model in &fetched_models {
         match provider.map_to_canonical_model(model).await {
             Ok(Some(canonical)) => {
-                mappings.push(ModelMapping::new(model.clone(), canonical).verified());
+                mappings.push(ModelMapping::new(model.clone(), canonical));
             }
             Ok(None) => {
                 // No mapping found for this model
