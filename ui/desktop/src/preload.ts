@@ -288,5 +288,9 @@ declare global {
   interface Window {
     electron: ElectronAPI;
     appConfig: AppConfigAPI;
+    __gooseMCP: {
+      getAppHtml: () => Promise<string>;
+      handleRequest: (msg: unknown, inlineContext?: InlineAppContext) => Promise<unknown>;
+    };
   }
 }

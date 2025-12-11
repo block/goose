@@ -24,7 +24,7 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
   const iframeRef = useRef<React.ComponentRef<'iframe'>>(null);
   const [iframeErrors, setIframeErrors] = useState<string[]>([]);
   const [iframeReady, setIframeReady] = useState(false);
-  const [html, setHtml] = useState(app?.html || DEFAULT_HTML);
+  const [html, setHtml] = useState(app?.html || '');
   const [isIterating, setIsIterating] = useState(false);
   const [iterationMessage, setIterationMessage] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
@@ -52,7 +52,7 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
       height: height ? parseInt(height) : null,
       resizable,
       prd,
-      html,
+      html: html || DEFAULT_HTML,
     };
   }
 
@@ -115,6 +115,9 @@ export default function GooseAppEditor({ app, onReturn }: GooseAppEditorProps) {
         if (response.data.done || !screenshotBase64) {
           done = true;
           setIterationMessage('Done! ' + response.data.message);
+          if (response.data?.html) {
+              setHtml(response.data.html)
+          }
         } else {
           currentHtml = response.data?.html || '';
           setHtml(currentHtml);

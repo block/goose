@@ -13,8 +13,9 @@ use goose::goose_apps::{GooseApp, GooseAppsManager};
 use goose::providers::create_with_named_model;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 use utoipa::ToSchema;
 
 #[derive(Deserialize, utoipa::IntoParams, ToSchema)]
@@ -271,44 +272,13 @@ async fn store_app(
     }))
 }
 
-const ITERATE_APP_PROMPT: &str = r#"You're building an HTML/CSS/JavaScript app that uses the Model Context Protocol (MCP).
+const ITERATE_APP_PROMPT: &str = r#"You are building a widget for a desktop in pure HTML
 
-The app communicates with the host using MCP JSON-RPC over postMessage. A client is injected as `window.mcp` with these methods:
-````javascript
-// Call tools on the MCP server
-const result = await window.mcp.callTool(toolName, arguments);
-// result.content - array of content blocks for the model
-// result.structuredContent - structured data for UI rendering
+The entire file is one HTML file and needs to render inside the dimensions of
+{width} pixels wide and {height} pixels high. You cannot access any resources outside
+the html, so inline all js and css.
 
-// Read MCP resources
-const resource = await window.mcp.readResource(uri);
-
-// Send a message to the chat (triggers agent inference)
-await window.mcp.sendMessage(text);
-
-// Open external links
-await window.mcp.openLink(url);
-
-// Listen for notifications from the host
-window.mcp.onNotification('ui/notifications/tool-input', (params) => {
-    // params.arguments - the tool arguments that spawned this app
-});
-
-window.mcp.onNotification('ui/notifications/tool-result', (params) => {
-    // params.content - text content
-    // params.structuredContent - structured data
-});
-
-window.mcp.onNotification('ui/notifications/host-context-change', (params) => {
-    // params.theme - 'light' or 'dark'
-    // params.viewport - { width, height }
-});
-````
-
-The current implementation looks like this:
-````html
 {html}
-````
 
 Here is the specification of what the user wants the app to do:
 {prd}
@@ -316,36 +286,10 @@ Here is the specification of what the user wants the app to do:
 {errors}
 {screenshot_instruction}
 
-Make sure the app matches the desired size the user specified of {width} width and {height} height
+Reply with:
 
-If everything looks good and matches the spec, reply with:
+description: <describe 
 
-DONE
-MSG: <anything you want to tell the user>
-
-If you need to adjust the HTML/CSS/JavaScript, return the complete HTML:
-````html
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>My App</title>
-    <style>
-        /* Your styles */
-    </style>
-</head>
-<body>
-    <div id="app"></div>
-    <script type="module">
-        // Your JavaScript here
-        // Use window.mcp.* for MCP calls
-    </script>
-</body>
-</html>
-````
-MSG: <the modifications you made>
-
-{screenshot_note}
 "#;
 
 fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
@@ -368,9 +312,15 @@ fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
         ("", "")
     };
 
+    let html = if iterate_on.html.is_empty() {
+        String::new()
+    } else {
+        format!("The current implementation looks like this:\n````html\n{}\n```", iterate_on.html)
+    };
+
     ITERATE_APP_PROMPT
         .replace("{prd}", &iterate_on.prd)
-        .replace("{html}", &iterate_on.html)
+        .replace("{html}", &html)
         .replace("{errors}", &errors)
         .replace("{screenshot_instruction}", screenshot_instruction)
         .replace("{screenshot_note}", screenshot_note)
@@ -381,7 +331,7 @@ fn iterate_app_prompt(iterate_on: &IterateAppRequest) -> String {
 fn extract_code_and_message(text: &str) -> (Option<String>, String) {
     let mut recording = false;
     let mut code_lines = Vec::new();
-    let mut message = String::new();
+    let mut message_lines = Vec::new();
 
     for line in text.lines() {
         if line.trim_start().starts_with("```") {
@@ -389,12 +339,9 @@ fn extract_code_and_message(text: &str) -> (Option<String>, String) {
         } else if recording {
             code_lines.push(line);
         } else if line.trim_start().starts_with("MSG:") {
-            message = line
-                .trim_start()
-                .strip_prefix("MSG:")
-                .unwrap()
-                .trim()
-                .to_string();
+            if let Some(msg_content) = line.trim_start().strip_prefix("MSG:") {
+                message_lines.push(msg_content.trim());
+            }
         }
     }
 
@@ -403,6 +350,8 @@ fn extract_code_and_message(text: &str) -> (Option<String>, String) {
     } else {
         Some(code_lines.join("\n"))
     };
+
+    let message = message_lines.join(" ");
 
     (code, message)
 }
@@ -441,10 +390,12 @@ async fn iterate_app(
         Message::user().with_text(prompt)
     };
 
+    let completion_start = Instant::now();
     let (response, _) = provider
         .complete("You are a helpful coding assistant.", &[message], &[])
         .await
         .map_err(|e| ErrorResponse::internal(format!("Provider error: {}", e)))?;
+    info!("Provider completion: {:?}", completion_start.elapsed());
 
     let text_content = response
         .content
