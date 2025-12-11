@@ -12,33 +12,69 @@ on:
 
 env:
   GOOSE_RECIPE: |
-    Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+    version: "1.0.0"
+    title: "Solve GitHub Issue"
+    description: "Solve GitHub issue #${ISSUE_NUMBER}"
 
-    Issue description:
-    ${ISSUE_BODY}
+    extensions:
+      - type: builtin
+        name: developer
+      - type: platform
+        name: todo
 
-    Requirements:
-    1. Changes MUST be minimal and focused on this issue only
-    2. Do NOT modify more than 10 files
-    3. Do NOT modify .github/, lock files, or secrets
+    instructions: |
+      Principles:
+      - Extract all requirements before coding. Missing one means failure.
+      - Understand before changing. Research the code first.
+      - Follow existing patterns and AGENTS.md if it exists.
+      - Stop when requirements are met. Nothing more.
+      - Verify through deterministic means.
+      - Your context degrades. The TODO is your memory. Update it after each step.
 
-    Process:
-    0. Write these requirements to your TODO and check against them as you work
-    1. Analyze the issue to understand what needs to change
-    2. Explore the codebase to find relevant files
-    3. Implement the fix with minimal changes
-    4. Run: cargo check
-    5. Run: cargo test (for affected crates)
-    6. If check or tests fail, fix and retry up to 3 times
-    7. Run: cargo fmt
-    8. Run: ./scripts/clippy-lint.sh
-    9. Save changes: git diff > /tmp/issue_changes.patch
-    10. Write a one-line summary to /tmp/issue_summary.txt
-    11. Only create the patch if all checks pass
+    prompt: |
+      Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
 
-    If the issue is unclear or cannot be solved:
-    - Write explanation to /tmp/issue_summary.txt
-    - Do NOT create /tmp/issue_changes.patch
+      The issue is saved at /tmp/issue.json
+
+      Write this to your TODO immediately and update as you progress:
+
+      ## Phase 1: Understand
+      - [ ] Read /tmp/issue.json
+      - [ ] Write all requirements (explicit + implicit) to /tmp/requirements.md
+      - [ ] Read AGENTS.md if it exists
+
+      ## Phase 2: Research
+      - [ ] Explore codebase with analyze and rg
+      - [ ] Identify files that need to change
+      - [ ] Update TODO with findings
+
+      ## Phase 3: Plan
+      - [ ] Decide on implementation approach
+      - [ ] For nontrivial issues, use subagents to evaluate architecture or implementation choices
+      - [ ] Update TODO with specific changes to make
+
+      ## Phase 4: Implement
+      - [ ] Implement minimal fix per /tmp/requirements.md
+      - [ ] Before adding anything, check: is it in the requirements? If not, don't.
+      - [ ] Max 10 files, no .github/, no lock files, no secrets
+
+      ## Phase 5: Verify
+      - [ ] cargo check
+      - [ ] cargo test (affected crates)
+      - [ ] cargo fmt
+      - [ ] ./scripts/clippy-lint.sh
+      - [ ] Fix failures, retry up to 3 times
+
+      ## Phase 6: Confirm (MANDATORY)
+      - [ ] Reread /tmp/issue.json
+      - [ ] Reread /tmp/requirements.md
+      - [ ] Confirm all requirements met, nothing extra added
+      - [ ] git diff > /tmp/issue_changes.patch
+      - [ ] Write summary to /tmp/issue_summary.txt
+
+      The Phase 6 "Reread" steps MUST appear in your updated TODO. Skipping them is failure.
+
+      No patch if verification fails or issue is unclear.
 
 permissions:
   contents: write
@@ -56,10 +92,10 @@ jobs:
       (!github.event.issue.pull_request &&
        contains(github.event.comment.body, '@goose') &&
        contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association))
-    
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     container:
       image: ghcr.io/block/goose:latest
       options: --user root
@@ -87,13 +123,13 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
         run: |
           gh api /repos/${{ github.repository }}/issues/$ISSUE_NUMBER > /tmp/issue.json
-          
+
           echo "number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          
+
           echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
           jq -r '.title' /tmp/issue.json >> $GITHUB_OUTPUT
           echo "TITLE_EOF" >> $GITHUB_OUTPUT
-          
+
           echo "body<<BODY_EOF" >> $GITHUB_OUTPUT
           jq -r '.body // ""' /tmp/issue.json >> $GITHUB_OUTPUT
           echo "BODY_EOF" >> $GITHUB_OUTPUT
@@ -109,9 +145,9 @@ jobs:
           mkdir -p $HOME/.config/goose
 
           export ISSUE_NUMBER ISSUE_TITLE ISSUE_BODY
-          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/goose_instructions.txt
+          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/recipe.yaml
 
-          goose run -i /tmp/goose_instructions.txt --with-builtin developer
+          goose run --recipe /tmp/recipe.yaml
 
           if [ -f /tmp/issue_changes.patch ] && [ -s /tmp/issue_changes.patch ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
