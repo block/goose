@@ -236,7 +236,7 @@ fn strip_common_prefixes(model: &str) -> String {
 
     // If we found a pattern, strip everything before it
     if let Some(pos) = earliest_pos {
-        return model[pos..].to_string();
+        return model.get(pos..).unwrap_or(model).to_string();
     }
 
     model.to_string()
