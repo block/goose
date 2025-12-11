@@ -36,6 +36,9 @@ env:
 
       The issue is saved at /tmp/issue.json
 
+      Trigger comment:
+      ${TRIGGER_COMMENT}
+
       Write this to your TODO immediately and update as you progress:
 
       ## Phase 1: Understand
@@ -145,12 +148,13 @@ jobs:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           ISSUE_TITLE: ${{ steps.issue.outputs.title }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body || 'Triggered via workflow_dispatch' }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/recipe.yaml
+          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY $TRIGGER_COMMENT' > /tmp/recipe.yaml
 
           goose run --recipe /tmp/recipe.yaml
 
