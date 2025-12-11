@@ -114,7 +114,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y jq ripgrep build-essential
+          apt-get install -y jq ripgrep build-essential gettext
 
       - name: Get issue details
         id: issue
@@ -144,7 +144,6 @@ jobs:
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
 
-          export ISSUE_NUMBER ISSUE_TITLE ISSUE_BODY
           echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/recipe.yaml
 
           goose run --recipe /tmp/recipe.yaml
