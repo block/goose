@@ -17,13 +17,13 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "google",
     "openai",
     // Additional providers (uncomment one at a time to test):
-    "meta-llama",     // Llama 3.1, 3.3, 4 series - very popular
-    "mistralai",      // Mistral Large, Mixtral - very popular
-    "x-ai",           // Grok models - high profile
-    "deepseek",       // DeepSeek v3, R1 - gaining popularity
-    "cohere",         // Command R, Command R+ models
-    "ai21",           // Jamba 1.5 models
-    "qwen",           // Qwen 2.5 series (Alibaba)
+    "meta-llama", // Llama 3.1, 3.3, 4 series - very popular
+    "mistralai",  // Mistral Large, Mixtral - very popular
+    "x-ai",       // Grok models - high profile
+    "deepseek",   // DeepSeek v3, R1 - gaining popularity
+    "cohere",     // Command R, Command R+ models
+    "ai21",       // Jamba 1.5 models
+    "qwen",       // Qwen 2.5 series (Alibaba)
 ];
 
 #[tokio::main]
@@ -147,7 +147,10 @@ async fn main() -> Result<()> {
                 // Check if non-beta version exists
                 let base_id = canonical_id.strip_suffix(suffix).unwrap();
                 if canonical_groups.contains_key(base_id) {
-                    println!("  Filtering out {} (non-beta version {} exists)", canonical_id, base_id);
+                    println!(
+                        "  Filtering out {} (non-beta version {} exists)",
+                        canonical_id, base_id
+                    );
                     to_remove.push(canonical_id.clone());
                     break;
                 }

@@ -118,7 +118,8 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         || model_lower.starts_with("o1")
         || model_lower.starts_with("o3")
         || model_lower.starts_with("o4")
-        || model_lower.starts_with("chatgpt-") {
+        || model_lower.starts_with("chatgpt-")
+    {
         return Some("openai");
     }
 
@@ -139,7 +140,8 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         || model_lower.starts_with("ministral")
         || model_lower.starts_with("pixtral")
         || model_lower.starts_with("devstral")
-        || model_lower.starts_with("voxtral") {
+        || model_lower.starts_with("voxtral")
+    {
         return Some("mistralai");
     }
 
@@ -176,28 +178,28 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
 fn strip_common_prefixes(model: &str) -> String {
     // Known model family patterns (in order of specificity)
     let model_patterns = [
-        "meta-llama-",     // Keep meta-llama prefix
+        "meta-llama-", // Keep meta-llama prefix
         "claude-",
         "gpt-",
         "gemini-",
         "gemma-",
         "o1-",
-        "o1",              // Just "o1" without hyphen
+        "o1", // Just "o1" without hyphen
         "o3-",
         "o3",
         "o4-",
         "mistral-",
         "mixtral-",
         "chatgpt-",
-        "deepseek-",       // DeepSeek models
-        "qwen-",           // Qwen models
-        "grok-",           // Grok/xAI models
-        "jamba-",          // AI21 Jamba models
-        "command-",        // Cohere Command models
-        "codestral",       // Mistral Codestral (no hyphen - can be standalone)
-        "ministral-",      // Mistral Ministral
-        "pixtral-",        // Mistral Pixtral
-        "devstral-",       // Mistral Devstral
+        "deepseek-",  // DeepSeek models
+        "qwen-",      // Qwen models
+        "grok-",      // Grok/xAI models
+        "jamba-",     // AI21 Jamba models
+        "command-",   // Cohere Command models
+        "codestral",  // Mistral Codestral (no hyphen - can be standalone)
+        "ministral-", // Mistral Ministral
+        "pixtral-",   // Mistral Pixtral
+        "devstral-",  // Mistral Devstral
     ];
 
     // Find the first occurrence of any known model pattern
@@ -261,15 +263,15 @@ pub fn strip_version_suffix(model: &str) -> String {
 
     // Strip datetime, version, and preview/exp suffixes
     let patterns = [
-        regex::Regex::new(r"-latest$").unwrap(),         // -latest
-        regex::Regex::new(r"-preview(-\d+)*$").unwrap(), // -preview, -preview-09, -preview-05-20
-        regex::Regex::new(r"-exp(-\d+)*$").unwrap(),     // -exp, -exp-1219, -exp-01-21
-        regex::Regex::new(r":exacto$").unwrap(),         // :exacto (OpenRouter provider suffix)
-        regex::Regex::new(r"-\d{8}$").unwrap(),          // -20241022
+        regex::Regex::new(r"-latest$").unwrap(),            // -latest
+        regex::Regex::new(r"-preview(-\d+)*$").unwrap(),    // -preview, -preview-09, -preview-05-20
+        regex::Regex::new(r"-exp(-\d+)*$").unwrap(),        // -exp, -exp-1219, -exp-01-21
+        regex::Regex::new(r":exacto$").unwrap(),            // :exacto (OpenRouter provider suffix)
+        regex::Regex::new(r"-\d{8}$").unwrap(),             // -20241022
         regex::Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // -2024-04-09
-        regex::Regex::new(r"-v\d+(\.\d+)*$").unwrap(),   // -v1.5 (semantic versions with "v" prefix)
-        regex::Regex::new(r"-\d{3,}$").unwrap(),         // -002, -001 (patch versions: 3+ digits only)
-        regex::Regex::new(r"-bedrock$").unwrap(),        // -bedrock (platform suffixes)
+        regex::Regex::new(r"-v\d+(\.\d+)*$").unwrap(), // -v1.5 (semantic versions with "v" prefix)
+        regex::Regex::new(r"-\d{3,}$").unwrap(), // -002, -001 (patch versions: 3+ digits only)
+        regex::Regex::new(r"-bedrock$").unwrap(), // -bedrock (platform suffixes)
     ];
 
     // Apply patterns multiple times to handle cases like "-preview-09-2025"
@@ -421,10 +423,7 @@ mod tests {
             "claude-3.5-sonnet"
         );
         assert_eq!(strip_version_suffix("gpt-4o-latest"), "gpt-4o");
-        assert_eq!(
-            strip_version_suffix("chatgpt-4o-latest"),
-            "chatgpt-4o"
-        );
+        assert_eq!(strip_version_suffix("chatgpt-4o-latest"), "chatgpt-4o");
     }
 
     #[test]
@@ -556,66 +555,144 @@ mod tests {
 
     #[test]
     fn test_infer_provider_from_model() {
-        assert_eq!(infer_provider_from_model("claude-3-5-sonnet"), Some("anthropic"));
-        assert_eq!(infer_provider_from_model("claude-4-opus"), Some("anthropic"));
+        assert_eq!(
+            infer_provider_from_model("claude-3-5-sonnet"),
+            Some("anthropic")
+        );
+        assert_eq!(
+            infer_provider_from_model("claude-4-opus"),
+            Some("anthropic")
+        );
         assert_eq!(infer_provider_from_model("gpt-4o"), Some("openai"));
         assert_eq!(infer_provider_from_model("gpt-4-turbo"), Some("openai"));
         assert_eq!(infer_provider_from_model("o1"), Some("openai"));
         assert_eq!(infer_provider_from_model("o3-mini"), Some("openai"));
-        assert_eq!(infer_provider_from_model("chatgpt-4o-latest"), Some("openai"));
-        assert_eq!(infer_provider_from_model("gemini-2-5-flash"), Some("google"));
+        assert_eq!(
+            infer_provider_from_model("chatgpt-4o-latest"),
+            Some("openai")
+        );
+        assert_eq!(
+            infer_provider_from_model("gemini-2-5-flash"),
+            Some("google")
+        );
         assert_eq!(infer_provider_from_model("gemini-2-5-pro"), Some("google"));
         assert_eq!(infer_provider_from_model("gemma-2-27b-it"), Some("google"));
-        assert_eq!(infer_provider_from_model("llama-3-1-70b"), Some("meta-llama"));
-        assert_eq!(infer_provider_from_model("mistral-large"), Some("mistralai"));
+        assert_eq!(
+            infer_provider_from_model("llama-3-1-70b"),
+            Some("meta-llama")
+        );
+        assert_eq!(
+            infer_provider_from_model("mistral-large"),
+            Some("mistralai")
+        );
         assert_eq!(infer_provider_from_model("mixtral-8x7b"), Some("mistralai"));
         assert_eq!(infer_provider_from_model("codestral"), Some("mistralai"));
         assert_eq!(infer_provider_from_model("ministral-8b"), Some("mistralai"));
-        assert_eq!(infer_provider_from_model("pixtral-large"), Some("mistralai"));
+        assert_eq!(
+            infer_provider_from_model("pixtral-large"),
+            Some("mistralai")
+        );
         assert_eq!(infer_provider_from_model("deepseek-chat"), Some("deepseek"));
         assert_eq!(infer_provider_from_model("deepseek-r1"), Some("deepseek"));
-        assert_eq!(infer_provider_from_model("qwen-2-5-72b-instruct"), Some("qwen"));
+        assert_eq!(
+            infer_provider_from_model("qwen-2-5-72b-instruct"),
+            Some("qwen")
+        );
         assert_eq!(infer_provider_from_model("grok-3"), Some("x-ai"));
         assert_eq!(infer_provider_from_model("grok-4-fast"), Some("x-ai"));
         assert_eq!(infer_provider_from_model("jamba-large-1-7"), Some("ai21"));
-        assert_eq!(infer_provider_from_model("command-r-plus-08"), Some("cohere"));
+        assert_eq!(
+            infer_provider_from_model("command-r-plus-08"),
+            Some("cohere")
+        );
         assert_eq!(infer_provider_from_model("unknown-model"), None);
     }
 
     #[test]
     fn test_strip_common_prefixes() {
-        assert_eq!(strip_common_prefixes("goose-claude-4-opus"), "claude-4-opus");
+        assert_eq!(
+            strip_common_prefixes("goose-claude-4-opus"),
+            "claude-4-opus"
+        );
         assert_eq!(strip_common_prefixes("databricks-gpt-5"), "gpt-5");
         assert_eq!(strip_common_prefixes("kgoose-gemini-pro"), "gemini-pro");
         assert_eq!(strip_common_prefixes("kgoose-gpt-4o"), "gpt-4o");
         assert_eq!(strip_common_prefixes("azure-gpt-4o"), "gpt-4o");
-        assert_eq!(strip_common_prefixes("bedrock-claude-3-5-sonnet"), "claude-3-5-sonnet");
-        assert_eq!(strip_common_prefixes("ng-tools-claude-opus-4"), "claude-opus-4");
-        assert_eq!(strip_common_prefixes("raml-claude-sonnet-4-5"), "claude-sonnet-4-5"); // version normalization happens later
+        assert_eq!(
+            strip_common_prefixes("bedrock-claude-3-5-sonnet"),
+            "claude-3-5-sonnet"
+        );
+        assert_eq!(
+            strip_common_prefixes("ng-tools-claude-opus-4"),
+            "claude-opus-4"
+        );
+        assert_eq!(
+            strip_common_prefixes("raml-claude-sonnet-4-5"),
+            "claude-sonnet-4-5"
+        ); // version normalization happens later
         assert_eq!(strip_common_prefixes("headless-goose-o3-mini"), "o3-mini");
-        assert_eq!(strip_common_prefixes("kgoose-cashapp-claude-4-sonnet"), "claude-4-sonnet");
-        assert_eq!(strip_common_prefixes("claude-3-5-sonnet"), "claude-3-5-sonnet"); // no prefix
+        assert_eq!(
+            strip_common_prefixes("kgoose-cashapp-claude-4-sonnet"),
+            "claude-4-sonnet"
+        );
+        assert_eq!(
+            strip_common_prefixes("claude-3-5-sonnet"),
+            "claude-3-5-sonnet"
+        ); // no prefix
 
         // Test new provider patterns
-        assert_eq!(strip_common_prefixes("databricks-deepseek-chat"), "deepseek-chat");
+        assert_eq!(
+            strip_common_prefixes("databricks-deepseek-chat"),
+            "deepseek-chat"
+        );
         assert_eq!(strip_common_prefixes("goose-qwen-2-5-72b"), "qwen-2-5-72b");
         assert_eq!(strip_common_prefixes("kgoose-grok-4-fast"), "grok-4-fast");
-        assert_eq!(strip_common_prefixes("databricks-jamba-large"), "jamba-large");
-        assert_eq!(strip_common_prefixes("goose-command-r-plus"), "command-r-plus");
+        assert_eq!(
+            strip_common_prefixes("databricks-jamba-large"),
+            "jamba-large"
+        );
+        assert_eq!(
+            strip_common_prefixes("goose-command-r-plus"),
+            "command-r-plus"
+        );
         assert_eq!(strip_common_prefixes("databricks-codestral"), "codestral");
         assert_eq!(strip_common_prefixes("goose-ministral-8b"), "ministral-8b");
     }
 
     #[test]
     fn test_extract_provider_prefix() {
-        assert_eq!(extract_provider_prefix("anthropic-claude-3-5-sonnet"), Some(("anthropic", "claude-3-5-sonnet")));
-        assert_eq!(extract_provider_prefix("openai-gpt-4o"), Some(("openai", "gpt-4o")));
-        assert_eq!(extract_provider_prefix("google-gemini-2-5-flash"), Some(("google", "gemini-2-5-flash")));
-        assert_eq!(extract_provider_prefix("meta-llama-3-1-70b"), Some(("meta-llama", "3-1-70b")));
-        assert_eq!(extract_provider_prefix("mistralai-mistral-large"), Some(("mistralai", "mistral-large")));
-        assert_eq!(extract_provider_prefix("deepseek-deepseek-chat"), Some(("deepseek", "deepseek-chat")));
-        assert_eq!(extract_provider_prefix("qwen-qwen-2-5-72b-instruct"), Some(("qwen", "qwen-2-5-72b-instruct")));
-        assert_eq!(extract_provider_prefix("x-ai-grok-3"), Some(("x-ai", "grok-3")));
+        assert_eq!(
+            extract_provider_prefix("anthropic-claude-3-5-sonnet"),
+            Some(("anthropic", "claude-3-5-sonnet"))
+        );
+        assert_eq!(
+            extract_provider_prefix("openai-gpt-4o"),
+            Some(("openai", "gpt-4o"))
+        );
+        assert_eq!(
+            extract_provider_prefix("google-gemini-2-5-flash"),
+            Some(("google", "gemini-2-5-flash"))
+        );
+        assert_eq!(
+            extract_provider_prefix("meta-llama-3-1-70b"),
+            Some(("meta-llama", "3-1-70b"))
+        );
+        assert_eq!(
+            extract_provider_prefix("mistralai-mistral-large"),
+            Some(("mistralai", "mistral-large"))
+        );
+        assert_eq!(
+            extract_provider_prefix("deepseek-deepseek-chat"),
+            Some(("deepseek", "deepseek-chat"))
+        );
+        assert_eq!(
+            extract_provider_prefix("qwen-qwen-2-5-72b-instruct"),
+            Some(("qwen", "qwen-2-5-72b-instruct"))
+        );
+        assert_eq!(
+            extract_provider_prefix("x-ai-grok-3"),
+            Some(("x-ai", "grok-3"))
+        );
         assert_eq!(extract_provider_prefix("claude-3-5-sonnet"), None); // no provider prefix
         assert_eq!(extract_provider_prefix("unknown-provider-model"), None); // unknown provider
     }
@@ -634,27 +711,66 @@ mod tests {
     #[test]
     fn test_swap_claude_word_order() {
         // Claude 3 series: version-size to size-version (with dots)
-        assert_eq!(swap_claude_word_order("claude-3.5-sonnet"), Some("claude-sonnet-3.5".to_string()));
-        assert_eq!(swap_claude_word_order("claude-3.5-haiku"), Some("claude-haiku-3.5".to_string()));
-        assert_eq!(swap_claude_word_order("claude-3.7-sonnet"), Some("claude-sonnet-3.7".to_string()));
+        assert_eq!(
+            swap_claude_word_order("claude-3.5-sonnet"),
+            Some("claude-sonnet-3.5".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-3.5-haiku"),
+            Some("claude-haiku-3.5".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-3.7-sonnet"),
+            Some("claude-sonnet-3.7".to_string())
+        );
 
         // Claude 3 series with dashes in version (before normalization)
-        assert_eq!(swap_claude_word_order("claude-3-5-sonnet"), Some("claude-sonnet-3-5".to_string()));
-        assert_eq!(swap_claude_word_order("claude-3-7-sonnet"), Some("claude-sonnet-3-7".to_string()));
+        assert_eq!(
+            swap_claude_word_order("claude-3-5-sonnet"),
+            Some("claude-sonnet-3-5".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-3-7-sonnet"),
+            Some("claude-sonnet-3-7".to_string())
+        );
 
         // Reverse: size-version to version-size (with dashes)
-        assert_eq!(swap_claude_word_order("claude-haiku-3-5"), Some("claude-3-5-haiku".to_string()));
-        assert_eq!(swap_claude_word_order("claude-sonnet-3-7"), Some("claude-3-7-sonnet".to_string()));
+        assert_eq!(
+            swap_claude_word_order("claude-haiku-3-5"),
+            Some("claude-3-5-haiku".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-sonnet-3-7"),
+            Some("claude-3-7-sonnet".to_string())
+        );
 
         // Claude 4 series: size-version to version-size
-        assert_eq!(swap_claude_word_order("claude-opus-4"), Some("claude-4-opus".to_string()));
-        assert_eq!(swap_claude_word_order("claude-sonnet-4"), Some("claude-4-sonnet".to_string()));
-        assert_eq!(swap_claude_word_order("claude-haiku-4.5"), Some("claude-4.5-haiku".to_string()));
-        assert_eq!(swap_claude_word_order("claude-sonnet-4.5"), Some("claude-4.5-sonnet".to_string()));
+        assert_eq!(
+            swap_claude_word_order("claude-opus-4"),
+            Some("claude-4-opus".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-sonnet-4"),
+            Some("claude-4-sonnet".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-haiku-4.5"),
+            Some("claude-4.5-haiku".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-sonnet-4.5"),
+            Some("claude-4.5-sonnet".to_string())
+        );
 
         // Claude 4 series reverse: version-size to size-version
-        assert_eq!(swap_claude_word_order("claude-4-opus"), Some("claude-opus-4".to_string()));
-        assert_eq!(swap_claude_word_order("claude-4-sonnet"), Some("claude-sonnet-4".to_string()));
+        assert_eq!(
+            swap_claude_word_order("claude-4-opus"),
+            Some("claude-opus-4".to_string())
+        );
+        assert_eq!(
+            swap_claude_word_order("claude-4-sonnet"),
+            Some("claude-sonnet-4".to_string())
+        );
 
         // Non-claude models should return None
         assert_eq!(swap_claude_word_order("gpt-4o"), None);
@@ -664,7 +780,10 @@ mod tests {
     #[test]
     fn test_strip_version_suffix_special_cases() {
         // Test -bedrock suffix
-        assert_eq!(strip_version_suffix("claude-4-sonnet-bedrock"), "claude-4-sonnet");
+        assert_eq!(
+            strip_version_suffix("claude-4-sonnet-bedrock"),
+            "claude-4-sonnet"
+        );
 
         // Ensure we don't strip the main version number
         assert_eq!(strip_version_suffix("claude-4"), "claude-4");

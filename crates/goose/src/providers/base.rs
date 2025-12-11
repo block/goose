@@ -441,13 +441,16 @@ pub trait Provider: Send + Sync {
         };
 
         // Load canonical registry
-        let registry = CanonicalModelRegistry::bundled()
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e)))?;
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
 
         // Filter models that are usable (map to canonical + have text input)
         // Process in chunks using tokio tasks for parallelism
         use futures::future::join_all;
-        let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let num_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
         let chunk_size = (all_models.len() / num_threads).max(1);
         let provider_name = self.get_name().to_string();
 
@@ -459,17 +462,22 @@ pub trait Provider: Send + Sync {
                 let registry = registry.clone();
 
                 tokio::task::spawn_blocking(move || {
-                    chunk.into_iter().filter(|model| {
-                        use super::canonical::fuzzy_canonical_name;
-                        let candidates = fuzzy_canonical_name(&provider_name, model);
-                        candidates.iter().any(|canonical_id| {
-                            if let Some(canonical_model) = registry.get(canonical_id) {
-                                canonical_model.input_modalities.contains(&"text".to_string())
-                            } else {
-                                false
-                            }
+                    chunk
+                        .into_iter()
+                        .filter(|model| {
+                            use super::canonical::fuzzy_canonical_name;
+                            let candidates = fuzzy_canonical_name(&provider_name, model);
+                            candidates.iter().any(|canonical_id| {
+                                if let Some(canonical_model) = registry.get(canonical_id) {
+                                    canonical_model
+                                        .input_modalities
+                                        .contains(&"text".to_string())
+                                } else {
+                                    false
+                                }
+                            })
                         })
-                    }).collect::<Vec<_>>()
+                        .collect::<Vec<_>>()
                 })
             })
             .collect();
