@@ -535,9 +535,9 @@ extensions:
     cmd: npx
     args:
       - "-y"
-      - "@upstash/context7-mcp"
+      - "@upstash/context7-mcp@1.0.31"
     timeout: 300
-    description: "Context7 MCP for up-to-date PHP and library documentation"
+    description: "Official Context7 MCP server from Upstash for documentation"
     env_keys:
       - CONTEXT7_API_KEY
     bundled: false
