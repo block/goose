@@ -10,6 +10,36 @@ on:
         required: true
         type: string
 
+env:
+  GOOSE_RECIPE: |
+    Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+
+    Issue description:
+    ${ISSUE_BODY}
+
+    Requirements:
+    1. Changes MUST be minimal and focused on this issue only
+    2. Do NOT modify more than 10 files
+    3. Do NOT modify .github/, lock files, or secrets
+
+    Process:
+    0. Write these requirements to your TODO and check against them as you work
+    1. Analyze the issue to understand what needs to change
+    2. Explore the codebase to find relevant files
+    3. Implement the fix with minimal changes
+    4. Run: cargo check
+    5. Run: cargo test (for affected crates)
+    6. If check or tests fail, fix and retry up to 3 times
+    7. Run: cargo fmt
+    8. Run: ./scripts/clippy-lint.sh
+    9. Save changes: git diff > /tmp/issue_changes.patch
+    10. Write a one-line summary to /tmp/issue_summary.txt
+    11. Only create the patch if all checks pass
+
+    If the issue is unclear or cannot be solved:
+    - Write explanation to /tmp/issue_summary.txt
+    - Do NOT create /tmp/issue_changes.patch
+
 permissions:
   contents: write
   pull-requests: write
@@ -78,35 +108,8 @@ jobs:
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
 
-          cat > /tmp/goose_instructions.txt << RECIPE_EOF
-          Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
-
-          Issue description:
-          ${ISSUE_BODY}
-
-          Requirements:
-          1. Changes MUST be minimal and focused on this issue only
-          2. Do NOT modify more than 10 files
-          3. Do NOT modify .github/, lock files, or secrets
-
-          Process:
-          0. Write these requirements to your TODO and check against them as you work
-          1. Analyze the issue to understand what needs to change
-          2. Explore the codebase to find relevant files
-          3. Implement the fix with minimal changes
-          4. Run: cargo check
-          5. Run: cargo test (for affected crates)
-          6. If check or tests fail, fix and retry up to 3 times
-          7. Run: cargo fmt
-          8. Run: ./scripts/clippy-lint.sh
-          9. Save changes: git diff > /tmp/issue_changes.patch
-          10. Write a one-line summary to /tmp/issue_summary.txt
-          11. Only create the patch if all checks pass
-
-          If the issue is unclear or cannot be solved:
-          - Write explanation to /tmp/issue_summary.txt
-          - Do NOT create /tmp/issue_changes.patch
-          RECIPE_EOF
+          export ISSUE_NUMBER ISSUE_TITLE ISSUE_BODY
+          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY' > /tmp/goose_instructions.txt
 
           goose run -i /tmp/goose_instructions.txt --with-builtin developer
 
