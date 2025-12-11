@@ -114,7 +114,13 @@ pub fn create_dynamic_task_tool() -> Tool {
 
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. \
+        Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. \
+        Specify extensions as shortnames (the prefixes for your tools). \
+        Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. \
+        Optional: title, description, extensions, settings, retry, response schema, activities. Arrays for multiple tasks.\n\n\
+        IMPORTANT: Each task runs in an isolated session. If a later task needs data from an earlier task's output, \
+        create and execute them one at a time so you can inspect the output and pass the needed information in the next task's instructions.".to_string(),
         input_schema,
     ).annotate(ToolAnnotations {
         title: Some("Create Dynamic Tasks".to_string()),

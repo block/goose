@@ -29,7 +29,9 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
             - For a single task: provide an array with one parameter set\n\
             - For multiple tasks: provide an array with multiple parameter sets, each with different values\n\n\
             Each task will run the same sub recipe but with different parameter values. \
-            This is useful when you need to execute the same sub recipe multiple times with varying inputs. \
+            This is useful when you need to execute the same sub recipe multiple times with varying inputs.\n\n\
+            IMPORTANT: Each task runs in an isolated session. If a later task needs data from an earlier task's output, \
+            create and execute them one at a time so you can inspect the output and pass the needed information as parameters to the next task. \
             After creating the tasks and execution_mode is provided, pass them to the task executor to run these tasks",
             sub_recipe.name
         ),
