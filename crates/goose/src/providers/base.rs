@@ -424,9 +424,11 @@ pub trait Provider: Send + Sync {
     async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Check if we should show all models
         let force_show_all = std::env::var("FORCE_SHOW_ALL_MODELS")
-            .unwrap_or_else(|_| "false".to_string())
-            .to_lowercase()
-            == "true";
+            .map(|v| {
+                let lower = v.to_lowercase();
+                lower == "true" || lower == "1" || lower == "yes"
+            })
+            .unwrap_or(false);
 
         if force_show_all {
             return self.fetch_supported_models().await;
