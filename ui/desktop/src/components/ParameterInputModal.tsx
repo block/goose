@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
+import { getWorkingDir } from '../store/newChatState';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];
@@ -72,16 +73,12 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
 
   const handleCancelOption = (option: 'new-chat' | 'back-to-form'): void => {
     if (option === 'new-chat') {
-      // Create a new chat window without recipe config
       try {
-        const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
-        console.log(`Creating new chat window without recipe, working dir: ${workingDir}`);
-        window.electron.createChatWindow(undefined, workingDir as string);
-        // Close the current window after creating the new one
+        const workingDir = getWorkingDir();
+        window.electron.createChatWindow(undefined, workingDir);
         window.electron.hideWindow();
       } catch (error) {
         console.error('Error creating new window:', error);
-        // Fallback: just close the modal
         onClose();
       }
     } else {
