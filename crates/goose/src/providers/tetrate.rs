@@ -1,25 +1,16 @@
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::TryStreamExt;
-use serde_json::{json, Value};
-use std::io;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
-
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::formats::openai::response_to_streaming_message;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, RequestLog,
+    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
 };
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
+use anyhow::Result;
+use async_trait::async_trait;
+use serde_json::Value;
 
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -178,6 +169,7 @@ impl Provider for TetrateProvider {
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
@@ -206,41 +198,31 @@ impl Provider for TetrateProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(
+        let payload = create_request(
             &self.model,
             system,
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            true,
         )?;
 
-        payload["stream"] = json!(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
-
-        let resp = self
-            .api_client
-            .response_post("v1/chat/completions", &payload)
-            .await?;
-
-        let response = handle_status_openai_compat(resp).await?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .response_post("v1/chat/completions", &payload)
+                    .await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        stream_openai_compat(response, log)
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
