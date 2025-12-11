@@ -440,6 +440,12 @@ Create shortcuts to quickly run recipes in any goose chat session. Type a custom
    5. Click `Save`.
  
   Once you assign a custom command, the `Recipes` menu displays that command in purple text under the recipe's creation date. Typing `/` into the goose Desktop chat window shows a popup menu with the available recipe commands.
+
+To run the recipe, type your custom command with a leading slash into any chat session in the desktop app: 
+```
+/run-tests
+```
+
  </TabItem>
   <TabItem value="cli" label="goose CLI">
 
@@ -452,13 +458,15 @@ slash_commands:
   - command: "daily-standup"
     recipe_path: "/Users/me/.local/share/goose/recipes/standup.yaml"
   ```
+
+  To run the recipe, type your custom command with a leading slash into any goose chat session: 
+  ```sh
+  Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
+  ( O)> /run-tests
+  ```
    </TabItem>
 </Tabs>
 
-To run the recipe, type your custom command with a leading slash into any goose chat session: 
-```
-/run-tests
-```
 When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly. 
 
 :::info
