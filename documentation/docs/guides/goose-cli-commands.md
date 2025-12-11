@@ -538,6 +538,21 @@ While the web interface provides most core features, be aware of these limitatio
 
 ---
 
+### Terminal Integration
+
+#### @goose / @g
+Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration.md).
+
+**Examples:**
+```bash
+# Ask questions with command history context
+@goose create a python script to process these files
+@goose create a PR description summarizing these changes
+@g how do I fix these permission denied errors?
+```
+
+---
+
 ## Interactive Session Features
 
 ### Slash Commands
