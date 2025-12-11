@@ -93,6 +93,7 @@ export const SwitchModelModal = ({
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
+  const [showOnlyRecommended, setShowOnlyRecommended] = useState<boolean>(true);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -198,7 +199,11 @@ export const SwitchModelModal = ({
         setLoadingModels(true);
 
         // Fetching models for all providers
-        const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+        const results = await fetchModelsForProviders(
+          activeProviders,
+          getProviderModels,
+          !showOnlyRecommended
+        );
 
         // Process results and build grouped options
         const groupedOptions: {
@@ -259,7 +264,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, getProviderModels, usePredefinedModels, read]);
+  }, [getProviders, getProviderModels, usePredefinedModels, read, showOnlyRecommended]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
@@ -423,6 +428,26 @@ export const SwitchModelModal = ({
           ) : (
             /* Manual Provider/Model Selection */
             <div className="w-full flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-textStandard">
+                  Show only recommended models
+                </label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showOnlyRecommended}
+                  onClick={() => setShowOnlyRecommended(!showOnlyRecommended)}
+                  className={`${
+                    showOnlyRecommended ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-gray-600'
+                  } relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
+                >
+                  <span
+                    className={`${
+                      showOnlyRecommended ? 'translate-x-6' : 'translate-x-1'
+                    } inline-block h-4 w-4 transform rounded-full bg-white dark:bg-black transition-transform`}
+                  />
+                </button>
+              </div>
               <div>
                 <Select
                   options={providerOptions}

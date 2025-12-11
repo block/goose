@@ -52,12 +52,13 @@ export interface ProviderModelsResult {
  */
 export async function fetchModelsForProviders(
   activeProviders: ProviderDetails[],
-  getProviderModelsFunc: (providerName: string) => Promise<string[]>
+  getProviderModelsFunc: (providerName: string, showAll?: boolean) => Promise<string[]>,
+  showAll: boolean = false
 ): Promise<ProviderModelsResult[]> {
   const modelPromises = activeProviders.map(async (p) => {
     const providerName = p.name;
     try {
-      let models = await getProviderModelsFunc(providerName);
+      let models = await getProviderModelsFunc(providerName, showAll);
       if ((!models || models.length === 0) && p.metadata.known_models?.length) {
         models = p.metadata.known_models.map((m) => m.name);
       }

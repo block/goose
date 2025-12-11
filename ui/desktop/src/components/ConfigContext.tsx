@@ -39,7 +39,7 @@ interface ConfigContextType {
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
-  getProviderModels: (providerName: string) => Promise<string[]>;
+  getProviderModels: (providerName: string, showAll?: boolean) => Promise<string[]>;
   disableAllExtensions: () => Promise<void>;
   enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
@@ -182,18 +182,22 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [providersList]
   );
 
-  const getProviderModels = useCallback(async (providerName: string): Promise<string[]> => {
-    try {
-      const response = await apiGetProviderModels({
-        path: { name: providerName },
-        throwOnError: true,
-      });
-      return response.data || [];
-    } catch (error) {
-      console.error(`Failed to fetch models for provider ${providerName}:`, error);
-      return [];
-    }
-  }, []);
+  const getProviderModels = useCallback(
+    async (providerName: string, showAll: boolean = false): Promise<string[]> => {
+      try {
+        const response = await apiGetProviderModels({
+          path: { name: providerName },
+          query: showAll ? { show_all: true } : undefined,
+          throwOnError: true,
+        });
+        return response.data || [];
+      } catch (error) {
+        console.error(`Failed to fetch models for provider ${providerName}:`, error);
+        return [];
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     // Load all configuration data and providers on mount

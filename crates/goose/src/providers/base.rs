@@ -416,6 +416,60 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
+    /// Fetch models filtered by canonical registry and usability
+    /// Respects FORCE_SHOW_ALL_MODELS env var - if true, returns all models
+    /// Otherwise, only returns models that:
+    /// 1. Map to a canonical model
+    /// 2. Have "text" in input_modalities
+    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        // Check if we should show all models
+        let force_show_all = std::env::var("FORCE_SHOW_ALL_MODELS")
+            .unwrap_or_else(|_| "false".to_string())
+            .to_lowercase()
+            == "true";
+
+        if force_show_all {
+            return self.fetch_supported_models().await;
+        }
+
+        // Get all models
+        let all_models = match self.fetch_supported_models().await? {
+            Some(models) => models,
+            None => return Ok(None),
+        };
+
+        // Load canonical registry
+        let registry = CanonicalModelRegistry::bundled()
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e)))?;
+
+        // Filter models that are usable (map to canonical + have text input)
+        let recommended_models: Vec<String> = all_models
+            .into_iter()
+            .filter(|model| {
+                use super::canonical::fuzzy_canonical_name;
+
+                // Try to map to canonical
+                let candidates = fuzzy_canonical_name(self.get_name(), model);
+
+                // Check if any candidate maps to a canonical model with text input
+                candidates.iter().any(|canonical_id| {
+                    if let Some(canonical_model) = registry.get(canonical_id) {
+                        canonical_model.input_modalities.contains(&"text".to_string())
+                    } else {
+                        false
+                    }
+                })
+            })
+            .collect();
+
+        if recommended_models.is_empty() {
+            // If no models match, return None instead of empty list
+            Ok(None)
+        } else {
+            Ok(Some(recommended_models))
+        }
+    }
+
     async fn map_to_canonical_model(
         &self,
         provider_model: &str,

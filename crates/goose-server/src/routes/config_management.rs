@@ -2,7 +2,7 @@ use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::routing::put;
 use axum::{
-    extract::Path,
+    extract::{Path, Query},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -49,6 +49,12 @@ pub struct UpsertConfigQuery {
 pub struct ConfigKeyQuery {
     pub key: String,
     pub is_secret: bool,
+}
+
+#[derive(Deserialize, ToSchema, utoipa::IntoParams)]
+pub struct ModelFilterQuery {
+    #[serde(default)]
+    pub show_all: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -349,7 +355,8 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     get,
     path = "/config/providers/{name}/models",
     params(
-        ("name" = String, Path, description = "Provider name (e.g., openai)")
+        ("name" = String, Path, description = "Provider name (e.g., openai)"),
+        ModelFilterQuery
     ),
     responses(
         (status = 200, description = "Models fetched successfully", body = [String]),
@@ -360,6 +367,7 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
 )]
 pub async fn get_provider_models(
     Path(name): Path<String>,
+    Query(filter): Query<ModelFilterQuery>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
     let loaded_provider = goose::config::declarative_providers::load_provider(name.as_str()).ok();
     // TODO(Douwe): support a get models url for custom providers
@@ -392,7 +400,15 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match provider.fetch_supported_models().await {
+    // Use fetch_recommended_models by default (respects FORCE_SHOW_ALL_MODELS env var)
+    // Unless explicitly requested to show all via query parameter
+    let models_result = if filter.show_all {
+        provider.fetch_supported_models().await
+    } else {
+        provider.fetch_recommended_models().await
+    };
+
+    match models_result {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
         Err(provider_error) => {
