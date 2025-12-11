@@ -21,5 +21,5 @@ STDIN: {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"_meta":{"progres
 STDOUT: {"method":"sampling/createMessage","params":{"messages":[{"role":"user","content":{"type":"text","text":"Resource sampleLLM context: Please provide a quote from The Great Gatsby"}}],"systemPrompt":"You are a helpful test server.","maxTokens":100,"temperature":0.7,"includeContext":"thisServer"},"jsonrpc":"2.0","id":0}
 STDIN: {"jsonrpc":"2.0","id":0,"result":{"model":"mock","stopReason":"endTurn","role":"assistant","content":{"type":"text","text":"\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"}}}
 STDOUT: {"result":{"content":[{"type":"text","text":"LLM sampling result: \"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"}]},"jsonrpc":"2.0","id":5}
-STDOUT: {"method":"notifications/message","params":{"level":"info","data":"Info-level message"},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/message","params":{"level":"critical","data":"Critical-level message"},"jsonrpc":"2.0"}
 STDERR: node:events:485
