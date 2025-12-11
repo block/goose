@@ -162,8 +162,8 @@ impl PricingCache {
             }
         }
 
-        if sap_pricing.is_some() {
-            structured_pricing.extend(sap_pricing.unwrap());
+        if let Some(pricing) = sap_pricing {
+            structured_pricing.extend(pricing);
         }
 
         let cached_data = CachedPricingData {

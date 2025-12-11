@@ -702,6 +702,7 @@ pub enum DpiReplacementStrategy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::enum_variant_names)]
 #[serde(rename_all = "kebab-case")]
 pub enum DpiEntityType {
     ProfilePerson,

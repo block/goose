@@ -349,11 +349,7 @@ pub fn response_to_message(response_body: &str) -> Result<Message> {
         tracing::error!(
             "Failed to parse SAP AI Core response JSON: {}. Response body (first 500 chars): {}",
             e,
-            if response_body.len() > 500 {
-                &response_body[..500]
-            } else {
-                response_body
-            }
+            response_body.chars().take(500).collect::<String>()
         );
         anyhow!("Failed to parse SAP AI Core response: {}", e)
     })?;
@@ -767,11 +763,7 @@ pub fn convert_nested_json(mut params: serde_json::Value) -> Result<serde_json::
                 Err(e) => {
                     tracing::info!(
                         "String '{}' is not valid JSON ({}), keeping as string",
-                        if string.len() > 100 {
-                            &string[..100]
-                        } else {
-                            string
-                        },
+                        string.chars().take(100).collect::<String>(),
                         e
                     );
                     // If parsing fails, keep the original string
@@ -787,13 +779,12 @@ pub fn convert_nested_json(mut params: serde_json::Value) -> Result<serde_json::
 
 /// Extract usage information from SAP AI Core response
 pub fn get_usage(response_body: &str) -> Result<ProviderUsage> {
-    let response: CompletionPostRes = serde_json::from_str(response_body)
-        .map_err(|e| {
-            tracing::error!("Failed to parse SAP AI Core response for usage extraction: {}. Response body (first 200 chars): {}",
-                e,
-                if response_body.len() > 200 { &response_body[..200] } else { response_body });
-            anyhow!("Failed to parse SAP AI Core response for usage: {}", e)
-        })?;
+    let response: CompletionPostRes = serde_json::from_str(response_body).map_err(|e| {
+        tracing::error!("Failed to parse SAP AI Core response for usage extraction: {}. Response body (first 200 chars): {}",
+            e,
+            response_body.chars().take(200).collect::<String>());
+        anyhow!("Failed to parse SAP AI Core response for usage: {}", e)
+    })?;
 
     get_response_usage(&response)
 }
@@ -1413,7 +1404,7 @@ mod tests {
         let input = json!({
             "string": "hello",
             "number": 42,
-            "float": 3.14,
+            "float": 3.15,
             "boolean": true,
             "null_value": null,
             "json_string": "{\"parsed\": true}"
@@ -1424,7 +1415,7 @@ mod tests {
         // Primitive types should remain unchanged
         assert_eq!(result["string"], "hello");
         assert_eq!(result["number"], 42);
-        assert_eq!(result["float"], 3.14);
+        assert_eq!(result["float"], 3.15);
         assert_eq!(result["boolean"], true);
         assert!(result["null_value"].is_null());
 
@@ -1513,7 +1504,7 @@ mod tests {
             42,
             true,
             null,
-            3.14,
+            3.15,
             "{\"converted\": true}",
             ["nested", "{\"also\": \"converted\"}"]
         ]);
@@ -1524,7 +1515,7 @@ mod tests {
         assert_eq!(result[0], 42);
         assert_eq!(result[1], true);
         assert!(result[2].is_null());
-        assert_eq!(result[3], 3.14);
+        assert_eq!(result[3], 3.15);
         assert!(result[4].is_object());
         assert_eq!(result[4]["converted"], true);
         assert!(result[5].is_array());

@@ -287,7 +287,7 @@ impl SAPAICoreProvider {
             }
         };
 
-        if model_response.count <= 0 {
+        if model_response.count == 0 {
             return Ok(HashMap::new());
         }
 
@@ -301,7 +301,7 @@ impl SAPAICoreProvider {
                     .any(|sc| sc.scenario_id == "orchestration")
             })
             .map(|mut res| {
-                res.versions = res.versions.into_iter().filter(|v| v.is_latest).collect();
+                res.versions.retain(|v| v.is_latest);
                 (res.model.clone(), res)
             })
             .collect();
@@ -482,9 +482,8 @@ impl Provider for SAPAICoreProvider {
         if self.models.lock().unwrap().is_empty() {
             self.fetch_supported_models()
                 .await
-                .map_err(|e| {
+                .inspect_err(|_e| {
                     tracing::error!("Cannot fetch models for pricing");
-                    e
                 })
                 .ok()?;
         }
@@ -499,8 +498,8 @@ impl Provider for SAPAICoreProvider {
             .lock()
             .unwrap()
             .values()
+            .filter(|&model| model.versions.iter().any(|v| v.cost.is_some()))
             .cloned()
-            .filter(|model| model.versions.iter().any(|v| v.cost.is_some()))
             .map(|model| {
                 let name = model.model.to_string();
                 let first = model.versions.first().unwrap();
