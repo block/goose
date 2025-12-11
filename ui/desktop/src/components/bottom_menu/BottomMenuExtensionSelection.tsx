@@ -15,7 +15,7 @@ import {
 } from '../../store/newChatState';
 
 interface BottomMenuExtensionSelectionProps {
-  sessionId: string;
+  sessionId: string | null;
 }
 
 export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
