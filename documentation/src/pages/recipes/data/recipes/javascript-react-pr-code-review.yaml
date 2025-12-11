@@ -164,10 +164,10 @@ instructions: |
   Provide specific feedback with file:line references.
 
   Categorize issues as:
-  - 🔴 CRITICAL: Must fix before merge (bugs, security issues, crashes)
-  - 🟡 WARNING: Should fix (performance, bad practices, anti-patterns)
-  - 🟢 SUGGESTION: Nice to have (style, minor improvements)
-  - ✅ GOOD: Positive aspects worth noting
+  - [CRITICAL]: Must fix before merge (bugs, security issues, crashes)
+  - [WARNING]: Should fix (performance, bad practices, anti-patterns)
+  - [SUGGESTION]: Nice to have (style, minor improvements)
+  - [GOOD]: Positive aspects worth noting
 
   ===============================================================
   SUMMARY (at the end)
@@ -185,7 +185,7 @@ instructions: |
 # LLM COUNCIL MODE INSTRUCTIONS
 # ===============================================================
 council_instructions: |
-  🏛️ LLM COUNCIL MODE - THREE PERSPECTIVES
+  [COUNCIL] LLM COUNCIL MODE - THREE PERSPECTIVES
 
   When council mode is enabled, the same LLM reviews the code from three
   different professional perspectives, then synthesizes the findings.
@@ -194,19 +194,19 @@ council_instructions: |
   REVIEWER PERSONAS
   ═══════════════════════════════════════════════════════════════
 
-  🏗️ ARCHITECT PERSONA:
+  [ARCHITECT] ARCHITECT PERSONA:
   - Focus: System design, scalability, maintainability, patterns
   - Priorities: Architecture decisions, module boundaries, dependencies
   - Looks for: Coupling issues, abstraction leaks, design pattern misuse
   - Questions: "Will this scale?", "Is this maintainable?", "Right abstractions?"
 
-  👨‍💻 SENIOR DEVELOPER PERSONA:
+  [SENIOR DEV] SENIOR DEVELOPER PERSONA:
   - Focus: Code quality, implementation correctness, best practices
   - Priorities: Clean code, performance, proper API usage, type safety
   - Looks for: Bugs, anti-patterns, code smells, missing error handling
   - Questions: "Is this correct?", "Is this efficient?", "Following best practices?"
 
-  🧪 QA ENGINEER PERSONA:
+  [QA] QA ENGINEER PERSONA:
   - Focus: Testability, edge cases, reliability, error scenarios
   - Priorities: Test coverage, error handling, input validation, logging
   - Looks for: Missing tests, unhandled errors, edge cases, security gaps
@@ -223,16 +223,16 @@ council_instructions: |
 
   Output format per persona:
 
-  # [🏗️ ARCHITECT / 👨‍💻 SENIOR DEV / 🧪 QA] REVIEW
+  # [ARCHITECT / SENIOR DEV / QA] REVIEW
 
   ## Focus Areas Analyzed
   - [List what this persona specifically looked at]
 
   ## Findings
-  - 🔴 CRITICAL: [issues from this perspective]
-  - 🟡 WARNING: [concerns from this perspective]
-  - 🟢 SUGGESTION: [improvements from this perspective]
-  - ✅ GOOD: [positive aspects noticed]
+  - [CRITICAL]: [issues from this perspective]
+  - [WARNING]: [concerns from this perspective]
+  - [SUGGESTION]: [improvements from this perspective]
+  - [GOOD]: [positive aspects noticed]
 
   ## Perspective-Specific Score (1-10)
   ## Recommendation: APPROVE / REQUEST_CHANGES / NEEDS_DISCUSSION
@@ -243,23 +243,23 @@ council_instructions: |
 
   Each persona evaluates the other two reviews:
 
-  🏛️ COUNCIL CROSS-EVALUATION FORMAT:
+  [COUNCIL] COUNCIL CROSS-EVALUATION FORMAT:
 
-  ## ✅ AGREEMENTS
+  ## [AGREEMENTS]
   Points where personas align. Reference specific findings.
 
-  ## ⚖️ DIFFERENT PRIORITIES
+  ## [DIFFERENT PRIORITIES]
   Same code, different concerns based on role perspective.
   Explain why each perspective matters.
 
-  ## 🔍 UNIQUE FINDINGS
+  ## [UNIQUE FINDINGS]
   Issues only one persona caught.
   Explain why their perspective revealed it.
 
-  ## 🎯 CONSENSUS ISSUES
+  ## [CONSENSUS ISSUES]
   Problems flagged by 2+ personas (highest priority).
 
-  ## 📊 CONSOLIDATED SCORES
+  ## [CONSOLIDATED SCORES]
   - Architecture Quality (1-10)
   - Implementation Quality (1-10)
   - Test/Reliability Quality (1-10)
@@ -271,13 +271,13 @@ council_instructions: |
 
   Generate actionable solutions prioritized by consensus:
 
-  # 🛠️ SOLUTIONS & HINTS FOR DEVELOPERS
+  # [SOLUTIONS] FOR DEVELOPERS
 
-  ## 🔴 CRITICAL FIXES (Consensus - Must Do)
+  ## [CRITICAL] FIXES (Consensus - Must Do)
   Issues flagged by multiple personas.
 
   ### Issue N: [Issue Title]
-  **Flagged by:** 🏗️ Architect, 👨‍💻 Senior Dev, 🧪 QA
+  **Flagged by:** [ARCHITECT], [SENIOR DEV], [QA]
   **File:** `path/to/file.ts`
   **Line:** XX-YY
   **Problem:** [Brief description]
@@ -293,28 +293,28 @@ council_instructions: |
   ```
 
   **Why it matters:**
-  - 🏗️ Architect: [architecture concern]
-  - 👨‍💻 Senior Dev: [implementation concern]
-  - 🧪 QA: [testing/reliability concern]
+  - [ARCHITECT]: [architecture concern]
+  - [SENIOR DEV]: [implementation concern]
+  - [QA]: [testing/reliability concern]
 
-  ## 🟡 IMPORTANT IMPROVEMENTS (Should Do)
+  ## [IMPORTANT] IMPORTANT IMPROVEMENTS (Should Do)
   (Same format, indicate which persona(s) flagged it)
 
-  ## 🟢 SUGGESTIONS (Nice to Have)
+  ## [SUGGESTIONS] (Nice to Have)
   (Same format, indicate which persona(s) flagged it)
 
-  ## 📚 LEARNING RESOURCES
+  ## [RESOURCES]
   Relevant documentation links and best practices guides.
 
-  ## ✅ QUICK CHECKLIST
-  - [ ] Fix item 1 (🏗️👨‍💻🧪)
-  - [ ] Fix item 2 (👨‍💻🧪)
-  - [ ] Fix item 3 (🏗️)
+  ## [CHECKLIST]
+  - [ ] Fix item 1 ([ARCHITECT][SENIOR DEV][QA])
+  - [ ] Fix item 2 ([SENIOR DEV][QA])
+  - [ ] Fix item 3 ([ARCHITECT])
 
-  ## 💡 PERSPECTIVE-SPECIFIC TIPS
-  - 🏗️ Architecture tips
-  - 👨‍💻 Implementation tips
-  - 🧪 Testing tips
+  ## [TIPS]
+  - [ARCHITECT] Architecture tips
+  - [SENIOR DEV] Implementation tips
+  - [QA] Testing tips
 
   ═══════════════════════════════════════════════════════════════
   PHASE 4 - COMBINED COUNCIL REPORT
@@ -322,7 +322,7 @@ council_instructions: |
 
   Merge all perspectives into a comprehensive council verdict:
 
-  # 🏛️ COUNCIL VERDICT
+  # [COUNCIL] COUNCIL VERDICT
 
   ## Executive Summary
   One paragraph combining all three perspectives.
@@ -331,9 +331,9 @@ council_instructions: |
   APPROVE / REQUEST_CHANGES / NEEDS_DISCUSSION
 
   ## Voting Record
-  - 🏗️ Architect: [vote + reason]
-  - 👨‍💻 Senior Dev: [vote + reason]
-  - 🧪 QA: [vote + reason]
+  - [ARCHITECT]: [vote + reason]
+  - [SENIOR DEV]: [vote + reason]
+  - [QA]: [vote + reason]
 
   ## Priority Action Items
   Ordered list based on consensus weight.
@@ -384,31 +384,31 @@ prompt: |
 
   When COUNCIL MODE is selected, perform THREE separate review passes:
 
-  PASS 1 - 🏗️ ARCHITECT REVIEW:
+  PASS 1 - [ARCHITECT] ARCHITECT REVIEW:
   Review the code focusing on:
   - System design and architecture patterns
   - Scalability and maintainability concerns
   - Module boundaries and dependencies
   - Abstraction quality and design pattern usage
-  Output: "# 🏗️ ARCHITECT REVIEW" section
+  Output: "# [ARCHITECT] REVIEW" section
 
-  PASS 2 - 👨‍💻 SENIOR DEVELOPER REVIEW:
+  PASS 2 - [SENIOR DEV] SENIOR DEVELOPER REVIEW:
   Review the code focusing on:
   - Code quality and implementation correctness
   - Performance and efficiency
   - TypeScript types and null safety
   - Best practices and anti-patterns
-  Output: "# 👨‍💻 SENIOR DEV REVIEW" section
+  Output: "# [SENIOR DEV] REVIEW" section
 
-  PASS 3 - 🧪 QA ENGINEER REVIEW:
+  PASS 3 - [QA] QA ENGINEER REVIEW:
   Review the code focusing on:
   - Testability and test coverage
   - Edge cases and error handling
   - Input validation and security
   - Logging and observability
-  Output: "# 🧪 QA REVIEW" section
+  Output: "# [QA] REVIEW" section
 
-  FINAL - 🏛️ COUNCIL VERDICT:
+  FINAL - [COUNCIL] COUNCIL VERDICT:
   Synthesize all three reviews into:
   - Consensus issues (flagged by 2+ personas)
   - Consolidated scores
@@ -422,9 +422,9 @@ prompt: |
 # ===============================================================
 #
 # PERSONAS (3 perspectives):
-#   🏗️ ARCHITECT    - System design, scalability, patterns
-#   👨‍💻 SENIOR DEV   - Code quality, correctness, best practices
-#   🧪 QA ENGINEER  - Testability, edge cases, reliability
+#   [ARCHITECT]    - System design, scalability, patterns
+#   [SENIOR DEV]   - Code quality, correctness, best practices
+#   [QA]  - Testability, edge cases, reliability
 #
 # ---------------------------------------------------------------
 # MODE A: SINGLE PROVIDER (3 reviews)
@@ -461,19 +461,19 @@ prompt: |
 #
 # Issues are weighted by both persona AND provider agreement:
 #
-#   🔴 CRITICAL (highest priority):
+#   [CRITICAL] (highest priority):
 #      - Flagged by 3 personas across 2+ providers
 #      - Example: All 3 personas on Claude AND GPT found same issue
 #
-#   🟠 HIGH (strong consensus):
+#   [HIGH] (strong consensus):
 #      - Flagged by 2+ personas across 2+ providers
 #      - OR flagged by 3 personas on single provider
 #
-#   🟡 MEDIUM (partial consensus):
+#   [MEDIUM] (partial consensus):
 #      - Flagged by 2+ personas on single provider
 #      - OR same issue found by different personas on different providers
 #
-#   🟢 LOW (single perspective):
+#   [LOW] (single perspective):
 #      - Flagged by 1 persona on 1 provider
 #      - May still be valid, requires human judgment
 #

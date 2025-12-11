@@ -19,9 +19,9 @@ instructions: |
   - ONLY read and analyze the code
   - ONLY provide review feedback as text output
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   STEP 1 - FETCH DOCUMENTATION (ALWAYS DO THIS FIRST!)
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   1. Use Context7 MCP to get official Flutter AI rules and documentation:
      - First call: resolve-library-id for "flutter"
@@ -34,30 +34,30 @@ instructions: |
      - For each major dependency, use Context7 to fetch docs
   
   Common Flutter packages Context7 mappings:
-  - bloc, flutter_bloc → /felangel/bloc
-  - riverpod, flutter_riverpod → /rrousselgit/riverpod
-  - provider → /rrousselgit/provider
-  - dio → /cfug/dio
-  - get_it → /fluttercommunity/get_it
-  - freezed → /rrousselgit/freezed
-  - go_router → /flutter/packages
-  - hive → /isar/hive
-  - auto_route → /Milad-Akarie/auto_route_library
-  - injectable → /Milad-Akarie/injectable
-  - dartz → /spebbe/dartz
-  - equatable → /felangel/equatable
-  - json_serializable → /google/json_serializable
+  - bloc, flutter_bloc -> /felangel/bloc
+  - riverpod, flutter_riverpod -> /rrousselgit/riverpod
+  - provider -> /rrousselgit/provider
+  - dio -> /cfug/dio
+  - get_it -> /fluttercommunity/get_it
+  - freezed -> /rrousselgit/freezed
+  - go_router -> /flutter/packages
+  - hive -> /isar/hive
+  - auto_route -> /Milad-Akarie/auto_route_library
+  - injectable -> /Milad-Akarie/injectable
+  - dartz -> /spebbe/dartz
+  - equatable -> /felangel/equatable
+  - json_serializable -> /google/json_serializable
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   STEP 2 - ANALYZE CHANGES
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Analyze the changed files from PR metadata.
   Do not run git commands; only read files.
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   STEP 3 - REVIEW CODE (based on Flutter AI rules + Context7 docs)
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   DART BEST PRACTICES (from official Flutter rules):
   - Follow Effective Dart guidelines (https://dart.dev/effective-dart)
@@ -141,21 +141,21 @@ instructions: |
   - Prefer fakes/stubs over mocks
   - Use package:checks for readable assertions
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   OUTPUT FORMAT
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Provide specific feedback with file:line references.
 
   Categorize issues as:
-  - 🔴 CRITICAL: Must fix before merge (bugs, security issues, crashes)
-  - 🟡 WARNING: Should fix (performance, bad practices, violates Flutter rules)
-  - 🟢 SUGGESTION: Nice to have (style, minor improvements)
-  - ✅ GOOD: Positive aspects worth noting
+  - [CRITICAL] Must fix before merge (bugs, security issues, crashes)
+  - [WARNING] Should fix (performance, bad practices, violates Flutter rules)
+  - [SUGGESTION] Nice to have (style, minor improvements)
+  - [GOOD] Positive aspects worth noting
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   SUMMARY (at the end)
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   
   - Overall code quality score (1-10)
   - Libraries/frameworks detected and reviewed (with Context7)
@@ -163,103 +163,102 @@ instructions: |
   - Positive aspects of the code
   - Recommendation: APPROVE / REQUEST_CHANGES / NEEDS_DISCUSSION
 
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # LLM COUNCIL MODE INSTRUCTIONS
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 council_instructions: |
-  🏛️ LLM COUNCIL MODE - THREE PERSPECTIVES
+  [COUNCIL] LLM COUNCIL MODE - THREE PERSPECTIVES
 
   When council mode is enabled, the same LLM reviews the code from three
   different professional perspectives, then synthesizes the findings.
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   REVIEWER PERSONAS
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
-  🏗️ ARCHITECT PERSONA:
+  [ARCHITECT] ARCHITECT PERSONA:
   - Focus: System design, scalability, maintainability, patterns
   - Priorities: Architecture decisions, widget tree structure, state management design
   - Looks for: Coupling issues, abstraction leaks, design pattern misuse
   - Questions: "Will this scale?", "Is this maintainable?", "Right abstractions?"
 
-  👨‍💻 SENIOR DEVELOPER PERSONA:
+  [SENIOR DEV] SENIOR DEVELOPER PERSONA:
   - Focus: Code quality, implementation correctness, best practices
   - Priorities: Clean code, performance, proper API usage, null safety
   - Looks for: Bugs, anti-patterns, code smells, missing error handling
   - Questions: "Is this correct?", "Is this efficient?", "Following Flutter rules?"
 
-  🧪 QA ENGINEER PERSONA:
+  [QA] QA ENGINEER PERSONA:
   - Focus: Testability, edge cases, reliability, error scenarios
   - Priorities: Test coverage, error handling, input validation, accessibility
   - Looks for: Missing tests, unhandled errors, edge cases, security gaps
   - Questions: "What could break?", "Is this testable?", "Are errors handled?"
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   PHASE 1 - INITIAL REVIEWS (3 separate passes)
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Each persona independently:
   1. Fetches documentation (Flutter rules + Context7)
   2. Analyzes the code changes from their perspective
   3. Produces their focused review
+  4. Output format per persona:
 
-  Output format per persona:
-
-  # [🏗️ ARCHITECT / 👨‍💻 SENIOR DEV / 🧪 QA] REVIEW
+  # [ARCHITECT / SENIOR DEV / QA] REVIEW
 
   ## Focus Areas Analyzed
   - [List what this persona specifically looked at]
 
   ## Findings
-  - 🔴 CRITICAL: [issues from this perspective]
-  - 🟡 WARNING: [concerns from this perspective]
-  - 🟢 SUGGESTION: [improvements from this perspective]
-  - ✅ GOOD: [positive aspects noticed]
+  - [CRITICAL] [issues from this perspective]
+  - [WARNING] [concerns from this perspective]
+  - [SUGGESTION] [improvements from this perspective]
+  - [GOOD] [positive aspects noticed]
 
   ## Perspective-Specific Score (1-10)
   ## Recommendation: APPROVE / REQUEST_CHANGES / NEEDS_DISCUSSION
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   PHASE 2 - CROSS-EVALUATION
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Each persona evaluates the other two reviews:
 
-  🏛️ COUNCIL CROSS-EVALUATION FORMAT:
+  [COUNCIL] COUNCIL CROSS-EVALUATION FORMAT:
 
-  ## ✅ AGREEMENTS
+  ## [AGREEMENTS]
   Points where personas align. Reference specific findings.
 
-  ## ⚖️ DIFFERENT PRIORITIES
+  ## [DIFFERENT PRIORITIES]
   Same code, different concerns based on role perspective.
   Explain why each perspective matters.
 
-  ## 🔍 UNIQUE FINDINGS
+  ## [UNIQUE FINDINGS]
   Issues only one persona caught.
   Explain why their perspective revealed it.
 
-  ## 🎯 CONSENSUS ISSUES
+  ## [CONSENSUS ISSUES]
   Problems flagged by 2+ personas (highest priority).
 
-  ## 📊 CONSOLIDATED SCORES
+  ## [CONSOLIDATED SCORES]
   - Architecture Quality (1-10)
   - Implementation Quality (1-10)
   - Test/Reliability Quality (1-10)
   - Overall Score (1-10)
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   PHASE 3 - SOLUTIONS & HINTS
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Generate actionable solutions prioritized by consensus:
 
-  # 🛠️ SOLUTIONS & HINTS FOR DEVELOPERS
+  # [SOLUTIONS] SOLUTIONS & HINTS FOR DEVELOPERS
 
-  ## 🔴 CRITICAL FIXES (Consensus - Must Do)
+  ## [CRITICAL] CRITICAL FIXES (Consensus - Must Do)
   Issues flagged by multiple personas.
 
   ### Issue N: [Issue Title]
-  **Flagged by:** 🏗️ Architect, 👨‍💻 Senior Dev, 🧪 QA
+  **Flagged by:** [ARCHITECT], [SENIOR DEV], [QA]
   **File:** `path/to/file.dart`
   **Line:** XX-YY
   **Problem:** [Brief description]
@@ -275,36 +274,36 @@ council_instructions: |
   ```
 
   **Why it matters:**
-  - 🏗️ Architect: [architecture concern]
-  - 👨‍💻 Senior Dev: [implementation concern]
-  - 🧪 QA: [testing/reliability concern]
+  - [ARCHITECT]: [architecture concern]
+  - [SENIOR DEV]: [implementation concern]
+  - [QA]: [testing/reliability concern]
 
-  ## 🟡 IMPORTANT IMPROVEMENTS (Should Do)
+  ## [IMPORTANT] IMPORTANT IMPROVEMENTS (Should Do)
   (Same format, indicate which persona(s) flagged it)
 
-  ## 🟢 SUGGESTIONS (Nice to Have)
+  ## [SUGGESTIONS] SUGGESTIONS (Nice to Have)
   (Same format, indicate which persona(s) flagged it)
 
-  ## 📚 LEARNING RESOURCES
+  ## [RESOURCES] LEARNING RESOURCES
   Relevant documentation links and best practices guides.
 
-  ## ✅ QUICK CHECKLIST
-  - [ ] Fix item 1 (🏗️👨‍💻🧪)
-  - [ ] Fix item 2 (👨‍💻🧪)
-  - [ ] Fix item 3 (🏗️)
+  ## [CHECKLIST] QUICK CHECKLIST
+  - [ ] Fix item 1 ([ARCHITECT][SENIOR DEV][QA])
+  - [ ] Fix item 2 ([SENIOR DEV][QA])
+  - [ ] Fix item 3 ([ARCHITECT])
 
-  ## 💡 PERSPECTIVE-SPECIFIC TIPS
-  - 🏗️ Architecture tips
-  - 👨‍💻 Implementation tips
-  - 🧪 Testing tips
+  ## [TIPS] PERSPECTIVE-SPECIFIC TIPS
+  - [ARCHITECT] Architecture tips
+  - [SENIOR DEV] Implementation tips
+  - [QA] Testing tips
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   PHASE 4 - COMBINED COUNCIL REPORT
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Merge all perspectives into a comprehensive council verdict:
 
-  # 🏛️ COUNCIL VERDICT
+  # [COUNCIL] COUNCIL VERDICT
 
   ## Executive Summary
   One paragraph combining all three perspectives.
@@ -313,9 +312,9 @@ council_instructions: |
   APPROVE / REQUEST_CHANGES / NEEDS_DISCUSSION
 
   ## Voting Record
-  - 🏗️ Architect: [vote + reason]
-  - 👨‍💻 Senior Dev: [vote + reason]
-  - 🧪 QA: [vote + reason]
+  - [ARCHITECT]: [vote + reason]
+  - [SENIOR DEV]: [vote + reason]
+  - [QA]: [vote + reason]
 
   ## Priority Action Items
   Ordered list based on consensus weight.
@@ -325,9 +324,9 @@ prompt: |
 
   IMPORTANT: Read files in a strictly read-only manner. If shell is used, restrict to read-only commands (e.g., cat, ls). Do NOT run git or any mutating/network commands.
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   REVIEW MODE SELECTION
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   Ask the user which review mode they want:
 
@@ -337,9 +336,9 @@ prompt: |
   If user selects COUNCIL MODE, follow the council_instructions above.
   Otherwise, proceed with standard review below.
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   STANDARD REVIEW STEPS
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   1. FETCH CONTEXT7 DOCS:
      Use Context7 MCP tools to get documentation for Flutter and Dart:
@@ -358,37 +357,37 @@ prompt: |
      - Official Flutter AI rules
      - Context7 documentation for each library used
 
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
   COUNCIL MODE STEPS (if selected)
-  ═══════════════════════════════════════════════════════════════
+  ===============================================================
 
   When COUNCIL MODE is selected, perform THREE separate review passes:
 
-  PASS 1 - 🏗️ ARCHITECT REVIEW:
+  PASS 1 - [ARCHITECT] ARCHITECT REVIEW:
   Review the code focusing on:
   - Widget tree structure and composition
   - State management architecture
   - Layer separation (Presentation/Domain/Data)
   - Dependency injection and module boundaries
-  Output: "# 🏗️ ARCHITECT REVIEW" section
+  Output: "# [ARCHITECT] ARCHITECT REVIEW" section
 
-  PASS 2 - 👨‍💻 SENIOR DEVELOPER REVIEW:
+  PASS 2 - [SENIOR DEV] SENIOR DEVELOPER REVIEW:
   Review the code focusing on:
   - Dart null safety and type system
   - Flutter widget best practices
   - Performance (const, keys, rebuilds)
   - Code quality and Effective Dart
-  Output: "# 👨‍💻 SENIOR DEV REVIEW" section
+  Output: "# [SENIOR DEV] SENIOR DEV REVIEW" section
 
-  PASS 3 - 🧪 QA ENGINEER REVIEW:
+  PASS 3 - [QA] QA ENGINEER REVIEW:
   Review the code focusing on:
   - Widget and unit test coverage
   - Edge cases and error handling
   - Accessibility (Semantics, contrast)
   - Input validation and security
-  Output: "# 🧪 QA REVIEW" section
+  Output: "# [QA] QA REVIEW" section
 
-  FINAL - 🏛️ COUNCIL VERDICT:
+  FINAL - [COUNCIL] COUNCIL VERDICT:
   Synthesize all three reviews into:
   - Consensus issues (flagged by 2+ personas)
   - Consolidated scores
@@ -397,14 +396,14 @@ prompt: |
 
   Remember: READ-ONLY mode - do not modify any files.
 
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 # COUNCIL MODE WORKFLOW (for wrapper script implementation)
-# ═══════════════════════════════════════════════════════════════
+# ===============================================================
 #
 # PERSONAS (3 perspectives):
-#   🏗️ ARCHITECT    - System design, scalability, patterns
-#   👨‍💻 SENIOR DEV   - Code quality, correctness, best practices
-#   🧪 QA ENGINEER  - Testability, edge cases, reliability
+#   [ARCHITECT] ARCHITECT    - System design, scalability, patterns
+#   [SENIOR DEV] SENIOR DEV   - Code quality, correctness, best practices
+#   [QA] QA ENGINEER  - Testability, edge cases, reliability
 #
 # ---------------------------------------------------------------
 # MODE A: SINGLE PROVIDER (3 reviews)
@@ -416,7 +415,7 @@ prompt: |
 #   goose run flutter-review.yaml --config qa-engineer.yaml
 #
 # ---------------------------------------------------------------
-# MODE B: MULTI-PROVIDER (3 × N reviews)
+# MODE B: MULTI-PROVIDER (3 x N reviews)
 # ---------------------------------------------------------------
 # Run each persona with multiple providers for diverse AI perspectives:
 #
@@ -441,19 +440,19 @@ prompt: |
 #
 # Issues are weighted by both persona AND provider agreement:
 #
-#   🔴 CRITICAL (highest priority):
+#   [CRITICAL] (highest priority):
 #      - Flagged by 3 personas across 2+ providers
 #      - Example: All 3 personas on Claude AND GPT found same issue
 #
-#   🟠 HIGH (strong consensus):
+#   [HIGH] (strong consensus):
 #      - Flagged by 2+ personas across 2+ providers
 #      - OR flagged by 3 personas on single provider
 #
-#   🟡 MEDIUM (partial consensus):
+#   [MEDIUM] (partial consensus):
 #      - Flagged by 2+ personas on single provider
 #      - OR same issue found by different personas on different providers
 #
-#   🟢 LOW (single perspective):
+#   [LOW] (single perspective):
 #      - Flagged by 1 persona on 1 provider
 #      - May still be valid, requires human judgment
 #
@@ -462,7 +461,7 @@ prompt: |
 # ---------------------------------------------------------------
 #
 # 1. PHASE 1 - Initial reviews (parallel execution recommended)
-#    Run all persona × provider combinations
+#    Run all persona x provider combinations
 #
 # 2. PHASE 2 - Cross-evaluation
 #    Each review evaluates findings from other reviews
@@ -470,7 +469,7 @@ prompt: |
 #
 # 3. PHASE 3 - Consensus analysis
 #    Aggregate findings, calculate consensus weights
-#    Group by: issue → personas that found it → providers that found it
+#    Group by: issue -> personas that found it -> providers that found it
 #
 # 4. PHASE 4 - Combined council verdict
 #    Final report with weighted recommendations
