@@ -4,7 +4,7 @@ sidebar_position: 41
 sidebar_label: Using Skills
 ---
 
-Skills are reusable sets of instructions and resources that teach goose how to perform specific tasks. A skill can range from simple steps to detailed workflows, and can include domain expertise and supporting files like scripts or templates. Example use cases include deployment procedures, code review checklists, and API integration guides.
+Skills are reusable sets of instructions and resources that teach goose how to perform specific tasks. A skill can range from a simple checklist to a detailed workflow with domain expertise, and can include supporting files like scripts or templates. Example use cases include deployment procedures, code review checklists, and API integration guides.
 
 :::info
 This functionality requires the built-in [Skills extension](/docs/mcp/skills-mcp) to be enabled (it's enabled by default).
@@ -100,57 +100,57 @@ When goose loads the skill, it sees the supporting files and can access them usi
 <details>
 <summary>Example Skill with Supporting Files</summary>
 
-**Directory structure:**
-```
-~/.config/goose/skills/
-└── new-service/
-    ├── SKILL.md
-    ├── init-service.sh
-    └── templates/
-        ├── Dockerfile
-        ├── docker-compose.yml
-        └── .env.template
-```
-
 **SKILL.md:**
 ```markdown
 ---
-name: new-service
-description: Bootstrap a new microservice with standard configuration
+name: api-setup
+description: Set up API integration with configuration and helper scripts
 ---
 
-# New Service Setup
+# API Setup
 
-This skill helps you create a new microservice with our standard stack.
+This skill helps you set up a new API integration with our standard configuration.
 
 ## Steps
 
-1. Run `init-service.sh <service-name>` to create the directory structure
-2. Copy templates from `templates/` directory
-3. Update `.env.template` with service-specific values
-4. Build and test with `docker-compose up`
+1. Run `setup.sh <api-name>` to create the integration directory
+2. Copy `templates/config.template.json` to your integration directory
+3. Update the config with your API credentials
+4. Test the connection
 
 ## Configuration
 
-The templates use these placeholder values that need to be replaced:
-- `{{SERVICE_NAME}}` - Name of the service
-- `{{PORT}}` - Port the service runs on
-- `{{DATABASE_URL}}` - Connection string for the database
+The config template includes:
+- `api_key`: Your API key (get from the provider's dashboard)
+- `endpoint`: API endpoint URL
+- `timeout`: Request timeout in seconds (default: 30)
 
 ## Verification
 
 After setup, verify:
-- [ ] Service starts without errors
-- [ ] Health endpoint responds at `/health`
-- [ ] Logs are properly formatted
+- [ ] Config file is valid JSON
+- [ ] API key is set and not a placeholder
+- [ ] Test connection succeeds
 ```
 
-**init-service.sh:**
+**setup.sh:**
 ```bash
 #!/bin/bash
-SERVICE_NAME=$1
-mkdir -p "$SERVICE_NAME"/{src,tests,config}
-echo "Created service structure for $SERVICE_NAME"
+API_NAME=$1
+mkdir -p "integrations/$API_NAME"
+cp templates/config.template.json "integrations/$API_NAME/config.json"
+echo "Created integration directory for $API_NAME"
+echo "Edit integrations/$API_NAME/config.json with your credentials"
+```
+
+**templates/config.template.json:**
+```json
+{
+  "api_key": "YOUR_API_KEY_HERE",
+  "endpoint": "https://api.example.com/v1",
+  "timeout": 30,
+  "retry_attempts": 3
+}
 ```
 
 </details>
@@ -261,6 +261,6 @@ Always verify webhook signatures. See `src/webhooks/square.js` for our handler p
 
 ## Claude Compatibility
 
-goose skills are compatible with Claude Desktop and Claude skills are compatible with goose.
+goose skills use the same format as Claude Desktop skills. goose discovers skills from both `.claude/skills/` and `.goose/skills/` directories, so you can share skills between both tools or create tool-specific versions as needed.
 
-You can also create goose-specific skills in `~/.config/goose/skills/` if you want different behavior between the tools. Skills in the current directory's `.goose/skills/` take precedence over `.claude/skills/` when both exist.
+When the same skill name exists in multiple directories, goose follows the priority order listed in [Skill Locations](#skill-locations). Later directories override earlier ones regardless of whether they're `.claude` or `.goose` directories.
