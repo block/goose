@@ -534,7 +534,7 @@ extensions:
     name: context7
     cmd: npx
     args:
-      - "-y"
+      - -y
       - "@upstash/context7-mcp@1.0.31"
     timeout: 300
     description: "Official Context7 MCP server from Upstash for documentation"
