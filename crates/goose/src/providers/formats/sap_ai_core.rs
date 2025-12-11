@@ -15,6 +15,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// Helper function to convert messages to ChatMessage format
+#[allow(clippy::too_many_lines)]
 fn convert_messages_to_chat_messages(
     messages: &[Message],
     image_format: &ImageFormat,
@@ -471,6 +472,7 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 
 /// Parse SAP AI Core streaming response
 /// Note: This is a simplified implementation - SAP AI Core may have different streaming format
+#[allow(clippy::too_many_lines)]
 pub fn response_to_streaming_message<S>(
     mut _stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
