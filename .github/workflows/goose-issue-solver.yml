@@ -62,6 +62,7 @@ env:
       - [ ] Max 10 files, no .github/, no lock files, no secrets
 
       ## Phase 5: Verify
+      - [ ] source bin/activate-hermit
       - [ ] cargo check
       - [ ] cargo test (affected crates)
       - [ ] cargo fmt
@@ -118,7 +119,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y jq ripgrep build-essential gettext curl
+          apt-get install -y jq gettext curl
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update
