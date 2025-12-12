@@ -118,7 +118,7 @@ export function createInitializeResponse(
       protocolVersion: '2025-06-18', // THIS IS THE MCP APP PROTOCOL VERSION GOOSE SUPPORTS
       hostCapabilities: {
         links: true,
-        messages: false,
+        messages: true,
       },
       hostInfo: {
         name: packageJson.productName,

@@ -114,8 +114,15 @@ const mockAppHtml = `<!DOCTYPE html>
       font-size: min(max(4rem, 8vw), 8rem);
       text-align: center;
       line-height: 0.95;
-      margin: 2rem auto 4rem;
+      margin: 2rem auto 3rem;
       letter-spacing: -0.02em;
+    }
+    .host-info-subtitle {
+      text-align: center;
+      margin: 0 0 2rem 0;
+      font-family: ui-monospace, monospace;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
     }
     .actions {
       margin-top: 1rem;
@@ -124,12 +131,13 @@ const mockAppHtml = `<!DOCTYPE html>
     }
     .actions-heading {
       margin: 0 0 0.75rem 0;
-      // font-family: ui-monospace, monospace;
-      // font-size: 0.75rem;
-      // font-weight: 500;
-      // text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-primary);
+    }
+    .actions-note {
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      // margin: -0.5rem 0 0.75rem 0;
     }
     .actions-buttons {
       display: flex;
@@ -142,10 +150,10 @@ const mockAppHtml = `<!DOCTYPE html>
       align-items: center;
       gap: 0.5rem;
       padding: 0.625rem 1.25rem;
-      background: var(--bg-primary);
+      background: var(--text-primary);
       border: 1px solid var(--border);
       border-radius: 6px;
-      color: var(--text-primary);
+      color: var(--bg-primary);
       font-family: ui-monospace, monospace;
       font-size: 1rem;
       cursor: pointer;
@@ -153,7 +161,8 @@ const mockAppHtml = `<!DOCTYPE html>
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
     .action-btn:hover {
-      background: var(--border);
+      background: var(--bg-primary);
+      color: var(--text-primary);
       transform: translateY(-1px);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     }
@@ -162,8 +171,13 @@ const mockAppHtml = `<!DOCTYPE html>
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
     .action-btn code {
-      color: var(--text-secondary);
+      color: var(--bg-primary);
+      opacity: 0.7;
       font-size: 0.75rem;
+    }
+    .action-btn:hover code {
+      color: var(--text-primary);
+      opacity: 0.7;
     }
     .action-btn:disabled {
       opacity: 0.25;
@@ -250,12 +264,13 @@ const mockAppHtml = `<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <p class="host-info-subtitle" id="host-info-subtitle">Connecting...</p>
   <h1>MCP App Demo</h1>
   <div class="actions">
     <h2 class="actions-heading">Action Requests</h2>
     <div class="actions-buttons">
       <button class="action-btn" id="btn-open-link">
-        Open Spec <code>ui/open-link</code>
+        Open Link <code>ui/open-link</code>
       </button>
       <button class="action-btn" id="btn-message">
         Send Message <code>ui/message</code>
@@ -266,7 +281,7 @@ const mockAppHtml = `<!DOCTYPE html>
     <h2 class="actions-heading">MCP Passthrough (forwarded to MCP server)</h2>
     <div class="actions-buttons">
       <button class="action-btn" disabled>
-        Call Tool <code>tools/call</code>
+          Call Tool <code>tools/call</code>
       </button>
       <button class="action-btn" disabled>
         Read Resource <code>resources/read</code>
@@ -278,6 +293,7 @@ const mockAppHtml = `<!DOCTYPE html>
         Ping <code>ping</code>
       </button>
     </div>
+    <p class="actions-note">Not implemented yet</p>
   </div>
   <div class="terminal">
     <div class="terminal-grid">
@@ -355,6 +371,14 @@ const mockAppHtml = `<!DOCTYPE html>
       }
 
       function renderAllCards(result) {
+        // Update subtitle with host info
+        const subtitle = document.getElementById('host-info-subtitle');
+        if (subtitle && result.hostInfo) {
+          const name = result.hostInfo.name || 'Unknown Host';
+          const version = result.hostInfo.version || '';
+          subtitle.textContent = version ? name + ' v' + version : name;
+        }
+
         const hostSupport = {
           protocolVersion: result.protocolVersion,
           hostInfo: result.hostInfo,
