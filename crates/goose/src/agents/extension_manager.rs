@@ -26,7 +26,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use super::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_NAME;
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
@@ -605,7 +604,7 @@ impl ExtensionManager {
     /// in the system prompt (their instructions would be irrelevant/confusing).
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
         let extensions = self.extensions.lock().await;
-        let code_exec_enabled = extensions.contains_key(CODE_EXECUTION_NAME);
+        let code_exec_enabled = extensions.contains_key("code_execution");
 
         extensions
             .iter()
@@ -613,7 +612,7 @@ impl ExtensionManager {
                 if code_exec_enabled {
                     // When code_execution is enabled, only show code_execution itself
                     // Other extensions' tools are accessed via code_execution's execute_code
-                    name.as_str() == CODE_EXECUTION_NAME
+                    name.as_str() == "code_execution"
                 } else {
                     true
                 }
