@@ -16,6 +16,8 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
+import { mockResourceReadResult } from './McpApps/mock-app-data';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -96,6 +98,11 @@ export default function ToolCallWithResponse({
             return null;
           }
         })}
+
+      {/* This data will be coming from a resources/read result. */}
+      {mockResourceReadResult.contents.map((content) => (
+        <McpAppRenderer resource={content} key={content.uri} />
+      ))}
     </>
   );
 }
