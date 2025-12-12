@@ -51,7 +51,6 @@ pub struct ConfigKeyQuery {
     pub is_secret: bool,
 }
 
-
 #[derive(Serialize, ToSchema)]
 pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
