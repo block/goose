@@ -67,8 +67,6 @@ where
     }
 }
 
-/// Backwards-compatible serde module for ToolResult<CallToolResult>.
-/// Handles both the new CallToolResult format and legacy Vec<Content> format from older sessions.
 pub mod call_tool_result {
     use super::*;
     use rmcp::model::{CallToolResult, Content};
@@ -90,12 +88,10 @@ pub mod call_tool_result {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum ResultFormat {
-            // New format: value is a CallToolResult struct with content field
             NewSuccess {
                 status: String,
                 value: CallToolResult,
             },
-            // Legacy format: value was Vec<Content> directly
             LegacySuccess {
                 status: String,
                 value: Vec<Content>,
@@ -121,7 +117,6 @@ pub mod call_tool_result {
             }
             ResultFormat::LegacySuccess { status, value } => {
                 if status == "success" {
-                    // Convert legacy Vec<Content> to CallToolResult
                     Ok(Ok(CallToolResult::success(value)))
                 } else {
                     Err(serde::de::Error::custom(format!(

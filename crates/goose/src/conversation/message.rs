@@ -1306,9 +1306,6 @@ mod tests {
 
     #[test]
     fn test_legacy_tool_response_deserialization() {
-        // Test backwards compatibility: old sessions stored tool_result.value as Vec<Content>
-        // directly, but new format wraps it in CallToolResult with a content field.
-        // This test ensures we can still load old session data.
         let legacy_json = r#"{
             "role": "user",
             "created": 1640995200,
@@ -1349,7 +1346,6 @@ mod tests {
 
     #[test]
     fn test_new_tool_response_deserialization() {
-        // Test that the new format (with CallToolResult struct) also works
         let new_json = r#"{
             "role": "user",
             "created": 1640995200,
