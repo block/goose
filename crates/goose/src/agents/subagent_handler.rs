@@ -102,11 +102,12 @@ fn get_agent_messages(
     session_id: String,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
-        let text_instruction = recipe
-            .instructions
-            .clone()
-            .or(recipe.prompt.clone())
-            .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
+        let text_instruction = match (&recipe.instructions, &recipe.prompt) {
+            (Some(instructions), Some(prompt)) => format!("{}\n\n{}", instructions, prompt),
+            (Some(instructions), None) => instructions.clone(),
+            (None, Some(prompt)) => prompt.clone(),
+            (None, None) => return Err(anyhow!("Recipe has no instructions or prompt")),
+        };
 
         let agent_manager = AgentManager::instance()
             .await
