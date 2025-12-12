@@ -2,7 +2,7 @@ use anyhow::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use super::canonical::CanonicalModelRegistry;
+use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -427,7 +427,6 @@ pub trait Provider: Send + Sync {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
-        use super::canonical::map_to_canonical_model;
         let provider_name = self.get_name();
 
         let recommended_models: Vec<String> = all_models
@@ -452,8 +451,6 @@ pub trait Provider: Send + Sync {
         &self,
         provider_model: &str,
     ) -> Result<Option<String>, ProviderError> {
-        use super::canonical::map_to_canonical_model;
-
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
