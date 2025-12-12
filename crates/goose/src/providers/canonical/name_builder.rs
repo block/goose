@@ -2,20 +2,20 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"-(\d)-(\d)(-|$)").expect("Failed to compile NORMALIZE_VERSION regex")
+    Regex::new(r"-(\d)-(\d)(-|$)").unwrap()
 });
 
 static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     vec![
-        Regex::new(r"-latest$").expect("Failed to compile -latest regex"),
-        Regex::new(r"-preview(-\d+)*$").expect("Failed to compile -preview regex"),
-        Regex::new(r"-exp(-\d+)*$").expect("Failed to compile -exp regex"),
-        Regex::new(r":exacto$").expect("Failed to compile :exacto regex"),
-        Regex::new(r"-\d{8}$").expect("Failed to compile date regex"),
-        Regex::new(r"-\d{4}-\d{2}-\d{2}$").expect("Failed to compile full-date regex"),
-        Regex::new(r"-v\d+(\.\d+)*$").expect("Failed to compile version regex"),
-        Regex::new(r"-\d{3,}$").expect("Failed to compile patch regex"),
-        Regex::new(r"-bedrock$").expect("Failed to compile -bedrock regex"),
+        Regex::new(r"-latest$").unwrap(),
+        Regex::new(r"-preview(-\d+)*$").unwrap(),
+        Regex::new(r"-exp(-\d+)*$").unwrap(),
+        Regex::new(r":exacto$").unwrap(),
+        Regex::new(r"-\d{8}$").unwrap(),
+        Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(),
+        Regex::new(r"-v\d+(\.\d+)*$").unwrap(),
+        Regex::new(r"-\d{3,}$").unwrap(),
+        Regex::new(r"-bedrock$").unwrap(),
     ]
 });
 
@@ -24,10 +24,8 @@ static CLAUDE_PATTERNS: Lazy<Vec<(Regex, Regex, &'static str)>> = Lazy::new(|| {
         .iter()
         .map(|&size| {
             (
-                Regex::new(&format!("claude-([0-9.-]+)-{}", size))
-                    .expect("Failed to compile Claude forward regex"),
-                Regex::new(&format!("claude-{}-([0-9.-]+)", size))
-                    .expect("Failed to compile Claude reverse regex"),
+                Regex::new(&format!("claude-([0-9.-]+)-{}", size)).unwrap(),
+                Regex::new(&format!("claude-{}-([0-9.-]+)", size)).unwrap(),
                 size,
             )
         })
@@ -46,6 +44,16 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
     }
 }
 
+/// Try to build a canonical name and check if it exists in the registry
+fn try_canonical(
+    provider: &str,
+    model: &str,
+    registry: &super::CanonicalModelRegistry,
+) -> Option<String> {
+    let candidate = canonical_name(provider, model);
+    registry.get(&candidate).map(|_| candidate)
+}
+
 /// Try to map a provider/model pair to a canonical model
 pub fn map_to_canonical_model(
     provider: &str,
@@ -53,31 +61,27 @@ pub fn map_to_canonical_model(
     registry: &super::CanonicalModelRegistry,
 ) -> Option<String> {
     // Try direct mapping first
-    let candidate = canonical_name(provider, model);
-    if registry.get(&candidate).is_some() {
+    if let Some(candidate) = try_canonical(provider, model, registry) {
         return Some(candidate);
     }
 
     // Try with common prefixes stripped
     let model_stripped = strip_common_prefixes(model);
     if model_stripped != model {
-        let candidate = canonical_name(provider, &model_stripped);
-        if registry.get(&candidate).is_some() {
+        if let Some(candidate) = try_canonical(provider, &model_stripped, registry) {
             return Some(candidate);
         }
     }
 
     // Try word-order swapping for Claude models (claude-4-opus ↔ claude-opus-4)
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {
-        let candidate = canonical_name(provider, &swapped);
-        if registry.get(&candidate).is_some() {
+        if let Some(candidate) = try_canonical(provider, &swapped, registry) {
             return Some(candidate);
         }
 
         if is_hosting_provider(provider) {
             if let Some(inferred) = infer_provider_from_model(&swapped) {
-                let candidate = canonical_name(inferred, &swapped);
-                if registry.get(&candidate).is_some() {
+                if let Some(candidate) = try_canonical(inferred, &swapped, registry) {
                     return Some(candidate);
                 }
             }
@@ -87,15 +91,13 @@ pub fn map_to_canonical_model(
     // For hosting providers, try to infer the real provider from model name patterns
     if is_hosting_provider(provider) {
         if let Some(inferred_provider) = infer_provider_from_model(&model_stripped) {
-            let candidate = canonical_name(inferred_provider, &model_stripped);
-            if registry.get(&candidate).is_some() {
+            if let Some(candidate) = try_canonical(inferred_provider, &model_stripped, registry) {
                 return Some(candidate);
             }
         }
 
         if let Some(inferred) = infer_provider_from_model(model) {
-            let candidate = canonical_name(inferred, model);
-            if registry.get(&candidate).is_some() {
+            if let Some(candidate) = try_canonical(inferred, model, registry) {
                 return Some(candidate);
             }
         }
@@ -103,8 +105,7 @@ pub fn map_to_canonical_model(
 
     // For provider-prefixed models like "databricks-meta-llama-3-1-70b"
     if let Some((extracted_provider, extracted_model)) = extract_provider_prefix(&model_stripped) {
-        let candidate = canonical_name(extracted_provider, extracted_model);
-        if registry.get(&candidate).is_some() {
+        if let Some(candidate) = try_canonical(extracted_provider, extracted_model, registry) {
             return Some(candidate);
         }
     }
@@ -141,7 +142,7 @@ fn is_hosting_provider(provider: &str) -> bool {
 fn infer_provider_from_model(model: &str) -> Option<&'static str> {
     let model_lower = model.to_lowercase();
 
-    if model_lower.starts_with("claude-") || model_lower.contains("claude") {
+    if model_lower.contains("claude") {
         return Some("anthropic");
     }
 
@@ -173,23 +174,23 @@ fn infer_provider_from_model(model: &str) -> Option<&'static str> {
         return Some("mistralai");
     }
 
-    if model_lower.starts_with("deepseek") || model_lower.contains("deepseek") {
+    if model_lower.contains("deepseek") {
         return Some("deepseek");
     }
 
-    if model_lower.starts_with("qwen") || model_lower.contains("qwen") {
+    if model_lower.contains("qwen") {
         return Some("qwen");
     }
 
-    if model_lower.starts_with("grok") || model_lower.contains("grok") {
+    if model_lower.contains("grok") {
         return Some("x-ai");
     }
 
-    if model_lower.starts_with("jamba") || model_lower.contains("jamba") {
+    if model_lower.contains("jamba") {
         return Some("ai21");
     }
 
-    if model_lower.starts_with("command") || model_lower.contains("command") {
+    if model_lower.contains("command") {
         return Some("cohere");
     }
 
