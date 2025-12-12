@@ -43,6 +43,7 @@ struct SystemPromptContext {
     enable_subagents: bool,
     max_extensions: usize,
     max_tools: usize,
+    code_execution_mode: bool,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
@@ -142,6 +143,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             })
             .collect();
 
+        // Detect code_execution mode: when enabled, only code_execution extension is passed
+        let code_execution_mode = sanitized_extensions_info
+            .iter()
+            .any(|ext| ext.name == "code_execution");
+
         let config = Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
@@ -159,6 +165,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             enable_subagents: self.subagents_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
+            code_execution_mode,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
