@@ -59,7 +59,7 @@ env:
       ## Phase 4: Implement
       - [ ] Implement minimal fix per /tmp/requirements.md
       - [ ] Before adding anything, check: is it in the requirements? If not, don't.
-      - [ ] Max 10 files, no .github/, no lock files, no secrets
+      - [ ] No .github/, no lock files, no secrets
 
       ## Phase 5: Verify
       - [ ] source bin/activate-hermit
@@ -125,37 +125,39 @@ jobs:
           apt-get update
           apt-get install -y gh
 
-      - name: Get issue details
-        id: issue
+      - name: Get issue details (issue_comment)
+        if: github.event_name == 'issue_comment'
+        env:
+          ISSUE_JSON: ${{ toJSON(github.event.issue) }}
+        run: printenv ISSUE_JSON > /tmp/issue.json
+
+      - name: Get issue details (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
-        run: |
-          gh api /repos/${{ github.repository }}/issues/$ISSUE_NUMBER > /tmp/issue.json
+        run: gh api /repos/${{ github.repository }}/issues/${{ github.event.inputs.issue_number }} > /tmp/issue.json
 
-          echo "number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+      - name: Set issue outputs
+        id: issue
+        run: |
+          echo "number=$(jq -r '.number' /tmp/issue.json)" >> $GITHUB_OUTPUT
 
           echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
           jq -r '.title' /tmp/issue.json >> $GITHUB_OUTPUT
           echo "TITLE_EOF" >> $GITHUB_OUTPUT
-
-          echo "body<<BODY_EOF" >> $GITHUB_OUTPUT
-          jq -r '.body // ""' /tmp/issue.json >> $GITHUB_OUTPUT
-          echo "BODY_EOF" >> $GITHUB_OUTPUT
 
       - name: Run goose
         id: goose
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           ISSUE_TITLE: ${{ steps.issue.outputs.title }}
-          ISSUE_BODY: ${{ steps.issue.outputs.body }}
           TRIGGER_COMMENT: ${{ github.event.comment.body || 'Triggered via workflow_dispatch' }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $ISSUE_BODY $TRIGGER_COMMENT' > /tmp/recipe.yaml
+          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $TRIGGER_COMMENT' > /tmp/recipe.yaml
 
           goose run --recipe /tmp/recipe.yaml
 
