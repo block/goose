@@ -837,6 +837,7 @@ pub fn get_streaming_response_usage(
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
+    use rmcp::model::CallToolResult;
 
     #[test]
     fn test_create_request() {
@@ -945,9 +946,12 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call_123",
-                Ok(vec![Content::text(
-                    "The weather in New York is sunny, 75°F",
-                )]),
+                Ok(CallToolResult {
+                    content: vec![Content::text("The weather in New York is sunny, 75°F")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             ),
             Message::assistant().with_text("The weather in New York is sunny and 75°F today!"),
         ];
