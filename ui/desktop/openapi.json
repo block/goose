@@ -808,14 +808,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "show_all",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "responses": {

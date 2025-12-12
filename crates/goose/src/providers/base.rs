@@ -418,17 +418,6 @@ pub trait Provider: Send + Sync {
 
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let force_show_all = std::env::var("FORCE_SHOW_ALL_MODELS")
-            .map(|v| {
-                let lower = v.to_lowercase();
-                lower == "true" || lower == "1" || lower == "yes"
-            })
-            .unwrap_or(false);
-
-        if force_show_all {
-            return self.fetch_supported_models().await;
-        }
-
         let all_models = match self.fetch_supported_models().await? {
             Some(models) => models,
             None => return Ok(None),

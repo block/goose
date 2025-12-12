@@ -1638,9 +1638,7 @@ export type GetProviderModelsData = {
          */
         name: string;
     };
-    query?: {
-        show_all?: boolean;
-    };
+    query?: never;
     url: '/config/providers/{name}/models';
 };
 
