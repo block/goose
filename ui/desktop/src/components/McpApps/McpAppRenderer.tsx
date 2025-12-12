@@ -12,13 +12,19 @@ import { cn } from '../../utils';
 
 export type { McpAppResource } from './types';
 
-export default function McpAppRenderer({ resource }: { resource: McpAppResource }) {
+interface McpAppRendererProps {
+  resource: McpAppResource;
+  appendMessage?: (value: string) => void;
+}
+
+export default function McpAppRenderer({ resource, appendMessage }: McpAppRendererProps) {
   const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
 
   const { iframeRef, proxyUrl, iframeHeight } = useSandboxBridge({
     resourceHtml: resource.text || '',
     resourceCsp: resource._meta?.ui?.csp || null,
     resourceUri: resource.uri,
+    appendMessage,
   });
 
   if (!resource) {

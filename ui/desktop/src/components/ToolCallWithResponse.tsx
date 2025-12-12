@@ -101,7 +101,7 @@ export default function ToolCallWithResponse({
 
       {/* This data will be coming from a resources/read result. */}
       {mockResourceReadResult.contents.map((content) => (
-        <McpAppRenderer resource={content} key={content.uri} />
+        <McpAppRenderer resource={content} key={content.uri} appendMessage={append} />
       ))}
     </>
   );

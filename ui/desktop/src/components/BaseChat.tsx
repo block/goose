@@ -271,6 +271,7 @@ function BaseChatContent({
         messages={messages}
         chat={chat}
         toolCallNotifications={toolCallNotifications}
+        append={(text: string) => handleSubmit(text)}
         isUserMessage={(m: Message) => m.role === 'user'}
         isStreamingMessage={chatState !== ChatState.Idle}
         onRenderingComplete={handleRenderingComplete}

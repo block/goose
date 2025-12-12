@@ -75,7 +75,7 @@ const mockAppHtml = `<!DOCTYPE html>
   <style>
     :root {
       --bg-primary: #18181b;
-      --bg-secondary: #000;
+      --bg-terminal: #0a0a0a;
       --text-primary: #fafafa;
       --text-secondary: #a1a1aa;
       --border: #3f3f46;
@@ -83,7 +83,7 @@ const mockAppHtml = `<!DOCTYPE html>
     
     .theme-light {
       --bg-primary: #fafafa;
-      --bg-secondary: #fff;
+      --bg-terminal: #f4f4f5;
       --text-primary: #18181b;
       --text-secondary: #52525b;
       --border: #e4e4e7;
@@ -91,7 +91,7 @@ const mockAppHtml = `<!DOCTYPE html>
     
     .theme-dark {
       --bg-primary: #18181b;
-      --bg-secondary: #000;
+      --bg-terminal: #0a0a0a;
       --text-primary: #fafafa;
       --text-secondary: #a1a1aa;
       --border: #3f3f46;
@@ -102,7 +102,7 @@ const mockAppHtml = `<!DOCTYPE html>
     }
     body {
       margin: 0;
-      padding: 24px;
+      padding: 24px 24px 0 24px;
       color: var(--text-primary);
       background-color: var(--bg-primary);
       font-family: "Instrument Serif", system-ui, sans-serif;
@@ -114,79 +114,183 @@ const mockAppHtml = `<!DOCTYPE html>
       font-size: min(max(4rem, 8vw), 8rem);
       text-align: center;
       line-height: 0.95;
-      margin: 0;
+      margin: 2rem auto 4rem;
       letter-spacing: -0.02em;
     }
-    .cards {
-      margin-top: 1.5rem;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 1rem;
-      align-items: start;
+    .actions {
+      margin-top: 1rem;
+      margin-bottom: 2rem;
+      text-align: center;
     }
-    .card {
-      padding: 1rem;
-      background: var(--bg-secondary);
+    .actions-heading {
+      margin: 0 0 0.75rem 0;
+      // font-family: ui-monospace, monospace;
+      // font-size: 0.75rem;
+      // font-weight: 500;
+      // text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-primary);
+    }
+    .actions-buttons {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      background: var(--bg-primary);
       border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: ui-monospace, monospace;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    .action-btn:hover {
+      background: var(--border);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+    .action-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    .action-btn code {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+    .action-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .action-btn:disabled:hover {
+      background: var(--bg-primary);
+      transform: none;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    .theme-light .action-btn {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .theme-light .action-btn:hover {
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    }
+    .terminal {
+      margin: 1.5rem -24px 0 -24px;
+      background: var(--bg-terminal);
+      border-top: 1px solid var(--border);
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
       transition: background-color 0.15s ease, border-color 0.15s ease;
     }
-    .card h2 {
+    .theme-light .terminal {
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .terminal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      align-items: stretch;
+    }
+    .terminal-grid > .terminal-section {
+      padding: 1.5rem 24px;
+    }
+    .terminal-grid > .terminal-section:not(:last-child) {
+      border-right: 1px solid var(--border);
+    }
+    @media (max-width: 700px) {
+      .terminal-grid > .terminal-section:not(:last-child) {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+    .terminal-section h2 {
       margin: 0 0 0.75rem 0;
       font-family: ui-monospace, monospace;
       font-size: 0.75rem;
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--text-secondary);
+      color: #71717a;
     }
-    .card pre[class*="language-"] {
+    .terminal-section pre[class*="language-"] {
       margin: 0 !important;
       padding: 0 !important;
       background: transparent !important;
-      font-size: 1rem !important;
-      line-height: 1.75 !important;
+      font-size: 0.875rem !important;
+      line-height: 1.6 !important;
       overflow: visible !important;
     }
-    .card code[class*="language-"] {
+    .terminal-section code[class*="language-"] {
       font-family: ui-monospace, monospace !important;
-      font-size: 1rem !important;
+      font-size: 0.875rem !important;
       white-space: pre-wrap !important;
       word-break: break-word !important;
     }
-    footer {
-      margin-top: 1.5rem;
-      text-align: center;
-    }
-    footer a {
-      color: var(--text-secondary);
-      text-decoration: underline;
-      font-size: 1.2rem;
-      letter-spacing: revert;
-      transition: color 0.15s ease;
-      underline-offset: 1px;
-      text-decoration-thickness: 1px;
-    }
-    footer a:hover {
-      color: var(--text-primary);
-      text-decoration: underline;
-    }
+    /* Dark mode: custom terminal colors */
+    .theme-dark .terminal-section code[class*="language-"] { color: #e4e4e7 !important; }
+    .theme-dark .terminal-section .token.property { color: #a78bfa !important; }
+    .theme-dark .terminal-section .token.string { color: #86efac !important; }
+    .theme-dark .terminal-section .token.number { color: #fcd34d !important; }
+    .theme-dark .terminal-section .token.boolean { color: #67e8f9 !important; }
+    .theme-dark .terminal-section .token.null { color: #f87171 !important; }
+    .theme-dark .terminal-section .token.punctuation { color: #a1a1aa !important; }
+    /* Light mode: use Prism default light theme colors */
+    .theme-light .terminal-section code[class*="language-"] { color: #383a42 !important; }
+    .theme-light .terminal-section .token.property { color: #7c3aed !important; }
+    .theme-light .terminal-section .token.string { color: #16a34a !important; }
+    .theme-light .terminal-section .token.number { color: #ca8a04 !important; }
+    .theme-light .terminal-section .token.boolean { color: #0891b2 !important; }
+    .theme-light .terminal-section .token.null { color: #dc2626 !important; }
+    .theme-light .terminal-section .token.punctuation { color: #71717a !important; }
   </style>
 </head>
 <body>
   <h1>MCP App Demo</h1>
-  <div class="cards">
-    <div class="card">
-      <h2>Host Info</h2>
-      <pre class="language-json"><code class="language-json" id="host-support-content">...</code></pre>
-    </div>
-    <div class="card">
-      <h2>Host Context</h2>
-      <pre class="language-json"><code class="language-json" id="context-content">Initializing...</code></pre>
+  <div class="actions">
+    <h2 class="actions-heading">Action Requests</h2>
+    <div class="actions-buttons">
+      <button class="action-btn" id="btn-open-link">
+        Open Spec <code>ui/open-link</code>
+      </button>
+      <button class="action-btn" id="btn-message">
+        Send Message <code>ui/message</code>
+      </button>
     </div>
   </div>
-  <footer>
-    <a href="#" id="spec-link">MCP Apps Specification: SEP-1865</a>
-  </footer>
+  <div class="actions">
+    <h2 class="actions-heading">MCP Passthrough (forwarded to MCP server)</h2>
+    <div class="actions-buttons">
+      <button class="action-btn" disabled>
+        Call Tool <code>tools/call</code>
+      </button>
+      <button class="action-btn" disabled>
+        Read Resource <code>resources/read</code>
+      </button>
+      <button class="action-btn" disabled>
+        Log Message <code>notifications/message</code>
+      </button>
+      <button class="action-btn" disabled>
+        Ping <code>ping</code>
+      </button>
+    </div>
+  </div>
+  <div class="terminal">
+    <div class="terminal-grid">
+      <div class="terminal-section">
+        <h2>Host Context</h2>
+        <pre class="language-json"><code class="language-json" id="context-content">Initializing...</code></pre>
+      </div>
+      <div class="terminal-section">
+        <h2>Host Info</h2>
+        <pre class="language-json"><code class="language-json" id="host-support-content">...</code></pre>
+      </div>
+    </div>
+  </div>
   <script>
     (function() {
       let requestId = 1;
@@ -320,11 +424,21 @@ const mockAppHtml = `<!DOCTYPE html>
 
       window.addEventListener('message', handleMessage);
 
-      // Handle spec link click
-      document.getElementById('spec-link').addEventListener('click', function(e) {
-        e.preventDefault();
+      // Action button: Open Link
+      document.getElementById('btn-open-link').addEventListener('click', function() {
         sendRequest('ui/open-link', {
           url: 'https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx'
+        });
+      });
+
+      // Action button: Send Message
+      document.getElementById('btn-message').addEventListener('click', function() {
+        sendRequest('ui/message', {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: 'Hello from MCP App Demo! This message was sent via ui/message.'
+          }
         });
       });
 

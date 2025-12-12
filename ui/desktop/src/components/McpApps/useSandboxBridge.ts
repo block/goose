@@ -13,6 +13,7 @@ interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: Record<string, string[]> | null;
   resourceUri: string;
+  appendMessage?: (value: string) => void;
 }
 
 interface SandboxBridgeResult {
@@ -22,7 +23,7 @@ interface SandboxBridgeResult {
 }
 
 export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
-  const { resourceHtml, resourceCsp, resourceUri } = options;
+  const { resourceHtml, resourceCsp, resourceUri, appendMessage } = options;
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
@@ -152,10 +153,39 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           return;
         }
 
-        case 'ui/message':
-          // TODO: Send message content to chat
-          console.log('🐛 McpAppRenderer: ui/message request', data);
+        case 'ui/message': {
+          const params = 'params' in data ? data.params : undefined;
+          if (params && typeof params === 'object' && 'content' in params) {
+            const content = params.content as { type?: string; text?: string };
+            if (content.type === 'text' && typeof content.text === 'string') {
+              if (appendMessage) {
+                appendMessage(content.text);
+                window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+                // Send success response if this is a request (has id)
+                if ('id' in data && data.id !== undefined) {
+                  sendToSandbox({
+                    jsonrpc: '2.0',
+                    id: data.id,
+                    result: {},
+                  });
+                }
+              } else {
+                // Send error response if this is a request
+                if ('id' in data && data.id !== undefined) {
+                  sendToSandbox({
+                    jsonrpc: '2.0',
+                    id: data.id,
+                    error: {
+                      code: -32603,
+                      message: 'Message handling not available',
+                    },
+                  });
+                }
+              }
+            }
+          }
           return;
+        }
 
         default:
           // Forward non-UI methods to MCP server
@@ -167,7 +197,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           console.log('🐛 McpAppRenderer: Unhandled message', data);
       }
     },
-    [resourceHtml, resourceCsp, sendToSandbox, flushPendingMessages]
+    [resourceHtml, resourceCsp, sendToSandbox, flushPendingMessages, appendMessage]
   );
 
   useEffect(() => {

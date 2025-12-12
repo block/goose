@@ -72,7 +72,7 @@ Host                          Sandbox                       Guest UI
 | Method | Type | Description | Status |
 |--------|------|-------------|--------|
 | `ui/open-link` | Request | Open an external URL | ✅ Implemented |
-| `ui/message` | Request | Send message content to host's chat | 🚧 TODO |
+| `ui/message` | Request | Send message content to host's chat | ✅ Implemented |
 
 ### MCP Passthrough (forwarded to MCP server)
 
@@ -80,7 +80,7 @@ Host                          Sandbox                       Guest UI
 |--------|------|-------------|--------|
 | `tools/call` | Request | Execute a tool on the MCP server | 🚧 TODO |
 | `resources/read` | Request | Read a resource from the MCP server | 🚧 TODO |
-| `notifications/message` | Notification | Log messages to host | 🚧 TODO |
+| `notifications/message` | Notification | Log messages to MCP server | 🚧 TODO |
 | `ping` | Request | Connection health check | 🚧 TODO |
 
 ---
@@ -364,10 +364,10 @@ Tools can link to UI resources via metadata:
 - `ui/notifications/size-changed` handling
 - `ui/notifications/host-context-changed` - theme and viewport changes
 - `ui/open-link` - opening external URLs
+- `ui/message` - sending messages to chat
 - CSP enforcement based on resource metadata
 
 ### 🚧 TODO
-- `ui/message` - sending messages to chat
 - `ui/resource-teardown` - cleanup before UI removal
 - `ui/notifications/tool-input` - sending tool inputs
 - `ui/notifications/tool-input-partial` - streaming tool inputs
