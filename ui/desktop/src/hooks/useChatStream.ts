@@ -14,6 +14,7 @@ import {
 
 import {
   createUserMessage,
+  createElicitationResponseMessage,
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
@@ -33,6 +34,10 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   handleSubmit: (userMessage: string) => Promise<void>;
+  submitElicitationResponse: (
+    elicitationId: string,
+    userData: Record<string, unknown>
+  ) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
@@ -89,7 +94,12 @@ async function streamFromResponse(
             (content) => content.type === 'toolConfirmationRequest'
           );
 
-          if (hasToolConfirmation) {
+          const hasElicitation = msg.content.some(
+            (content) =>
+              content.type === 'actionRequired' && content.data.actionType === 'elicitation'
+          );
+
+          if (hasToolConfirmation || hasElicitation) {
             updateChatState(ChatState.WaitingForUserInput);
           } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
@@ -312,6 +322,50 @@ export function useChatStream({
     [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
   );
 
+  const submitElicitationResponse = useCallback(
+    async (elicitationId: string, userData: Record<string, unknown>) => {
+      if (!session || chatState === ChatState.LoadingConversation) {
+        return;
+      }
+
+      const responseMessage = createElicitationResponseMessage(elicitationId, userData);
+      const currentMessages = [...messagesRef.current, responseMessage];
+
+      updateMessages(currentMessages);
+      setChatState(ChatState.Streaming);
+      setNotifications([]);
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const { stream } = await reply({
+          body: {
+            session_id: sessionId,
+            messages: currentMessages,
+          },
+          throwOnError: true,
+          signal: abortControllerRef.current.signal,
+        });
+
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          updateMessages,
+          setTokenState,
+          setChatState,
+          updateNotifications,
+          onFinish
+        );
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Silently handle abort
+        } else {
+          onFinish('Submit error: ' + errorMessage(error));
+        }
+      }
+    },
+    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
+  );
+
   const setRecipeUserParams = useCallback(
     async (user_recipe_values: Record<string, string>) => {
       if (session) {
@@ -437,6 +491,7 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState,
     handleSubmit,
+    submitElicitationResponse,
     stopStreaming,
     setRecipeUserParams,
     tokenState,

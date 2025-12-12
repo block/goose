@@ -349,6 +349,20 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                         tool_name
                     ));
                 }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation): {}\n\n",
+                        message
+                    ));
+                }
+                ActionRequiredData::ElicitationResponse { id, user_data } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation_response): {}\n```json\n{}\n```\n\n",
+                        id,
+                        serde_json::to_string_pretty(user_data)
+                            .unwrap_or_else(|_| "{}".to_string())
+                    ));
+                }
             },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);

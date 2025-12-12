@@ -38,6 +38,10 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  submitElicitationResponse?: (
+    elicitationId: string,
+    userData: Record<string, unknown>
+  ) => Promise<void>;
 }
 
 export default function ProgressiveMessageList({
@@ -53,6 +57,7 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  submitElicitationResponse,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -223,6 +228,7 @@ export default function ProgressiveMessageList({
                   index === messagesToRender.length - 1 &&
                   message.role === 'assistant'
                 }
+                submitElicitationResponse={submitElicitationResponse}
               />
             )}
           </div>
@@ -240,6 +246,7 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,
+    submitElicitationResponse,
   ]);
 
   return (

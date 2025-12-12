@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeftRight, ExternalLink } from 'lucide-react';
+import { Bot, ExternalLink } from 'lucide-react';
 
 import {
   Dialog,
@@ -20,18 +20,66 @@ import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInt
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 
+const PREFERRED_MODEL_PATTERNS = [
+  /claude-sonnet-4/i,
+  /claude-4/i,
+  /gpt-4o(?!-mini)/i,
+  /claude-3-5-sonnet/i,
+  /claude-3\.5-sonnet/i,
+  /gpt-4-turbo/i,
+  /gpt-4(?!-|o)/i,
+  /claude-3-opus/i,
+  /claude-3-sonnet/i,
+  /gemini-pro/i,
+  /llama-3/i,
+  /gpt-4o-mini/i,
+  /claude-3-haiku/i,
+  /gemini/i,
+];
+
+function findPreferredModel(
+  models: { value: string; label: string; provider: string }[]
+): string | null {
+  if (models.length === 0) return null;
+
+  const validModels = models.filter(
+    (m) => m.value !== 'custom' && m.value !== '__loading__' && !m.value.startsWith('__')
+  );
+
+  if (validModels.length === 0) return null;
+
+  for (const pattern of PREFERRED_MODEL_PATTERNS) {
+    const match = validModels.find((m) => pattern.test(m.value));
+    if (match) {
+      return match.value;
+    }
+  }
+
+  return validModels[0].value;
+}
+
 type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
+  onModelSelected?: () => void;
+  initialProvider?: string | null;
+  titleOverride?: string;
 };
-export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelModalProps) => {
+export const SwitchModelModal = ({
+  sessionId,
+  onClose,
+  setView,
+  onModelSelected,
+  initialProvider,
+  titleOverride,
+}: SwitchModelModalProps) => {
   const { getProviders, getProviderModels, read } = useConfig();
   const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string | null>(initialProvider || null);
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
@@ -44,6 +92,7 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [userClearedModel, setUserClearedModel] = useState(false);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -95,6 +144,9 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       }
 
       await changeModel(sessionId, modelObj);
+      if (onModelSelected) {
+        onModelSelected();
+      }
       onClose();
     }
   };
@@ -209,10 +261,25 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
     })();
   }, [getProviders, getProviderModels, usePredefinedModels, read]);
 
-  // Filter model options based on selected provider
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
     : [];
+
+  useEffect(() => {
+    // Don't auto-select if user explicitly cleared the model
+    if (!provider || loadingModels || model || isCustomModel || userClearedModel) return;
+
+    const providerModels = modelOptions
+      .filter((group) => group.options[0]?.provider === provider)
+      .flatMap((group) => group.options);
+
+    if (providerModels.length > 0) {
+      const preferredModel = findPreferredModel(providerModels);
+      if (preferredModel) {
+        setModel(preferredModel);
+      }
+    }
+  }, [provider, modelOptions, loadingModels, model, isCustomModel, userClearedModel]);
 
   // Handle model selection change
   const handleModelChange = (newValue: unknown) => {
@@ -220,9 +287,16 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
+      setUserClearedModel(false);
+    } else if (selectedOption === null) {
+      // User cleared the selection
+      setIsCustomModel(false);
+      setModel('');
+      setUserClearedModel(true);
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
+      setUserClearedModel(false);
     }
   };
 
@@ -277,30 +351,16 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ArrowLeftRight size={24} className="text-textStandard" />
-            Switch models
+            <Bot size={24} className="text-textStandard" />
+            {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
-            Configure your AI model providers by adding their API keys. Your keys are stored
-            securely and encrypted locally.
+            Select a provider and model to use for your conversations.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
-          <div>
-            <a
-              href={QUICKSTART_GUIDE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-textStandard font-medium text-sm"
-            >
-              <ExternalLink size={16} className="mr-1" />
-              View quick start guide
-            </a>
-          </div>
-
           {usePredefinedModels ? (
-            /* Predefined Models Section */
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-textStandard">Choose a model:</label>
@@ -377,6 +437,7 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
                       setProvider(option?.value || null);
                       setModel('');
                       setIsCustomModel(false);
+                      setUserClearedModel(false);
                     }
                   }}
                   placeholder="Provider, type to search"
@@ -394,26 +455,19 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
                       <Select
                         options={
                           loadingModels
-                            ? [
-                                {
-                                  options: [
-                                    {
-                                      value: '__loading__',
-                                      label: 'Loading models…',
-                                      provider: provider || '',
-                                      isDisabled: true,
-                                    },
-                                  ],
-                                },
-                              ]
+                            ? []
                             : filteredModelOptions.length > 0
                               ? filteredModelOptions
                               : []
                         }
                         onChange={handleModelChange}
-                        onInputChange={handleInputChange} // Added for input handling
+                        onInputChange={handleInputChange}
                         value={model ? { value: model, label: model } : null}
-                        placeholder="Select a model, type to search"
+                        placeholder={
+                          loadingModels ? 'Loading models…' : 'Select a model, type to search'
+                        }
+                        isClearable
+                        isDisabled={loadingModels}
                       />
 
                       {attemptedSubmit && validationErrors.model && (
@@ -448,13 +502,24 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
           )}
         </div>
 
-        <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={handleClose} type="button">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!isValid}>
-            Select model
-          </Button>
+        <DialogFooter className="pt-4 flex-col sm:flex-row gap-3">
+          <a
+            href={QUICKSTART_GUIDE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-text-muted hover:text-textStandard text-sm mr-auto"
+          >
+            <ExternalLink size={14} className="mr-1" />
+            Quick start guide
+          </a>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleClose} type="button">
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={!isValid}>
+              Select model
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
