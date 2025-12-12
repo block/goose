@@ -816,8 +816,22 @@ export default function ChatInput({
 
   // Helper function to handle interruption and queue logic when loading
   const handleInterruptionAndQueue = () => {
-    if (!isLoading || !displayValue.trim()) {
-      return false; // Return false if no action was taken
+    if (!isLoading || !hasSubmittableContent) {
+      return false;
+    }
+
+    const validPastedImageFilesPaths = pastedImages
+      .filter((img) => img.filePath && !img.error && !img.isLoading)
+      .map((img) => img.filePath as string);
+    const droppedFilePaths = allDroppedFiles
+      .filter((file) => !file.error && !file.isLoading)
+      .map((file) => file.path);
+
+    let contentToQueue = displayValue.trim();
+    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+    if (allFilePaths.length > 0) {
+      const pathsString = allFilePaths.join(' ');
+      contentToQueue = contentToQueue ? `${contentToQueue} ${pathsString}` : pathsString;
     }
 
     const interruptionMatch = detectInterruption(displayValue.trim());
@@ -831,7 +845,7 @@ export default function ChatInput({
       // rather than trying to send it immediately while the system is still loading
       const interruptionMessage = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        content: displayValue.trim(),
+        content: contentToQueue,
         timestamp: Date.now(),
       };
 
@@ -840,12 +854,19 @@ export default function ChatInput({
 
       setDisplayValue('');
       setValue('');
-      return true; // Return true if interruption was handled
+      setPastedImages([]);
+      if (onFilesProcessed && droppedFiles.length > 0) {
+        onFilesProcessed();
+      }
+      if (localDroppedFiles.length > 0) {
+        setLocalDroppedFiles([]);
+      }
+      return true;
     }
 
     const newMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      content: displayValue.trim(),
+      content: contentToQueue,
       timestamp: Date.now(),
     };
     setQueuedMessages((prev) => {
@@ -859,7 +880,14 @@ export default function ChatInput({
     });
     setDisplayValue('');
     setValue('');
-    return true; // Return true if message was queued
+    setPastedImages([]);
+    if (onFilesProcessed && droppedFiles.length > 0) {
+      onFilesProcessed();
+    }
+    if (localDroppedFiles.length > 0) {
+      setLocalDroppedFiles([]);
+    }
+    return true;
   };
 
   const canSubmit =
@@ -1004,6 +1032,10 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading && hasSubmittableContent) {
+      handleInterruptionAndQueue();
+      return;
+    }
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
@@ -1272,7 +1304,7 @@ export default function ChatInput({
           )}
 
           {/* Send/Stop button */}
-          {isLoading ? (
+          {isLoading && !hasSubmittableContent ? (
             <Button
               type="button"
               onClick={onStop}

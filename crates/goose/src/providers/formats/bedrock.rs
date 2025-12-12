@@ -86,8 +86,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         }
         MessageContent::ToolResponse(tool_res) => {
             let content = match &tool_res.tool_result {
-                Ok(content) => Some(
-                    content
+                Ok(result) => Some(
+                    result
+                        .content
                         .iter()
                         // Filter out content items that have User in their audience
                         .filter(|c| {
@@ -318,6 +319,12 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
                     .iter()
                     .map(from_bedrock_tool_result_content_block)
                     .collect::<ToolResult<Vec<_>>>()
+                    .map(|content| rmcp::model::CallToolResult {
+                        content,
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    })
             },
         ),
         _ => bail!("Unsupported content block type from Bedrock"),

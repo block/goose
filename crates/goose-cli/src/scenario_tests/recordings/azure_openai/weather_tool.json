@@ -1,12 +1,60 @@
 {
+  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
+    "input": {
+      "system": "Reply with only a description in four words or less",
+      "messages": [
+        {
+          "id": null,
+          "role": "user",
+          "created": 1765495269,
+          "content": [
+            {
+              "type": "text",
+              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
+            }
+          ],
+          "metadata": {
+            "userVisible": true,
+            "agentVisible": true
+          }
+        }
+      ],
+      "tools": []
+    },
+    "output": {
+      "message": {
+        "id": null,
+        "role": "assistant",
+        "created": 1765495270,
+        "content": [
+          {
+            "type": "text",
+            "text": "Weather inquiry for Berlin"
+          }
+        ],
+        "metadata": {
+          "userVisible": true,
+          "agentVisible": true
+        }
+      },
+      "usage": {
+        "model": "gpt-4o-mini-2024-07-18",
+        "usage": {
+          "input_tokens": 84,
+          "output_tokens": 5,
+          "total_tokens": 89
+        }
+      }
+    }
+  },
   "1bc400a528c54b25f4f1f609481e98e44222b3deaf7eee2c9e640e6345c73861": {
     "input": {
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_9_0",
+          "id": "msg_20251211_28_0",
           "role": "user",
-          "created": 1763989812,
+          "created": 1765495269,
           "content": [
             {
               "type": "text",
@@ -257,11 +305,11 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989813,
+        "created": 1765495270,
         "content": [
           {
             "type": "toolRequest",
-            "id": "call_5IgyNY33nTougqsNFhizypew",
+            "id": "call_JJok3ApyTL54ohjLX8tTYVHC",
             "toolCall": {
               "status": "success",
               "value": {
@@ -288,14 +336,14 @@
       }
     }
   },
-  "2c07b9a6570269fef4ae329889ce5a5243d7b09b52165580be701b67b8b95818": {
+  "e020c157caa13bad743162d7079a04ddafca2d075469124a0162c5562a2cf21b": {
     "input": {
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_9_0",
+          "id": "msg_20251211_28_0",
           "role": "user",
-          "created": 1763989812,
+          "created": 1765495269,
           "content": [
             {
               "type": "text",
@@ -308,13 +356,13 @@
           }
         },
         {
-          "id": "msg_b87436fe-d710-4fcd-b912-a69ab4ccfe7e",
+          "id": "msg_1d08355f-6d2d-413e-a3b5-787d635f9c6e",
           "role": "assistant",
-          "created": 1763989813,
+          "created": 1765495270,
           "content": [
             {
               "type": "toolRequest",
-              "id": "call_5IgyNY33nTougqsNFhizypew",
+              "id": "call_JJok3ApyTL54ohjLX8tTYVHC",
               "toolCall": {
                 "status": "success",
                 "value": {
@@ -332,21 +380,23 @@
           }
         },
         {
-          "id": "msg_9cf859cf-4adc-4464-aba4-1d4ccf9d7d05",
+          "id": "msg_929b0769-72dd-46f8-9027-31d1c09d4f08",
           "role": "user",
-          "created": 1763989813,
+          "created": 1765495270,
           "content": [
             {
               "type": "toolResponse",
-              "id": "call_5IgyNY33nTougqsNFhizypew",
+              "id": "call_JJok3ApyTL54ohjLX8tTYVHC",
               "toolResult": {
                 "status": "success",
-                "value": [
-                  {
-                    "type": "text",
-                    "text": "The weather in Berlin, Germany is cloudy and 18°C"
-                  }
-                ]
+                "value": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "The weather in Berlin, Germany is cloudy and 18°C"
+                    }
+                  ]
+                }
               }
             }
           ],
@@ -594,11 +644,11 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989814,
+        "created": 1765495271,
         "content": [
           {
             "type": "text",
-            "text": "### Current Weather in Berlin, Germany\n\n- **Condition:** Cloudy\n- **Temperature:** 18°C"
+            "text": "### Current Weather in Berlin, Germany\n\n- **Condition:** Cloudy\n- **Temperature:** 18°C\n\nIf you need more information or a forecast, let me know!"
           }
         ],
         "metadata": {
@@ -610,56 +660,8 @@
         "model": "gpt-4o-mini-2024-07-18",
         "usage": {
           "input_tokens": 1534,
-          "output_tokens": 24,
-          "total_tokens": 1558
-        }
-      }
-    }
-  },
-  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
-    "input": {
-      "system": "Reply with only a description in four words or less",
-      "messages": [
-        {
-          "id": null,
-          "role": "user",
-          "created": 1763989812,
-          "content": [
-            {
-              "type": "text",
-              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
-            }
-          ],
-          "metadata": {
-            "userVisible": true,
-            "agentVisible": true
-          }
-        }
-      ],
-      "tools": []
-    },
-    "output": {
-      "message": {
-        "id": null,
-        "role": "assistant",
-        "created": 1763989813,
-        "content": [
-          {
-            "type": "text",
-            "text": "Berlin weather inquiry"
-          }
-        ],
-        "metadata": {
-          "userVisible": true,
-          "agentVisible": true
-        }
-      },
-      "usage": {
-        "model": "gpt-4o-mini-2024-07-18",
-        "usage": {
-          "input_tokens": 84,
-          "output_tokens": 4,
-          "total_tokens": 88
+          "output_tokens": 38,
+          "total_tokens": 1572
         }
       }
     }

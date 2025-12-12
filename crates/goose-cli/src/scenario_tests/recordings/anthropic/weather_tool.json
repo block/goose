@@ -1,12 +1,12 @@
 {
-  "74a3cc715c4c65dcae4ecec084d962947e4ce3cf02a8b639ee23b080e88bf6ec": {
+  "1b90ffd4b16eab7aef1c24e9b61f6b6cc6f0d9b04e8a4f4344454a45b0793284": {
     "input": {
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_8_0",
+          "id": "msg_20251211_27_0",
           "role": "user",
-          "created": 1763989805,
+          "created": 1765495263,
           "content": [
             {
               "type": "text",
@@ -19,13 +19,13 @@
           }
         },
         {
-          "id": "msg_b4135f6c-9a29-4904-a59f-632ea849ef5a",
+          "id": "msg_9076da8a-a3b1-4cfc-b5d9-0ffc2a7879c9",
           "role": "assistant",
-          "created": 1763989808,
+          "created": 1765495266,
           "content": [
             {
               "type": "toolRequest",
-              "id": "toolu_01VxSzmLcPK7UNNE4ms8XRa6",
+              "id": "toolu_01CDkt9pjh8oC9C1984uhvuG",
               "toolCall": {
                 "status": "success",
                 "value": {
@@ -43,21 +43,23 @@
           }
         },
         {
-          "id": "msg_253b4067-0c08-4807-8b36-23b576f138b5",
+          "id": "msg_d7b3db5e-0402-42a8-937c-2ccf68a3e4e0",
           "role": "user",
-          "created": 1763989808,
+          "created": 1765495266,
           "content": [
             {
               "type": "toolResponse",
-              "id": "toolu_01VxSzmLcPK7UNNE4ms8XRa6",
+              "id": "toolu_01CDkt9pjh8oC9C1984uhvuG",
               "toolResult": {
                 "status": "success",
-                "value": [
-                  {
-                    "type": "text",
-                    "text": "The weather in Berlin, Germany is cloudy and 18°C"
-                  }
-                ]
+                "value": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "The weather in Berlin, Germany is cloudy and 18°C"
+                    }
+                  ]
+                }
               }
             }
           ],
@@ -305,11 +307,11 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989811,
+        "created": 1765495269,
         "content": [
           {
             "type": "text",
-            "text": "The weather in Berlin, Germany is currently **cloudy** with a temperature of **18°C** (64°F)."
+            "text": "# Weather in Berlin, Germany\n\nThe current weather in Berlin, Germany is:\n- **Conditions**: Cloudy\n- **Temperature**: 18°C (64°F)\n\nIt's a mild day with overcast conditions in Berlin!"
           }
         ],
         "metadata": {
@@ -321,8 +323,56 @@
         "model": "claude-sonnet-4-20250514",
         "usage": {
           "input_tokens": 2406,
-          "output_tokens": 29,
-          "total_tokens": 2435
+          "output_tokens": 55,
+          "total_tokens": 2461
+        }
+      }
+    }
+  },
+  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
+    "input": {
+      "system": "Reply with only a description in four words or less",
+      "messages": [
+        {
+          "id": null,
+          "role": "user",
+          "created": 1765495263,
+          "content": [
+            {
+              "type": "text",
+              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
+            }
+          ],
+          "metadata": {
+            "userVisible": true,
+            "agentVisible": true
+          }
+        }
+      ],
+      "tools": []
+    },
+    "output": {
+      "message": {
+        "id": null,
+        "role": "assistant",
+        "created": 1765495265,
+        "content": [
+          {
+            "type": "text",
+            "text": "Berlin weather inquiry"
+          }
+        ],
+        "metadata": {
+          "userVisible": true,
+          "agentVisible": true
+        }
+      },
+      "usage": {
+        "model": "claude-sonnet-4-20250514",
+        "usage": {
+          "input_tokens": 84,
+          "output_tokens": 6,
+          "total_tokens": 90
         }
       }
     }
@@ -332,9 +382,9 @@
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_8_0",
+          "id": "msg_20251211_27_0",
           "role": "user",
-          "created": 1763989805,
+          "created": 1765495263,
           "content": [
             {
               "type": "text",
@@ -585,15 +635,15 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989808,
+        "created": 1765495266,
         "content": [
           {
             "type": "text",
-            "text": "I'll get the current weather information for Berlin, Germany."
+            "text": "I'll get the current weather information for Berlin, Germany for you."
           },
           {
             "type": "toolRequest",
-            "id": "toolu_01VxSzmLcPK7UNNE4ms8XRa6",
+            "id": "toolu_01CDkt9pjh8oC9C1984uhvuG",
             "toolCall": {
               "status": "success",
               "value": {
@@ -614,56 +664,8 @@
         "model": "claude-sonnet-4-20250514",
         "usage": {
           "input_tokens": 2320,
-          "output_tokens": 72,
-          "total_tokens": 2392
-        }
-      }
-    }
-  },
-  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
-    "input": {
-      "system": "Reply with only a description in four words or less",
-      "messages": [
-        {
-          "id": null,
-          "role": "user",
-          "created": 1763989805,
-          "content": [
-            {
-              "type": "text",
-              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
-            }
-          ],
-          "metadata": {
-            "userVisible": true,
-            "agentVisible": true
-          }
-        }
-      ],
-      "tools": []
-    },
-    "output": {
-      "message": {
-        "id": null,
-        "role": "assistant",
-        "created": 1763989810,
-        "content": [
-          {
-            "type": "text",
-            "text": "Berlin weather inquiry"
-          }
-        ],
-        "metadata": {
-          "userVisible": true,
-          "agentVisible": true
-        }
-      },
-      "usage": {
-        "model": "claude-sonnet-4-20250514",
-        "usage": {
-          "input_tokens": 84,
-          "output_tokens": 6,
-          "total_tokens": 90
+          "output_tokens": 74,
+          "total_tokens": 2394
         }
       }
     }
