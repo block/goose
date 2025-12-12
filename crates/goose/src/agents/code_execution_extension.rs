@@ -570,18 +570,12 @@ impl McpClientTrait for CodeExecutionClient {
             return None;
         }
 
-        let mut by_server: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        let mut servers: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         for tool in &tools {
-            by_server
-                .entry(&tool.server_name)
-                .or_default()
-                .push(&tool.tool_name);
+            servers.insert(&tool.server_name);
         }
 
-        let modules: Vec<_> = by_server
-            .iter()
-            .map(|(server, tools)| format!("  {}: {}", server, tools.join(", ")))
-            .collect();
+        let server_list: Vec<_> = servers.into_iter().collect();
 
         Some(format!(
             indoc::indoc! {r#"
@@ -589,12 +583,11 @@ impl McpClientTrait for CodeExecutionClient {
                 - WRONG: Separate execute_code calls for read file, then write file
                 - RIGHT: One execute_code with a script that reads AND writes
 
-                Modules:
-                {}
+                Modules: {}
 
-                Use read_module("server") to see tool signatures before calling unfamiliar tools.
+                Use read_module("name") to see tool signatures before calling unfamiliar tools.
             "#},
-            modules.join("\n")
+            server_list.join(", ")
         ))
     }
 }
