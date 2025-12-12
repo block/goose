@@ -312,6 +312,7 @@ fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message])
                 match &response.tool_result {
                     Ok(contents) => {
                         let text_content: Vec<String> = contents
+                            .content
                             .iter()
                             .filter_map(|c| {
                                 if let RawContent::Text(t) = c.deref() {
