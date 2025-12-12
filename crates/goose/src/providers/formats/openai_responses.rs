@@ -577,7 +577,6 @@ where
                 &response_str
             };
 
-            // Skip [DONE] marker
             if data_line == "[DONE]" {
                 break 'outer;
             }
@@ -620,7 +619,6 @@ where
                 }
 
                 ResponsesStreamEvent::ResponseCompleted { response, .. } => {
-                    // Always set final usage (use default if not provided)
                     let model = model_name.as_ref().unwrap_or(&response.model);
                     let usage = response.usage.as_ref().map_or_else(
                         Usage::default,
