@@ -5523,9 +5523,8 @@
           "id": {
             "type": "string"
           },
-          "thoughtSignature": {
-            "type": "string",
-            "nullable": true
+          "metadata": {
+            "type": "object"
           },
           "toolCall": {
             "type": "object"
@@ -5541,6 +5540,9 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           },
           "toolResult": {
             "type": "object"
