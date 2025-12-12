@@ -479,6 +479,9 @@ export type ModelConfig = {
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -1001,8 +1004,12 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
+    context_limit?: number | null;
     model?: string | null;
     provider: string;
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
 };
 
