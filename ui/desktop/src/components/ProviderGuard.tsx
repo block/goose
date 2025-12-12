@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
@@ -7,9 +7,12 @@ import { startTetrateSetup } from '../utils/tetrateSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
+import ApiKeyTester from './ApiKeyTester';
+import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
+import { createNavigationHandler } from '../utils/navigationUtils';
+import TelemetrySettings from './settings/app/TelemetrySettings';
 
-import { Goose } from './icons/Goose';
-import { OpenRouter } from './icons';
+import { Goose, OpenRouter, Tetrate } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -17,260 +20,187 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read } = useConfig();
+  const { read, upsert } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [userInActiveSetup, setUserInActiveSetup] = useState(false);
+  const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
+  const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   const [openRouterSetupState, setOpenRouterSetupState] = useState<{
     show: boolean;
     title: string;
     message: string;
-    showProgress: boolean;
     showRetry: boolean;
     autoClose?: number;
   } | null>(null);
+
   const [tetrateSetupState, setTetrateSetupState] = useState<{
     show: boolean;
     title: string;
     message: string;
-    showProgress: boolean;
     showRetry: boolean;
     autoClose?: number;
   } | null>(null);
 
   const handleTetrateSetup = async () => {
-    setTetrateSetupState({
-      show: true,
-      title: 'Setting up Tetrate Agent Router Service',
-      message: 'A browser window will open for authentication...',
-      showProgress: true,
-      showRetry: false,
-    });
-
-    const result = await startTetrateSetup();
-    if (result.success) {
-      setTetrateSetupState({
-        show: true,
-        title: 'Setup Complete!',
-        message: 'Tetrate Agent Router has been configured successfully. Initializing Goose...',
-        showProgress: true,
-        showRetry: false,
-      });
-
-      // After successful Tetrate setup, force reload config and initialize system
-      try {
-        // Get the latest config from disk
-        const config = window.electron.getConfig();
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        if (provider && model) {
-          toastService.configure({ silent: false });
-          toastService.success({
-            title: 'Success!',
-            msg: `Started goose with ${model} by Tetrate. You can change the model via the dropdown.`,
-          });
-
-          // Close the modal and mark as having provider
-          setTetrateSetupState(null);
-          setShowFirstTimeSetup(false);
-          setHasProvider(true);
-        } else {
-          throw new Error('Provider or model not found after Tetrate setup');
-        }
-      } catch (error) {
-        console.error('Failed to initialize after Tetrate setup:', error);
-        toastService.configure({ silent: false });
-        toastService.error({
-          title: 'Initialization Failed',
-          msg: `Failed to initialize with Tetrate: ${error instanceof Error ? error.message : String(error)}`,
-          traceback: error instanceof Error ? error.stack || '' : '',
+    try {
+      const result = await startTetrateSetup();
+      if (result.success) {
+        setSwitchModelProvider('tetrate');
+        setShowSwitchModelModal(true);
+      } else {
+        setTetrateSetupState({
+          show: true,
+          title: 'Setup Failed',
+          message: result.message,
+          showRetry: true,
         });
       }
-    } else {
+    } catch (error) {
+      console.error('Tetrate setup error:', error);
       setTetrateSetupState({
         show: true,
-        title: 'Tetrate setup pending',
-        message: result.message,
-        showProgress: false,
+        title: 'Setup Error',
+        message: 'An unexpected error occurred during setup.',
         showRetry: true,
       });
     }
   };
 
+  const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
+    const keyName = `${provider.toUpperCase()}_API_KEY`;
+    await upsert(keyName, apiKey, true);
+    await upsert('GOOSE_PROVIDER', provider, false);
+
+    setSwitchModelProvider(provider);
+    setShowSwitchModelModal(true);
+  };
+
+  const handleModelSelected = () => {
+    setShowSwitchModelModal(false);
+    setUserInActiveSetup(false);
+    setShowFirstTimeSetup(false);
+    setHasProvider(true);
+    navigate('/', { replace: true });
+  };
+
+  const handleSwitchModelClose = () => {
+    setShowSwitchModelModal(false);
+  };
+
   const handleOpenRouterSetup = async () => {
-    setOpenRouterSetupState({
-      show: true,
-      title: 'Setting up OpenRouter',
-      message: 'A browser window will open for authentication...',
-      showProgress: true,
-      showRetry: false,
-    });
-
-    const result = await startOpenRouterSetup();
-    if (result.success) {
-      setOpenRouterSetupState({
-        show: true,
-        title: 'Setup Complete!',
-        message: 'OpenRouter has been configured successfully. Initializing Goose...',
-        showProgress: true,
-        showRetry: false,
-      });
-
-      // After successful OpenRouter setup, force reload config and initialize system
-      try {
-        // Get the latest config from disk
-        const config = window.electron.getConfig();
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        if (provider && model) {
-          toastService.configure({ silent: false });
-          toastService.success({
-            title: 'Success!',
-            msg: `Started goose with ${model} by OpenRouter. You can change the model via the dropdown.`,
-          });
-
-          // Close the modal and mark as having provider
-          setOpenRouterSetupState(null);
-          setShowFirstTimeSetup(false);
-          setHasProvider(true);
-
-          // Navigate to chat after successful setup
-          navigate('/', { replace: true });
-        } else {
-          throw new Error('Provider or model not found after OpenRouter setup');
-        }
-      } catch (error) {
-        console.error('Failed to initialize after OpenRouter setup:', error);
-        toastService.configure({ silent: false });
-        toastService.error({
-          title: 'Initialization Failed',
-          msg: `Failed to initialize with OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
-          traceback: error instanceof Error ? error.stack || '' : '',
+    try {
+      const result = await startOpenRouterSetup();
+      if (result.success) {
+        setSwitchModelProvider('openrouter');
+        setShowSwitchModelModal(true);
+      } else {
+        setOpenRouterSetupState({
+          show: true,
+          title: 'Setup Failed',
+          message: result.message,
+          showRetry: true,
         });
       }
-    } else {
+    } catch (error) {
+      console.error('OpenRouter setup error:', error);
       setOpenRouterSetupState({
         show: true,
-        title: 'Openrouter setup pending',
-        message: result.message,
-        showProgress: false,
+        title: 'Setup Error',
+        message: 'An unexpected error occurred during setup.',
         showRetry: true,
       });
+    }
+  };
+
+  const handleOllamaComplete = () => {
+    setShowOllamaSetup(false);
+    setShowFirstTimeSetup(false);
+    setHasProvider(true);
+    navigate('/', { replace: true });
+  };
+
+  const handleOllamaCancel = () => {
+    setShowOllamaSetup(false);
+  };
+
+  const handleRetrySetup = (setupType: 'openrouter' | 'tetrate') => {
+    if (setupType === 'openrouter') {
+      setOpenRouterSetupState(null);
+      handleOpenRouterSetup();
+    } else {
+      setTetrateSetupState(null);
+      handleTetrateSetup();
+    }
+  };
+
+  const closeSetupModal = (setupType: 'openrouter' | 'tetrate') => {
+    if (setupType === 'openrouter') {
+      setOpenRouterSetupState(null);
+    } else {
+      setTetrateSetupState(null);
     }
   };
 
   useEffect(() => {
     const checkProvider = async () => {
       try {
-        const config = window.electron.getConfig();
-        console.log('ProviderGuard - Full config:', config);
+        const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
+        const hasConfiguredProvider = provider.trim() !== '';
 
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        // Always check for Ollama regardless of provider status
-
-        if (provider && model) {
-          console.log('ProviderGuard - Provider and model found, continuing normally');
+        // If user is actively testing keys, don't redirect
+        if (userInActiveSetup) {
+          setHasProvider(false);
+          setShowFirstTimeSetup(true);
+        } else if (hasConfiguredProvider || didSelectProvider) {
           setHasProvider(true);
+          setShowFirstTimeSetup(false);
         } else {
-          console.log('ProviderGuard - No provider/model configured');
+          setHasProvider(false);
           setShowFirstTimeSetup(true);
         }
       } catch (error) {
-        // On error, assume no provider and redirect to welcome
-        console.error('Error checking provider configuration:', error);
-        navigate('/welcome', { replace: true });
+        console.error('Error checking provider:', error);
+        toastService.error({
+          title: 'Configuration Error',
+          msg: 'Failed to check provider configuration.',
+          traceback: error instanceof Error ? error.stack || '' : '',
+        });
+        setHasProvider(false);
+        setShowFirstTimeSetup(true);
       } finally {
         setIsChecking(false);
       }
     };
 
     checkProvider();
-  }, [
-    navigate,
-    read,
-    didSelectProvider, // When the user makes a selection, re-trigger this check
-  ]);
+  }, [read, didSelectProvider, userInActiveSetup]);
 
-  if (
-    isChecking &&
-    !openRouterSetupState?.show &&
-    !tetrateSetupState?.show &&
-    !showFirstTimeSetup &&
-    !showOllamaSetup
-  ) {
+  if (isChecking) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+      <div className="h-screen w-full bg-background-default flex items-center justify-center">
+        <WelcomeGooseLogo />
       </div>
-    );
-  }
-
-  if (openRouterSetupState?.show) {
-    return (
-      <SetupModal
-        title={openRouterSetupState.title}
-        message={openRouterSetupState.message}
-        showProgress={openRouterSetupState.showProgress}
-        showRetry={openRouterSetupState.showRetry}
-        onRetry={handleOpenRouterSetup}
-        autoClose={openRouterSetupState.autoClose}
-        onClose={() => setOpenRouterSetupState(null)}
-      />
-    );
-  }
-
-  if (tetrateSetupState?.show) {
-    return (
-      <SetupModal
-        title={tetrateSetupState.title}
-        message={tetrateSetupState.message}
-        showProgress={tetrateSetupState.showProgress}
-        showRetry={tetrateSetupState.showRetry}
-        onRetry={handleTetrateSetup}
-        autoClose={tetrateSetupState.autoClose}
-        onClose={() => setTetrateSetupState(null)}
-      />
     );
   }
 
   if (showOllamaSetup) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-background-default">
-        <div className="max-w-md w-full mx-auto p-8">
-          <div className="mb-8 text-center">
-            <WelcomeGooseLogo />
-          </div>
-          <OllamaSetup
-            onSuccess={() => {
-              setShowOllamaSetup(false);
-              setHasProvider(true);
-              // Navigate to chat after successful setup
-              navigate('/', { replace: true });
-            }}
-            onCancel={() => {
-              setShowOllamaSetup(false);
-              setShowFirstTimeSetup(true);
-            }}
-          />
-        </div>
-      </div>
-    );
+    return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
   }
 
-  if (showFirstTimeSetup) {
+  if (!hasProvider && showFirstTimeSetup) {
     return (
       <div className="h-screen w-full bg-background-default overflow-hidden">
         <div className="h-full overflow-y-auto">
           <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
-            <div className="max-w-lg w-full mx-auto p-8">
-              {/* Header section - same width as buttons, left aligned */}
+            <div className="max-w-2xl w-full mx-auto p-8">
+              {/* Header section */}
               <div className="text-left mb-8 sm:mb-12">
                 <div className="space-y-3 sm:space-y-4">
                   <div className="origin-bottom-left goose-icon-animation">
@@ -279,104 +209,29 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
                 <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get you setup with a provider so we can
-                  make incredible work together. Scroll down to see options.
+                  Since it’s your first time here, let’s get you set up with an AI provider so goose
+                  can work its magic.
                 </p>
               </div>
 
-              {/* Setup options - same width container */}
+              <ApiKeyTester
+                onSuccess={handleApiKeySuccess}
+                onStartTesting={() => {
+                  setUserInActiveSetup(true);
+                }}
+              />
 
-              <div className="space-y-3 sm:space-y-4">
-                <div className="relative">
-                  {/* Tetrate Card */}
-                  {/* Recommended badge - positioned relative to wrapper */}
-                  <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                      Recommended
-                    </span>
-                  </div>
-
-                  <div
-                    onClick={handleTetrateSetup}
-                    className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                          Automatic setup with Tetrate Agent Router
-                        </h3>
-                      </div>
-                      <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                        <svg
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-text-muted text-sm sm:text-base">
-                      Get secure access to multiple AI models, start for free. Quick setup with just
-                      a few clicks.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
-                <div className="relative">
-                  <div
-                    onClick={handleOpenRouterSetup}
-                    className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
-                  >
-                    {/* Subtle shimmer effect */}
-                    <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
-
-                    <div className="relative flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
-                        <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                          Automatic setup with OpenRouter
-                        </h3>
-                      </div>
-                      <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                        <svg
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="relative text-text-muted text-sm sm:text-base">
-                      Get instant access to multiple AI models including GPT-4, Claude, and more.
-                      Quick setup with just a few clicks.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Other providers Card - outline style */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Tetrate Card */}
                 <div
-                  onClick={() => navigate('/welcome', { replace: true })}
+                  onClick={handleTetrateSetup}
                   className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
+                      <Tetrate className="w-5 h-5 mb-3 text-text-standard" />
                       <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        Other providers
+                        Tetrate Agent Router
                       </h3>
                     </div>
                     <div className="text-text-muted group-hover:text-text-standard transition-colors">
@@ -396,21 +251,104 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-muted text-sm sm:text-base">
-                    If you've already signed up for providers like Anthropic, OpenAI etc, you can
-                    enter your own keys.
+                    Secure access to multiple AI models with automatic setup. Free tier available.
                   </p>
                 </div>
+
+                {/* OpenRouter Card */}
+                <div
+                  onClick={handleOpenRouterSetup}
+                  className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
+                >
+                  {/* Subtle shimmer effect */}
+                  <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
+
+                  <div className="relative flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <OpenRouter className="w-5 h-5 mb-3 text-text-standard" />
+                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                        OpenRouter
+                      </h3>
+                    </div>
+                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    Access 200+ models with one API. Pay-per-use pricing.
+                  </p>
+                </div>
+              </div>
+
+              {/* Other providers section */}
+              <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
+                <h3 className="font-medium text-text-standard text-sm sm:text-base mb-3">
+                  Other Providers
+                </h3>
+                <p className="text-text-muted text-sm sm:text-base mb-4">
+                  Set up additional providers manually through settings.
+                </p>
+                <button
+                  onClick={() => navigate('/welcome', { replace: true })}
+                  className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
+                >
+                  Go to Provider Settings →
+                </button>
+              </div>
+              <div className="mt-6">
+                <TelemetrySettings isWelcome />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Setup Modals */}
+        {openRouterSetupState?.show && (
+          <SetupModal
+            title={openRouterSetupState.title}
+            message={openRouterSetupState.message}
+            showRetry={openRouterSetupState.showRetry}
+            onRetry={() => handleRetrySetup('openrouter')}
+            onClose={() => closeSetupModal('openrouter')}
+            autoClose={openRouterSetupState.autoClose}
+          />
+        )}
+
+        {tetrateSetupState?.show && (
+          <SetupModal
+            title={tetrateSetupState.title}
+            message={tetrateSetupState.message}
+            showRetry={tetrateSetupState.showRetry}
+            onRetry={() => handleRetrySetup('tetrate')}
+            onClose={() => closeSetupModal('tetrate')}
+            autoClose={tetrateSetupState.autoClose}
+          />
+        )}
+
+        {showSwitchModelModal && (
+          <SwitchModelModal
+            sessionId={null}
+            onClose={handleSwitchModelClose}
+            setView={setView}
+            onModelSelected={handleModelSelected}
+            initialProvider={switchModelProvider}
+            titleOverride="Choose Model"
+          />
+        )}
       </div>
     );
-  }
-
-  if (!hasProvider) {
-    // This shouldn't happen, but just in case
-    return null;
   }
 
   return <>{children}</>;

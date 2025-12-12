@@ -70,9 +70,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     },
                     MessageContent::ToolResponse(response) => {
                         match &response.tool_result {
-                            Ok(contents) => {
+                            Ok(result) => {
                                 // Send only contents with no audience or with Assistant in the audience
-                                let abridged: Vec<_> = contents
+                                let abridged: Vec<_> = result
+                                    .content
                                     .iter()
                                     .filter(|content| {
                                         content.audience().is_none_or(|audience| {
@@ -394,7 +395,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::{CallToolRequestParam, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -429,7 +430,12 @@ mod tests {
             0,
             vec![MessageContent::tool_response(
                 id.to_string(),
-                Ok(tool_response),
+                Ok(CallToolResult {
+                    content: tool_response,
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             )],
         )
     }

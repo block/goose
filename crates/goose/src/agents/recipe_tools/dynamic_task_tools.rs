@@ -370,5 +370,10 @@ pub async fn create_dynamic_task(
     };
 
     tasks_manager.save_tasks(tasks).await;
-    ToolCallResult::from(Ok(vec![Content::text(tasks_json)]))
+    ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+        content: vec![Content::text(tasks_json)],
+        structured_content: None,
+        is_error: Some(false),
+        meta: None,
+    }))
 }

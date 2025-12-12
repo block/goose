@@ -4,9 +4,9 @@
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_7_0",
+          "id": "msg_20251211_26_0",
           "role": "user",
-          "created": 1763989801,
+          "created": 1765495261,
           "content": [
             {
               "type": "text",
@@ -257,11 +257,11 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989803,
+        "created": 1765495262,
         "content": [
           {
             "type": "toolRequest",
-            "id": "call_GmIN2vOnjDg6MSVWWFuZ4FlV",
+            "id": "call_sVLij6GavUkUc5Ri4VeDdgmN",
             "toolCall": {
               "status": "success",
               "value": {
@@ -288,62 +288,14 @@
       }
     }
   },
-  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
-    "input": {
-      "system": "Reply with only a description in four words or less",
-      "messages": [
-        {
-          "id": null,
-          "role": "user",
-          "created": 1763989801,
-          "content": [
-            {
-              "type": "text",
-              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
-            }
-          ],
-          "metadata": {
-            "userVisible": true,
-            "agentVisible": true
-          }
-        }
-      ],
-      "tools": []
-    },
-    "output": {
-      "message": {
-        "id": null,
-        "role": "assistant",
-        "created": 1763989804,
-        "content": [
-          {
-            "type": "text",
-            "text": "Berlin weather inquiry"
-          }
-        ],
-        "metadata": {
-          "userVisible": true,
-          "agentVisible": true
-        }
-      },
-      "usage": {
-        "model": "gpt-4o-2024-08-06",
-        "usage": {
-          "input_tokens": 84,
-          "output_tokens": 3,
-          "total_tokens": 87
-        }
-      }
-    }
-  },
-  "98726e7698e93241dfcba182bdca3a7d0640f0f538f086f4981dca6689b7ab5a": {
+  "950a6b5ec929abdd9e7cd337d2ea80c07631c23c6d64edac31988e18c6207e92": {
     "input": {
       "system": "You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.\ngoose is being developed as an open-source software project.\n\ngoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o,\nclaude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10\nmonths prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to goose. Extensions connect goose to different data sources and\ntools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level\nproblems using the tools in these extensions, and can interact with multiple at once.\n\nIf the Extension Manager extension is enabled, you can use the search_available_extensions tool to discover additional\nextensions that can help with your task. To enable or disable extensions, use the manage_extensions tool with the\nextension_name. You should only enable extensions found from the search_available_extensions tool.\nIf Extension Manager is not available, you can only work with currently enabled extensions and cannot dynamically load\nnew ones.\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n    - Using headers for organization.\n    - Bullet points for lists.\n    - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic\n      links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the\n  language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
       "messages": [
         {
-          "id": "msg_20251124_7_0",
+          "id": "msg_20251211_26_0",
           "role": "user",
-          "created": 1763989801,
+          "created": 1765495261,
           "content": [
             {
               "type": "text",
@@ -356,13 +308,13 @@
           }
         },
         {
-          "id": "msg_9a0fb3d7-d681-40b9-ab58-bb1cbe03e4b0",
+          "id": "msg_899ef38b-1440-47f7-a942-1b2e58c8835c",
           "role": "assistant",
-          "created": 1763989803,
+          "created": 1765495262,
           "content": [
             {
               "type": "toolRequest",
-              "id": "call_GmIN2vOnjDg6MSVWWFuZ4FlV",
+              "id": "call_sVLij6GavUkUc5Ri4VeDdgmN",
               "toolCall": {
                 "status": "success",
                 "value": {
@@ -380,21 +332,23 @@
           }
         },
         {
-          "id": "msg_51ae1986-b095-4163-8d42-004ff1a28c59",
+          "id": "msg_2f8ddf2e-dedb-4b99-9549-826796292622",
           "role": "user",
-          "created": 1763989803,
+          "created": 1765495262,
           "content": [
             {
               "type": "toolResponse",
-              "id": "call_GmIN2vOnjDg6MSVWWFuZ4FlV",
+              "id": "call_sVLij6GavUkUc5Ri4VeDdgmN",
               "toolResult": {
                 "status": "success",
-                "value": [
-                  {
-                    "type": "text",
-                    "text": "The weather in Berlin, Germany is cloudy and 18°C"
-                  }
-                ]
+                "value": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "The weather in Berlin, Germany is cloudy and 18°C"
+                    }
+                  ]
+                }
               }
             }
           ],
@@ -642,7 +596,7 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1763989805,
+        "created": 1765495263,
         "content": [
           {
             "type": "text",
@@ -660,6 +614,54 @@
           "input_tokens": 1534,
           "output_tokens": 18,
           "total_tokens": 1552
+        }
+      }
+    }
+  },
+  "8b1b8633232ca390cb3ff37a48daf74168b58f13e2943efcb17957129ee34d1a": {
+    "input": {
+      "system": "Reply with only a description in four words or less",
+      "messages": [
+        {
+          "id": null,
+          "role": "user",
+          "created": 1765495261,
+          "content": [
+            {
+              "type": "text",
+              "text": "Here are the first few user messages:\ntell me what the weather is in Berlin, Germany\n\nBased on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description"
+            }
+          ],
+          "metadata": {
+            "userVisible": true,
+            "agentVisible": true
+          }
+        }
+      ],
+      "tools": []
+    },
+    "output": {
+      "message": {
+        "id": null,
+        "role": "assistant",
+        "created": 1765495262,
+        "content": [
+          {
+            "type": "text",
+            "text": "Berlin weather inquiry"
+          }
+        ],
+        "metadata": {
+          "userVisible": true,
+          "agentVisible": true
+        }
+      },
+      "usage": {
+        "model": "gpt-4o-2024-08-06",
+        "usage": {
+          "input_tokens": 84,
+          "output_tokens": 3,
+          "total_tokens": 87
         }
       }
     }

@@ -1,9 +1,9 @@
 use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
-    PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
-    ResourceContents, Role, TextContent,
+    AnnotateAble, CallToolRequestParam, CallToolResult, Content, ImageContent, JsonObject,
+    PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent,
+    RawTextContent, ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -88,7 +88,7 @@ pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_result: ToolResult<Vec<Content>>,
+    pub tool_result: ToolResult<CallToolResult>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,6 +110,15 @@ pub enum ActionRequiredData {
         tool_name: String,
         arguments: JsonObject,
         prompt: Option<String>,
+    },
+    Elicitation {
+        id: String,
+        message: String,
+        requested_schema: serde_json::Value,
+    },
+    ElicitationResponse {
+        id: String,
+        user_data: serde_json::Value,
     },
 }
 
@@ -181,7 +190,7 @@ impl fmt::Display for MessageContent {
                 f,
                 "[ToolResponse: {}]",
                 match &r.tool_result {
-                    Ok(contents) => format!("{} content item(s)", contents.len()),
+                    Ok(result) => format!("{} content item(s)", result.content.len()),
                     Err(e) => format!("Error: {e}"),
                 }
             ),
@@ -191,6 +200,12 @@ impl fmt::Display for MessageContent {
             MessageContent::ActionRequired(a) => match &a.data {
                 ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                     write!(f, "[ActionRequired: ToolConfirmation for {}]", tool_name)
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    write!(f, "[ActionRequired: Elicitation - {}]", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    write!(f, "[ActionRequired: ElicitationResponse for {}]", id)
                 }
             },
             MessageContent::FrontendToolRequest(r) => match &r.tool_call {
@@ -251,7 +266,7 @@ impl MessageContent {
         })
     }
 
-    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<Vec<Content>>) -> Self {
+    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<CallToolResult>) -> Self {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
@@ -270,6 +285,32 @@ impl MessageContent {
                 tool_name,
                 arguments,
                 prompt,
+            },
+        })
+    }
+
+    pub fn action_required_elicitation<S: Into<String>>(
+        id: S,
+        message: String,
+        requested_schema: serde_json::Value,
+    ) -> Self {
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::Elicitation {
+                id: id.into(),
+                message,
+                requested_schema,
+            },
+        })
+    }
+
+    pub fn action_required_elicitation_response<S: Into<String>>(
+        id: S,
+        user_data: serde_json::Value,
+    ) -> Self {
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::ElicitationResponse {
+                id: id.into(),
+                user_data,
             },
         })
     }
@@ -339,8 +380,9 @@ impl MessageContent {
 
     pub fn as_tool_response_text(&self) -> Option<String> {
         if let Some(tool_response) = self.as_tool_response() {
-            if let Ok(contents) = &tool_response.tool_result {
-                let texts: Vec<String> = contents
+            if let Ok(result) = &tool_response.tool_result {
+                let texts: Vec<String> = result
+                    .content
                     .iter()
                     .filter_map(|content| content.as_text().map(|t| t.text.to_string()))
                     .collect();
@@ -603,7 +645,7 @@ impl Message {
     pub fn with_tool_response<S: Into<String>>(
         self,
         id: S,
-        result: ToolResult<Vec<Content>>,
+        result: ToolResult<CallToolResult>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
     }

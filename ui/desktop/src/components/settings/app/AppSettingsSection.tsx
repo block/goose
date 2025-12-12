@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
+import TelemetrySettings from './TelemetrySettings';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -289,7 +290,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Prevent Sleep</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Keep your computer awake while Goose is running a task (screen can still lock)
+                Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
             <div className="flex items-center">
@@ -399,6 +400,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       <TunnelSection />
 
       <ExternalBackendSection />
+
+      <TelemetrySettings isWelcome={false} />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

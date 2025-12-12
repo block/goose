@@ -11,6 +11,7 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
+use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::create_with_default_model;
 use goose::providers::pricing::{
@@ -131,6 +132,16 @@ pub struct SlashCommandsResponse {
     pub commands: Vec<SlashCommand>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct DetectProviderRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderResponse {
+    pub provider_name: String,
+    pub models: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -598,6 +609,29 @@ pub async fn upsert_permissions(
 
 #[utoipa::path(
     post,
+    path = "/config/detect-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching provider found"),
+    )
+)]
+pub async fn detect_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    let api_key = detect_request.api_key.trim();
+
+    match detect_provider_from_api_key(api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/config/backup",
     responses(
         (status = 200, description = "Config file backed up", body = String),
@@ -686,7 +720,6 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
         }
     }
 }
-
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
@@ -834,6 +867,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))

@@ -118,10 +118,10 @@ mod tests {
         let tool_result = result.result.await;
         assert!(tool_result.is_ok());
         let contents = tool_result.unwrap();
-        assert!(!contents.is_empty());
+        assert!(!contents.content.is_empty());
 
         // Parse the returned JSON to verify task creation
-        if let Some(text_content) = contents.first().and_then(|c| c.as_text()) {
+        if let Some(text_content) = contents.content.first().and_then(|c| c.as_text()) {
             let task_payload: serde_json::Value = serde_json::from_str(&text_content.text).unwrap();
             assert!(task_payload.get("task_ids").is_some());
             let task_ids = task_payload.get("task_ids").unwrap().as_array().unwrap();
