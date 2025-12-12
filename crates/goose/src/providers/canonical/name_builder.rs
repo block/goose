@@ -210,7 +210,7 @@ fn strip_common_prefixes(model: &str) -> String {
         "o3-",
         "o3",
         "o4-",
-        "meta-llama-",
+        "llama-",
         "mistral-",
         "mixtral-",
         "chatgpt-",
@@ -298,573 +298,94 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_canonical_names() {
-        // canonical_name tests
-        assert_eq!(
-            canonical_name("anthropic", "claude-3-5-sonnet-20241022"),
-            "anthropic/claude-3.5-sonnet"
-        );
-        assert_eq!(
-            canonical_name("openai", "gpt-4-turbo-2024-04-09"),
-            "openai/gpt-4-turbo"
-        );
-        assert_eq!(
-            canonical_name("google", "gemini-1.5-pro-002"),
-            "google/gemini-1.5-pro"
-        );
-        assert_eq!(
-            canonical_name("anthropic", "claude-3-5-sonnet"),
-            "anthropic/claude-3.5-sonnet"
-        );
-        assert_eq!(
-            canonical_name("openrouter", "anthropic/claude-3.5-sonnet"),
-            "anthropic/claude-3.5-sonnet"
-        );
-        assert_eq!(
-            canonical_name("openrouter", "openai/gpt-4-turbo-2024-04-09"),
-            "openai/gpt-4-turbo"
-        );
+    fn test_map_to_canonical_model() {
+        let r = super::super::CanonicalModelRegistry::bundled().unwrap();
 
-        // strip_version_suffix - 8 digit dates
-        assert_eq!(
-            strip_version_suffix("claude-3-5-sonnet-20241022"),
-            "claude-3.5-sonnet"
-        );
+        // === Direct provider (non-hosting) ===
+        assert_eq!(map_to_canonical_model("anthropic", "claude-3-5-sonnet-20241022", r), Some("anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(map_to_canonical_model("openai", "gpt-4o-latest", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("openai", "gpt-4-turbo-2024-04-09", r), Some("openai/gpt-4-turbo".to_string()));
 
-        // strip_version_suffix - YYYY-MM-DD dates
-        assert_eq!(
-            strip_version_suffix("gpt-4-turbo-2024-04-09"),
-            "gpt-4-turbo"
-        );
+        // === OpenRouter (already canonical format) ===
+        assert_eq!(map_to_canonical_model("openrouter", "anthropic/claude-3.5-sonnet", r), Some("anthropic/claude-3.5-sonnet".to_string()));
 
-        // strip_version_suffix - patch versions (3+ digits) and semantic versions
-        assert_eq!(strip_version_suffix("gemini-1.5-pro-002"), "gemini-1.5-pro");
-        assert_eq!(strip_version_suffix("gemini-1.5-pro-001"), "gemini-1.5-pro");
-        assert_eq!(strip_version_suffix("model-v1.5"), "model");
-        assert_eq!(strip_version_suffix("model-v2.0"), "model");
+        // === Anthropic Claude - basic ===
+        assert_eq!(map_to_canonical_model("databricks", "claude-3-5-sonnet", r), Some("anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "claude-3-5-sonnet-20241022", r), Some("anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "claude-3-5-sonnet-latest", r), Some("anthropic/claude-3.5-sonnet".to_string()));
 
-        // strip_version_suffix - no suffix
-        assert_eq!(
-            strip_version_suffix("claude-3-5-sonnet"),
-            "claude-3.5-sonnet"
-        );
+        // === Claude word-order swapping (3.x series) ===
+        assert_eq!(map_to_canonical_model("databricks", "claude-haiku-3-5", r), Some("anthropic/claude-3.5-haiku".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "claude-sonnet-3-7", r), Some("anthropic/claude-3.7-sonnet".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "ng-tools-claude-haiku-3-5", r), Some("anthropic/claude-3.5-haiku".to_string()));
 
-        // strip_version_suffix - exp suffix
-        assert_eq!(
-            strip_version_suffix("gemini-2.0-flash-exp"),
-            "gemini-2.0-flash"
-        );
-        assert_eq!(
-            strip_version_suffix("gemini-2.0-flash-thinking-exp-01-21"),
-            "gemini-2.0-flash-thinking"
-        );
+        // === Claude word-order swapping (4.x series) ===
+        assert_eq!(map_to_canonical_model("databricks", "claude-4-opus", r), Some("anthropic/claude-opus-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "claude-4-sonnet", r), Some("anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "raml-claude-opus-4-5", r), Some("anthropic/claude-opus-4.5".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "databricks-claude-sonnet-4-5", r), Some("anthropic/claude-sonnet-4.5".to_string()));
 
-        // strip_version_suffix - preview suffix
-        assert_eq!(
-            strip_version_suffix("gemini-2.5-flash-preview"),
-            "gemini-2.5-flash"
-        );
-        assert_eq!(
-            strip_version_suffix("gemini-2.5-flash-preview-05-20"),
-            "gemini-2.5-flash"
-        );
-        assert_eq!(
-            strip_version_suffix("gemini-2.5-flash-lite-preview-09"),
-            "gemini-2.5-flash-lite"
-        );
+        // === Claude with custom prefixes ===
+        assert_eq!(map_to_canonical_model("databricks", "goose-claude-4-opus", r), Some("anthropic/claude-opus-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "kgoose-claude-4-sonnet", r), Some("anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "headless-goose-claude-4-sonnet", r), Some("anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "kgoose-cashapp-claude-4-sonnet", r), Some("anthropic/claude-sonnet-4".to_string()));
 
-        // strip_version_suffix - multiple patterns
-        assert_eq!(
-            strip_version_suffix("gemini-2.5-pro-preview-03-25"),
-            "gemini-2.5-pro"
-        );
+        // === Claude with platform suffixes ===
+        assert_eq!(map_to_canonical_model("databricks", "claude-4-sonnet-bedrock", r), Some("anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "goose-claude-4-sonnet-bedrock", r), Some("anthropic/claude-sonnet-4".to_string()));
+        assert_eq!(map_to_canonical_model("bedrock", "claude-3-5-sonnet", r), Some("anthropic/claude-3.5-sonnet".to_string()));
 
-        // normalize version numbers (dashes to dots)
-        assert_eq!(strip_version_suffix("claude-3-5-haiku"), "claude-3.5-haiku");
-        assert_eq!(
-            strip_version_suffix("claude-3-7-sonnet"),
-            "claude-3.7-sonnet"
-        );
-        assert_eq!(strip_version_suffix("claude-haiku-4-5"), "claude-haiku-4.5");
-        assert_eq!(strip_version_suffix("claude-opus-4-1"), "claude-opus-4.1");
-        assert_eq!(
-            strip_version_suffix("claude-sonnet-4-5"),
-            "claude-sonnet-4.5"
-        );
-        assert_eq!(strip_version_suffix("claude-sonnet-4"), "claude-sonnet-4");
+        // === OpenAI GPT ===
+        assert_eq!(map_to_canonical_model("databricks", "gpt-4o", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "gpt-4o-2024-11-20", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "gpt-4o-latest", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "kgoose-gpt-4o", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("azure", "gpt-4o", r), Some("openai/gpt-4o".to_string()));
 
-        // normalize and strip combined
-        assert_eq!(
-            strip_version_suffix("claude-3-5-haiku-20241022"),
-            "claude-3.5-haiku"
-        );
-        assert_eq!(
-            strip_version_suffix("claude-3-7-sonnet-20250219"),
-            "claude-3.7-sonnet"
-        );
-        assert_eq!(
-            strip_version_suffix("claude-haiku-4-5-20251001"),
-            "claude-haiku-4.5"
-        );
-        assert_eq!(
-            strip_version_suffix("claude-sonnet-4-5-20250929"),
-            "claude-sonnet-4.5"
-        );
+        // === OpenAI O-series ===
+        assert_eq!(map_to_canonical_model("databricks", "goose-o1", r), Some("openai/o1".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "kgoose-o3", r), Some("openai/o3".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "headless-goose-o3-mini", r), Some("openai/o3-mini".to_string()));
 
-        // preserve model family versions (1-2 digits)
-        assert_eq!(
-            strip_version_suffix("claude-sonnet-4.5"),
-            "claude-sonnet-4.5"
-        );
-        assert_eq!(strip_version_suffix("claude-sonnet-4"), "claude-sonnet-4");
-        assert_eq!(strip_version_suffix("claude-haiku-4.5"), "claude-haiku-4.5");
-        assert_eq!(strip_version_suffix("gpt-4-turbo"), "gpt-4-turbo");
-        assert_eq!(strip_version_suffix("gpt-3.5-turbo"), "gpt-3.5-turbo");
-        assert_eq!(strip_version_suffix("model-002"), "model");
-        assert_eq!(strip_version_suffix("model-123"), "model");
+        // === Google Gemini ===
+        assert_eq!(map_to_canonical_model("databricks", "gemini-2-5-flash", r), Some("google/gemini-2.5-flash".to_string()));
 
-        // strip -latest suffix
-        assert_eq!(
-            strip_version_suffix("claude-3.5-sonnet-latest"),
-            "claude-3.5-sonnet"
-        );
-        assert_eq!(strip_version_suffix("gpt-4o-latest"), "gpt-4o");
-        assert_eq!(strip_version_suffix("chatgpt-4o-latest"), "chatgpt-4o");
-    }
+        // === Meta Llama ===
+        assert_eq!(map_to_canonical_model("databricks", "meta-llama-3-1-70b-instruct", r), Some("meta-llama/llama-3.1-70b-instruct".to_string()));
 
-    #[test]
-    fn test_fuzzy_canonical_name() {
-        let registry = super::super::CanonicalModelRegistry::bundled().unwrap();
+        // === Mistral variants ===
+        assert_eq!(map_to_canonical_model("databricks", "codestral", r), Some("mistralai/codestral".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "ministral-8b", r), Some("mistralai/ministral-8b".to_string()));
 
-        // Test hosting provider with direct model names (Databricks pattern)
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet", registry),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
+        // === DeepSeek ===
+        assert_eq!(map_to_canonical_model("databricks", "databricks-deepseek-chat", r), Some("deepseek/deepseek-chat".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "deepseek-r1", r), Some("deepseek/deepseek-r1".to_string()));
 
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o", registry),
-            Some("openai/gpt-4o".to_string())
-        );
+        // === Qwen ===
+        assert_eq!(map_to_canonical_model("databricks", "qwen-2-5-72b-instruct", r), Some("qwen/qwen-2.5-72b-instruct".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "goose-qwen-2-5-72b-instruct", r), Some("qwen/qwen-2.5-72b-instruct".to_string()));
 
-        assert_eq!(
-            map_to_canonical_model("databricks", "gemini-2-5-flash", registry),
-            Some("google/gemini-2.5-flash".to_string())
-        );
+        // === Grok (X.AI) ===
+        assert_eq!(map_to_canonical_model("databricks", "grok-3", r), Some("x-ai/grok-3".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "databricks-grok-4-fast", r), Some("x-ai/grok-4-fast".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "kgoose-grok-4-fast", r), Some("x-ai/grok-4-fast".to_string()));
 
-        // Test word-order swapping (Claude 3 series: version-size ↔ size-version)
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-haiku-3-5", registry),
-            Some("anthropic/claude-3.5-haiku".to_string())
-        );
+        // === Jamba (AI21) ===
+        assert_eq!(map_to_canonical_model("databricks", "jamba-large-1-7", r), Some("ai21/jamba-large-1.7".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "databricks-jamba-large-1-7", r), Some("ai21/jamba-large-1.7".to_string()));
 
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-sonnet-3-7", registry),
-            Some("anthropic/claude-3.7-sonnet".to_string())
-        );
+        // === Cohere Command ===
+        assert_eq!(map_to_canonical_model("databricks", "command-r-plus-08", r), Some("cohere/command-r-plus-08".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "goose-command-r-08", r), Some("cohere/command-r-08".to_string()));
 
-        // Test word-order swapping (Claude 4 series: version-size ↔ size-version)
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-opus", registry),
-            Some("anthropic/claude-opus-4".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-sonnet", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        // Test prefixed models with word-order swapping
-        assert_eq!(
-            map_to_canonical_model("databricks", "goose-claude-4-opus", registry),
-            Some("anthropic/claude-opus-4".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-claude-4-sonnet", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "headless-goose-claude-4-sonnet", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-cashapp-claude-4-sonnet", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        // Test ng-tools prefix with word swapping
-        assert_eq!(
-            map_to_canonical_model("databricks", "ng-tools-claude-haiku-3-5", registry),
-            Some("anthropic/claude-3.5-haiku".to_string())
-        );
-
-        // Test raml prefix
-        assert_eq!(
-            map_to_canonical_model("databricks", "raml-claude-opus-4-5", registry),
-            Some("anthropic/claude-opus-4.5".to_string())
-        );
-
-        // Test databricks prefix
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-claude-sonnet-4-5", registry),
-            Some("anthropic/claude-sonnet-4.5".to_string())
-        );
-
-        // Test multiple prefixes (should strip all)
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-gpt-4o", registry),
-            Some("openai/gpt-4o".to_string())
-        );
-
-        // Test platform suffixes
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-sonnet-bedrock", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "goose-claude-4-sonnet-bedrock", registry),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        // Test provider-prefixed models with dates
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet-20241022", registry),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o-2024-11-20", registry),
-            Some("openai/gpt-4o".to_string())
-        );
-
-        // Test -latest suffix
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet-latest", registry),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o-latest", registry),
-            Some("openai/gpt-4o".to_string())
-        );
-
-        // Test direct provider (non-hosting)
-        assert_eq!(
-            map_to_canonical_model("anthropic", "claude-3-5-sonnet-20241022", registry),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("openai", "gpt-4o-latest", registry),
-            Some("openai/gpt-4o".to_string())
-        );
-
-        // Test O-series models
-        assert_eq!(
-            map_to_canonical_model("databricks", "goose-o1", registry),
-            Some("openai/o1".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-o3", registry),
-            Some("openai/o3".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "headless-goose-o3-mini", registry),
-            Some("openai/o3-mini".to_string())
-        );
-
-        // Test new providers: DeepSeek
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-deepseek-chat", registry),
-            Some("deepseek/deepseek-chat".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "deepseek-r1", registry),
-            Some("deepseek/deepseek-r1".to_string())
-        );
-
-        // Test Qwen models
-        assert_eq!(
-            map_to_canonical_model("databricks", "qwen-2-5-72b-instruct", registry),
-            Some("qwen/qwen-2.5-72b-instruct".to_string())
-        );
-
-        // Test Grok models
-        assert_eq!(
-            map_to_canonical_model("databricks", "grok-3", registry),
-            Some("x-ai/grok-3".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-grok-4-fast", registry),
-            Some("x-ai/grok-4-fast".to_string())
-        );
-
-        // Test Jamba models
-        assert_eq!(
-            map_to_canonical_model("databricks", "jamba-large-1-7", registry),
-            Some("ai21/jamba-large-1.7".to_string())
-        );
-
-        // Test Cohere Command models
-        assert_eq!(
-            map_to_canonical_model("databricks", "command-r-plus-08", registry),
-            Some("cohere/command-r-plus-08".to_string())
-        );
-
-        // Test Mistral variants
-        assert_eq!(
-            map_to_canonical_model("databricks", "codestral", registry),
-            Some("mistralai/codestral".to_string())
-        );
-
-        assert_eq!(
-            map_to_canonical_model("databricks", "ministral-8b", registry),
-            Some("mistralai/ministral-8b".to_string())
-        );
-    }
-
-    #[test]
-    fn test_infer_provider_from_model() {
-        assert_eq!(
-            infer_provider_from_model("claude-3-5-sonnet"),
-            Some("anthropic")
-        );
-        assert_eq!(
-            infer_provider_from_model("claude-4-opus"),
-            Some("anthropic")
-        );
-        assert_eq!(infer_provider_from_model("gpt-4o"), Some("openai"));
-        assert_eq!(infer_provider_from_model("gpt-4-turbo"), Some("openai"));
-        assert_eq!(infer_provider_from_model("o1"), Some("openai"));
-        assert_eq!(infer_provider_from_model("o3-mini"), Some("openai"));
-        assert_eq!(
-            infer_provider_from_model("chatgpt-4o-latest"),
-            Some("openai")
-        );
-        assert_eq!(
-            infer_provider_from_model("gemini-2-5-flash"),
-            Some("google")
-        );
-        assert_eq!(infer_provider_from_model("gemini-2-5-pro"), Some("google"));
-        assert_eq!(infer_provider_from_model("gemma-2-27b-it"), Some("google"));
-        assert_eq!(
-            infer_provider_from_model("llama-3-1-70b"),
-            Some("meta-llama")
-        );
-        assert_eq!(
-            infer_provider_from_model("mistral-large"),
-            Some("mistralai")
-        );
-        assert_eq!(infer_provider_from_model("mixtral-8x7b"), Some("mistralai"));
-        assert_eq!(infer_provider_from_model("codestral"), Some("mistralai"));
-        assert_eq!(infer_provider_from_model("ministral-8b"), Some("mistralai"));
-        assert_eq!(
-            infer_provider_from_model("pixtral-large"),
-            Some("mistralai")
-        );
-        assert_eq!(infer_provider_from_model("deepseek-chat"), Some("deepseek"));
-        assert_eq!(infer_provider_from_model("deepseek-r1"), Some("deepseek"));
-        assert_eq!(
-            infer_provider_from_model("qwen-2-5-72b-instruct"),
-            Some("qwen")
-        );
-        assert_eq!(infer_provider_from_model("grok-3"), Some("x-ai"));
-        assert_eq!(infer_provider_from_model("grok-4-fast"), Some("x-ai"));
-        assert_eq!(infer_provider_from_model("jamba-large-1-7"), Some("ai21"));
-        assert_eq!(
-            infer_provider_from_model("command-r-plus-08"),
-            Some("cohere")
-        );
-        assert_eq!(infer_provider_from_model("unknown-model"), None);
-    }
-
-    #[test]
-    fn test_strip_common_prefixes() {
-        assert_eq!(
-            strip_common_prefixes("goose-claude-4-opus"),
-            "claude-4-opus"
-        );
-        assert_eq!(strip_common_prefixes("databricks-gpt-5"), "gpt-5");
-        assert_eq!(strip_common_prefixes("kgoose-gemini-pro"), "gemini-pro");
-        assert_eq!(strip_common_prefixes("kgoose-gpt-4o"), "gpt-4o");
-        assert_eq!(strip_common_prefixes("azure-gpt-4o"), "gpt-4o");
-        assert_eq!(
-            strip_common_prefixes("bedrock-claude-3-5-sonnet"),
-            "claude-3-5-sonnet"
-        );
-        assert_eq!(
-            strip_common_prefixes("ng-tools-claude-opus-4"),
-            "claude-opus-4"
-        );
-        assert_eq!(
-            strip_common_prefixes("raml-claude-sonnet-4-5"),
-            "claude-sonnet-4-5"
-        ); // version normalization happens later
-        assert_eq!(strip_common_prefixes("headless-goose-o3-mini"), "o3-mini");
-        assert_eq!(
-            strip_common_prefixes("kgoose-cashapp-claude-4-sonnet"),
-            "claude-4-sonnet"
-        );
-        assert_eq!(
-            strip_common_prefixes("claude-3-5-sonnet"),
-            "claude-3-5-sonnet"
-        ); // no prefix
-
-        // Test new provider patterns
-        assert_eq!(
-            strip_common_prefixes("databricks-deepseek-chat"),
-            "deepseek-chat"
-        );
-        assert_eq!(strip_common_prefixes("goose-qwen-2-5-72b"), "qwen-2-5-72b");
-        assert_eq!(strip_common_prefixes("kgoose-grok-4-fast"), "grok-4-fast");
-        assert_eq!(
-            strip_common_prefixes("databricks-jamba-large"),
-            "jamba-large"
-        );
-        assert_eq!(
-            strip_common_prefixes("goose-command-r-plus"),
-            "command-r-plus"
-        );
-        assert_eq!(strip_common_prefixes("databricks-codestral"), "codestral");
-        assert_eq!(strip_common_prefixes("goose-ministral-8b"), "ministral-8b");
-    }
-
-    #[test]
-    fn test_extract_provider_prefix() {
-        assert_eq!(
-            extract_provider_prefix("anthropic-claude-3-5-sonnet"),
-            Some(("anthropic", "claude-3-5-sonnet"))
-        );
-        assert_eq!(
-            extract_provider_prefix("openai-gpt-4o"),
-            Some(("openai", "gpt-4o"))
-        );
-        assert_eq!(
-            extract_provider_prefix("google-gemini-2-5-flash"),
-            Some(("google", "gemini-2-5-flash"))
-        );
-        assert_eq!(
-            extract_provider_prefix("meta-llama-3-1-70b"),
-            Some(("meta-llama", "3-1-70b"))
-        );
-        assert_eq!(
-            extract_provider_prefix("mistralai-mistral-large"),
-            Some(("mistralai", "mistral-large"))
-        );
-        assert_eq!(
-            extract_provider_prefix("deepseek-deepseek-chat"),
-            Some(("deepseek", "deepseek-chat"))
-        );
-        assert_eq!(
-            extract_provider_prefix("qwen-qwen-2-5-72b-instruct"),
-            Some(("qwen", "qwen-2-5-72b-instruct"))
-        );
-        assert_eq!(
-            extract_provider_prefix("x-ai-grok-3"),
-            Some(("x-ai", "grok-3"))
-        );
-        assert_eq!(extract_provider_prefix("claude-3-5-sonnet"), None); // no provider prefix
-        assert_eq!(extract_provider_prefix("unknown-provider-model"), None); // unknown provider
-    }
-
-    #[test]
-    fn test_is_hosting_provider() {
-        assert!(is_hosting_provider("databricks"));
-        assert!(is_hosting_provider("openrouter"));
-        assert!(is_hosting_provider("azure"));
-        assert!(is_hosting_provider("bedrock"));
-        assert!(!is_hosting_provider("anthropic"));
-        assert!(!is_hosting_provider("openai"));
-        assert!(!is_hosting_provider("google"));
-    }
-
-    #[test]
-    fn test_swap_claude_word_order() {
-        // Claude 3 series: version-size to size-version (with dots)
-        assert_eq!(
-            swap_claude_word_order("claude-3.5-sonnet"),
-            Some("claude-sonnet-3.5".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-3.5-haiku"),
-            Some("claude-haiku-3.5".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-3.7-sonnet"),
-            Some("claude-sonnet-3.7".to_string())
-        );
-
-        // Claude 3 series with dashes in version (before normalization)
-        assert_eq!(
-            swap_claude_word_order("claude-3-5-sonnet"),
-            Some("claude-sonnet-3-5".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-3-7-sonnet"),
-            Some("claude-sonnet-3-7".to_string())
-        );
-
-        // Reverse: size-version to version-size (with dashes)
-        assert_eq!(
-            swap_claude_word_order("claude-haiku-3-5"),
-            Some("claude-3-5-haiku".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-sonnet-3-7"),
-            Some("claude-3-7-sonnet".to_string())
-        );
-
-        // Claude 4 series: size-version to version-size
-        assert_eq!(
-            swap_claude_word_order("claude-opus-4"),
-            Some("claude-4-opus".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-sonnet-4"),
-            Some("claude-4-sonnet".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-haiku-4.5"),
-            Some("claude-4.5-haiku".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-sonnet-4.5"),
-            Some("claude-4.5-sonnet".to_string())
-        );
-
-        // Claude 4 series reverse: version-size to size-version
-        assert_eq!(
-            swap_claude_word_order("claude-4-opus"),
-            Some("claude-opus-4".to_string())
-        );
-        assert_eq!(
-            swap_claude_word_order("claude-4-sonnet"),
-            Some("claude-sonnet-4".to_string())
-        );
-
-        // Non-claude models should return None
-        assert_eq!(swap_claude_word_order("gpt-4o"), None);
-        assert_eq!(swap_claude_word_order("gemini-2.5-flash"), None);
-    }
-
-    #[test]
-    fn test_strip_version_suffix_special_cases() {
-        // Test -bedrock suffix
-        assert_eq!(
-            strip_version_suffix("claude-4-sonnet-bedrock"),
-            "claude-4-sonnet"
-        );
-
-        // Ensure we don't strip the main version number
-        assert_eq!(strip_version_suffix("claude-4"), "claude-4");
-        assert_eq!(strip_version_suffix("gpt-4"), "gpt-4");
+        // === Provider-prefixed extraction ===
+        assert_eq!(map_to_canonical_model("databricks", "anthropic-claude-3-5-sonnet", r), Some("anthropic/claude-3.5-sonnet".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "openai-gpt-4o", r), Some("openai/gpt-4o".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "google-gemini-2-5-flash", r), Some("google/gemini-2.5-flash".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "mistralai-mistral-large", r), Some("mistralai/mistral-large".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "deepseek-deepseek-chat", r), Some("deepseek/deepseek-chat".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "qwen-qwen-2-5-72b-instruct", r), Some("qwen/qwen-2.5-72b-instruct".to_string()));
+        assert_eq!(map_to_canonical_model("databricks", "x-ai-grok-3", r), Some("x-ai/grok-3".to_string()));
     }
 }
