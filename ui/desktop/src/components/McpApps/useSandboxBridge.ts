@@ -4,6 +4,9 @@ import {
   fetchMcpAppProxyUrl,
   createSandboxResourceReadyMessage,
   createInitializeResponse,
+  createHostContextChangedNotification,
+  getCurrentTheme,
+  HostContext,
 } from './utils';
 
 interface SandboxBridgeOptions {
@@ -68,7 +71,40 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           if (!('id' in data) || data.id === undefined) return;
           console.log('🐛 McpAppRenderer: Guest UI requesting initialization');
           const request = data as JsonRpcRequest;
-          sendToSandbox(createInitializeResponse(request.id));
+
+          // Build host context with all fields from spec
+          const iframe = iframeRef.current;
+          const hostContext: HostContext = {
+            // TODO: Populate toolInfo when we have tool call context
+            toolInfo: undefined,
+            theme: getCurrentTheme(),
+            displayMode: 'inline',
+            availableDisplayModes: ['inline'],
+            viewport: iframe
+              ? {
+                  width: iframe.clientWidth,
+                  height: iframe.clientHeight,
+                  maxWidth: window.innerWidth,
+                  maxHeight: window.innerHeight,
+                }
+              : undefined,
+            locale: navigator.language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            userAgent: navigator.userAgent,
+            platform: 'desktop',
+            deviceCapabilities: {
+              touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+              hover: window.matchMedia('(hover: hover)').matches,
+            },
+            safeAreaInsets: {
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+            },
+          };
+
+          sendToSandbox(createInitializeResponse(request.id, hostContext));
           return;
         }
 
@@ -83,7 +119,23 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           if (params && typeof params === 'object' && 'height' in params) {
             const height = params.height;
             if (typeof height === 'number') {
-              setIframeHeight(Math.max(200, height));
+              const newHeight = Math.max(200, height);
+              setIframeHeight(newHeight);
+
+              // Send updated viewport dimensions to guest
+              const iframe = iframeRef.current;
+              if (iframe) {
+                sendToSandbox(
+                  createHostContextChangedNotification({
+                    viewport: {
+                      width: iframe.clientWidth,
+                      height: newHeight,
+                      maxWidth: window.innerWidth,
+                      maxHeight: window.innerHeight,
+                    },
+                  })
+                );
+              }
             }
           }
           return;
@@ -137,9 +189,85 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     return () => window.removeEventListener('message', onMessage);
   }, [handleMessage]);
 
-  // Suppress unused variable warnings - these track state for future use
+  // Watch for theme changes via localStorage
+  useEffect(() => {
+    if (!isGuestInitialized) return;
+
+    let lastTheme = getCurrentTheme();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme' || e.key === 'use_system_theme') {
+        const newTheme = getCurrentTheme();
+        if (newTheme !== lastTheme) {
+          lastTheme = newTheme;
+          sendToSandbox(createHostContextChangedNotification({ theme: newTheme }));
+        }
+      }
+    };
+
+    // Also handle system theme changes when using system theme
+    const handleSystemThemeChange = () => {
+      if (localStorage.getItem('use_system_theme') === 'true') {
+        const newTheme = getCurrentTheme();
+        if (newTheme !== lastTheme) {
+          lastTheme = newTheme;
+          sendToSandbox(createHostContextChangedNotification({ theme: newTheme }));
+        }
+      }
+    };
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    window.addEventListener('storage', handleStorageChange);
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    };
+  }, [isGuestInitialized, sendToSandbox]);
+
+  // Watch for viewport size changes
+  useEffect(() => {
+    if (!isGuestInitialized) return;
+
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    let lastWidth = iframe.clientWidth;
+    let lastHeight = iframe.clientHeight;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const roundedWidth = Math.round(width);
+        const roundedHeight = Math.round(height);
+
+        if (roundedWidth !== lastWidth || roundedHeight !== lastHeight) {
+          lastWidth = roundedWidth;
+          lastHeight = roundedHeight;
+          sendToSandbox(
+            createHostContextChangedNotification({
+              viewport: {
+                width: roundedWidth,
+                height: roundedHeight,
+                maxWidth: window.innerWidth,
+                maxHeight: window.innerHeight,
+              },
+            })
+          );
+        }
+      }
+    });
+
+    resizeObserver.observe(iframe);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isGuestInitialized, sendToSandbox]);
+
   void isSandboxReady;
-  void isGuestInitialized;
 
   return {
     iframeRef,

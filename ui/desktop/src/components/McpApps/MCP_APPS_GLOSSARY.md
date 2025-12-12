@@ -92,8 +92,8 @@ Host                          Sandbox                       Guest UI
 | Method | Type | Description | Status |
 |--------|------|-------------|--------|
 | Initialize Response | Response | Response to `ui/initialize` request | ✅ Implemented |
+| `ui/notifications/host-context-changed` | Notification | Host context has changed (theme, viewport) | ✅ Implemented |
 | `ui/resource-teardown` | Request | Host notifies UI before teardown | 🚧 TODO |
-| `ui/notifications/host-context-changed` | Notification | Host context has changed | 🚧 TODO |
 
 ### Tool Interaction
 
@@ -359,16 +359,16 @@ Tools can link to UI resources via metadata:
 - Sandbox iframe loading (`mcp_app_proxy.html`)
 - `ui/notifications/sandbox-ready` handling
 - `ui/notifications/sandbox-resource-ready` sending
-- `ui/initialize` / initialize response handshake
+- `ui/initialize` / initialize response handshake (with full `hostContext`)
 - `ui/notifications/initialized` handling
 - `ui/notifications/size-changed` handling
+- `ui/notifications/host-context-changed` - theme and viewport changes
 - `ui/open-link` - opening external URLs
 - CSP enforcement based on resource metadata
 
 ### 🚧 TODO
 - `ui/message` - sending messages to chat
 - `ui/resource-teardown` - cleanup before UI removal
-- `ui/notifications/host-context-changed` - theme/viewport changes
 - `ui/notifications/tool-input` - sending tool inputs
 - `ui/notifications/tool-input-partial` - streaming tool inputs
 - `ui/notifications/tool-result` - sending tool results

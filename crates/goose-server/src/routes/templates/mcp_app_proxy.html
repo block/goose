@@ -10,7 +10,7 @@
     -->
     <meta 
       http-equiv="Content-Security-Policy" 
-      content="default-src 'self' blob: data: https: http:; script-src 'unsafe-inline'; style-src 'unsafe-inline' https: http:; style-src-elem 'unsafe-inline' https: http:; font-src https: http: data:; img-src https: http: data: blob:; connect-src https: http:; frame-src blob: data:;"/>
+      content="default-src 'self' blob: data: https: http:; script-src 'unsafe-inline' 'unsafe-eval' https: http:; script-src-elem 'unsafe-inline' https: http:; style-src 'unsafe-inline' https: http:; style-src-elem 'unsafe-inline' https: http:; font-src https: http: data:; img-src https: http: data: blob:; connect-src https: http:; frame-src blob: data:;"/>
     <title>MCP App Sandbox</title>
     <style>
       body, html {
@@ -63,6 +63,7 @@
           const directives = [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:" + resourceDomains,
+            "script-src-elem 'self' 'unsafe-inline'" + resourceDomains,
             "style-src 'self' 'unsafe-inline' blob: data:" + resourceDomains,
             "style-src-elem 'self' 'unsafe-inline'" + resourceDomains,
             "img-src 'self' data: blob:" + resourceDomains,
