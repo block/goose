@@ -32,7 +32,7 @@ pub mod sap_ai_core;
 pub mod snowflake;
 pub mod testprovider;
 pub mod tetrate;
-mod token_manager;
+
 pub mod toolshim;
 pub mod usage_estimator;
 pub mod utils;
