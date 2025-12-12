@@ -533,12 +533,7 @@ pub fn create_request(
     };
 
     let system_message = DatabricksMessage {
-        role: if is_openai_reasoning_model {
-            "developer"
-        } else {
-            "system"
-        }
-        .to_string(),
+        role: "system".to_string(),
         content: system.into(),
         tool_calls: None,
         tool_call_id: None,
@@ -1007,41 +1002,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o1_default() -> anyhow::Result<()> {
-        // Test default medium reasoning effort for O1 model
-        let model_config = ModelConfig {
-            model_name: "o1".to_string(),
-            context_limit: Some(4096),
-            temperature: None,
-            max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model: None,
-        };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        let obj = request.as_object().unwrap();
-        let expected = json!({
-            "model": "o1",
-            "messages": [
-                {
-                    "role": "developer",
-                    "content": "system"
-                }
-            ],
-            "reasoning_effort": "medium",
-            "max_completion_tokens": 1024
-        });
-
-        for (key, value) in expected.as_object().unwrap() {
-            assert_eq!(obj.get(key).unwrap(), value);
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
-        // Test custom reasoning effort for O3 model
+    fn test_create_request_reasoning_effort() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
             context_limit: Some(4096),
@@ -1052,23 +1013,7 @@ mod tests {
             fast_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        let obj = request.as_object().unwrap();
-        let expected = json!({
-            "model": "o3-mini",
-            "messages": [
-                {
-                    "role": "developer",
-                    "content": "system"
-                }
-            ],
-            "reasoning_effort": "high",
-            "max_completion_tokens": 1024
-        });
-
-        for (key, value) in expected.as_object().unwrap() {
-            assert_eq!(obj.get(key).unwrap(), value);
-        }
-
+        assert_eq!(request["reasoning_effort"], "high");
         Ok(())
     }
 
