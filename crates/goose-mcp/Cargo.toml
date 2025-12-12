@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [dependencies]
-rmcp = { version = "0.9.1", features = ["server", "client", "transport-io", "macros"] }
+rmcp = { version = "0.8.1", features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["io-util"] }
