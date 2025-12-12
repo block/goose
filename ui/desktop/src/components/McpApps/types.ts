@@ -42,3 +42,16 @@ export interface McpAppResource {
     };
   };
 }
+
+// Tool input passed to the MCP App
+export interface ToolInput {
+  arguments: Record<string, unknown>;
+}
+
+// Tool result passed to the MCP App (matches MCP CallToolResult)
+export interface ToolResult {
+  content?: unknown[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+  _meta?: Record<string, unknown>;
+}

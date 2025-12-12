@@ -7,23 +7,32 @@
  */
 
 import { useSandboxBridge } from './useSandboxBridge';
-import { McpAppResource } from './types';
+import { McpAppResource, ToolInput, ToolResult } from './types';
 import { cn } from '../../utils';
 
-export type { McpAppResource } from './types';
+export type { McpAppResource, ToolInput, ToolResult } from './types';
 
 interface McpAppRendererProps {
   resource: McpAppResource;
+  toolInput?: ToolInput;
+  toolResult?: ToolResult;
   appendMessage?: (value: string) => void;
 }
 
-export default function McpAppRenderer({ resource, appendMessage }: McpAppRendererProps) {
+export default function McpAppRenderer({
+  resource,
+  toolInput,
+  toolResult,
+  appendMessage,
+}: McpAppRendererProps) {
   const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
 
   const { iframeRef, proxyUrl, iframeHeight } = useSandboxBridge({
     resourceHtml: resource.text || '',
     resourceCsp: resource._meta?.ui?.csp || null,
     resourceUri: resource.uri,
+    toolInput,
+    toolResult,
     appendMessage,
   });
 

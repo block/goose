@@ -298,6 +298,16 @@ const mockAppHtml = `<!DOCTYPE html>
   <div class="terminal">
     <div class="terminal-grid">
       <div class="terminal-section">
+        <h2>Tool Input</h2>
+        <pre class="language-json"><code class="language-json" id="tool-input-content">Waiting...</code></pre>
+      </div>
+      <div class="terminal-section">
+        <h2>Tool Result</h2>
+        <pre class="language-json"><code class="language-json" id="tool-result-content">Waiting...</code></pre>
+      </div>
+    </div>
+    <div class="terminal-grid" style="border-top: 1px solid var(--border);">
+      <div class="terminal-section">
         <h2>Host Context</h2>
         <pre class="language-json"><code class="language-json" id="context-content">Initializing...</code></pre>
       </div>
@@ -419,6 +429,18 @@ const mockAppHtml = `<!DOCTYPE html>
             Object.assign(currentHostContext, data.params);
             renderHostContext(currentHostContext);
           }
+        }
+
+        // Handle tool-input notification
+        if (data.method === 'ui/notifications/tool-input') {
+          renderJson('tool-input-content', data.params);
+          sendSizeChanged();
+        }
+
+        // Handle tool-result notification
+        if (data.method === 'ui/notifications/tool-result') {
+          renderJson('tool-result-content', data.params);
+          sendSizeChanged();
         }
       }
 

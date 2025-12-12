@@ -99,9 +99,9 @@ Host                          Sandbox                       Guest UI
 
 | Method | Type | Description | Status |
 |--------|------|-------------|--------|
-| `ui/notifications/tool-input` | Notification | Deliver tool input to the UI | 🚧 TODO |
+| `ui/notifications/tool-input` | Notification | Deliver tool input to the UI | ✅ Implemented |
 | `ui/notifications/tool-input-partial` | Notification | Streaming/partial tool input | 🚧 TODO |
-| `ui/notifications/tool-result` | Notification | Tool execution result | 🚧 TODO |
+| `ui/notifications/tool-result` | Notification | Tool execution result | ✅ Implemented |
 | `ui/notifications/tool-cancelled` | Notification | Tool call was cancelled | 🚧 TODO |
 
 ---
@@ -236,8 +236,7 @@ These messages are internal to the Host ↔ Sandbox communication and are NOT fo
   jsonrpc: "2.0",
   method: "ui/notifications/tool-input",
   params: {
-    toolName: string,
-    arguments: Record<string, unknown>
+    arguments: Record<string, unknown>  // Tool call arguments
   }
 }
 ```
@@ -248,7 +247,6 @@ These messages are internal to the Host ↔ Sandbox communication and are NOT fo
   jsonrpc: "2.0",
   method: "ui/notifications/tool-input-partial",
   params: {
-    toolName: string,
     arguments: Record<string, unknown>  // Partial/streaming arguments
   }
 }
@@ -256,12 +254,18 @@ These messages are internal to the Host ↔ Sandbox communication and are NOT fo
 
 #### `ui/notifications/tool-result` (Notification)
 ```typescript
+// Per SEP-1865, params matches MCP CallToolResult type
 {
   jsonrpc: "2.0",
   method: "ui/notifications/tool-result",
   params: {
-    toolName: string,
-    result: unknown
+    content: [                              // MCP content array
+      { type: "text", text: string },
+      // ... other content types
+    ],
+    structuredContent?: Record<string, unknown>,  // Structured data for UI rendering
+    _meta?: Record<string, unknown>,              // Additional metadata
+    isError?: boolean                             // Whether the tool call failed
   }
 }
 ```
@@ -365,13 +369,13 @@ Tools can link to UI resources via metadata:
 - `ui/notifications/host-context-changed` - theme and viewport changes
 - `ui/open-link` - opening external URLs
 - `ui/message` - sending messages to chat
+- `ui/notifications/tool-input` - sending tool inputs to the UI
+- `ui/notifications/tool-result` - sending tool results to the UI
 - CSP enforcement based on resource metadata
 
 ### 🚧 TODO
 - `ui/resource-teardown` - cleanup before UI removal
-- `ui/notifications/tool-input` - sending tool inputs
 - `ui/notifications/tool-input-partial` - streaming tool inputs
-- `ui/notifications/tool-result` - sending tool results
 - `ui/notifications/tool-cancelled` - cancellation
 - MCP passthrough (`tools/call`, `resources/read`, etc.)
 

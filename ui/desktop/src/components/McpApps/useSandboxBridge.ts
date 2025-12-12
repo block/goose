@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { JsonRpcMessage, JsonRpcRequest } from './types';
+import { JsonRpcMessage, JsonRpcRequest, ToolInput, ToolResult } from './types';
 import {
   fetchMcpAppProxyUrl,
   createSandboxResourceReadyMessage,
   createInitializeResponse,
   createHostContextChangedNotification,
+  createToolInputNotification,
+  createToolResultNotification,
   getCurrentTheme,
   HostContext,
 } from './utils';
@@ -13,6 +15,8 @@ interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: Record<string, string[]> | null;
   resourceUri: string;
+  toolInput?: ToolInput;
+  toolResult?: ToolResult;
   appendMessage?: (value: string) => void;
 }
 
@@ -23,7 +27,7 @@ interface SandboxBridgeResult {
 }
 
 export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
-  const { resourceHtml, resourceCsp, resourceUri, appendMessage } = options;
+  const { resourceHtml, resourceCsp, resourceUri, toolInput, toolResult, appendMessage } = options;
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
@@ -218,6 +222,20 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [handleMessage]);
+
+  // Send tool input when guest is initialized
+  useEffect(() => {
+    if (!isGuestInitialized || !toolInput) return;
+    console.log('🐛 McpAppRenderer: Sending tool input', toolInput);
+    sendToSandbox(createToolInputNotification(toolInput));
+  }, [isGuestInitialized, toolInput, sendToSandbox]);
+
+  // Send tool result when guest is initialized and result is available
+  useEffect(() => {
+    if (!isGuestInitialized || !toolResult) return;
+    console.log('🐛 McpAppRenderer: Sending tool result', toolResult);
+    sendToSandbox(createToolResultNotification(toolResult));
+  }, [isGuestInitialized, toolResult, sendToSandbox]);
 
   // Watch for theme changes via localStorage
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { JsonRpcNotification, JsonRpcResponse } from './types';
+import { JsonRpcNotification, JsonRpcResponse, ToolInput, ToolResult } from './types';
 import packageJson from '../../../package.json';
 
 /**
@@ -17,6 +17,28 @@ export async function fetchMcpAppProxyUrl(): Promise<string | null> {
     console.error('Error fetching MCP App Proxy URL:', error);
     return null;
   }
+}
+
+/**
+ * Create a tool-input notification to send tool arguments to the guest UI.
+ */
+export function createToolInputNotification(toolInput: ToolInput): JsonRpcNotification {
+  return {
+    jsonrpc: '2.0',
+    method: 'ui/notifications/tool-input',
+    params: { arguments: toolInput.arguments },
+  };
+}
+
+/**
+ * Create a tool-result notification to send tool execution result to the guest UI.
+ */
+export function createToolResultNotification(toolResult: ToolResult): JsonRpcNotification {
+  return {
+    jsonrpc: '2.0',
+    method: 'ui/notifications/tool-result',
+    params: toolResult as Record<string, unknown>,
+  };
 }
 
 /**
