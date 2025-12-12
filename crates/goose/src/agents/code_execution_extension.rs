@@ -8,6 +8,7 @@ use boa_engine::module::{MapModuleLoader, Module, SyntheticModuleInitializer};
 use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsNativeError, JsString, JsValue, NativeFunction, Source};
 use indoc::indoc;
+use regex::Regex;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, Content, GetPromptResult, Implementation,
     InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
@@ -17,7 +18,7 @@ use rmcp::model::{
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -38,8 +39,20 @@ struct ExecuteCodeParams {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ReadModuleParams {
-    /// Module path: "server" for all tools, "server/tool" for one tool
-    path: String,
+    /// Module path: "server" for all tools, "server/tool" for one tool. Required unless search is provided.
+    path: Option<String>,
+    /// Search terms to find servers/tools (case-insensitive). Can be a single string or array of strings.
+    search: Option<SearchTerms>,
+    /// If true, treat search terms as regex patterns
+    #[serde(default)]
+    regex: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum SearchTerms {
+    Single(String),
+    Multiple(Vec<String>),
 }
 
 struct ToolInfo {
@@ -338,10 +351,38 @@ impl CodeExecutionClient {
         let path = arguments
             .as_ref()
             .and_then(|a| a.get("path"))
-            .and_then(|v| v.as_str())
-            .ok_or("Missing required parameter: path")?;
+            .and_then(|v| v.as_str());
+
+        let search = arguments.as_ref().and_then(|a| {
+            a.get("search").map(|v| {
+                if let Some(s) = v.as_str() {
+                    vec![s.to_string()]
+                } else if let Some(arr) = v.as_array() {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                } else {
+                    vec![]
+                }
+            })
+        });
+
+        let use_regex = arguments
+            .as_ref()
+            .and_then(|a| a.get("regex"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let tools = self.get_tool_infos().await;
+
+        if let Some(terms) = search {
+            if terms.is_empty() {
+                return Err("Search terms cannot be empty".to_string());
+            }
+            return Self::handle_search(&tools, &terms, use_regex);
+        }
+
+        let path = path.ok_or("Missing required parameter: path (or use search)")?;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
         match parts.as_slice() {
@@ -374,6 +415,80 @@ impl CodeExecutionClient {
                 "Invalid path: {path}. Use 'server' or 'server/tool'"
             )),
         }
+    }
+
+    fn handle_search(
+        tools: &[ToolInfo],
+        terms: &[String],
+        use_regex: bool,
+    ) -> Result<Vec<Content>, String> {
+        enum Matcher {
+            Regex(Vec<Regex>),
+            Plain(Vec<String>),
+        }
+
+        let matcher = if use_regex {
+            let patterns: Result<Vec<_>, _> = terms
+                .iter()
+                .map(|t| {
+                    Regex::new(&format!("(?i){t}")).map_err(|e| format!("Invalid regex '{t}': {e}"))
+                })
+                .collect();
+            Matcher::Regex(patterns?)
+        } else {
+            Matcher::Plain(terms.iter().map(|t| t.to_lowercase()).collect())
+        };
+
+        let matches_any = |text: &str| -> bool {
+            match &matcher {
+                Matcher::Regex(patterns) => patterns.iter().any(|p| p.is_match(text)),
+                Matcher::Plain(terms) => {
+                    let lower = text.to_lowercase();
+                    terms.iter().any(|t| lower.contains(t))
+                }
+            }
+        };
+
+        let mut matching_servers: BTreeSet<&str> = BTreeSet::new();
+        let mut matching_tools: Vec<&ToolInfo> = Vec::new();
+
+        for tool in tools {
+            if matches_any(&tool.server_name) {
+                matching_servers.insert(&tool.server_name);
+            }
+            if matches_any(&tool.tool_name) || matches_any(&tool.description) {
+                matching_tools.push(tool);
+            }
+        }
+
+        if matching_servers.is_empty() && matching_tools.is_empty() {
+            return Err(format!("No matches found for: {}", terms.join(", ")));
+        }
+
+        let mut output = String::new();
+
+        if !matching_servers.is_empty() {
+            output.push_str("## Matching Servers\n");
+            for server in &matching_servers {
+                let count = tools.iter().filter(|t| t.server_name == *server).count();
+                output.push_str(&format!("- {server} ({count} tools)\n"));
+            }
+            output.push('\n');
+        }
+
+        if !matching_tools.is_empty() {
+            output.push_str("## Matching Tools\n");
+            for tool in &matching_tools {
+                output.push_str(&format!(
+                    "- {}/{}: {}\n",
+                    tool.server_name,
+                    tool.tool_name,
+                    tool.description.lines().next().unwrap_or("")
+                ));
+            }
+        }
+
+        Ok(vec![Content::text(output)])
     }
 
     async fn run_tool_handler(
@@ -496,6 +611,12 @@ impl McpClientTrait for CodeExecutionClient {
                         - "serverName" → lists all tools with signatures (shows required vs optional params)
                         - "serverName/toolName" → full details for one tool including description
 
+                        SEARCH:
+                        - Use search parameter to find tools by name or description
+                        - Example: read_module({ search: "file" }) finds all file-related tools
+                        - Can pass array: read_module({ search: ["git", "shell"] })
+                        - Set regex: true to use regex patterns
+
                         USE THIS BEFORE execute_code when:
                         - You haven't used a tool before
                         - You're unsure of parameter names or which are required
@@ -570,7 +691,7 @@ impl McpClientTrait for CodeExecutionClient {
             return None;
         }
 
-        let mut servers: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        let mut servers: BTreeSet<&str> = BTreeSet::new();
         for tool in &tools {
             servers.insert(&tool.server_name);
         }
@@ -635,5 +756,122 @@ mod tests {
 
         let result = client.handle_read_module(Some(args)).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_search_plain_text() {
+        let tools = vec![
+            ToolInfo {
+                server_name: "developer".to_string(),
+                tool_name: "shell".to_string(),
+                full_name: "developer__shell".to_string(),
+                description: "Execute shell commands".to_string(),
+                params: vec![("command".to_string(), "string".to_string(), true)],
+            },
+            ToolInfo {
+                server_name: "developer".to_string(),
+                tool_name: "text_editor".to_string(),
+                full_name: "developer__text_editor".to_string(),
+                description: "Edit text files".to_string(),
+                params: vec![("path".to_string(), "string".to_string(), true)],
+            },
+            ToolInfo {
+                server_name: "git".to_string(),
+                tool_name: "commit".to_string(),
+                full_name: "git__commit".to_string(),
+                description: "Commit changes to git".to_string(),
+                params: vec![("message".to_string(), "string".to_string(), true)],
+            },
+        ];
+
+        // Search for "shell" - should match tool name
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["shell".to_string()], false).unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer/shell"));
+        assert!(!text.contains("git/commit"));
+
+        // Search for "developer" - should match server name
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["developer".to_string()], false).unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer (2 tools)"));
+
+        // Search for "edit" - should match description
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["edit".to_string()], false).unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer/text_editor"));
+
+        // Search for multiple terms
+        let result = CodeExecutionClient::handle_search(
+            &tools,
+            &["shell".to_string(), "git".to_string()],
+            false,
+        )
+        .unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer/shell"));
+        assert!(text.contains("git/commit"));
+
+        // Search with no matches
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["nonexistent".to_string()], false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_search_regex() {
+        let tools = vec![
+            ToolInfo {
+                server_name: "developer".to_string(),
+                tool_name: "shell".to_string(),
+                full_name: "developer__shell".to_string(),
+                description: "Execute shell commands".to_string(),
+                params: vec![],
+            },
+            ToolInfo {
+                server_name: "developer".to_string(),
+                tool_name: "text_editor".to_string(),
+                full_name: "developer__text_editor".to_string(),
+                description: "Edit text files".to_string(),
+                params: vec![],
+            },
+        ];
+
+        // Regex search for "sh.*" - should match shell
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["sh.*".to_string()], true).unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer/shell"));
+
+        // Regex search for "^text" - should match text_editor
+        let result =
+            CodeExecutionClient::handle_search(&tools, &["^text".to_string()], true).unwrap();
+        let text = match &result[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("Expected text"),
+        };
+        assert!(text.contains("developer/text_editor"));
+
+        // Invalid regex should error
+        let result = CodeExecutionClient::handle_search(&tools, &["[invalid".to_string()], true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid regex"));
     }
 }
