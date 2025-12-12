@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="referrer" content="no-referrer"/>
+    <!-- 
+      CSP for the Sandbox itself. Must be permissive enough to allow the inner
+      Guest UI iframe to load external resources. The Guest UI has its own
+      restrictive CSP applied dynamically based on resource metadata.
+    -->
+    <meta 
+      http-equiv="Content-Security-Policy" 
+      content="default-src 'self' blob: data: https: http:; script-src 'unsafe-inline'; style-src 'unsafe-inline' https: http:; style-src-elem 'unsafe-inline' https: http:; font-src https: http: data:; img-src https: http: data: blob:; connect-src https: http:; frame-src blob: data:;"/>
+    <title>MCP App Sandbox</title>
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function() {
+        'use strict';
+
+        let guestIframe = null;
+        let guestOrigin = null;
+
+        /**
+         * Build CSP string for the Guest UI iframe.
+         * Enforces domains from ui.csp metadata, prevents nested iframes,
+         * blocks dangerous features, applies restrictive defaults if no CSP provided.
+         * 
+         * cspMetadata format:
+         * {
+         *   connectDomains: string[],  // Domains for fetch/XHR/WebSocket
+         *   resourceDomains: string[]  // Domains for styles, fonts, images, scripts
+         * }
+         */
+        function buildGuestCSP(cspMetadata) {
+          // Build resource domains string (for styles, fonts, images, scripts, media)
+          var resourceDomains = '';
+          if (cspMetadata && Array.isArray(cspMetadata.resourceDomains)) {
+            resourceDomains = ' ' + cspMetadata.resourceDomains.join(' ');
+          }
+
+          // Build connect domains string (for fetch, XHR, WebSocket)
+          var connectDomains = '';
+          if (cspMetadata && Array.isArray(cspMetadata.connectDomains)) {
+            connectDomains = ' ' + cspMetadata.connectDomains.join(' ');
+          }
+
+          // CSP directives matching the ext-apps reference implementation
+          const directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:" + resourceDomains,
+            "style-src 'self' 'unsafe-inline' blob: data:" + resourceDomains,
+            "style-src-elem 'self' 'unsafe-inline'" + resourceDomains,
+            "img-src 'self' data: blob:" + resourceDomains,
+            "font-src 'self' data: blob:" + resourceDomains,
+            "media-src 'self' data: blob:" + resourceDomains,
+            "connect-src 'self'" + connectDomains + resourceDomains,
+            "frame-src 'none'",
+            "object-src 'none'",
+            "base-uri 'self'"
+          ];
+
+          return directives.join('; ');
+        }
+
+        /**
+         * Create the Guest UI iframe with the provided HTML and CSP.
+         */
+        function createGuestIframe(html, cspMetadata) {
+          if (guestIframe) {
+            guestIframe.remove();
+          }
+
+          guestIframe = document.createElement('iframe');
+          
+          // Build and apply CSP via sandbox + csp attribute
+          const cspString = buildGuestCSP(cspMetadata);
+          console.log('🐛 Generated CSP string:', cspString);
+          
+          // The inner iframe uses srcdoc, so origin will be 'null'
+          guestOrigin = 'null';
+          
+          // Sandbox permissions for the Guest UI
+          // allow-scripts: needed for the app to run
+          // allow-same-origin: needed for localStorage, cookies, etc.
+          // allow-forms: needed if the app has forms
+          guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+          
+          // Inject CSP into the HTML via meta tag
+          const cspMeta = '<meta http-equiv="Content-Security-Policy" content="' + 
+            cspString.replace(/"/g, '&quot;') + '">';
+          
+          // Inject CSP meta tag at the beginning of <head> or create one
+          let modifiedHtml = html;
+          if (html.includes('<head>')) {
+            modifiedHtml = html.replace('<head>', '<head>' + cspMeta);
+          } else if (html.includes('<html>')) {
+            modifiedHtml = html.replace('<html>', '<html><head>' + cspMeta + '</head>');
+          } else {
+            modifiedHtml = '<html><head>' + cspMeta + '</head><body>' + html + '</body></html>';
+          }
+          
+          guestIframe.srcdoc = modifiedHtml;
+          guestIframe.style.cssText = 'width:100%; height:100%; border:none;';
+          
+          document.body.appendChild(guestIframe);
+        }
+
+        /**
+         * Handle messages from the Host (parent window).
+         */
+        function handleHostMessage(event) {
+          if (event.source !== window.parent) {
+            return;
+          }
+
+          var data = event.data;
+          if (!data || typeof data !== 'object') {
+            return;
+          }
+
+          var method = data.method;
+
+          // Handle sandbox-specific notifications from Host
+          if (method === 'ui/notifications/sandbox-resource-ready') {
+            var params = data.params || {};
+            var html = params.html || '';
+            var csp = params.csp || null;
+            
+            console.log('🐛 Sandbox received CSP:', JSON.stringify(csp, null, 2));
+            createGuestIframe(html, csp);
+            return;
+          }
+
+          // Forward all other messages to Guest UI (if it exists)
+          // This includes lifecycle messages like responses to ui/initialize
+          if (guestIframe && guestIframe.contentWindow) {
+            guestIframe.contentWindow.postMessage(data, '*');
+          }
+        }
+
+        /**
+         * Handle messages from the Guest UI (inner iframe).
+         */
+        function handleGuestMessage(event) {
+          if (!guestIframe || event.source !== guestIframe.contentWindow) {
+            return;
+          }
+
+          var data = event.data;
+          if (!data || typeof data !== 'object') {
+            return;
+          }
+
+          // Forward all messages from Guest UI to Host
+          // The Sandbox does NOT create its own requests - just relays
+          window.parent.postMessage(data, '*');
+        }
+
+        /**
+         * Main message handler - routes to appropriate handler.
+         */
+        function handleMessage(event) {
+          if (event.source === window.parent) {
+            handleHostMessage(event);
+          } else if (guestIframe && event.source === guestIframe.contentWindow) {
+            handleGuestMessage(event);
+          }
+        }
+
+        // Set up message listener
+        window.addEventListener('message', handleMessage);
+
+        // Notify Host that Sandbox is ready
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          method: 'ui/notifications/sandbox-ready'
+        }, '*');
+      })();
+    </script>
+  </body>
+</html>

@@ -3,6 +3,7 @@ pub mod agent;
 pub mod audio;
 pub mod config_management;
 pub mod errors;
+pub mod mcp_app_proxy;
 pub mod mcp_ui_proxy;
 pub mod recipe;
 pub mod recipe_utils;
@@ -32,5 +33,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
         .merge(tunnel::routes(state.clone()))
-        .merge(mcp_ui_proxy::routes(secret_key))
+        .merge(mcp_ui_proxy::routes(secret_key.clone()))
+        .merge(mcp_app_proxy::routes(secret_key))
 }

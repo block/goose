@@ -17,7 +17,7 @@ import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
-import { mockResourceReadResult } from './McpApps/mock-app-data';
+import { mockResourceReadResult } from './McpApps/mockAppData';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
