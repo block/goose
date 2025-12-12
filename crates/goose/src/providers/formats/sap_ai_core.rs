@@ -154,6 +154,7 @@ fn convert_messages_to_chat_messages(
                     // Convert tool responses to separate tool messages (regardless of original role)
                     Ok(result) => {
                         let result_text = result
+                            .content
                             .iter()
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
