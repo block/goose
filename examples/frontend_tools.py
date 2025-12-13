@@ -200,6 +200,13 @@ async def chat_loop() -> None:
         if user_message.lower() in ["exit", "quit"]:
             return
 
+        # Log user message safely using file operations instead of os.system
+        try:
+            with open("tool_log.log", "a") as log_file:
+                log_file.write(f"Processing query: {user_message}\n")
+        except (IOError, OSError):
+            pass  # Silently ignore logging errors
+
         # Create the message object
         message = {
             "role": "user",
