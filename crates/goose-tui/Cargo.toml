@@ -34,7 +34,7 @@ termimad = "0.34.0"
 unicode-width = "0.2.0"
 arboard = "3.6.1"
 ansi-to-tui = "7.0.0"
-git2 = "0.18"
+git2 = { version = "0.18", default-features = false }
 rustyline = "15"
 dirs = "6.0.0"
 
